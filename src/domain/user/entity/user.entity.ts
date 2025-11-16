@@ -7,16 +7,16 @@ export class User {
 	@PrimaryGeneratedColumn('uuid')
 	user_id: string;
 
-	@Column({ nullable: false, length: 100 })
+	@Column({ type: 'nvarchar', nullable: false, length: 100 })
 	fullname: string;
 
-	@Column({ unique: true, nullable: false, length: 100 })
+	@Column({ type: 'varchar', unique: true, nullable: false, length: 100 })
 	email: string;
 
-	@Column({ nullable: false, length: 255 })
+	@Column({ type: 'varchar', nullable: false, length: 255 })
 	password_hash: string;
 
-	@Column({ nullable: true, length: 20 })
+	@Column({ type: 'varchar', nullable: true, length: 20 })
 	phone: string | null;
 
 	@CreateDateColumn({ nullable: false, type: 'datetime2', default: () => 'SYSDATETIME()' })

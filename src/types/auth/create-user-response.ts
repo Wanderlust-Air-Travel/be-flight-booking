@@ -10,8 +10,8 @@ class CreateUserResponseUser {
   @ApiProperty({ example: 'Nguyen Van A', description: 'User full name' })
   fullname: string;
 
-  @ApiProperty({ example: '0901234567', description: 'User phone number' })
-  phone: string;
+  @ApiProperty({ example: '0901234567', description: 'User phone number', nullable: true })
+  phone: string | null;
 }
 
 export class CreateUserResponse {

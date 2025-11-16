@@ -1,9 +1,10 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, RelationId, Unique } from "typeorm";
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, RelationId } from "typeorm";
 import { FlightInstance } from "./flight-instance.entity";
 import { SeatConfiguration } from "src/domain/seat/entity/seat-configuration.entity";
 
 @Entity({ name: 'FlightSeats', schema: 'dbo' })
-@Unique('UQ_FlightSeats_Instance_SeatNumber', ['flight_instance_id', 'seat_number'])
+// Unique constraint UQ_FlightSeats_Instance_SeatNumber đã được tạo trong DB schema
+// Không cần khai báo ở đây vì TypeORM sẽ gặp lỗi với @RelationId properties
 export class FlightSeat {
 	@PrimaryGeneratedColumn('uuid')
 	flight_seat_id: string;

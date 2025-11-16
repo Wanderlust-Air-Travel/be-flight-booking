@@ -1,8 +1,9 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, RelationId, Unique } from "typeorm";
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, RelationId } from "typeorm";
 import { Airport } from "src/domain/airport/entity/airport.entity";
 
 @Entity({ name: 'Routes', schema: 'dbo' })
-@Unique('UQ_Routes_Origin_Destination', ['origin_airport_id', 'destination_airport_id'])
+// Unique constraint UQ_Routes_Origin_Destination đã được tạo trong DB schema
+// Không cần khai báo ở đây vì TypeORM sẽ gặp lỗi với @RelationId properties
 export class Route {
 	@PrimaryGeneratedColumn('uuid')
 	route_id: string;

@@ -10,8 +10,8 @@ class LoginResponseUser {
   @ApiProperty({ example: 'Nguyen Van A' })
   fullname: string;
 
-  @ApiProperty({ example: '0901234567' })
-  phone: string;
+  @ApiProperty({ example: '0901234567', nullable: true })
+  phone: string | null;
 }
 
 export class LoginResponse {

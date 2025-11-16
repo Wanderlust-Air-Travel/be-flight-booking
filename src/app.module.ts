@@ -4,6 +4,7 @@ import { AppService } from './app.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './domain/auth/auth.module';
+import { SearchClientModule } from './domain/search/search.client.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { AuthModule } from './domain/auth/auth.module';
       entities: [__dirname + '/**/*.entity.{ts,js}'],
     }),
     AuthModule,
+    SearchClientModule,
   ],
   controllers: [AppController],
   providers: [AppService],
