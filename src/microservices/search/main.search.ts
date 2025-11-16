@@ -27,7 +27,7 @@ import { Module } from '@nestjs/common';
 				trustServerCertificate: process.env.DB_TRUE_CERT === 'true',
 			},
 			synchronize: false,
-			entities: [__dirname + '/../../**/*.entity.{ts,js}'],
+			entities: [__dirname + '/../../shared/entities/**/*.entity.{ts,js}'],
 		}),
 		SearchModule,
 	],

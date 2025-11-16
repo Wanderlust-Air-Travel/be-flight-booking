@@ -1,22 +1,13 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Airport } from 'src/domain/airport/entity/airport.entity';
-import { Route } from 'src/domain/route/entity/route.entity';
-import { FlightInstance } from 'src/domain/flight/entity/flight-instance.entity';
-import { FlightSeat } from 'src/domain/flight/entity/flight-seat.entity';
-import { FlightSchedule } from 'src/domain/flight/entity/flight-schedule.entity';
-import { SearchFlightsDto, TripType } from 'src/domain/search/dto/search-flights.dto';
-
-type FlightResult = {
-	flightInstanceId: string;
-	flightNumber: string;
-	departureLocal: Date;
-	arrivalLocal: Date;
-	availableSeats: number;
-	origin: { iata: string; name: string; city: string };
-	destination: { iata: string; name: string; city: string };
-};
+import { Airport } from 'src/shared/entities/airport/airport.entity';
+import { Route } from 'src/shared/entities/route/route.entity';
+import { FlightInstance } from 'src/shared/entities/flight/flight-instance.entity';
+import { FlightSeat } from 'src/shared/entities/flight/flight-seat.entity';
+import { FlightSchedule } from 'src/shared/entities/flight/flight-schedule.entity';
+import { SearchFlightsDto, TripType } from './dto/search-flights.dto';
+import { FlightResult } from './types/flight-result.type';
 
 @Injectable()
 export class SearchService {
@@ -142,5 +133,3 @@ export class SearchService {
 		return bits[dow] === 1;
 	}
 }
-
-

@@ -7,10 +7,10 @@ import { resolve } from 'path';
 config({ path: resolve(process.cwd(), '.env') });
 
 import { DataSource } from 'typeorm';
-import { Airport } from 'src/domain/airport/entity/airport.entity';
-import { Route } from 'src/domain/route/entity/route.entity';
-import { FlightSchedule } from 'src/domain/flight/entity/flight-schedule.entity';
-import { AircraftType } from 'src/domain/aircraft/entity/aircraft-type.entity';
+import { Airport } from 'src/shared/entities/airport/airport.entity';
+import { Route } from 'src/shared/entities/route/route.entity';
+import { FlightSchedule } from 'src/shared/entities/flight/flight-schedule.entity';
+import { AircraftType } from 'src/shared/entities/aircraft/aircraft-type.entity';
 
 const ds = new DataSource({
 	type: 'mssql',
