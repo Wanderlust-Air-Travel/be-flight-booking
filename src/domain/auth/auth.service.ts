@@ -8,6 +8,10 @@ import { LoginDto } from "./dto/login.dto";
 import * as bcrypt from 'bcrypt';
 import { TokenPayload } from "./types/token-payload";
 import type { StringValue } from 'ms';
+import { CreateUserResponse } from "../../types/auth/create-user-response";
+import { LoginResponse } from "../../types/auth/login-response";
+import { TokensResponse } from "../../types/auth/tokens-response";
+import { LogoutResponse } from "../../types/auth/logout-response";
 
 @Injectable()
 export class AuthService {
@@ -17,7 +21,7 @@ export class AuthService {
         private readonly jwt: JwtService,
     ) {}
 
-    async register(data: RegisterDto) {
+    async register(data: RegisterDto): Promise<CreateUserResponse> {
         const existed = await this.usersRepo.findOne({ where: { email: data.email } });
         if (existed) {
             throw new ConflictException('Email already registered');
@@ -47,7 +51,7 @@ export class AuthService {
         };
     }
 
-    async login(data: LoginDto) {
+    async login(data: LoginDto): Promise<LoginResponse> {
         const user = await this.usersRepo.findOne( { where: { email: data.email }});
         if (!user) throw new UnauthorizedException('Invalid credentials');
 
@@ -68,7 +72,7 @@ export class AuthService {
         };
     }
 
-    async refresh(userId: string, refresh_token: string) {
+    async refresh(userId: string, refresh_token: string): Promise<TokensResponse> {
         const user = await this.usersRepo.findOne({ where: { user_id: userId } });
         if (!user) throw new UnauthorizedException();
 
@@ -80,7 +84,7 @@ export class AuthService {
         return tokens;
     }
 
-    async logout(userId: string) {
+    async logout(userId: string): Promise<LogoutResponse> {
         await this.usersRepo.update({ user_id: userId }, { refresh_token: null });
         return { success: true };
     }
