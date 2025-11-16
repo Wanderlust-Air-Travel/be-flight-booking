@@ -1,7 +1,7 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, RelationId } from "typeorm";
 import { User } from "src/domain/user/entity/user.entity";
 
-@Entity()
+@Entity({ name: 'Passengers', schema: 'dbo' })
 export class Passenger {
     @PrimaryGeneratedColumn('uuid')
     passenger_id: string;

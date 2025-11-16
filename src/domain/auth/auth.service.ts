@@ -23,7 +23,7 @@ export class AuthService {
             throw new ConflictException('Email already registered');
         }
 
-        const password_hash = await bcrypt.hash(data.password);
+        const password_hash = await bcrypt.hash(data.password, 10);
         const user = this.usersRepo.create({
             fullname: data.fullname,
             password_hash,
