@@ -2,8 +2,6 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { User } from './domain/user/entity/user.entity';
-import { Passenger } from './domain/passenger/entity/passenger.entity';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './domain/auth/auth.module';
 
@@ -22,7 +20,7 @@ import { AuthModule } from './domain/auth/auth.module';
         trustServerCertificate: process.env.DB_TRUE_CERT === 'true',
        },
       synchronize: false,
-      entities: [User, Passenger],
+      entities: [__dirname + '/**/*.entity.{ts,js}'],
     }),
     AuthModule,
   ],
