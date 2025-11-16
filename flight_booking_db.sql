@@ -1,10 +1,10 @@
 ﻿/* =========================================================
    TẠO DATABASE MỚI
    ========================================================= */
-CREATE DATABASE flight_booking_db_v2;
+CREATE DATABASE flight_booking_db;
 GO
 
-USE flight_booking_db_v2;
+USE flight_booking_db;
 GO
 
 /* =========================================================

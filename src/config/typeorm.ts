@@ -1,6 +1,6 @@
-import { Passenger } from "src/domain/passenger/entity/passenger.entity";
-import { User } from "src/domain/user/entity/user.entity";
 import { DataSource } from "typeorm";
+import { Passenger } from "src/shared/entities/passenger/passenger.entity";
+import { User } from "src/shared/entities/user/user.entity";
 
 export default new DataSource({
     type: 'mssql',
