@@ -12,7 +12,7 @@ http://localhost:3000
 
 ### Authentication
 - **Booking APIs** (`POST /bookings`, `GET /bookings/:id/*`, `PATCH /bookings/:id/*`) yêu cầu JWT authentication
-- **Reservation APIs** (`POST /reservations`, `GET /reservations/*`, `POST /reservations/:id/cancel`) yêu cầu JWT authentication
+- **Reservation APIs** (`POST /reservations`, `GET /reservations`, `GET /reservations/:id`, `POST /reservations/:id/cancel`, `POST /reservations/:id/extend`) yêu cầu JWT authentication
 - Gửi JWT token trong header: `Authorization: Bearer <access_token>`
 - `userId` không cần truyền trong request body - tự động extract từ JWT token
 
@@ -683,6 +683,49 @@ GET /reservations/code/ABC123
 
 ---
 
+### List Reservations (Danh sách reservations của user)
+
+**GET** `/reservations`
+
+Lấy danh sách tất cả active reservations của user hiện tại (từ JWT token).
+
+**Authentication:** Required (JWT Bearer Token)
+
+**Example Request:**
+```
+GET /reservations
+Authorization: Bearer <access_token>
+```
+
+**Response (200 OK):**
+```json
+[
+  {
+    "reservationId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+    "reservationCode": "ABC123",
+    "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+    "fareClassCode": "YS",
+    "numberOfPassengers": 1,
+    "baseFare": 1577000,
+    "taxAmount": 0,
+    "feeAmount": 0,
+    "totalAmount": 1577000,
+    "currencyCode": "VND",
+    "status": "active",
+    "expiresAt": "2025-01-20T10:30:00Z",
+    "ttl": 850,
+    "createdAt": "2025-01-20T10:15:00Z"
+  }
+]
+```
+
+**Lưu ý:**
+- Chỉ trả về reservations với status `active` và chưa expired
+- TTL được tự động update khi list
+- User chỉ có thể xem reservations của chính mình
+
+---
+
 ### Cancel Reservation (Hủy reservation)
 
 **POST** `/reservations/:id/cancel`
@@ -719,6 +762,73 @@ POST /reservations/019a8f4a-bb0e-7402-a0c4-27647b89dc71/cancel
 **Lưu ý:**
 - Chỉ có thể cancel reservation với status `active`
 - Reservation đã expired hoặc cancelled không thể cancel lại
+- User chỉ có thể cancel reservations của chính mình
+
+---
+
+### Extend Reservation (Gia hạn reservation)
+
+**POST** `/reservations/:id/extend`
+
+Gia hạn thời gian expiration của reservation thêm một số giây.
+
+**Authentication:** Required (JWT Bearer Token)
+
+**Path Parameters:**
+- `id`: Reservation ID (UUID v7)
+
+**Request Body:**
+```json
+{
+  "additionalSeconds": 600
+}
+```
+
+**Example Request:**
+```
+POST /reservations/019a8f4a-bb0e-7402-a0c4-27647b89dc71/extend
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+{
+  "additionalSeconds": 600
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "reservationId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "reservationCode": "ABC123",
+  "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "fareClassCode": "YS",
+  "numberOfPassengers": 1,
+  "baseFare": 1577000,
+  "taxAmount": 0,
+  "feeAmount": 0,
+  "totalAmount": 1577000,
+  "currencyCode": "VND",
+  "status": "active",
+  "expiresAt": "2025-01-20T10:40:00Z",
+  "ttl": 1500,
+  "createdAt": "2025-01-20T10:15:00Z"
+}
+```
+
+**Error (400 Bad Request):**
+```json
+{
+  "statusCode": 400,
+  "message": "Cannot extend reservation with status: expired",
+  "error": "Bad Request"
+}
+```
+
+**Lưu ý:**
+- Chỉ có thể extend reservation với status `active` và chưa expired
+- `additionalSeconds` phải là số dương
+- TTL và `expiresAt` sẽ được cập nhật trong Redis
+- User chỉ có thể extend reservations của chính mình
 
 ---
 
@@ -737,7 +847,32 @@ Tạo một booking mới với thông tin passengers, segments (flight instance
 Authorization: Bearer <access_token>
 ```
 
+**Query Parameters (Optional):**
+- `reservationId` (string, optional): Reservation ID (UUID v7) hoặc reservation code (6 alphanumeric). Nếu có, booking sẽ được tạo từ reservation (recommended flow). Backend sẽ tự động lấy `flightInstanceId`, `fareClassCode`, và pricing từ reservation.
+
 **Request Body:**
+
+**Option 1: Tạo booking từ Reservation (Recommended - Backend-managed State):**
+```json
+POST /bookings?reservationId=019a8f4a-bb0e-7402-a0c4-27647b89dc71
+{
+  "passengers": [
+    {
+      "passengerType": "ADT",
+      "fullname": "Nguyen Van A",
+      "dob": "1990-01-15",
+      "gender": "Male",
+      "documentNumber": "001234567890"
+    }
+  ],
+  "contactFullname": "Nguyen Van A",
+  "contactEmail": "nguyenvana@example.com",
+  "contactPhone": "0912345678",
+  "channel": "web"
+}
+```
+
+**Option 2: Tạo booking trực tiếp (Legacy Flow):**
 ```json
 {
   "currencyCode": "VND",
@@ -839,10 +974,20 @@ Authorization: Bearer <access_token>
 ```
 
 **Lưu ý:**
+- **Recommended Flow**: Sử dụng `?reservationId=xxx` để tạo booking từ reservation (backend-managed state)
+  - Backend tự động lấy `flightInstanceId`, `fareClassCode`, và pricing từ reservation
+  - Không cần gửi lại `segments` trong request body
+  - Reservation sẽ tự động được cancel sau khi tạo booking thành công
+- **Legacy Flow**: Tạo booking trực tiếp (không dùng reservation)
+  - Cần gửi đầy đủ `segments` với `flightInstanceId`, `fareClassCode`, pricing
 - PNR code được tự động generate (6 ký tự alphanumeric, unique)
 - Total amount được tính từ tổng của tất cả segments (baseFare + taxAmount + feeAmount)
 - Booking được tạo với status `pending`
 - Transaction-safe: Tất cả operations được thực hiện trong một transaction
+- **Validation khi dùng reservationId**:
+  - Reservation phải còn active và chưa expired
+  - Reservation phải thuộc về user (từ JWT)
+  - Số lượng passengers phải khớp với reservation
 
 ---
 
@@ -1255,12 +1400,15 @@ const { data: fareOptions } = await api.get('/search/fare-options', {
     - Giá trong deals được tính từ historical pricing (BookingSegments) nếu có
     - Nếu chưa có booking, dùng fallback prices (giá mặc định)
     - Giá được format theo chuẩn Việt Nam: "962,000 VND"
-11. **Booking Flow**:
-    - Bước 1: Search flights → `/search/flights`
-    - Bước 2: Chọn flight → Get fare options → `/search/fare-options`
-    - Bước 3: Chọn fare class → Create booking → `POST /bookings`
-    - Bước 4: Xem fare details → `GET /bookings/:id/fare-details`
-    - Bước 5: Update passengers (nếu cần) → `PATCH /bookings/:id/passengers`
-    - Bước 6: Get payment info → `GET /bookings/:id/payment-info`
-    - Bước 7: Thanh toán (API này sẽ được implement sau)
+11. **Booking Flow (Recommended - Backend-managed State)**:
+    - Bước 1: Search flights → `GET /search/flights`
+    - Bước 2: Chọn flight → Get fare options → `GET /search/fare-options`
+    - Bước 3: Chọn fare class → Create reservation → `POST /reservations` (lưu `reservationId`)
+    - Bước 4: Điền thông tin passenger → Create booking from reservation → `POST /bookings?reservationId=xxx`
+    - Bước 5: Xem fare details → `GET /bookings/:id/fare-details`
+    - Bước 6: Update passengers (nếu cần) → `PATCH /bookings/:id/passengers`
+    - Bước 7: Get payment info → `GET /bookings/:id/payment-info`
+    - Bước 8: Thanh toán (API này sẽ được implement sau)
+    
+    **Lưu ý**: Reservation sẽ tự động được cancel sau khi tạo booking thành công.
 

@@ -14,9 +14,11 @@ Tất cả các thay đổi quan trọng của project sẽ được ghi nhận 
   - Reservation tự động expire sau 15 phút (configurable)
   - **Reservation APIs**:
     - `POST /reservations` - Tạo reservation, lưu vào Redis
+    - `GET /reservations` - List tất cả active reservations của user hiện tại
     - `GET /reservations/:id` - Lấy reservation theo ID hoặc code (auto-detect)
     - `GET /reservations/code/:code` - Lấy reservation theo code
     - `POST /reservations/:id/cancel` - Hủy reservation
+    - `POST /reservations/:id/extend` - Gia hạn reservation TTL
   - **Redis Setup**: Cần chạy Redis với Docker (`docker-compose up -d redis`)
   - **Redis Config**: `REDIS_HOST`, `REDIS_PORT`, `REDIS_RESERVATION_TTL` (default: 900 seconds)
 
@@ -27,9 +29,11 @@ Tất cả các thay đổi quan trọng của project sẽ được ghi nhận 
 
 - **Booking APIs**:
   - `POST /bookings` - Tạo booking mới với passengers và segments
+    - **NEW**: Hỗ trợ `?reservationId=xxx` query parameter để tạo booking từ reservation (recommended flow)
     - Tự động generate PNR code (6 ký tự alphanumeric, unique)
     - Transaction-safe với rollback support
     - Response: `{ bookingId, pnrCode, totalAmount, currencyCode, status }`
+    - **Auto-cancel reservation**: Tự động cancel reservation sau khi tạo booking thành công
   - `GET /bookings/:id/fare-details` - Lấy thông tin chi tiết fare đã chọn
     - Bao gồm descriptions với status (true/false) cho mỗi điều kiện
     - Response: `{ bookingId, pnrCode, fareClassName, descriptions[], priceOneWay, totalPassengers, totalPrice }`

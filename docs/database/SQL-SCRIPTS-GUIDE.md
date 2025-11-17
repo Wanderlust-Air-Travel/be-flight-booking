@@ -2,7 +2,7 @@
 
 Hướng dẫn về các file SQL trong project, mục đích và cách sử dụng từng file.
 
-## 📋 Tổng quan
+## Tổng quan
 
 Tất cả SQL scripts được tổ chức trong thư mục `sql/` với cấu trúc phân loại rõ ràng:
 
@@ -23,7 +23,7 @@ Project này có 2 loại SQL scripts:
 
 ---
 
-## 🗄️ Database Schema Scripts
+## Database Schema Scripts
 
 ### `sql/schema/flight_booking_db.sql`
 
@@ -50,11 +50,11 @@ Project này có 2 loại SQL scripts:
 **Lưu ý:**
 - Script này sẽ tạo database mới, nếu database đã tồn tại sẽ báo lỗi
 - Nếu muốn tạo lại, xóa database cũ trước: `DROP DATABASE flight_booking_db;`
-- Script sử dụng `NEWSEQUENTIALID()` cho UUID generation (có thể cần sửa nếu muốn dùng UUID v7)
+- **KHÔNG dùng `DEFAULT NEWSEQUENTIALID()`**: Tất cả IDs phải được generate từ application code (UUID v7)
 
 ---
 
-## 🧹 Data Management Scripts
+## Data Management Scripts
 
 ### `sql/utils/data-management/clear-all-seed-data.sql`
 
@@ -176,9 +176,106 @@ Project này có 2 loại SQL scripts:
 
 ---
 
-## 🔍 Testing & Debugging Scripts
+## Testing Scripts
 
-Các script này giúp kiểm tra và tìm dữ liệu hợp lệ để test API trên Postman.
+Các script này giúp tìm dữ liệu hợp lệ để test API trên Postman.
+
+### `sql/utils/get-user-id-for-test.sql`
+
+**Mục đích:** Lấy user_id hợp lệ (UUID v7 format) nhanh để test booking APIs
+
+**Công dụng:**
+- Lấy một user_id ngẫu nhiên từ database
+- Đảm bảo user_id là UUID v7 format (không phải NEWSEQUENTIALID())
+- Hiển thị thông tin user: email, fullname
+
+**Khi nào sử dụng:**
+- Khi cần user_id để test booking APIs
+- Khi cần verify user_id format là UUID v7
+
+---
+
+### `sql/utils/get-passenger-id-for-test.sql`
+
+**Mục đích:** Lấy passenger_id nhanh để test booking APIs
+
+**Công dụng:**
+- Lấy một passenger_id ngẫu nhiên từ database
+- Hiển thị thông tin passenger: fullname, documentNumber, user_id
+
+**Khi nào sử dụng:**
+- Khi cần passenger_id để test booking APIs
+- Khi test với passenger đã có sẵn
+
+---
+
+### `sql/utils/get-route-id-for-test.sql`
+
+**Mục đích:** Lấy route_id để test upload ảnh
+
+**Công dụng:**
+- Lấy route_id từ database
+- Hiển thị thông tin route: origin, destination, route_id
+
+**Khi nào sử dụng:**
+- Khi cần route_id để test API `POST /routes/:routeId/upload-image`
+
+---
+
+### `sql/utils/get-single-route-id.sql`
+
+**Mục đích:** Lấy 1 route_id nhanh để test upload ảnh
+
+**Công dụng:**
+- Query đơn giản để lấy route_id đầu tiên
+- Nhanh hơn `get-route-id-for-test.sql`
+
+**Khi nào sử dụng:**
+- Khi cần route_id nhanh để test
+
+---
+
+### `sql/utils/check-single-route-image.sql`
+
+**Mục đích:** Kiểm tra image của một route cụ thể
+
+**Công dụng:**
+- Kiểm tra route có `image_url` và `service_link` không
+- Verify format của image_url và service_link
+
+**Khi nào sử dụng:**
+- Sau khi upload ảnh, cần verify route đã có image_url chưa
+
+---
+
+### `sql/utils/check-uploaded-route-images.sql`
+
+**Mục đích:** Kiểm tra các route đã upload ảnh
+
+**Công dụng:**
+- Liệt kê tất cả routes đã có `image_url`
+- Thống kê số lượng routes có/không có image
+
+**Khi nào sử dụng:**
+- Kiểm tra tổng quan routes đã upload ảnh
+- Verify sau khi upload hàng loạt
+
+---
+
+### `sql/utils/test-connection.sql`
+
+**Mục đích:** Test database connection và kiểm tra user permissions
+
+**Công dụng:**
+- Kiểm tra login có tồn tại và enabled không
+- Kiểm tra database user và permissions
+- Hướng dẫn test connection
+
+**Khi nào sử dụng:**
+- Khi gặp lỗi "Login failed"
+- Khi cần verify database connection
+
+---
 
 ### `sql/utils/testing/find-valid-flight-instance-ids.sql`
 
@@ -300,6 +397,10 @@ Các script này giúp kiểm tra và tìm dữ liệu hợp lệ để test API
 
 ---
 
+## Debugging Scripts
+
+Các script này giúp debug và kiểm tra data khi gặp vấn đề.
+
 ### `sql/utils/debugging/quick-check-han-dad.sql`
 
 **Mục đích:** Query nhanh để kiểm tra flights HAN → DAD cho một ngày cụ thể
@@ -406,7 +507,7 @@ Các script này giúp kiểm tra và tìm dữ liệu hợp lệ để test API
 
 ---
 
-## 📝 Tóm tắt
+## Tóm tắt
 
 | File | Loại | Mục đích chính | Khi nào dùng |
 |------|------|----------------|--------------|
@@ -416,6 +517,15 @@ Các script này giúp kiểm tra và tìm dữ liệu hợp lệ để test API
 | `sql/utils/testing/find-valid-flight-instance-ids-business.sql` | Testing | Tìm flightInstanceId hợp lệ (business) | Test API fare-options business |
 | `sql/utils/testing/find-valid-dates-sgn-pqc.sql` | Testing | Tìm ngày có flights SGN→PQC | Test API search flights |
 | `sql/utils/testing/find-valid-round-trip-dates-han-sgn.sql` | Testing | Tìm cặp ngày round trip HAN↔SGN | Test API round trip |
+| `sql/utils/testing/find-valid-passenger-ids.sql` | Testing | Tìm passenger IDs (nhiều options) | Test booking APIs |
+| `sql/utils/testing/find-valid-user-ids.sql` | Testing | Tìm user IDs (nhiều options) | Test booking APIs |
+| `sql/utils/get-user-id-for-test.sql` | Testing | Lấy user_id (UUID v7) nhanh | Test booking APIs |
+| `sql/utils/get-passenger-id-for-test.sql` | Testing | Lấy passenger_id nhanh | Test booking APIs |
+| `sql/utils/get-route-id-for-test.sql` | Testing | Lấy route_id để test | Test upload image API |
+| `sql/utils/get-single-route-id.sql` | Testing | Lấy 1 route_id nhanh | Test upload image API |
+| `sql/utils/check-single-route-image.sql` | Testing | Kiểm tra image của route | Verify sau upload |
+| `sql/utils/check-uploaded-route-images.sql` | Testing | Kiểm tra routes đã upload ảnh | Verify tổng quan |
+| `sql/utils/test-connection.sql` | Testing | Test database connection | Debug connection issues |
 | `sql/utils/debugging/quick-check-han-dad.sql` | Debugging | Kiểm tra nhanh HAN→DAD | Debug API không trả về kết quả |
 | `sql/utils/debugging/quick-check-sgn-pqc.sql` | Debugging | Kiểm tra nhanh SGN→PQC | Debug API không trả về kết quả |
 | `sql/utils/debugging/check-han-dad-flights.sql` | Debugging | Kiểm tra chi tiết HAN→DAD | Debug sâu về data chain |
@@ -423,7 +533,7 @@ Các script này giúp kiểm tra và tìm dữ liệu hợp lệ để test API
 
 ---
 
-## 💡 Best Practices
+## Best Practices
 
 1. **Luôn backup database** trước khi chạy `clear-all-seed-data.sql`
 2. **Kiểm tra database name** trong các scripts trước khi chạy
@@ -433,10 +543,10 @@ Các script này giúp kiểm tra và tìm dữ liệu hợp lệ để test API
 
 ---
 
-## 🔗 Liên quan
+## Liên quan
 
-- [sql/README.md](./sql/README.md) - Cấu trúc thư mục SQL scripts
+- [sql/README.md](../sql/README.md) - Cấu trúc thư mục SQL scripts
 - [SEED-README.md](./SEED-README.md) - Hướng dẫn về seed scripts
-- [README.md](./README.md) - Hướng dẫn setup project
-- [API_DOCS.md](./API_DOCS.md) - API documentation
+- [TRIGGERS.md](./TRIGGERS.md) - Database triggers documentation
+- [ERD.md](./ERD.md) - Entity Relationship Diagram
 

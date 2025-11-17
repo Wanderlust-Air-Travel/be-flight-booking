@@ -6,14 +6,14 @@ Reservation Service được tích hợp vào **Booking Microservice** để qu�
 
 ## Tại sao dùng Redis thay vì Database Table?
 
-✅ **Ưu điểm của Redis:**
+**Ưu điểm của Redis:**
 - **Temporary data**: Reservation chỉ tồn tại 15-30 phút, không cần persist lâu dài
 - **TTL tự động**: Redis tự động xóa data sau khi hết hạn (không cần cleanup job)
 - **Performance**: Redis nhanh hơn database cho read/write operations
 - **Không cần migration**: Không phải tạo table, index, trigger mới trong DB
 - **Stateless**: Dễ scale và không ảnh hưởng đến database schema
 
-❌ **Nhược điểm của Database Table:**
+**Nhược điểm của Database Table:**
 - Phải tạo table, index, trigger mới
 - Cần cleanup job để xóa expired reservations
 - Tăng load cho database (reservations là temporary data)
@@ -23,17 +23,14 @@ Reservation Service được tích hợp vào **Booking Microservice** để qu�
 
 ```
 1. User Search Flights
-   ↓
    GET /search/flights
-   → Response: flightInstanceId, flightNumber, departure, arrival...
+   Response: flightInstanceId, flightNumber, departure, arrival...
 
-2. User chọn Flight → Get Fare Options
-   ↓
+2. User chọn Flight - Get Fare Options
    GET /search/fare-options?flightInstanceId=xxx&cabinType=economy
-   → Response: fareClassCode, price, desc, availableSeats...
+   Response: fareClassCode, price, desc, availableSeats...
 
-3. User chọn Fare Class → Tạo Reservation (Backend lưu vào Redis)
-   ↓
+3. User chọn Fare Class - Tạo Reservation (Backend lưu vào Redis)
    POST /reservations (với JWT token)
    {
      flightInstanceId: "xxx",  // Từ bước 1
@@ -41,7 +38,7 @@ Reservation Service được tích hợp vào **Booking Microservice** để qu�
      numberOfPassengers: 1,
      currencyCode: "VND"
    }
-   → Response: {
+   Response: {
        reservationId: "xxx",
        reservationCode: "ABC123",
        expiresAt: "2025-01-20T10:30:00",
@@ -50,15 +47,14 @@ Reservation Service được tích hợp vào **Booking Microservice** để qu�
      }
 
 4. Backend tự động (trong BookingService):
-   ✅ Validate flightInstanceId và fareClassCode
-   ✅ Tính giá từ fareClassCode
-   ✅ Check availability
-   ✅ Lưu vào Redis với TTL (15 phút)
-   ✅ Generate reservationCode (unique)
-   ✅ Redis tự động expire sau TTL
+   - Validate flightInstanceId và fareClassCode
+   - Tính giá từ fareClassCode
+   - Check availability
+   - Lưu vào Redis với TTL (15 phút)
+   - Generate reservationCode (unique)
+   - Redis tự động expire sau TTL
 
-5. User điền thông tin passenger → Tạo Booking từ Reservation
-   ↓
+5. User điền thông tin passenger - Tạo Booking từ Reservation
    POST /bookings?reservationId=xxx (với JWT token)
    {
      passengers: [...],
@@ -66,17 +62,17 @@ Reservation Service được tích hợp vào **Booking Microservice** để qu�
      contactEmail: "...",
      contactPhone: "..."
    }
-   → Response: {
+   Response: {
        bookingId: "xxx",
        pnrCode: "XYZ789",
        ...
      }
 
 6. Backend tự động:
-   ✅ Validate reservation còn active (lấy từ Redis)
-   ✅ Convert reservation thành booking (lưu vào DB)
-   ✅ Tạo booking với thông tin từ reservation
-   ✅ Reservation tự động expire sau khi convert (hoặc để Redis tự xóa)
+   - Validate reservation còn active (lấy từ Redis)
+   - Convert reservation thành booking (lưu vào DB)
+   - Tạo booking với thông tin từ reservation
+   - Reservation tự động expire sau khi convert (hoặc để Redis tự xóa)
 ```
 
 ## Redis Keys Structure
@@ -178,14 +174,14 @@ Hủy reservation, xóa khỏi Redis.
 
 ## Không cần Database Table
 
-❌ **KHÔNG cần:**
+**KHÔNG cần:**
 - Table `Reservations` trong database
 - Entity `Reservation` trong TypeORM (có thể xóa)
 - SQL migration script `add-reservations-table.sql` (có thể xóa)
 - Cleanup job để xóa expired reservations
 - Index, trigger, foreign keys cho reservations
 
-✅ **Chỉ cần:**
+**Chỉ cần:**
 - Redis server (Docker)
 - RedisService (đã implement)
 - BookingService methods (đã implement)
