@@ -19,6 +19,9 @@ sql/
     │   ├── find-valid-dates-sgn-pqc.sql
     │   └── find-valid-round-trip-dates-han-sgn.sql
     │
+    ├── get-route-id-for-test.sql  # Lấy route_id để test upload ảnh (nhiều options)
+    └── get-single-route-id.sql    # Lấy 1 route_id nhanh để test upload ảnh
+    │
     └── debugging/             # Scripts debug và kiểm tra data
         ├── quick-check-han-dad.sql
         ├── quick-check-sgn-pqc.sql
@@ -64,10 +67,15 @@ sql/
 - `find-valid-flight-instance-ids-business.sql` - Tìm flightInstanceId hợp lệ để test API fare-options (business)
 - `find-valid-dates-sgn-pqc.sql` - Tìm ngày có flights cho route SGN → PQC
 - `find-valid-round-trip-dates-han-sgn.sql` - Tìm cặp ngày hợp lệ cho round trip HAN ↔ SGN
+- `get-route-id-for-test.sql` - Lấy route_id để test upload ảnh (nhiều options: tất cả, chưa có image, đã có image, với route detail)
+- `get-single-route-id.sql` - Lấy 1 route_id nhanh để test upload ảnh
+- `check-uploaded-route-images.sql` - Kiểm tra ảnh đã được upload và update vào database (verify sau khi upload)
 
 **Khi nào dùng:**
 - Khi test API trên Postman nhưng không biết dữ liệu nào hợp lệ
 - Khi cần tìm flightInstanceId, dates, routes để test
+- Khi cần route_id để test API upload ảnh (`POST /routes/:routeId/upload-image`)
+- Sau khi upload ảnh, cần verify xem `image_url` đã được update vào database chưa
 
 ---
 
