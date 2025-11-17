@@ -41,14 +41,18 @@ sql/
 ---
 
 ### `utils/data-management/`
-**Mục đích:** Scripts quản lý dữ liệu (xóa, reset, cleanup)
+**Mục đích:** Scripts quản lý dữ liệu (xóa, reset, cleanup, migration)
 
 **Files:**
 - `clear-all-seed-data.sql` - Xóa toàn bộ seed data để chạy lại seed script
+- `add-image-link-to-routes.sql` - Migration: Thêm `image_url` và `service_link` vào bảng Routes (có validation)
+- `create-trigger-auto-generate-image-link.sql` - Tạo trigger tự động generate image/link theo format chuẩn
+- `validate-routes-image-link.sql` - Script kiểm tra validation format của image_url và service_link
 
 **Khi nào dùng:**
 - Reset database để seed lại
 - Cleanup data trước khi test
+- Chạy migration để thêm columns mới vào database
 
 ---
 

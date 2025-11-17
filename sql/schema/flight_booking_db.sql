@@ -71,7 +71,30 @@ CREATE TABLE Routes (
     destination_airport_id UNIQUEIDENTIFIER NOT NULL,
     distance_km INT NULL,
     is_domestic BIT NOT NULL DEFAULT 1,     -- nội địa / quốc tế
+    image_url NVARCHAR(300) NULL,           -- Đường dẫn đến hình ảnh deal, format: '/images/routes/{route_id}.jpg' (length = 55, route_id là UUID v7 - 36 ký tự)
+    service_link NVARCHAR(255) NULL,        -- Link đến trang service, format: '/service/{route_id}' (route_id là UUID v7 - 36 ký tự)
     created_at DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+
+    -- Validation constraints
+    CONSTRAINT CK_Routes_ImageUrl_Format
+        CHECK (
+            image_url IS NULL 
+            OR (
+                image_url LIKE '/images/routes/%.jpg'
+                AND LEN(image_url) = 55  -- '/images/routes/' (15) + UUID v7 (36) + '.jpg' (4) = 55
+                AND SUBSTRING(image_url, 16, 36) = CAST(route_id AS VARCHAR(36))
+            )
+        ),
+    CONSTRAINT CK_Routes_ServiceLink_Format
+        CHECK (
+            service_link IS NULL 
+            OR (
+                service_link LIKE '/service/%'
+                AND LEN(service_link) = 45  -- '/service/' (9) + UUID v7 (36) = 45
+                AND SUBSTRING(service_link, 10, 36) = CAST(route_id AS VARCHAR(36))
+                -- Format: '/service/{route_id}' - route_id phải là UUID v7 của chính route này
+            )
+        ),
 
     CONSTRAINT FK_Routes_OriginAirport
         FOREIGN KEY (origin_airport_id) REFERENCES Airports(airport_id),
@@ -82,6 +105,52 @@ CREATE TABLE Routes (
     CONSTRAINT UQ_Routes_Origin_Destination
         UNIQUE (origin_airport_id, destination_airport_id)
 );
+GO
+
+-- Trigger: Tự động generate image_url và service_link theo format chuẩn
+-- Format chuẩn (theo thực tế các doanh nghiệp):
+-- image_url: '/images/routes/{route_id}.jpg' (dùng route_id để xác định route)
+-- service_link: '/service/{route_id}' (route_id là UUID v7 - 36 ký tự)
+CREATE TRIGGER trg_Routes_AutoGenerateImageLink
+ON Routes
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Chỉ update các records có image_url hoặc service_link NULL hoặc không đúng format
+    UPDATE r
+    SET 
+        -- Generate image_url nếu NULL hoặc không đúng format
+        image_url = CASE 
+            WHEN r.image_url IS NULL 
+                OR r.image_url NOT LIKE '/images/routes/%.jpg'
+                OR LEN(r.image_url) != 55
+                OR SUBSTRING(r.image_url, 16, 36) != CAST(r.route_id AS VARCHAR(36))
+            THEN '/images/routes/' + CAST(r.route_id AS VARCHAR(36)) + '.jpg'
+            ELSE r.image_url
+        END,
+        -- Generate service_link nếu NULL hoặc không đúng format
+        service_link = CASE 
+            WHEN r.service_link IS NULL 
+                OR r.service_link NOT LIKE '/service/%'
+                OR LEN(r.service_link) != 45
+                OR SUBSTRING(r.service_link, 10, 36) != CAST(r.route_id AS VARCHAR(36))
+            THEN '/service/' + CAST(r.route_id AS VARCHAR(36))
+            ELSE r.service_link
+        END
+    FROM Routes r
+    INNER JOIN inserted i ON r.route_id = i.route_id
+    WHERE 
+        r.image_url IS NULL 
+        OR r.service_link IS NULL
+        OR r.image_url NOT LIKE '/images/routes/%.jpg'
+        OR LEN(r.image_url) != 55
+        OR SUBSTRING(r.image_url, 16, 36) != CAST(r.route_id AS VARCHAR(36))
+        OR r.service_link NOT LIKE '/service/%'
+        OR LEN(r.service_link) != 45
+        OR SUBSTRING(r.service_link, 10, 36) != CAST(r.route_id AS VARCHAR(36))
+END
 GO
 
 /* =========================================================
