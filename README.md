@@ -78,24 +78,59 @@ GO
 ```
 
 2. **Chạy SQL Script để tạo tables:**
-   - Xem file `ERD.md` hoặc file SQL schema
-   - Copy và chạy toàn bộ SQL script trong SQL Server Management Studio (SSMS)
+   - Mở file `sql/schema/flight_booking_db.sql` trong SQL Server Management Studio (SSMS)
+   - Copy và chạy toàn bộ SQL script (F5 hoặc Execute)
+   - Xem chi tiết tại [SQL-SCRIPTS-GUIDE.md](./SQL-SCRIPTS-GUIDE.md)
 
 3. **Cấp quyền cho user:**
    - Đảm bảo user trong `.env` có quyền `SELECT, INSERT, UPDATE, DELETE` trên database
 
-### Bước 5: Seed Database (Optional)
+### Bước 5: Seed Database
 
-Seed dữ liệu mẫu cho domestic flights:
+#### Seed full database với hàng ngàn records (Khuyến nghị cho testing)
+
+Seed toàn bộ database với dữ liệu realistic và đầy đủ:
 
 ```bash
-npm run seed:domestic
+npm run seed:full
 ```
 
 Script này sẽ tạo:
-- Airports: HAN (Hà Nội), SGN (TP. HCM), DAD (Đà Nẵng)
-- Routes giữa các sân bay
-- Flight schedules mẫu
+- **Currencies & Payment Methods**: VND, USD, EUR và các phương thức thanh toán
+- **Cabin Classes & Fare Classes**: Economy (3 loại), Business (2 loại)
+- **Aircraft Types & Aircrafts**: 6 loại máy bay, 100+ aircrafts
+- **Seat Configurations**: Hàng ngàn seat configs cho tất cả aircraft types
+- **Airports**: 20 airports (10 domestic + 10 international)
+- **Routes**: ~380 routes giữa tất cả airports
+- **Users & Passengers**: 500 users, 500-1,500 passengers
+- **Flight Schedules**: 300-450 schedules với các operating patterns
+- **Flight Instances**: Hàng ngàn instances cho 60 ngày (2 tháng)
+- **Flight Seats**: Hàng chục ngàn seats với availability status
+- **Bookings**: 500-1,000 bookings với đầy đủ relationships
+- **Tickets & Payments**: Tickets và payments cho confirmed bookings
+
+**Thống kê dữ liệu sau khi seed:**
+- Airports: ~20
+- Routes: ~380
+- Aircraft Types: 6
+- Aircrafts: 100+
+- Seat Configurations: ~1,000+
+- Flight Schedules: 300-450
+- Flight Instances: Hàng ngàn
+- Flight Seats: Hàng chục ngàn
+- Users: 500
+- Passengers: 500-1,500
+- Bookings: 500-1,000
+- Tickets: ~300+
+- Payments: ~400+
+
+**Lưu ý:**
+- Script có thể chạy 15-45 phút tùy vào hiệu năng database
+- Tất cả users có password mặc định: `Password123!`
+- Script tự động check và skip nếu data đã tồn tại
+- **UUID v7**: Tất cả IDs trong database sử dụng UUID v7 (time-ordered UUID) thay vì SQL Server `NEWSEQUENTIALID()`. UUID v7 có thể sắp xếp theo thời gian, tốt cho database indexing và phù hợp với validation.
+- **Để xóa toàn bộ data và chạy lại seed**: Sử dụng file `sql/utils/data-management/clear-all-seed-data.sql` (xem chi tiết trong [SEED-README.md](./SEED-README.md))
+- Xem chi tiết tại: [SEED-README.md](./SEED-README.md)
 
 ### Bước 6: Chạy Backend
 
@@ -138,7 +173,8 @@ npm run start:search
 | `npm run start:search:dev` | Chạy Search Microservice ở development mode (watch mode) |
 | `npm run start:prod` | Chạy API Gateway ở production mode |
 | `npm run start:search` | Chạy Search Microservice ở production mode |
-| `npm run seed:domestic` | Seed dữ liệu mẫu cho domestic flights |
+| `npm run seed:domestic` | Seed dữ liệu mẫu cho domestic flights (nhanh) |
+| `npm run seed:full` | Seed full database với hàng ngàn records (cho testing) |
 | `npm run build` | Build project (compile TypeScript) |
 | `npm run lint` | Chạy ESLint để check code quality |
 | `npm run test` | Chạy unit tests |
@@ -202,6 +238,10 @@ curl -X POST http://localhost:3000/auth/login \
 - **API_DOCS.md**: Chi tiết tất cả APIs cho FE developers
 - **STRUCTURE.md**: Cấu trúc project và best practices
 - **ERD.md**: Database schema và relationships
+- **SEED-README.md**: Hướng dẫn chi tiết về seed scripts
+- **SQL-SCRIPTS-GUIDE.md**: Hướng dẫn về các SQL scripts và cách sử dụng
+- **sql/README.md**: Cấu trúc thư mục SQL scripts
+- **WSL-SQL-SERVER-SETUP.md**: Hướng dẫn kết nối SQL Server từ WSL
 - **Swagger UI**: `http://localhost:3000/api-docs` (Interactive API docs)
 
 ## 🐛 Troubleshooting

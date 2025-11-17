@@ -184,3 +184,4 @@ SEARCH_MS_PORT=4001
 3. **Search API**: Cần cả API Gateway và Search Microservice đều chạy
 4. **Round trip**: Nếu `tripType=round_trip` thì bắt buộc phải có `returnDate`
 5. **Error handling**: Check `statusCode` trong response để handle errors
+6. **UUID v7**: Tất cả IDs trong hệ thống (flightInstanceId, bookingId, userId...) sử dụng **UUID v7** (time-ordered UUID). Format: `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx`. UUID v7 có thể sắp xếp theo thời gian, tốt cho database indexing.
