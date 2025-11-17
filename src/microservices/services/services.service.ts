@@ -27,12 +27,18 @@ export class ServicesService {
 			.where('route.is_domestic = :domestic', { domestic: true })
 			.getMany();
 
-		// Get deals for each route
-		const deals = await Promise.all(
-			routes.map(async (route) => {
-				return this.getDealForRoute(route);
-			}),
-		);
+		// Get deals for each route (both one-way and round-trip if available)
+		const dealsPromises: Promise<FlightDealDto | null>[] = [];
+		
+		for (const route of routes) {
+			// Always try to get one-way deal
+			dealsPromises.push(this.getDealForRoute(route, 'one_way'));
+			
+			// Also try to get round-trip deal if return route exists
+			dealsPromises.push(this.getDealForRoute(route, 'round_trip'));
+		}
+
+		const deals = await Promise.all(dealsPromises);
 
 		// Filter out null deals (routes with no available flights)
 		const validDeals = deals.filter((deal): deal is FlightDealDto => deal !== null);
@@ -47,7 +53,7 @@ export class ServicesService {
 		return { deals: validDeals };
 	}
 
-	private async getDealForRoute(route: Route): Promise<FlightDealDto | null> {
+	private async getDealForRoute(route: Route, tripType: 'one_way' | 'round_trip'): Promise<FlightDealDto | null> {
 		// Find the cheapest available flight instance for this route
 		// Look for flights in the future (next 30 days)
 		const today = new Date();
@@ -134,13 +140,101 @@ export class ServicesService {
 		// Nếu không có trong DB, generate fallback (cho routes cũ chưa có data)
 		const image = route.image_url || this.generateImageUrl(route.route_id);
 		const link = route.service_link || `/service/${route.route_id}`;
-		
+
+		// Handle round-trip deals
+		if (tripType === 'round_trip') {
+			// Find return route (reverse route)
+			const returnRoute = await this.routeRepo
+				.createQueryBuilder('route')
+				.innerJoinAndSelect('route.origin_airport', 'origin')
+				.innerJoinAndSelect('route.destination_airport', 'destination')
+				.where('route.origin_airport_id = :destId', { destId: route.destination_airport_id })
+				.andWhere('route.destination_airport_id = :originId', { originId: route.origin_airport_id })
+				.andWhere('route.is_domestic = :domestic', { domestic: true })
+				.getOne();
+
+			if (!returnRoute) {
+				// No return route, skip round-trip deal
+				return null;
+			}
+
+			// Find return flight instance (7 days after departure, or next available)
+			const returnDate = new Date(selectedInstance.flight_date);
+			returnDate.setDate(returnDate.getDate() + 7); // Default: 7 days later
+			const maxReturnDate = new Date(returnDate);
+			maxReturnDate.setDate(returnDate.getDate() + 30); // Search within 30 days
+
+			const returnInstances = await this.instanceRepo
+				.createQueryBuilder('fi')
+				.innerJoin('fi.flight_schedule', 'fs')
+				.where('fs.route_id = :routeId', { routeId: returnRoute.route_id })
+				.andWhere('fi.flight_date >= :returnDate', { returnDate: returnDate.toISOString().slice(0, 10) })
+				.andWhere('fi.flight_date <= :maxReturnDate', { maxReturnDate: maxReturnDate.toISOString().slice(0, 10) })
+				.andWhere('fi.status IN (:...statuses)', { statuses: ['scheduled', 'on_time'] })
+				.orderBy('fi.flight_date', 'ASC')
+				.getMany();
+
+			if (returnInstances.length === 0) {
+				// No return flights available, skip round-trip deal
+				return null;
+			}
+
+			// Get the first available return instance with seats
+			let selectedReturnInstance: FlightInstance | null = null;
+			for (const instance of returnInstances) {
+				const availableSeats = await this.seatRepo
+					.createQueryBuilder('seat')
+					.where('seat.flight_instance_id = :instanceId', { instanceId: instance.flight_instance_id })
+					.andWhere('seat.is_available = :available', { available: true })
+					.getCount();
+
+				if (availableSeats > 0) {
+					selectedReturnInstance = instance;
+					break;
+				}
+			}
+
+			if (!selectedReturnInstance) {
+				// No available return seats, skip round-trip deal
+				return null;
+			}
+
+			// Get return route price
+			let returnAvgPrice = await this.getHistoricalPriceForRoute(returnRoute.route_id, selectedReturnInstance.flight_instance_id);
+			if (returnAvgPrice === null || returnAvgPrice === 0) {
+				returnAvgPrice = await this.getHistoricalPriceForRoute(returnRoute.route_id);
+			}
+
+			if (returnAvgPrice === null || returnAvgPrice === 0) {
+				// No return price data, skip round-trip deal
+				return null;
+			}
+
+			// Calculate total price for round-trip
+			const totalPrice = avgPrice + returnAvgPrice;
+			const formattedTotalPrice = this.formatPrice(totalPrice);
+			const endDate = this.formatDate(new Date(selectedReturnInstance.flight_date));
+
+			return {
+				image,
+				title,
+				link,
+				startDate,
+				endDate,
+				tripType: 'round_trip',
+				service: 'Dịch vụ bay khứ hồi', // Round-trip service
+				price: formattedTotalPrice,
+			};
+		}
+
+		// One-way deal
 		return {
 			image,
 			title,
 			link,
 			startDate,
-			endDate: '', // One-way flights only for deals
+			endDate: '',
+			tripType: 'one_way',
 			service: 'Dịch vụ bay thẳng', // Direct flight service
 			price: formattedPrice,
 		};

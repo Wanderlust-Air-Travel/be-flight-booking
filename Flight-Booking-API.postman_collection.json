@@ -261,6 +261,103 @@
 			"description": "Search flights and get fare options"
 		},
 		{
+			"name": "Services",
+			"item": [
+				{
+					"name": "Get Flight Deals",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/services/deals",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"services",
+								"deals"
+							]
+						},
+						"description": "Get list of available flight deals with routes, dates, and prices. Returns both one-way and round-trip deals. Requires Services Microservice running on port 4002.\n\n**Response includes:**\n- `tripType`: \"one_way\" or \"round_trip\"\n- `endDate`: Empty for one-way, contains return date for round-trip\n- `service`: \"Dịch vụ bay thẳng\" (one-way) or \"Dịch vụ bay khứ hồi\" (round-trip)\n- `price`: For round-trip, this is the total price of both flights"
+					},
+					"response": [
+						{
+							"name": "Success Response",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/services/deals",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"services",
+										"deals"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"deals\": [\n    {\n      \"image\": \"/images/routes/019a8f4a-bb0e-7402-a0c4-27647b89dc71.jpg\",\n      \"title\": \"Tp. Hồ Chí Minh (SGN) đến Hà Nội (HAN)\",\n      \"link\": \"/service/019a8f4a-bb0e-7402-a0c4-27647b89dc71\",\n      \"startDate\": \"02/03/2026\",\n      \"endDate\": \"\",\n      \"tripType\": \"one_way\",\n      \"service\": \"Dịch vụ bay thẳng\",\n      \"price\": \"962,000 VND\"\n    },\n    {\n      \"image\": \"/images/routes/019a8f4a-bb0e-7402-a0c4-27647b89dc71.jpg\",\n      \"title\": \"Tp. Hồ Chí Minh (SGN) đến Hà Nội (HAN)\",\n      \"link\": \"/service/019a8f4a-bb0e-7402-a0c4-27647b89dc71\",\n      \"startDate\": \"02/03/2026\",\n      \"endDate\": \"09/03/2026\",\n      \"tripType\": \"round_trip\",\n      \"service\": \"Dịch vụ bay khứ hồi\",\n      \"price\": \"1,924,000 VND\"\n    }\n  ]\n}"
+						}
+					]
+				}
+			],
+			"description": "Services APIs - Flight deals"
+		},
+		{
+			"name": "Routes",
+			"item": [
+				{
+					"name": "Upload Route Image",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "image",
+									"type": "file",
+									"src": [],
+									"description": "Image file (JPG, JPEG, PNG, max 5MB)"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/routes/{{routeId}}/upload-image",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"routes",
+								"{{routeId}}",
+								"upload-image"
+							]
+						},
+						"description": "Upload an image for a specific route. Image will be saved to public/images/routes/ and image_url will be updated in database. Requires JWT authentication and Routes Microservice running on port 4003. routeId must be UUID v7 format."
+					},
+					"response": []
+				}
+			],
+			"description": "Routes APIs - Route management"
+		},
+		{
 			"name": "Auth",
 			"item": [
 				{
@@ -388,6 +485,12 @@
 			"value": "2025-11-25",
 			"type": "string",
 			"description": "Return date (YYYY-MM-DD). Phải sau departDate và trong khoảng 60 ngày"
+		},
+		{
+			"key": "routeId",
+			"value": "",
+			"type": "string",
+			"description": "Route ID (UUID v7 format). Example: 019a8f4a-bb0e-7402-a0c4-27647b89dc71. Get this from /services/deals API response or database."
 		}
 	]
 }

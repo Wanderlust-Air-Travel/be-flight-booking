@@ -13,7 +13,8 @@ Tất cả các thay đổi quan trọng của project sẽ được ghi nhận 
   - Cần Routes Microservice chạy (port 4003): `npm run start:routes:dev`
 
 - **API mới**: `GET /services/deals` - Lấy danh sách flight deals
-  - Response: `{ deals: [{ image, title, link, startDate, endDate, service, price }] }`
+  - Response: `{ deals: [{ image, title, link, startDate, endDate, tripType, service, price }] }`
+  - Hỗ trợ cả one-way và round-trip deals
   - Cần Services Microservice chạy (port 4002): `npm run start:services:dev`
 
 - **Database**: Bảng Routes thêm `image_url` và `service_link`
@@ -22,6 +23,10 @@ Tất cả các thay đổi quan trọng của project sẽ được ghi nhận 
 
 ### Changed
 
+- **Services API**: `/services/deals` giờ hỗ trợ cả one-way và round-trip deals
+  - Thêm field `tripType`: `"one_way"` hoặc `"round_trip"`
+  - Round-trip: `endDate` có giá trị, `service` = "Dịch vụ bay khứ hồi", `price` = tổng giá 2 chuyến
+  - One-way: `endDate` = "", `service` = "Dịch vụ bay thẳng"
 - **Pricing**: Chỉ dùng historical pricing (average từ BookingSegments), bỏ fallback
 - **Image/Link format**: Dùng UUID v7 thay vì số tự tăng
 
@@ -32,6 +37,7 @@ Tất cả các thay đổi quan trọng của project sẽ được ghi nhận 
 - Image URLs: `/images/routes/{uuid-v7}.jpg`
 - Service links: `/service/{uuid-v7}`
 - Pricing: Average từ bookings, format "962,000 VND"
+- Deals API: Mỗi route có thể có cả one-way và round-trip deals (nếu có return route)
 
 ---
 

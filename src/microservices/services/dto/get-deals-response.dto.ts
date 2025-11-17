@@ -13,8 +13,11 @@ export class FlightDealDto {
 	@ApiProperty({ example: '02/03/2026', description: 'Departure date in DD/MM/YYYY format' })
 	startDate: string;
 
-	@ApiProperty({ example: '', description: 'Return date (empty for one-way flights)' })
+	@ApiProperty({ example: '09/03/2026', description: 'Return date in DD/MM/YYYY format (empty for one-way flights)' })
 	endDate: string;
+
+	@ApiProperty({ example: 'one_way', description: 'Trip type: one_way or round_trip', enum: ['one_way', 'round_trip'] })
+	tripType: string;
 
 	@ApiProperty({ example: 'Dịch vụ bay thẳng', description: 'Service type' })
 	service: string;

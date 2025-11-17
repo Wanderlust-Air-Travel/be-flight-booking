@@ -414,8 +414,19 @@ GET /services/deals
       "link": "/service/019a8f4a-bb0e-7402-a0c4-27647b89dc71",
       "startDate": "02/03/2026",
       "endDate": "",
+      "tripType": "one_way",
       "service": "Dịch vụ bay thẳng",
       "price": "962,000 VND"
+    },
+    {
+      "image": "/images/routes/019a8f4a-bb0e-7402-a0c4-27647b89dc71.jpg",
+      "title": "Tp. Hồ Chí Minh (SGN) đến Hà Nội (HAN)",
+      "link": "/service/019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+      "startDate": "02/03/2026",
+      "endDate": "09/03/2026",
+      "tripType": "round_trip",
+      "service": "Dịch vụ bay khứ hồi",
+      "price": "1,924,000 VND"
     },
     {
       "image": "/images/routes/019b1f5b-cc1f-8513-b1d5-38758c90ed82.jpg",
@@ -423,15 +434,7 @@ GET /services/deals
       "link": "/service/019b1f5b-cc1f-8513-b1d5-38758c90ed82",
       "startDate": "25/12/2026",
       "endDate": "",
-      "service": "Dịch vụ bay thẳng",
-      "price": "962,000 VND"
-    },
-    {
-      "image": "/images/routes/019c2g6c-dd2g-9624-c2e6-49869d01fe93.jpg",
-      "title": "Hà Nội (HAN) đến Tp. Hồ Chí Minh (SGN)",
-      "link": "/service/019c2g6c-dd2g-9624-c2e6-49869d01fe93",
-      "startDate": "10/02/2026",
-      "endDate": "",
+      "tripType": "one_way",
       "service": "Dịch vụ bay thẳng",
       "price": "692,000 VND"
     }
@@ -443,20 +446,25 @@ GET /services/deals
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `deals` | array | Danh sách các flight deals |
+| `deals` | array | Danh sách các flight deals (bao gồm cả one-way và round-trip) |
 | `deals[].image` | string | Đường dẫn đến hình ảnh deal, format: `/images/routes/{route_id}.jpg` (route_id là UUID v7 - 36 ký tự) |
 | `deals[].title` | string | Mô tả route bằng tiếng Việt (e.g., "Tp. Hồ Chí Minh (SGN) đến Hà Nội (HAN)") |
 | `deals[].link` | string | Link đến trang chi tiết service, format: `/service/{route_id}` (route_id là UUID v7 - 36 ký tự) |
 | `deals[].startDate` | string | Ngày đi theo format DD/MM/YYYY (e.g., "02/03/2026") |
-| `deals[].endDate` | string | Ngày về (rỗng cho one-way flights) |
-| `deals[].service` | string | Loại dịch vụ (e.g., "Dịch vụ bay thẳng") |
-| `deals[].price` | string | Giá đã format với dấu phẩy và "VND" (e.g., "962,000 VND") |
+| `deals[].endDate` | string | Ngày về theo format DD/MM/YYYY (rỗng cho one-way flights, có giá trị cho round-trip) |
+| `deals[].tripType` | string | Loại chuyến bay: `"one_way"` hoặc `"round_trip"` |
+| `deals[].service` | string | Loại dịch vụ: "Dịch vụ bay thẳng" (one-way) hoặc "Dịch vụ bay khứ hồi" (round-trip) |
+| `deals[].price` | string | Giá đã format với dấu phẩy và "VND". Với round-trip, giá là tổng của cả 2 chuyến (e.g., "1,924,000 VND") |
 
 **Lưu ý:**
 - API trả về tất cả routes nội địa có flights available trong 30 ngày tới
+- Mỗi route có thể có cả **one-way** và **round-trip** deals (nếu có return route và return flights available)
 - Deals được sắp xếp theo giá tăng dần (từ rẻ nhất đến đắt nhất)
-- `endDate` luôn rỗng vì deals chỉ hiển thị one-way flights
-- `service` luôn là "Dịch vụ bay thẳng" (direct flight service)
+- Round-trip deals chỉ được tạo nếu:
+  - Có return route (reverse route) tồn tại
+  - Có return flights available trong vòng 7-37 ngày sau ngày đi
+  - Có booking data để tính giá cho return route
+- Giá round-trip = giá đi + giá về (tổng của 2 chuyến)
 - `image` và `link` được lấy từ database (bảng Routes: `image_url`, `service_link`), format: 
   - `image` = `/images/routes/{route_id}.jpg` (route_id là UUID v7 - 36 ký tự, length = 55)
   - `link` = `/service/{route_id}` (route_id là UUID v7 - 36 ký tự, length = 45)

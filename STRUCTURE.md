@@ -118,14 +118,30 @@ API Gateway → Response to FE
           "link": "/service/019a8f4a-bb0e-7402-a0c4-27647b89dc71",
           "startDate": "02/03/2026",
           "endDate": "",
+          "tripType": "one_way",
           "service": "Dịch vụ bay thẳng",
           "price": "962,000 VND"
+        },
+        {
+          "image": "/images/routes/019a8f4a-bb0e-7402-a0c4-27647b89dc71.jpg",
+          "title": "Tp. Hồ Chí Minh (SGN) đến Hà Nội (HAN)",
+          "link": "/service/019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+          "startDate": "02/03/2026",
+          "endDate": "09/03/2026",
+          "tripType": "round_trip",
+          "service": "Dịch vụ bay khứ hồi",
+          "price": "1,924,000 VND"
         }
       ]
     }
     ```
   - **Lưu ý**: 
     - API này cần Services Microservice chạy (port 4002)
+    - Hỗ trợ cả **one-way** và **round-trip** deals
+    - `tripType`: `"one_way"` hoặc `"round_trip"`
+    - `endDate`: Rỗng cho one-way, có giá trị cho round-trip
+    - `service`: "Dịch vụ bay thẳng" (one-way) hoặc "Dịch vụ bay khứ hồi" (round-trip)
+    - `price`: Với round-trip, giá là tổng của cả 2 chuyến
     - `image`: Format `/images/routes/{route_id}.jpg` (route_id là UUID v7 - 36 ký tự)
     - `link`: Format `/service/{route_id}` (route_id là UUID v7 - 36 ký tự)
     - Dữ liệu được lấy từ database (bảng Routes: `image_url`, `service_link`)
