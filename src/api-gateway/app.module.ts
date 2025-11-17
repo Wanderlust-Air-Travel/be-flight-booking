@@ -5,6 +5,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { SearchClientModule } from './modules/search/search.client.module';
 import { ServicesClientModule } from './modules/services/services.client.module';
 import { RoutesClientModule } from './modules/routes/routes.client.module';
+import { BookingClientModule } from './modules/booking/booking.client.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { RoutesClientModule } from './modules/routes/routes.client.module';
     SearchClientModule,
     ServicesClientModule,
     RoutesClientModule,
+    BookingClientModule,
   ],
   controllers: [],
   providers: [],

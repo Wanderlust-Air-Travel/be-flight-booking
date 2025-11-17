@@ -12,8 +12,8 @@ import { SeatConfiguration } from 'src/shared/entities/seat/seat-configuration.e
 import { SearchFlightsDto, TripType } from './dto/search-flights.dto';
 import { FlightResult } from './types/flight-result.type';
 import { GetFareOptionsDto, CabinType } from './dto/get-fare-options.dto';
-import { FareOptionsResponseDto } from './dto/fare-options-response.dto';
-import { FareOptionDto } from './dto/fare-option.dto';
+import { FareOptionsResponseDto, FareOptionsGroupDto } from './dto/fare-options-response.dto';
+import { FareOptionDto, FareDescriptionItemDto } from './dto/fare-option.dto';
 
 @Injectable()
 export class SearchService {
@@ -235,11 +235,16 @@ export class SearchService {
 				// Calculate price (base price logic - can be enhanced with dynamic pricing)
 				const price = this.calculateFarePrice(fareClass.fare_class_code, dto.cabinType);
 
+				// Generate description items
+				const desc = this.generateFareDescriptions(fareClass.fare_class_code, dto.cabinType, fareClass.change_rule, fareClass.refund_rule);
+
 				return {
 					fareClassCode: fareClass.fare_class_code,
 					name: displayName,
+					typeTicket: displayName,
 					price,
 					availableSeats,
+					desc,
 					description: fareClass.description,
 					changeRule: fareClass.change_rule,
 					refundRule: fareClass.refund_rule,
@@ -253,11 +258,89 @@ export class SearchService {
 		// Sort by price (ascending)
 		availableFareOptions.sort((a, b) => a.price - b.price);
 
+		// Return fare options directly (no group wrapper needed since we only query one cabin type at a time)
 		return {
 			flightInstanceId: dto.flightInstanceId,
 			cabinType: dto.cabinType,
 			fareOptions: availableFareOptions,
 		};
+	}
+
+	private generateFareDescriptions(
+		fareClassCode: string,
+		cabinType: CabinType,
+		changeRule: string | null,
+		refundRule: string | null,
+	): FareDescriptionItemDto[] {
+		const code = fareClassCode.toUpperCase();
+		const desc: FareDescriptionItemDto[] = [];
+
+		// Common descriptions for all fare classes
+		desc.push({ text: 'Hành lý xách tay: 7kg', status: true });
+
+		if (cabinType === CabinType.ECONOMY) {
+			// Economy Saver Max
+			if (code.includes('SMX') || code.includes('SAVER')) {
+				desc.push({ text: 'Không bao gồm hành lý ký gửi', status: false });
+				desc.push({ text: 'Không được hoàn/hủy', status: false });
+				desc.push({ text: 'Thay đổi trước giờ khởi hành: 600.000 VND (*)', status: true });
+				desc.push({ text: 'Không thay đổi sau giờ khởi hành (*)', status: false });
+				desc.push({ text: 'Hệ số cộng điểm Bamboo Club: 0.25', status: true });
+				desc.push({ text: 'Chọn ghế ngồi mất phí', status: false });
+				desc.push({ text: 'Không áp dụng cho go-show', status: false });
+			}
+			// Economy Smart
+			else if (code.includes('SM') || code === 'Y' || code === 'YS') {
+				desc.push({ text: 'Không bao gồm hành lý ký gửi', status: false });
+				desc.push({ text: 'Hoàn/hủy trước giờ khởi hành: 450.000 VND (*)', status: true });
+				desc.push({ text: 'Hoàn/hủy sau giờ khởi hành: 600.000 VND (*)', status: true });
+				desc.push({ text: 'Thay đổi trước giờ khởi hành: 450.000 VND (*)', status: true });
+				desc.push({ text: 'Thay đổi sau giờ khởi hành: 600.000 VND (*)', status: true });
+				desc.push({ text: 'Hệ số cộng điểm Bamboo Club: 0.5', status: true });
+				desc.push({ text: 'Chọn ghế ngồi mất phí', status: true });
+				desc.push({ text: 'Không áp dụng cho go-show', status: false });
+			}
+			// Economy Flex
+			else if (code.includes('FLX') || code.includes('FLEX') || code === 'YF') {
+				desc.push({ text: '01 kiện hành lý ký gửi 20kg', status: true });
+				desc.push({ text: 'Hoàn/hủy trước giờ khởi hành: 300.000 VND (*)', status: true });
+				desc.push({ text: 'Hoàn/hủy sau giờ khởi hành: 300.000 VND (*)', status: true });
+				desc.push({ text: 'Thay đổi miễn phí', status: true });
+				desc.push({ text: 'Hệ số cộng điểm Bamboo Club: 1.00', status: true });
+				desc.push({ text: 'Chọn ghế ngồi miễn phí', status: true });
+				desc.push({ text: 'Đổi chuyến tại sân bay miễn phí', status: true });
+			}
+		} else if (cabinType === CabinType.BUSINESS) {
+			// Business Smart
+			if (code.includes('SM') || code === 'J' || code === 'JS') {
+				desc.push({ text: '01 kiện hành lý ký gửi 30kg', status: true });
+				desc.push({ text: 'Hoàn/hủy trước giờ khởi hành: 500.000 VND (*)', status: true });
+				desc.push({ text: 'Hoàn/hủy sau giờ khởi hành: 800.000 VND (*)', status: true });
+				desc.push({ text: 'Thay đổi trước giờ khởi hành: 500.000 VND (*)', status: true });
+				desc.push({ text: 'Thay đổi sau giờ khởi hành: 800.000 VND (*)', status: true });
+				desc.push({ text: 'Hệ số cộng điểm Bamboo Club: 1.5', status: true });
+				desc.push({ text: 'Chọn ghế ngồi miễn phí', status: true });
+				desc.push({ text: 'Ưu tiên check-in và lên máy bay', status: true });
+			}
+			// Business Flex
+			else if (code.includes('FLX') || code.includes('FLEX') || code === 'JF') {
+				desc.push({ text: '02 kiện hành lý ký gửi 30kg', status: true });
+				desc.push({ text: 'Hoàn/hủy miễn phí', status: true });
+				desc.push({ text: 'Thay đổi miễn phí', status: true });
+				desc.push({ text: 'Hệ số cộng điểm Bamboo Club: 2.00', status: true });
+				desc.push({ text: 'Chọn ghế ngồi miễn phí', status: true });
+				desc.push({ text: 'Đổi chuyến tại sân bay miễn phí', status: true });
+				desc.push({ text: 'Ưu tiên check-in và lên máy bay', status: true });
+				desc.push({ text: 'Phòng chờ thương gia', status: true });
+			}
+		}
+
+		// If we have custom rules from database, try to parse them
+		if (changeRule && desc.length < 5) {
+			// Could add logic to parse changeRule and refundRule if needed
+		}
+
+		return desc;
 	}
 
 	private getFareClassName(fareClassCode: string, description: string | null): string {

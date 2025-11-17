@@ -7,6 +7,7 @@ import { SearchFlightsDto, TripType } from './dto/search-flights.dto';
 import { SearchFlightsResponseDto } from './dto/search-flights-response.dto';
 import { GetFareOptionsDto, CabinType } from './dto/get-fare-options.dto';
 import { FareOptionsResponseDto } from './dto/fare-options-response.dto';
+import { FareOptionDto } from './dto/fare-option.dto';
 
 @ApiTags('search')
 @Controller('search')
@@ -159,7 +160,7 @@ export class SearchController {
 		description: 'Cabin type: economy or business',
 		example: CabinType.ECONOMY,
 	})
-	async getFareOptions(@Query() query: GetFareOptionsDto): Promise<FareOptionsResponseDto> {
+	async getFareOptions(@Query() query: GetFareOptionsDto): Promise<FareOptionDto[]> {
 		try {
 			// Manual validation and transformation if needed
 			if (!query.flightInstanceId || typeof query.flightInstanceId !== 'string') {
@@ -178,7 +179,11 @@ export class SearchController {
 				flightInstanceId: trimmedFlightInstanceId,
 				cabinType: query.cabinType,
 			};
-			return await firstValueFrom(this.client.send<FareOptionsResponseDto>('search.fare-options', payload));
+			const result = await firstValueFrom(this.client.send<FareOptionsResponseDto>('search.fare-options', payload));
+			
+			// Return fare options directly (array format for FE compatibility)
+			// FE can access: result.fareOptions or result.list (if wrapped)
+			return result.fareOptions;
 		} catch (error: any) {
 			console.error('Get fare options error:', error);
 			// Re-throw NestJS exceptions as-is

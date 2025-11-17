@@ -2,6 +2,33 @@ import { ApiProperty } from '@nestjs/swagger';
 import { FareOptionDto } from './fare-option.dto';
 import { CabinType } from './get-fare-options.dto';
 
+export class FareOptionsGroupDto {
+	@ApiProperty({
+		description: 'Group ID',
+		example: 1,
+	})
+	id!: number;
+
+	@ApiProperty({
+		enum: CabinType,
+		description: 'Cabin type',
+		example: CabinType.ECONOMY,
+	})
+	type!: CabinType;
+
+	@ApiProperty({
+		description: 'Group code',
+		example: 1,
+	})
+	code!: number;
+
+	@ApiProperty({
+		type: [FareOptionDto],
+		description: 'List of fare options',
+	})
+	list!: FareOptionDto[];
+}
+
 export class FareOptionsResponseDto {
 	@ApiProperty({
 		description: 'Flight instance ID',

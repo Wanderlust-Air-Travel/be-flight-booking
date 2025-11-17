@@ -1,5 +1,19 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+export class FareDescriptionItemDto {
+	@ApiProperty({
+		description: 'Description text',
+		example: 'Hành lý xách tay: 7kg',
+	})
+	text!: string;
+
+	@ApiProperty({
+		description: 'Status (true = included/available, false = not included/not available)',
+		example: true,
+	})
+	status!: boolean;
+}
+
 export class FareOptionDto {
 	@ApiProperty({
 		description: 'Fare class code (e.g., Y, M, B)',
@@ -14,6 +28,12 @@ export class FareOptionDto {
 	name!: string;
 
 	@ApiProperty({
+		description: 'Fare class display name for ticket type',
+		example: 'Economy Saver Max',
+	})
+	typeTicket!: string;
+
+	@ApiProperty({
 		description: 'Price in VND',
 		example: 1448000,
 	})
@@ -24,6 +44,12 @@ export class FareOptionDto {
 		example: 5,
 	})
 	availableSeats!: number;
+
+	@ApiProperty({
+		description: 'List of fare descriptions with status',
+		type: [FareDescriptionItemDto],
+	})
+	desc!: FareDescriptionItemDto[];
 
 	@ApiProperty({
 		description: 'Fare class description',
