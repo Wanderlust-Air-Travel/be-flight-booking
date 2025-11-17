@@ -1,4 +1,5 @@
 ```mermaid
+erDiagram
     %% ============ CORE ACTORS ============
     Users {
         UNIQUEIDENTIFIER user_id PK
@@ -33,8 +34,8 @@
         UNIQUEIDENTIFIER destination_airport_id FK
         INT distance_km
         BIT is_domestic
-        NVARCHAR image_url "Format: /images/routes/{route_id}.jpg (UUID v7)"
-        NVARCHAR service_link "Format: /service/{route_id} (UUID v7)"
+        NVARCHAR image_url
+        NVARCHAR service_link
         DATETIME2 created_at
     }
 
