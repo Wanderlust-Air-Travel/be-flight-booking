@@ -1,8 +1,8 @@
-import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
+import { Column, Entity, PrimaryColumn } from "typeorm";
 
 @Entity({ name: 'AircraftTypes', schema: 'dbo' })
 export class AircraftType {
-	@PrimaryGeneratedColumn('uuid')
+	@PrimaryColumn('uniqueidentifier')
 	aircraft_type_id: string;
 
 	@Column({ type: 'varchar', length: 20, unique: true, nullable: false })

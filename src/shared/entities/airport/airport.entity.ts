@@ -1,8 +1,8 @@
-import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
+import { Column, Entity, PrimaryColumn } from "typeorm";
 
 @Entity({ name: 'Airports', schema: 'dbo' })
 export class Airport {
-	@PrimaryGeneratedColumn('uuid')
+	@PrimaryColumn('uniqueidentifier')
 	airport_id: string;
 
 	@Column({ type: 'char', length: 3, unique: true, nullable: false })

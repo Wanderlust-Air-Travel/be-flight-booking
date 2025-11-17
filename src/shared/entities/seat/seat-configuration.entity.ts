@@ -1,4 +1,4 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, RelationId } from "typeorm";
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn, RelationId } from "typeorm";
 import { AircraftType } from "src/shared/entities/aircraft/aircraft-type.entity";
 import { CabinClass } from "src/shared/entities/cabin/cabin-class.entity";
 
@@ -6,7 +6,7 @@ import { CabinClass } from "src/shared/entities/cabin/cabin-class.entity";
 // Unique constraint UQ_SeatConfigurations_AircraftType_SeatNumber đã được tạo trong DB schema
 // Không cần khai báo ở đây vì TypeORM sẽ gặp lỗi với @RelationId properties
 export class SeatConfiguration {
-	@PrimaryGeneratedColumn('uuid')
+	@PrimaryColumn('uniqueidentifier')
 	seat_config_id: string;
 
 	@ManyToOne(() => AircraftType, { nullable: false })

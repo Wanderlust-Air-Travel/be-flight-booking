@@ -1,11 +1,11 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, RelationId, Unique } from "typeorm";
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn, RelationId, Unique } from "typeorm";
 import { Route } from "src/shared/entities/route/route.entity";
 import { AircraftType } from "src/shared/entities/aircraft/aircraft-type.entity";
 
 @Entity({ name: 'FlightSchedules', schema: 'dbo' })
 @Unique('UQ_FlightSchedules_FlightNumber_Period', ['flight_number', 'effective_from', 'effective_to'])
 export class FlightSchedule {
-	@PrimaryGeneratedColumn('uuid')
+	@PrimaryColumn('uniqueidentifier')
 	flight_schedule_id: string;
 
 	@Column({ type: 'varchar', length: 10, nullable: false })

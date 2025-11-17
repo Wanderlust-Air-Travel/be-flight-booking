@@ -1,11 +1,11 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, RelationId, Unique, UpdateDateColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryColumn, RelationId, Unique, UpdateDateColumn } from "typeorm";
 import { FlightSchedule } from "./flight-schedule.entity";
 import { Aircraft } from "src/shared/entities/aircraft/aircraft.entity";
 
 @Entity({ name: 'FlightInstances', schema: 'dbo' })
 @Unique('UQ_FlightInstances_FlightNumber_Date', ['flight_number', 'flight_date'])
 export class FlightInstance {
-	@PrimaryGeneratedColumn('uuid')
+	@PrimaryColumn('uniqueidentifier')
 	flight_instance_id: string;
 
 	@ManyToOne(() => FlightSchedule, { nullable: false })

@@ -1,9 +1,9 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, RelationId } from "typeorm";
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn, RelationId } from "typeorm";
 import { AircraftType } from "./aircraft-type.entity";
 
 @Entity({ name: 'Aircrafts', schema: 'dbo' })
 export class Aircraft {
-	@PrimaryGeneratedColumn('uuid')
+	@PrimaryColumn('uniqueidentifier')
 	aircraft_id: string;
 
 	@ManyToOne(() => AircraftType, { nullable: false })

@@ -1,11 +1,11 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, RelationId } from "typeorm";
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryColumn, RelationId } from "typeorm";
 import { Airport } from "src/shared/entities/airport/airport.entity";
 
 @Entity({ name: 'Routes', schema: 'dbo' })
 // Unique constraint UQ_Routes_Origin_Destination đã được tạo trong DB schema
 // Không cần khai báo ở đây vì TypeORM sẽ gặp lỗi với @RelationId properties
 export class Route {
-	@PrimaryGeneratedColumn('uuid')
+	@PrimaryColumn('uniqueidentifier')
 	route_id: string;
 
 	@ManyToOne(() => Airport, { nullable: false })

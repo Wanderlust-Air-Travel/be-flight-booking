@@ -1,11 +1,11 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
 import { Booking } from "src/shared/entities/booking/booking.entity";
 import { Currency } from "src/shared/entities/currency/currency.entity";
 import { PaymentMethod } from "./payment-method.entity";
 
 @Entity({ name: 'Payments', schema: 'dbo' })
 export class Payment {
-	@PrimaryGeneratedColumn('uuid')
+	@PrimaryColumn('uniqueidentifier')
 	payment_id: string;
 
 	@ManyToOne(() => Booking, (b) => b.payments, { nullable: false })

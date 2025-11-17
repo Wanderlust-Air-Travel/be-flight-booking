@@ -1,4 +1,4 @@
-import { Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, OneToMany, PrimaryColumn, UpdateDateColumn } from "typeorm";
 import { User } from "src/shared/entities/user/user.entity";
 import { Currency } from "src/shared/entities/currency/currency.entity";
 import { BookingPassenger } from "./booking-passenger.entity";
@@ -8,7 +8,7 @@ import { Payment } from "src/shared/entities/payment/payment.entity";
 
 @Entity({ name: 'Bookings', schema: 'dbo' })
 export class Booking {
-	@PrimaryGeneratedColumn('uuid')
+	@PrimaryColumn('uniqueidentifier')
 	booking_id: string;
 
 	@Index({ unique: true })

@@ -1,4 +1,4 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
 import { Booking } from "./booking.entity";
 import { BookingPassenger } from "./booking-passenger.entity";
 import { FlightInstance } from "src/shared/entities/flight/flight-instance.entity";
@@ -7,7 +7,7 @@ import { FareClass } from "src/shared/entities/fare/fare-class.entity";
 
 @Entity({ name: 'BookingSegments', schema: 'dbo' })
 export class BookingSegment {
-	@PrimaryGeneratedColumn('uuid')
+	@PrimaryColumn('uniqueidentifier')
 	booking_segment_id: string;
 
 	@ManyToOne(() => Booking, (b) => b.booking_segments, { onDelete: 'CASCADE', nullable: false })

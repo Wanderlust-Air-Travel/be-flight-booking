@@ -1,9 +1,9 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, RelationId } from "typeorm";
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryColumn, RelationId } from "typeorm";
 import { User } from "src/shared/entities/user/user.entity";
 
 @Entity({ name: 'Passengers', schema: 'dbo' })
 export class Passenger {
-	@PrimaryGeneratedColumn('uuid')
+	@PrimaryColumn('uniqueidentifier')
 	passenger_id: string;
 
 	// N Passengers -> 1 User (nullable theo schema mới)
