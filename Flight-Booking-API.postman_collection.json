@@ -1,0 +1,394 @@
+{
+	"info": {
+		"_postman_id": "flight-booking-api-collection",
+		"name": "Flight Booking API",
+		"description": "Collection để test Flight Booking API trên Postman\n\n**Lưu ý:**\n- Chạy `npm run seed:full` trước khi test\n- Seed tạo data cho 60 ngày tới (từ hôm nay)\n- Có 500 users, 300-450 schedules, 50 schedules được xử lý để tạo instances\n- Dates trong requests cần nằm trong khoảng 60 ngày từ hôm nay",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Search",
+			"item": [
+				{
+					"name": "Search Flights - One Way (HAN → SGN)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/search/flights?origin=HAN&destination=SGN&departDate={{departDate}}&tripType=one_way&adults=1&minors=0",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"search",
+								"flights"
+							],
+							"query": [
+								{
+									"key": "origin",
+									"value": "HAN",
+									"description": "Origin airport IATA code"
+								},
+								{
+									"key": "destination",
+									"value": "SGN",
+									"description": "Destination airport IATA code"
+								},
+								{
+									"key": "departDate",
+									"value": "{{departDate}}",
+									"description": "Departure date (YYYY-MM-DD). Phải nằm trong khoảng 60 ngày từ hôm nay (sau khi seed)"
+								},
+								{
+									"key": "tripType",
+									"value": "one_way",
+									"description": "Trip type: one_way or round_trip"
+								},
+								{
+									"key": "adults",
+									"value": "1",
+									"description": "Number of adult passengers"
+								},
+								{
+									"key": "minors",
+									"value": "0",
+									"description": "Number of minor passengers"
+								}
+							]
+						},
+						"description": "Search for one-way flights from Hanoi to Ho Chi Minh City"
+					},
+					"response": []
+				},
+				{
+					"name": "Search Flights - Round Trip (HAN → SGN)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/search/flights?origin=HAN&destination=SGN&departDate={{departDate}}&returnDate={{returnDate}}&tripType=round_trip&adults=2&minors=1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"search",
+								"flights"
+							],
+							"query": [
+								{
+									"key": "origin",
+									"value": "HAN"
+								},
+								{
+									"key": "destination",
+									"value": "SGN"
+								},
+								{
+									"key": "departDate",
+									"value": "{{departDate}}",
+									"description": "Departure date (YYYY-MM-DD)"
+								},
+								{
+									"key": "returnDate",
+									"value": "{{returnDate}}",
+									"description": "Return date (YYYY-MM-DD). Phải sau departDate và trong khoảng 60 ngày"
+								},
+								{
+									"key": "tripType",
+									"value": "round_trip"
+								},
+								{
+									"key": "adults",
+									"value": "2"
+								},
+								{
+									"key": "minors",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Search Flights - HAN → DAD",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/search/flights?origin=HAN&destination=DAD&departDate={{departDate}}&tripType=one_way&adults=1&minors=0",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"search",
+								"flights"
+							],
+							"query": [
+								{
+									"key": "origin",
+									"value": "HAN"
+								},
+								{
+									"key": "destination",
+									"value": "DAD"
+								},
+								{
+									"key": "departDate",
+									"value": "{{departDate}}"
+								},
+								{
+									"key": "tripType",
+									"value": "one_way"
+								},
+								{
+									"key": "adults",
+									"value": "1"
+								},
+								{
+									"key": "minors",
+									"value": "0"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Search Flights - SGN → PQC",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/search/flights?origin=SGN&destination=PQC&departDate={{departDate}}&tripType=one_way&adults=1&minors=0",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"search",
+								"flights"
+							],
+							"query": [
+								{
+									"key": "origin",
+									"value": "SGN"
+								},
+								{
+									"key": "destination",
+									"value": "PQC"
+								},
+								{
+									"key": "departDate",
+									"value": "{{departDate}}"
+								},
+								{
+									"key": "tripType",
+									"value": "one_way"
+								},
+								{
+									"key": "adults",
+									"value": "1"
+								},
+								{
+									"key": "minors",
+									"value": "0"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Economy Fare Options",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/search/fare-options?flightInstanceId={{flightInstanceId}}&cabinType=economy",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"search",
+								"fare-options"
+							],
+							"query": [
+								{
+									"key": "flightInstanceId",
+									"value": "{{flightInstanceId}}",
+									"description": "Flight instance ID from search flights response"
+								},
+								{
+									"key": "cabinType",
+									"value": "economy",
+									"description": "Cabin type: economy or business"
+								}
+							]
+						},
+						"description": "Get economy fare options for a flight instance. Set flightInstanceId variable from search flights response."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Business Fare Options",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/search/fare-options?flightInstanceId={{flightInstanceId}}&cabinType=business",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"search",
+								"fare-options"
+							],
+							"query": [
+								{
+									"key": "flightInstanceId",
+									"value": "{{flightInstanceId}}"
+								},
+								{
+									"key": "cabinType",
+									"value": "business"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "Search flights and get fare options"
+		},
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Register",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"fullname\": \"Nguyen Van A\",\n  \"email\": \"user@example.com\",\n  \"password\": \"Password123!\",\n  \"phone\": \"0901234567\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/register",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"register"
+							]
+						},
+						"description": "Register a new user account"
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"Password123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						},
+						"description": "Login and get access token"
+					},
+					"response": []
+				},
+				{
+					"name": "Refresh Token",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/refresh",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"refresh"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "Authentication APIs"
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:3000",
+			"type": "string"
+		},
+		{
+			"key": "flightInstanceId",
+			"value": "",
+			"type": "string",
+			"description": "Flight instance ID from search flights response. Example: 96C80E54-48C3-F011-8CC6-088FC311F15F. Get this from /search/flights API response first."
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refresh_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "userId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "departDate",
+			"value": "2025-11-18",
+			"type": "string",
+			"description": "Departure date (YYYY-MM-DD). Cập nhật theo ngày hiện tại, phải nằm trong khoảng 60 ngày từ hôm nay"
+		},
+		{
+			"key": "returnDate",
+			"value": "2025-11-25",
+			"type": "string",
+			"description": "Return date (YYYY-MM-DD). Phải sau departDate và trong khoảng 60 ngày"
+		}
+	]
+}
+
