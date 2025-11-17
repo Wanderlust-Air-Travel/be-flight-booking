@@ -27,12 +27,18 @@ src/
 │   └── main.ts                # Entry point
 │
 ├── microservices/             # Microservices (TCP message handlers)
-│   └── search/                # Search microservice (port 4001)
+│   ├── search/                # Search microservice (port 4001)
+│   │   ├── controllers/       # Message handlers
+│   │   ├── services/          # Business logic
+│   │   ├── dto/               # Request/Response DTOs
+│   │   ├── types/             # Internal types
+│   │   └── main.search.ts     # Entry point
+│   └── services/              # Services microservice (port 4002)
 │       ├── controllers/       # Message handlers
 │       ├── services/          # Business logic
 │       ├── dto/               # Request/Response DTOs
-│       ├── types/             # Internal types
-│       └── main.search.ts     # Entry point
+│       ├── services.messages.ts  # TCP config
+│       └── main.services.ts   # Entry point
 │
 └── scripts/                   # Database scripts
     └── seed-domestic.ts       # Seed domestic flights data
@@ -100,6 +106,30 @@ API Gateway → Response to FE
     }
     ```
 
+### Services
+- `GET /services/deals` - Lấy danh sách flight deals (ưu đãi chuyến bay)
+  - **Response**:
+    ```json
+    {
+      "deals": [
+        {
+          "image": "/images/routes/019a8f4a-bb0e-7402-a0c4-27647b89dc71.jpg",
+          "title": "Tp. Hồ Chí Minh (SGN) đến Hà Nội (HAN)",
+          "link": "/service/019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+          "startDate": "02/03/2026",
+          "endDate": "",
+          "service": "Dịch vụ bay thẳng",
+          "price": "962,000 VND"
+        }
+      ]
+    }
+    ```
+  - **Lưu ý**: 
+    - API này cần Services Microservice chạy (port 4002)
+    - `image`: Format `/images/routes/{route_id}.jpg` (route_id là UUID v7 - 36 ký tự)
+    - `link`: Format `/service/{route_id}` (route_id là UUID v7 - 36 ký tự)
+    - Dữ liệu được lấy từ database (bảng Routes: `image_url`, `service_link`)
+
 ### User
 - `GET /users` - Lấy thông tin user (cần JWT token)
 
@@ -146,6 +176,9 @@ npm run start:dev
 # Start Search Microservice (port 4001) - Cần chạy song song với API Gateway
 npm run start:search:dev
 
+# Start Services Microservice (port 4002) - Cần chạy nếu dùng API /services/deals
+npm run start:services:dev
+
 # Seed database với dữ liệu nội địa (HAN, SGN, DAD)
 npm run seed:domestic
 ```
@@ -175,6 +208,10 @@ JWT_REFRESH_EXPIRES=7d
 # Search Microservice
 SEARCH_MS_HOST=127.0.0.1
 SEARCH_MS_PORT=4001
+
+# Services Microservice
+SERVICES_MS_HOST=127.0.0.1
+SERVICES_MS_PORT=4002
 ```
 
 ## Lưu ý cho FE
@@ -182,6 +219,17 @@ SEARCH_MS_PORT=4001
 1. **API Gateway là entry point duy nhất**: Tất cả requests từ FE đều gọi đến port 3000
 2. **Swagger UI**: Xem chi tiết API tại `http://localhost:3000/api-docs`
 3. **Search API**: Cần cả API Gateway và Search Microservice đều chạy
-4. **Round trip**: Nếu `tripType=round_trip` thì bắt buộc phải có `returnDate`
-5. **Error handling**: Check `statusCode` trong response để handle errors
-6. **UUID v7**: Tất cả IDs trong hệ thống (flightInstanceId, bookingId, userId...) sử dụng **UUID v7** (time-ordered UUID). Format: `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx`. UUID v7 có thể sắp xếp theo thời gian, tốt cho database indexing.
+4. **Services API**: Cần cả API Gateway và Services Microservice đều chạy (nếu dùng `/services/deals`)
+5. **Round trip**: Nếu `tripType=round_trip` thì bắt buộc phải có `returnDate`
+6. **Error handling**: Check `statusCode` trong response để handle errors
+7. **UUID v7**: Tất cả IDs trong hệ thống (flightInstanceId, bookingId, userId...) sử dụng **UUID v7** (time-ordered UUID). Format: `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx`. UUID v7 có thể sắp xếp theo thời gian, tốt cho database indexing.
+8. **Pricing Strategy**: 
+   - Services API sử dụng historical pricing (từ BookingSegments) - tính giá trung bình
+   - Nếu không có booking data, route sẽ bị bỏ qua (không hiển thị trong deals)
+   - Giá được format theo chuẩn Việt Nam: "962,000 VND"
+9. **Routes Schema**:
+   - Bảng Routes có thêm 2 columns: `image_url` và `service_link`
+   - Format chuẩn:
+     - `image_url`: `/images/routes/{route_id}.jpg` (route_id là UUID v7, length = 55)
+     - `service_link`: `/service/{route_id}` (route_id là UUID v7, length = 45)
+   - Có CHECK constraints và trigger tự động generate nếu NULL hoặc không đúng format

@@ -33,6 +33,9 @@
         UNIQUEIDENTIFIER destination_airport_id FK
         INT distance_km
         BIT is_domestic
+        NVARCHAR image_url "Format: /images/routes/{route_id}.jpg (UUID v7)"
+        NVARCHAR service_link "Format: /service/{route_id} (UUID v7)"
+        DATETIME2 created_at
     }
 
     %% ============ AIRCRAFT & SEAT CONFIG ============
@@ -226,6 +229,10 @@
 - **Airports & Routes**
   - Airports: chuẩn hóa IATA/ICAO, timezone phục vụ hiển thị/convert giờ.
   - Routes: unique theo cặp (origin, destination) để tránh trùng tuyến.
+    - `image_url`: Đường dẫn hình ảnh deal, format `/images/routes/{route_id}.jpg` (route_id là UUID v7 - 36 ký tự, length = 55)
+    - `service_link`: Link đến trang service, format `/service/{route_id}` (route_id là UUID v7 - 36 ký tự, length = 45)
+    - Có CHECK constraints để validate format và đảm bảo route_id trong URL khớp với route_id của record
+    - Trigger tự động generate `image_url` và `service_link` khi INSERT/UPDATE nếu NULL hoặc không đúng format
 
 - **Fleet & Seating**
   - AircraftTypes/Aircrafts: loại tàu bay vs máy bay thực tế (registration unique).

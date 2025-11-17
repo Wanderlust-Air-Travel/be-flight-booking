@@ -89,6 +89,93 @@ Project này có 2 loại SQL scripts:
 
 ---
 
+### `sql/utils/data-management/add-image-link-to-routes.sql`
+
+**Mục đích:** Migration script để thêm `image_url` và `service_link` vào bảng `Routes`
+
+**Công dụng:**
+- Thêm 2 columns mới: `image_url` và `service_link` vào bảng `Routes`
+- Cập nhật dữ liệu hiện có sang format mới
+- Thêm CHECK constraints để validate format
+- Tạo index để tối ưu query
+
+**Format chuẩn:**
+- `image_url`: `/images/routes/{route_id}.jpg` (route_id là UUID v7 - 36 ký tự, length = 55)
+- `service_link`: `/service/{route_id}` (route_id là UUID v7 - 36 ký tự, length = 45)
+
+**Khi nào sử dụng:**
+- Khi cần thêm `image_url` và `service_link` vào database hiện có
+- Khi upgrade database schema để hỗ trợ Services API (`/services/deals`)
+
+**Cách sử dụng:**
+1. Mở SQL Server Management Studio (SSMS)
+2. Kết nối đến database
+3. Mở file `sql/utils/data-management/add-image-link-to-routes.sql`
+4. **Quan trọng**: Kiểm tra và sửa database name (dòng 6):
+   ```sql
+   USE flight_booking_db;  -- Thay đổi nếu database name khác
+   ```
+5. Chạy script (F5 hoặc Execute)
+6. Script sẽ tự động:
+   - Thêm columns nếu chưa tồn tại
+   - Drop constraints cũ (nếu có)
+   - Update dữ liệu hiện có sang format mới
+   - Thêm CHECK constraints mới
+   - Verify dữ liệu
+
+**Lưu ý:**
+- Script idempotent: có thể chạy nhiều lần mà không gây lỗi
+- Script sẽ tự động update tất cả routes hiện có sang format mới
+- Có validation để đảm bảo format đúng (CHECK constraints)
+- Xem chi tiết tại: [MIGRATION-GUIDE.md](./sql/utils/data-management/MIGRATION-GUIDE.md)
+
+---
+
+### `sql/utils/data-management/create-trigger-auto-generate-image-link.sql`
+
+**Mục đích:** Tạo trigger tự động generate `image_url` và `service_link` khi INSERT/UPDATE routes
+
+**Công dụng:**
+- Tự động generate `image_url` và `service_link` nếu NULL hoặc không đúng format
+- Đảm bảo tất cả routes mới đều có format đúng
+- Trigger chạy sau mỗi INSERT hoặc UPDATE
+
+**Khi nào sử dụng:**
+- Sau khi chạy migration script `add-image-link-to-routes.sql`
+- Khi muốn đảm bảo routes mới tự động có `image_url` và `service_link`
+
+**Lưu ý:**
+- Trigger này đã được tích hợp vào `sql/schema/flight_booking_db.sql` (nếu tạo database mới)
+- Chỉ cần chạy script này nếu database đã tồn tại và chưa có trigger
+- Xem chi tiết tại: [TRIGGERS.md](./TRIGGERS.md)
+
+---
+
+### `sql/utils/data-management/validate-routes-image-link.sql`
+
+**Mục đích:** Script kiểm tra validation format của `image_url` và `service_link`
+
+**Công dụng:**
+- Kiểm tra tất cả routes có `image_url` và `service_link` đúng format không
+- Hiển thị routes có lỗi (nếu có)
+- Thống kê số lượng routes hợp lệ
+
+**Khi nào sử dụng:**
+- Sau khi chạy migration script để verify dữ liệu
+- Khi cần kiểm tra format của `image_url` và `service_link`
+- Khi debug lỗi format trong Services API
+
+**Cách sử dụng:**
+1. Mở file trong SSMS
+2. Kiểm tra và sửa database name (dòng 6)
+3. Chạy script
+4. Xem kết quả:
+   - Query 1: Hiển thị 20 routes gần nhất với status (Valid/Invalid)
+   - Query 2: Chỉ hiển thị routes có lỗi (nếu có)
+   - Query 3: Thống kê tổng quan (total, valid, invalid)
+
+---
+
 ## 🔍 Testing & Debugging Scripts
 
 Các script này giúp kiểm tra và tìm dữ liệu hợp lệ để test API trên Postman.

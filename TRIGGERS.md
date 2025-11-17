@@ -96,6 +96,42 @@ INNER JOIN inserted i ON b.booking_id = i.booking_id;
 
 ---
 
+## 3. Trigger Tự Động Generate Image URL và Service Link
+
+### 3.1. `trg_Routes_AutoGenerateImageLink`
+
+**Bảng áp dụng:** `Routes`
+
+**Sự kiện:** `AFTER INSERT, UPDATE`
+
+**Mục đích:**
+- Tự động generate `image_url` và `service_link` cho routes khi INSERT hoặc UPDATE nếu các trường này NULL hoặc không đúng format.
+- Đảm bảo tất cả routes đều có `image_url` và `service_link` theo format chuẩn.
+
+**Format chuẩn:**
+- `image_url`: `/images/routes/{route_id}.jpg` (route_id là UUID v7 - 36 ký tự, length = 55)
+- `service_link`: `/service/{route_id}` (route_id là UUID v7 - 36 ký tự, length = 45)
+
+**Logic:**
+- Kiểm tra nếu `image_url` hoặc `service_link` là NULL hoặc không đúng format
+- Tự động generate theo format chuẩn dựa trên `route_id` của route
+- Validate format:
+  - `image_url` phải bắt đầu bằng `/images/routes/`, kết thúc bằng `.jpg`, có length = 55, và UUID trong URL phải khớp với `route_id`
+  - `service_link` phải bắt đầu bằng `/service/`, có length = 45, và UUID trong link phải khớp với `route_id`
+
+**Ví dụ:**
+- Route có `route_id` = `019a8f4a-bb0e-7402-a0c4-27647b89dc71`
+- Trigger sẽ tự động set:
+  - `image_url` = `/images/routes/019a8f4a-bb0e-7402-a0c4-27647b89dc71.jpg`
+  - `service_link` = `/service/019a8f4a-bb0e-7402-a0c4-27647b89dc71`
+
+**Lưu ý:**
+- Trigger chỉ update nếu giá trị hiện tại là NULL hoặc không đúng format
+- Nếu giá trị đã đúng format, trigger sẽ giữ nguyên
+- Có CHECK constraints trong database để đảm bảo format đúng khi INSERT/UPDATE
+
+---
+
 ## Tổng Kết
 
 | Trigger | Bảng | Sự kiện | Mục đích chính |
@@ -104,6 +140,7 @@ INNER JOIN inserted i ON b.booking_id = i.booking_id;
 | `trg_FlightInstances_UpdateTimestamp` | `FlightInstances` | AFTER UPDATE | Cập nhật `updated_at` |
 | `trg_Bookings_UpdateTimestamp` | `Bookings` | AFTER UPDATE | Cập nhật `updated_at` |
 | `trg_BookingSegments_SeatAvailability_IUD` | `BookingSegments` | AFTER INSERT, UPDATE, DELETE | Quản lý trạng thái khả dụng của ghế |
+| `trg_Routes_AutoGenerateImageLink` | `Routes` | AFTER INSERT, UPDATE | Tự động generate `image_url` và `service_link` |
 
 ---
 
@@ -115,5 +152,10 @@ INNER JOIN inserted i ON b.booking_id = i.booking_id;
    - Khi có nhiều booking đồng thời cho cùng một ghế, cần có cơ chế khóa (locking) ở tầng application để tránh race condition.
    - Trigger chỉ xử lý logic cập nhật trạng thái, không xử lý validation về việc ghế đã được đặt hay chưa.
 
-3. **Maintenance:** Khi thay đổi cấu trúc bảng (thêm/xóa cột `updated_at`), cần cập nhật hoặc xóa trigger tương ứng.
+3. **Maintenance:** Khi thay đổi cấu trúc bảng (thêm/xóa cột `updated_at`, `image_url`, `service_link`), cần cập nhật hoặc xóa trigger tương ứng.
+
+4. **Routes Image/Link Trigger:** Trigger này đảm bảo tất cả routes đều có `image_url` và `service_link` đúng format:
+   - Format dựa trên UUID v7 của `route_id` để đảm bảo tính nhất quán
+   - Có CHECK constraints để validate format ở database level
+   - Trigger chỉ update nếu giá trị NULL hoặc không đúng format, giữ nguyên nếu đã đúng
 

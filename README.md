@@ -59,6 +59,14 @@ JWT_REFRESH_EXPIRES=7d
 # Search Microservice
 SEARCH_MS_HOST=127.0.0.1
 SEARCH_MS_PORT=4001
+
+# Services Microservice
+SERVICES_MS_HOST=127.0.0.1
+SERVICES_MS_PORT=4002
+
+# Routes Microservice
+ROUTES_MS_HOST=127.0.0.1
+ROUTES_MS_PORT=4003
 ```
 
 **Lưu ý:**
@@ -148,6 +156,18 @@ npm run start:search:dev
 ```
 Search Microservice sẽ chạy tại port 4001 (TCP)
 
+Terminal 3 - Services Microservice (Optional, nếu cần API deals):
+```bash
+npm run start:services:dev
+```
+Services Microservice sẽ chạy tại port 4002 (TCP)
+
+Terminal 4 - Routes Microservice (Optional, nếu cần API upload image):
+```bash
+npm run start:routes:dev
+```
+Routes Microservice sẽ chạy tại port 4003 (TCP)
+
 **Cách 2: Chạy Production Mode**
 
 Build project:
@@ -165,14 +185,23 @@ Chạy Search Microservice:
 npm run start:search
 ```
 
+Chạy Services Microservice:
+```bash
+npm run start:services
+```
+
 ## 📝 Scripts Available
 
 | Script | Mô tả |
 |--------|-------|
 | `npm run start:dev` | Chạy API Gateway ở development mode (watch mode) |
 | `npm run start:search:dev` | Chạy Search Microservice ở development mode (watch mode) |
+| `npm run start:services:dev` | Chạy Services Microservice ở development mode (watch mode) |
+| `npm run start:routes:dev` | Chạy Routes Microservice ở development mode (watch mode) |
 | `npm run start:prod` | Chạy API Gateway ở production mode |
 | `npm run start:search` | Chạy Search Microservice ở production mode |
+| `npm run start:services` | Chạy Services Microservice ở production mode |
+| `npm run start:routes` | Chạy Routes Microservice ở production mode |
 | `npm run seed:domestic` | Seed dữ liệu mẫu cho domestic flights (nhanh) |
 | `npm run seed:full` | Seed full database với hàng ngàn records (cho testing) |
 | `npm run build` | Build project (compile TypeScript) |
@@ -286,6 +315,28 @@ curl -X POST http://localhost:3000/auth/login \
 2. Kiểm tra port 4001 không bị conflict
 3. Check `SEARCH_MS_HOST` và `SEARCH_MS_PORT` trong `.env`
 
+### Lỗi: "Services microservice connection failed"
+
+**Nguyên nhân:**
+- Services Microservice chưa chạy
+- Port 4002 bị conflict
+
+**Giải pháp:**
+1. Đảm bảo đã chạy: `npm run start:services:dev`
+2. Kiểm tra port 4002 không bị conflict
+3. Check `SERVICES_MS_HOST` và `SERVICES_MS_PORT` trong `.env`
+
+### Lỗi: "Routes microservice connection failed"
+
+**Nguyên nhân:**
+- Routes Microservice chưa chạy
+- Port 4003 bị conflict
+
+**Giải pháp:**
+1. Đảm bảo đã chạy: `npm run start:routes:dev`
+2. Kiểm tra port 4003 không bị conflict
+3. Check `ROUTES_MS_HOST` và `ROUTES_MS_PORT` trong `.env`
+
 ### Lỗi: "Airport not found" khi search flights
 
 **Nguyên nhân:**
@@ -301,6 +352,8 @@ src/
 ├── shared/              # Code dùng chung (entities, types, config)
 ├── api-gateway/         # REST API (port 3000)
 ├── microservices/       # Microservices (TCP message handlers)
+│   ├── search/          # Search microservice (port 4001)
+│   └── services/        # Services microservice (port 4002)
 └── scripts/             # Database scripts (seed, migration)
 ```
 

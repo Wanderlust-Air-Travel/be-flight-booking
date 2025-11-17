@@ -389,6 +389,96 @@ Hoặc:
 
 ---
 
+## Services (Dịch vụ chuyến bay)
+
+### Get Flight Deals (Lấy danh sách deals chuyến bay)
+
+**GET** `/services/deals`
+
+Lấy danh sách các flight deals (ưu đãi chuyến bay) với thông tin route, ngày bay, và giá. API này được dùng để hiển thị các deals trên trang chủ hoặc trang deals.
+
+**Query Parameters:** Không có (API này không cần parameters)
+
+**Example Request:**
+```
+GET /services/deals
+```
+
+**Response (200 OK):**
+```json
+{
+  "deals": [
+    {
+      "image": "/images/routes/019a8f4a-bb0e-7402-a0c4-27647b89dc71.jpg",
+      "title": "Tp. Hồ Chí Minh (SGN) đến Hà Nội (HAN)",
+      "link": "/service/019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+      "startDate": "02/03/2026",
+      "endDate": "",
+      "service": "Dịch vụ bay thẳng",
+      "price": "962,000 VND"
+    },
+    {
+      "image": "/images/routes/019b1f5b-cc1f-8513-b1d5-38758c90ed82.jpg",
+      "title": "Tp. Hồ Chí Minh (SGN) đến Quy Nhơn (UIH)",
+      "link": "/service/019b1f5b-cc1f-8513-b1d5-38758c90ed82",
+      "startDate": "25/12/2026",
+      "endDate": "",
+      "service": "Dịch vụ bay thẳng",
+      "price": "962,000 VND"
+    },
+    {
+      "image": "/images/routes/019c2g6c-dd2g-9624-c2e6-49869d01fe93.jpg",
+      "title": "Hà Nội (HAN) đến Tp. Hồ Chí Minh (SGN)",
+      "link": "/service/019c2g6c-dd2g-9624-c2e6-49869d01fe93",
+      "startDate": "10/02/2026",
+      "endDate": "",
+      "service": "Dịch vụ bay thẳng",
+      "price": "692,000 VND"
+    }
+  ]
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `deals` | array | Danh sách các flight deals |
+| `deals[].image` | string | Đường dẫn đến hình ảnh deal, format: `/images/routes/{route_id}.jpg` (route_id là UUID v7 - 36 ký tự) |
+| `deals[].title` | string | Mô tả route bằng tiếng Việt (e.g., "Tp. Hồ Chí Minh (SGN) đến Hà Nội (HAN)") |
+| `deals[].link` | string | Link đến trang chi tiết service, format: `/service/{route_id}` (route_id là UUID v7 - 36 ký tự) |
+| `deals[].startDate` | string | Ngày đi theo format DD/MM/YYYY (e.g., "02/03/2026") |
+| `deals[].endDate` | string | Ngày về (rỗng cho one-way flights) |
+| `deals[].service` | string | Loại dịch vụ (e.g., "Dịch vụ bay thẳng") |
+| `deals[].price` | string | Giá đã format với dấu phẩy và "VND" (e.g., "962,000 VND") |
+
+**Lưu ý:**
+- API trả về tất cả routes nội địa có flights available trong 30 ngày tới
+- Deals được sắp xếp theo giá tăng dần (từ rẻ nhất đến đắt nhất)
+- `endDate` luôn rỗng vì deals chỉ hiển thị one-way flights
+- `service` luôn là "Dịch vụ bay thẳng" (direct flight service)
+- `image` và `link` được lấy từ database (bảng Routes: `image_url`, `service_link`), format: 
+  - `image` = `/images/routes/{route_id}.jpg` (route_id là UUID v7 - 36 ký tự, length = 55)
+  - `link` = `/service/{route_id}` (route_id là UUID v7 - 36 ký tự, length = 45)
+
+**Error (500 Internal Server Error):**
+```json
+{
+  "statusCode": 500,
+  "message": "Services microservice is not running. Please start it with: npm run start:services",
+  "error": "Internal Server Error"
+}
+```
+
+**Lưu ý về Pricing:**
+- Giá được tính từ **historical pricing** (lấy từ BookingSegments của các booking đã có)
+- Tính **giá trung bình** (average price) từ tất cả booking segments của route
+- Nếu không có booking data cho route, route đó sẽ **bị bỏ qua** (không hiển thị trong deals)
+- Giá bao gồm: base_fare + tax_amount + fee_amount
+- Giá được format theo chuẩn Việt Nam với dấu phẩy ngăn cách hàng nghìn
+
+---
+
 ## Common IATA Codes (Sân bay nội địa Việt Nam)
 
 - **HAN**: Noi Bai International Airport (Hà Nội)
@@ -514,7 +604,7 @@ const { data: fareOptions } = await api.get('/search/fare-options', {
 
 1. **Swagger UI**: Xem và test API trực tiếp tại `http://localhost:3000/api-docs`
 2. **Round Trip**: Khi `tripType=round_trip`, bắt buộc phải có `returnDate`
-3. **Dates**: Format date là `YYYY-MM-DD` (ví dụ: `2025-11-17`)
+3. **Dates**: Format date là `YYYY-MM-DD` (ví dụ: `2025-11-17`) cho search API, nhưng `DD/MM/YYYY` cho deals API
 4. **IATA Codes**: Phải đúng 3 ký tự, uppercase (HAN, SGN, DAD...)
 5. **Token Expiry**: `access_token` hết hạn sau 15 phút, `refresh_token` sau 7 ngày
 6. **Fare Options Flow**: 
@@ -523,4 +613,9 @@ const { data: fareOptions } = await api.get('/search/fare-options', {
    - Bước 3: Gọi `/search/fare-options` với `flightInstanceId` và `cabinType` (economy/business)
    - Bước 4: Hiển thị dropdown với các fare options (cabins) tương ứng
 7. **UUID v7**: Tất cả IDs trong hệ thống sử dụng UUID v7 (time-ordered). Format: `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx`. UUID v7 có thể sắp xếp theo thời gian, tốt cho database indexing.
+8. **Services Microservice**: API `/services/deals` cần Services Microservice chạy (port 4002). Chạy bằng: `npm run start:services` hoặc `npm run start:services:dev`
+9. **Pricing Strategy**: 
+   - Giá trong deals được tính từ historical pricing (BookingSegments) nếu có
+   - Nếu chưa có booking, dùng fallback prices (giá mặc định)
+   - Giá được format theo chuẩn Việt Nam: "962,000 VND"
 
