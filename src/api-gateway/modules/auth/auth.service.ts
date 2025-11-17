@@ -6,6 +6,7 @@ import { Repository } from "typeorm";
 import { RegisterDto } from "./dto/register.dto";
 import { LoginDto } from "./dto/login.dto";
 import * as bcrypt from 'bcrypt';
+import { v7 as uuidv7 } from 'uuid';
 import { TokenPayload } from "src/shared/types/auth/token-payload";
 import type { StringValue } from 'ms';
 import { CreateUserResponse } from "src/shared/types/auth/create-user-response";
@@ -29,6 +30,7 @@ export class AuthService {
 
         const password_hash = await bcrypt.hash(data.password, 10);
         const user = this.usersRepo.create({
+            user_id: uuidv7(), // Generate UUID v7 for user_id
             fullname: data.fullname,
             password_hash,
             email: data.email,

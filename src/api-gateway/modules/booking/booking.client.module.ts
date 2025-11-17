@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { BOOKING_MS } from 'src/microservices/booking/booking.messages';
 import { BookingController } from './booking.controller';
+import { User } from 'src/shared/entities/user/user.entity';
+import { Passenger } from 'src/shared/entities/passenger/passenger.entity';
 
 @Module({
 	imports: [
@@ -15,6 +18,7 @@ import { BookingController } from './booking.controller';
 				},
 			},
 		]),
+		TypeOrmModule.forFeature([User, Passenger]), // For accessing User and Passenger repositories
 	],
 	controllers: [BookingController],
 })

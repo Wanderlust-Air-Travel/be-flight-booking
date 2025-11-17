@@ -26,6 +26,7 @@ export class BookingService {
 		@InjectRepository(BookingPassenger) private readonly bookingPassengerRepo: Repository<BookingPassenger>,
 		@InjectRepository(BookingSegment) private readonly bookingSegmentRepo: Repository<BookingSegment>,
 		@InjectRepository(FlightInstance) private readonly flightInstanceRepo: Repository<FlightInstance>,
+		@InjectRepository(FlightSeat) private readonly flightSeatRepo: Repository<FlightSeat>,
 		@InjectRepository(FareClass) private readonly fareClassRepo: Repository<FareClass>,
 		@InjectRepository(Currency) private readonly currencyRepo: Repository<Currency>,
 		@InjectRepository(Passenger) private readonly passengerRepo: Repository<Passenger>,
@@ -183,28 +184,76 @@ export class BookingService {
 				}
 			}
 
-			// Validate flight instances and fare classes
+			// Validate flight instances and fare classes, and calculate prices
+			const validatedSegments: Array<{
+				flightInstance: FlightInstance;
+				fareClass: FareClass;
+				baseFare: number;
+				taxAmount: number;
+				feeAmount: number;
+			}> = [];
+
 			for (const segment of dto.segments) {
-				const flightInstance = await this.flightInstanceRepo.findOne({
+				const flightInstance = await queryRunner.manager.findOne(FlightInstance, {
 					where: { flight_instance_id: segment.flightInstanceId },
+					relations: ['aircraft', 'aircraft.aircraft_type'],
 				});
 				if (!flightInstance) {
 					throw new NotFoundException(`Flight instance ${segment.flightInstanceId} not found`);
 				}
 
-				const fareClass = await this.fareClassRepo.findOne({
+				const fareClass = await queryRunner.manager.findOne(FareClass, {
 					where: { fare_class_code: segment.fareClassCode },
+					relations: ['cabin_class'],
 				});
 				if (!fareClass) {
 					throw new NotFoundException(`Fare class ${segment.fareClassCode} not found`);
 				}
+
+				// Determine cabin type from fare class
+				const cabinType =
+					fareClass.cabin_class.cabin_class_code === 'Y' ? CabinType.ECONOMY : CabinType.BUSINESS;
+
+				// Calculate price from database (same logic as Search Service)
+				// If price is provided in request, use it (for price lock), otherwise calculate from database
+				const calculatedBaseFare = this.calculateFarePrice(fareClass.fare_class_code, cabinType);
+				const baseFare = segment.baseFare ?? calculatedBaseFare;
+				const taxAmount = segment.taxAmount ?? 0;
+				const feeAmount = segment.feeAmount ?? 0;
+
+				// Validate availability (check if there are enough seats for this fare class)
+				// This is a simplified check - in production, you might want to lock seats
+				const availableSeats = await queryRunner.manager
+					.createQueryBuilder(FlightSeat, 'seat')
+					.innerJoin('seat.seat_config', 'config')
+					.innerJoin('config.cabin_class', 'cabin')
+					.where('seat.flight_instance_id = :instanceId', { instanceId: segment.flightInstanceId })
+					.andWhere('seat.is_available = :available', { available: true })
+					.andWhere('cabin.cabin_class_code = :cabinCode', {
+						cabinCode: fareClass.cabin_class.cabin_class_code,
+					})
+					.getCount();
+
+				if (availableSeats < dto.passengers.length) {
+					throw new BadRequestException(
+						`Not enough available seats for flight ${segment.flightInstanceId}. Available: ${availableSeats}, Required: ${dto.passengers.length}`,
+					);
+				}
+
+				validatedSegments.push({
+					flightInstance,
+					fareClass,
+					baseFare,
+					taxAmount,
+					feeAmount,
+				});
 			}
 
 			// Generate unique PNR
 			const pnrCode = await this.generateUniquePNR();
 
-			// Calculate total amount
-			const totalAmount = dto.segments.reduce(
+			// Calculate total amount from validated segments
+			const totalAmount = validatedSegments.reduce(
 				(sum, seg) => sum + seg.baseFare + seg.taxAmount + seg.feeAmount,
 				0,
 			);
@@ -230,15 +279,54 @@ export class BookingService {
 				let passenger: Passenger | null = null;
 
 				if (passengerDto.passengerId) {
-					passenger = await this.passengerRepo.findOne({
+					// Use existing passenger
+					passenger = await queryRunner.manager.findOne(Passenger, {
 						where: { passenger_id: passengerDto.passengerId },
 					});
 					if (!passenger) {
 						throw new NotFoundException(`Passenger ${passengerDto.passengerId} not found`);
 					}
 				} else {
-					// For now, we require passengerId. In a real scenario, you might create passenger here
-					throw new BadRequestException('Passenger ID is required');
+					// Create new passenger from provided info
+					if (!passengerDto.fullname || !passengerDto.dob || !passengerDto.gender || !passengerDto.documentNumber) {
+						throw new BadRequestException(
+							'If passengerId is not provided, fullname, dob, gender, and documentNumber are required',
+						);
+					}
+
+					// Validate date format
+					const dobDate = new Date(passengerDto.dob);
+					if (isNaN(dobDate.getTime())) {
+						throw new BadRequestException('Invalid date format for dob. Use YYYY-MM-DD format');
+					}
+
+					// Check if passenger with same document number already exists for this user
+					// (Optional: prevent duplicate passengers with same document number)
+					const existingPassenger = user?.user_id
+						? await queryRunner.manager.findOne(Passenger, {
+								where: {
+									document_number: passengerDto.documentNumber,
+									user_id: user.user_id,
+								},
+						  })
+						: null;
+
+					if (existingPassenger) {
+						// Use existing passenger if found (same document number for same user)
+						passenger = existingPassenger;
+					} else {
+						// Create new passenger
+						passenger = this.passengerRepo.create({
+							passenger_id: uuidv7(),
+							user: user,
+							fullname: passengerDto.fullname,
+							dob: dobDate,
+							gender: passengerDto.gender,
+							document_number: passengerDto.documentNumber,
+							loyalty_number: passengerDto.loyaltyNumber || null,
+						});
+						passenger = await queryRunner.manager.save(passenger);
+					}
 				}
 
 				const bookingPassenger = this.bookingPassengerRepo.create({
@@ -252,26 +340,23 @@ export class BookingService {
 			}
 
 			// Create booking segments
-			for (let i = 0; i < dto.segments.length; i++) {
+			for (let i = 0; i < validatedSegments.length; i++) {
+				const validatedSegment = validatedSegments[i];
 				const segmentDto = dto.segments[i];
 				const bookingPassenger = bookingPassengers[i % bookingPassengers.length]; // Round-robin assignment
 
-				const flightInstance = await this.flightInstanceRepo.findOne({
-					where: { flight_instance_id: segmentDto.flightInstanceId },
-				});
-				const fareClass = await this.fareClassRepo.findOne({
-					where: { fare_class_code: segmentDto.fareClassCode },
-				});
+				const flightInstance = validatedSegment.flightInstance;
+				const fareClass = validatedSegment.fareClass;
 
 				const bookingSegment = this.bookingSegmentRepo.create({
 					booking_segment_id: uuidv7(),
 					booking: savedBooking,
 					booking_passenger: bookingPassenger,
-					flight_instance: flightInstance!,
-					fare_class: fareClass!,
-					base_fare: segmentDto.baseFare,
-					tax_amount: segmentDto.taxAmount,
-					fee_amount: segmentDto.feeAmount,
+					flight_instance: flightInstance,
+					fare_class: fareClass,
+					base_fare: validatedSegment.baseFare,
+					tax_amount: validatedSegment.taxAmount,
+					fee_amount: validatedSegment.feeAmount,
 					status: 'booked',
 					flight_seat: segmentDto.flightSeatId
 						? await queryRunner.manager.findOne(FlightSeat, {
@@ -409,6 +494,42 @@ export class BookingService {
 			contactPhone: booking.contact_phone,
 			status: booking.status,
 		};
+	}
+
+	/**
+	 * Calculate fare price from fare class code and cabin type
+	 * Same logic as Search Service to ensure consistency
+	 */
+	private calculateFarePrice(fareClassCode: string, cabinType: CabinType): number {
+		// Base pricing logic - same as Search Service
+		// For now, using fixed prices based on fare class code patterns
+		// In production, this could be enhanced with dynamic pricing from database
+		const code = fareClassCode.toUpperCase();
+
+		if (cabinType === CabinType.ECONOMY) {
+			if (code.includes('SMX') || code.includes('SAVER')) {
+				return 1448000; // Economy Saver Max
+			}
+			if (code.includes('SM') || code === 'Y' || code === 'YS') {
+				return 1577000; // Economy Smart
+			}
+			if (code.includes('FLX') || code.includes('FLEX') || code === 'YF') {
+				return 3068000; // Economy Flex
+			}
+			// Default economy price
+			return 1577000;
+		} else if (cabinType === CabinType.BUSINESS) {
+			if (code.includes('SM') || code === 'J' || code === 'JS') {
+				return 5022000; // Business Smart
+			}
+			if (code.includes('FLX') || code.includes('FLEX') || code === 'JF') {
+				return 7074000; // Business Flex
+			}
+			// Default business price
+			return 5022000;
+		}
+
+		return 0;
 	}
 }
 

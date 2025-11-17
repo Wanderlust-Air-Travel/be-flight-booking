@@ -6,6 +6,7 @@ import { SearchClientModule } from './modules/search/search.client.module';
 import { ServicesClientModule } from './modules/services/services.client.module';
 import { RoutesClientModule } from './modules/routes/routes.client.module';
 import { BookingClientModule } from './modules/booking/booking.client.module';
+import { ReservationClientModule } from './modules/reservation/reservation.client.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { BookingClientModule } from './modules/booking/booking.client.module';
     ServicesClientModule,
     RoutesClientModule,
     BookingClientModule,
+    ReservationClientModule,
   ],
   controllers: [],
   providers: [],

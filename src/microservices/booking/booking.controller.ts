@@ -27,7 +27,7 @@ export class BookingMsController {
 		}
 	}
 
-	@MessagePattern(BOOKING_MS.PATTERN.GET_BOOKING_FARE_DETAILS)
+	@MessagePattern(BOOKING_MS.PATTERN.GET_FARE_DETAILS)
 	async handleGetBookingFareDetails(bookingId: string): Promise<BookingFareDetailsResponseDto> {
 		try {
 			this.logger.log(`Get booking fare details: ${bookingId}`);
@@ -39,7 +39,7 @@ export class BookingMsController {
 		}
 	}
 
-	@MessagePattern(BOOKING_MS.PATTERN.UPDATE_BOOKING_PASSENGERS)
+	@MessagePattern(BOOKING_MS.PATTERN.UPDATE_PASSENGERS)
 	async handleUpdateBookingPassengers(payload: {
 		bookingId: string;
 		dto: UpdateBookingPassengersDto;
@@ -54,7 +54,7 @@ export class BookingMsController {
 		}
 	}
 
-	@MessagePattern(BOOKING_MS.PATTERN.GET_BOOKING_PAYMENT_INFO)
+	@MessagePattern(BOOKING_MS.PATTERN.GET_PAYMENT_INFO)
 	async handleGetBookingPaymentInfo(bookingId: string): Promise<BookingPaymentInfoResponseDto> {
 		try {
 			this.logger.log(`Get booking payment info: ${bookingId}`);

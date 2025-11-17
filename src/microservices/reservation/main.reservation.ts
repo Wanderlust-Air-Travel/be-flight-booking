@@ -6,12 +6,13 @@ config({ path: resolve(process.cwd(), '.env') });
 
 import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-import { BookingModule } from './booking.module';
-import { BOOKING_MS } from './booking.messages';
+import { ReservationModule } from './reservation.module';
+import { RESERVATION_MS } from './reservation.messages';
 import { ValidationPipe } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { Module } from '@nestjs/common';
+import { RedisModule } from 'src/shared/modules/redis/redis.module';
 
 @Module({
 	imports: [
@@ -33,25 +34,28 @@ import { Module } from '@nestjs/common';
 			synchronize: false,
 			entities: [__dirname + '/../../shared/entities/**/*.entity.{ts,js}'],
 		}),
-		BookingModule,
+		RedisModule,
+		ReservationModule,
 	],
 })
-class BookingBootstrapModule {}
+class ReservationBootstrapModule {}
 
 async function bootstrap() {
-	const app = await NestFactory.createMicroservice<MicroserviceOptions>(BookingBootstrapModule, {
+	const app = await NestFactory.createMicroservice<MicroserviceOptions>(ReservationBootstrapModule, {
 		transport: Transport.TCP,
 		options: {
-			host: BOOKING_MS.TCP_HOST,
-			port: BOOKING_MS.TCP_PORT,
+			host: RESERVATION_MS.TCP_HOST,
+			port: RESERVATION_MS.TCP_PORT,
 		},
 	});
 	app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 	await app.listen();
-	console.log(`Booking microservice is listening on ${BOOKING_MS.TCP_HOST}:${BOOKING_MS.TCP_PORT}`);
+	console.log(
+		`Reservation microservice is listening on ${RESERVATION_MS.TCP_HOST}:${RESERVATION_MS.TCP_PORT}`,
+	);
 }
 bootstrap().catch((error) => {
-	console.error('Failed to start Booking microservice:', error);
+	console.error('Failed to start Reservation microservice:', error);
 	process.exit(1);
 });
 

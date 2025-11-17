@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule } from '@nestjs/config';
 import { Booking } from 'src/shared/entities/booking/booking.entity';
 import { BookingPassenger } from 'src/shared/entities/booking/booking-passenger.entity';
 import { BookingSegment } from 'src/shared/entities/booking/booking-segment.entity';
@@ -14,6 +15,9 @@ import { BookingMsController } from './booking.controller';
 
 @Module({
 	imports: [
+		ConfigModule.forRoot({
+			isGlobal: true,
+		}),
 		TypeOrmModule.forFeature([
 			Booking,
 			BookingPassenger,
