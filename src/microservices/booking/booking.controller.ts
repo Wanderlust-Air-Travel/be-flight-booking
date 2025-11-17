@@ -3,6 +3,7 @@ import { MessagePattern } from '@nestjs/microservices';
 import { BOOKING_MS } from './booking.messages';
 import { BookingService } from './booking.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { CreateBookingFromReservationDto } from './dto/create-booking-from-reservation.dto';
 import { CreateBookingResponseDto } from './dto/create-booking-response.dto';
 import { UpdateBookingPassengersDto } from './dto/update-booking-passengers.dto';
 import { BookingFareDetailsResponseDto } from './dto/booking-fare-details-response.dto';
@@ -23,6 +24,29 @@ export class BookingMsController {
 			return result;
 		} catch (error: any) {
 			this.logger.error('Create booking error:', error);
+			throw error;
+		}
+	}
+
+	@MessagePattern(BOOKING_MS.PATTERN.CREATE_BOOKING_FROM_RESERVATION)
+	async handleCreateBookingFromReservation(payload: {
+		reservationId: string;
+		userId: string;
+		dto: CreateBookingFromReservationDto;
+	}): Promise<CreateBookingResponseDto> {
+		try {
+			this.logger.log(
+				`Create booking from reservation: reservationId=${payload.reservationId}, userId=${payload.userId}`,
+			);
+			const result = await this.bookingService.createBookingFromReservation(
+				payload.reservationId,
+				payload.userId,
+				payload.dto,
+			);
+			this.logger.log(`Booking created from reservation: ${result.bookingId} (PNR: ${result.pnrCode})`);
+			return result;
+		} catch (error: any) {
+			this.logger.error('Create booking from reservation error:', error);
 			throw error;
 		}
 	}

@@ -5,6 +5,8 @@ export const RESERVATION_MS = {
 		CREATE_RESERVATION: 'reservation.create',
 		GET_RESERVATION: 'reservation.get',
 		CANCEL_RESERVATION: 'reservation.cancel',
+		LIST_RESERVATIONS: 'reservation.list',
+		EXTEND_RESERVATION: 'reservation.extend',
 	},
 } as const;
 

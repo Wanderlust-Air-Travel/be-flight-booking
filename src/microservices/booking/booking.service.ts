@@ -1,6 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
+import { ClientProxy } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
 import { v7 as uuidv7 } from 'uuid';
 import { Booking } from 'src/shared/entities/booking/booking.entity';
 import { BookingPassenger } from 'src/shared/entities/booking/booking-passenger.entity';
@@ -12,12 +14,15 @@ import { Currency } from 'src/shared/entities/currency/currency.entity';
 import { Passenger } from 'src/shared/entities/passenger/passenger.entity';
 import { User } from 'src/shared/entities/user/user.entity';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { CreateBookingFromReservationDto } from './dto/create-booking-from-reservation.dto';
 import { CreateBookingResponseDto } from './dto/create-booking-response.dto';
 import { UpdateBookingPassengersDto } from './dto/update-booking-passengers.dto';
 import { BookingFareDetailsResponseDto } from './dto/booking-fare-details-response.dto';
 import { BookingPaymentInfoResponseDto } from './dto/booking-payment-info-response.dto';
 import { FareDescriptionItemDto } from 'src/microservices/search/dto/fare-option.dto';
 import { CabinType } from 'src/microservices/search/dto/get-fare-options.dto';
+import { ReservationResponseDto } from '../reservation/dto/reservation-response.dto';
+import { RESERVATION_MS } from '../reservation/reservation.messages';
 
 @Injectable()
 export class BookingService {
@@ -31,6 +36,7 @@ export class BookingService {
 		@InjectRepository(Currency) private readonly currencyRepo: Repository<Currency>,
 		@InjectRepository(Passenger) private readonly passengerRepo: Repository<Passenger>,
 		@InjectRepository(User) private readonly userRepo: Repository<User>,
+		@Inject('RESERVATION_CLIENT') private readonly reservationClient: ClientProxy,
 		private readonly dataSource: DataSource,
 	) {}
 
@@ -530,6 +536,282 @@ export class BookingService {
 		}
 
 		return 0;
+	}
+
+	/**
+	 * Create a booking from an existing reservation.
+	 * This method retrieves reservation details from Redis via Reservation Service,
+	 * validates the reservation, and creates a booking with the reservation's flight and fare information.
+	 *
+	 * @param reservationId - Reservation ID (UUID v7) or reservation code (6 alphanumeric characters)
+	 * @param userId - User ID from JWT token (for validation)
+	 * @param dto - Booking data (passengers and contact info only)
+	 * @returns Created booking response
+	 */
+	async createBookingFromReservation(
+		reservationId: string,
+		userId: string,
+		dto: CreateBookingFromReservationDto,
+	): Promise<CreateBookingResponseDto> {
+		const queryRunner = this.dataSource.createQueryRunner();
+		await queryRunner.connect();
+		await queryRunner.startTransaction();
+
+		try {
+			// Step 1: Get reservation from Reservation Service
+			let reservation: ReservationResponseDto;
+			try {
+				reservation = await firstValueFrom(
+					this.reservationClient.send<ReservationResponseDto>(
+						RESERVATION_MS.PATTERN.GET_RESERVATION,
+						reservationId,
+					),
+				);
+			} catch (error: any) {
+				if (error?.statusCode === 404 || error?.message?.includes('not found')) {
+					throw new NotFoundException(`Reservation ${reservationId} not found or expired`);
+				}
+				if (error?.statusCode === 400 || error?.message?.includes('expired')) {
+					throw new BadRequestException('Reservation has expired. Please create a new reservation.');
+				}
+				throw new BadRequestException(`Failed to retrieve reservation: ${error?.message || 'Unknown error'}`);
+			}
+
+			// Step 2: Validate reservation status
+			if (reservation.status !== 'active') {
+				throw new BadRequestException(
+					`Cannot create booking from reservation with status: ${reservation.status}. Reservation must be active.`,
+				);
+			}
+
+			// Step 3: Validate reservation expiration
+			if (new Date(reservation.expiresAt) < new Date()) {
+				throw new BadRequestException('Reservation has expired. Please create a new reservation.');
+			}
+
+			// Step 3.5: Validate reservation ownership (if userId is stored in reservation)
+			if (reservation.userId && reservation.userId !== userId) {
+				throw new BadRequestException(
+					'Reservation does not belong to the current user. You can only create bookings from your own reservations.',
+				);
+			}
+
+			// Step 4: Validate number of passengers matches reservation
+			if (dto.passengers.length !== reservation.numberOfPassengers) {
+				throw new BadRequestException(
+					`Number of passengers (${dto.passengers.length}) does not match reservation (${reservation.numberOfPassengers})`,
+				);
+			}
+
+			// Step 5: Get user info
+			const user = await queryRunner.manager.findOne(User, { where: { user_id: userId } });
+			if (!user) {
+				throw new NotFoundException(`User ${userId} not found`);
+			}
+
+			// Step 6: Determine contact info (same logic as createBooking)
+			let contactFullname = dto.contactFullname;
+			let contactEmail = dto.contactEmail;
+			let contactPhone = dto.contactPhone;
+
+			if (!contactFullname || !contactEmail || !contactPhone) {
+				if (dto.passengers && dto.passengers.length === 1 && dto.passengers[0].passengerId) {
+					const passenger = await queryRunner.manager.findOne(Passenger, {
+						where: { passenger_id: dto.passengers[0].passengerId },
+					});
+
+					if (passenger && passenger.user_id === userId) {
+						contactFullname = contactFullname || passenger.fullname;
+						contactEmail = contactEmail || user.email;
+						contactPhone = contactPhone || user.phone || '';
+					} else {
+						contactFullname = contactFullname || user.fullname;
+						contactEmail = contactEmail || user.email;
+						contactPhone = contactPhone || user.phone || '';
+					}
+				} else {
+					contactFullname = contactFullname || user.fullname;
+					contactEmail = contactEmail || user.email;
+					contactPhone = contactPhone || user.phone || '';
+				}
+			}
+
+			// Step 7: Validate currency
+			const currency = await queryRunner.manager.findOne(Currency, {
+				where: { currency_code: reservation.currencyCode },
+			});
+			if (!currency) {
+				throw new NotFoundException(`Currency ${reservation.currencyCode} not found`);
+			}
+
+			// Step 8: Validate flight instance and fare class from reservation
+			const flightInstance = await queryRunner.manager.findOne(FlightInstance, {
+				where: { flight_instance_id: reservation.flightInstanceId },
+				relations: ['aircraft', 'aircraft.aircraft_type'],
+			});
+			if (!flightInstance) {
+				throw new NotFoundException(`Flight instance ${reservation.flightInstanceId} not found`);
+			}
+
+			const fareClass = await queryRunner.manager.findOne(FareClass, {
+				where: { fare_class_code: reservation.fareClassCode },
+				relations: ['cabin_class'],
+			});
+			if (!fareClass) {
+				throw new NotFoundException(`Fare class ${reservation.fareClassCode} not found`);
+			}
+
+			// Step 9: Validate availability (re-check seats)
+			const availableSeats = await queryRunner.manager
+				.createQueryBuilder(FlightSeat, 'seat')
+				.innerJoin('seat.seat_config', 'config')
+				.innerJoin('config.cabin_class', 'cabin')
+				.where('seat.flight_instance_id = :instanceId', { instanceId: reservation.flightInstanceId })
+				.andWhere('seat.is_available = :available', { available: true })
+				.andWhere('cabin.cabin_class_code = :cabinCode', {
+					cabinCode: fareClass.cabin_class.cabin_class_code,
+				})
+				.getCount();
+
+			if (availableSeats < reservation.numberOfPassengers) {
+				throw new BadRequestException(
+					`Not enough available seats for flight ${reservation.flightInstanceId}. Available: ${availableSeats}, Required: ${reservation.numberOfPassengers}`,
+				);
+			}
+
+			// Step 10: Generate unique PNR
+			const pnrCode = await this.generateUniquePNR();
+
+			// Step 11: Calculate total amount from reservation (per passenger * number of passengers)
+			const totalAmount = reservation.totalAmount; // Reservation already has total amount
+
+			// Step 12: Create booking
+			const booking = this.bookingRepo.create({
+				booking_id: uuidv7(),
+				pnr_code: pnrCode,
+				user: user,
+				currency: currency,
+				total_amount: totalAmount,
+				status: 'pending',
+				channel: dto.channel || 'web',
+				contact_fullname: contactFullname,
+				contact_email: contactEmail,
+				contact_phone: contactPhone,
+			});
+			const savedBooking = await queryRunner.manager.save(booking);
+
+			// Step 13: Create booking passengers
+			const bookingPassengers: BookingPassenger[] = [];
+			for (const passengerDto of dto.passengers) {
+				let passenger: Passenger | null = null;
+
+				if (passengerDto.passengerId) {
+					passenger = await queryRunner.manager.findOne(Passenger, {
+						where: { passenger_id: passengerDto.passengerId },
+					});
+					if (!passenger) {
+						throw new NotFoundException(`Passenger ${passengerDto.passengerId} not found`);
+					}
+					if (passenger.user_id && passenger.user_id !== userId) {
+						throw new BadRequestException(
+							`Passenger ${passengerDto.passengerId} does not belong to the current user`,
+						);
+					}
+				} else {
+					if (!passengerDto.fullname || !passengerDto.dob || !passengerDto.gender || !passengerDto.documentNumber) {
+						throw new BadRequestException(
+							'If passengerId is not provided, fullname, dob, gender, and documentNumber are required',
+						);
+					}
+
+					const dobDate = new Date(passengerDto.dob);
+					if (isNaN(dobDate.getTime())) {
+						throw new BadRequestException('Invalid date format for dob. Use YYYY-MM-DD format');
+					}
+
+					const existingPassenger = user?.user_id
+						? await queryRunner.manager.findOne(Passenger, {
+								where: {
+									document_number: passengerDto.documentNumber,
+									user_id: user.user_id,
+								},
+						  })
+						: null;
+
+					if (existingPassenger) {
+						passenger = existingPassenger;
+					} else {
+						passenger = this.passengerRepo.create({
+							passenger_id: uuidv7(),
+							user: user,
+							fullname: passengerDto.fullname,
+							dob: dobDate,
+							gender: passengerDto.gender,
+							document_number: passengerDto.documentNumber,
+							loyalty_number: passengerDto.loyaltyNumber || null,
+						});
+						passenger = await queryRunner.manager.save(passenger);
+					}
+				}
+
+				const bookingPassenger = this.bookingPassengerRepo.create({
+					booking_passenger_id: uuidv7(),
+					booking: savedBooking,
+					passenger: passenger,
+					passenger_type: passengerDto.passengerType,
+				});
+				const savedBookingPassenger = await queryRunner.manager.save(bookingPassenger);
+				bookingPassengers.push(savedBookingPassenger);
+			}
+
+			// Step 14: Create booking segments from reservation
+			// For each passenger, create a segment with the same flight and fare class
+			for (const bookingPassenger of bookingPassengers) {
+				const bookingSegment = this.bookingSegmentRepo.create({
+					booking_segment_id: uuidv7(),
+					booking: savedBooking,
+					booking_passenger: bookingPassenger,
+					flight_instance: flightInstance,
+					fare_class: fareClass,
+					base_fare: reservation.baseFare,
+					tax_amount: reservation.taxAmount,
+					fee_amount: reservation.feeAmount,
+					status: 'booked',
+					flight_seat: null, // Seat can be assigned later
+				});
+				await queryRunner.manager.save(bookingSegment);
+			}
+
+			// Step 15: Cancel reservation after successful booking creation
+			try {
+				await firstValueFrom(
+					this.reservationClient.send<{ success: boolean; message: string }>(
+						RESERVATION_MS.PATTERN.CANCEL_RESERVATION,
+						reservation.reservationId,
+					),
+				);
+			} catch (error: any) {
+				// Log error but don't fail the booking creation
+				console.error(`Failed to cancel reservation ${reservation.reservationId} after booking creation:`, error);
+				// Continue with booking creation even if reservation cancellation fails
+			}
+
+			// Commit transaction
+			await queryRunner.commitTransaction();
+
+			return {
+				bookingId: savedBooking.booking_id,
+				pnrCode: savedBooking.pnr_code,
+				totalAmount: savedBooking.total_amount,
+				currencyCode: savedBooking.currency.currency_code,
+				status: savedBooking.status,
+			};
+		} catch (error: any) {
+			await queryRunner.rollbackTransaction();
+			throw error;
+		} finally {
+			await queryRunner.release();
+		}
 	}
 }
 

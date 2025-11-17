@@ -12,8 +12,8 @@ GO
    ========================================================= */
 CREATE TABLE Users (
     user_id UNIQUEIDENTIFIER NOT NULL 
-        CONSTRAINT PK_Users PRIMARY KEY
-        DEFAULT NEWSEQUENTIALID(),
+        CONSTRAINT PK_Users PRIMARY KEY,
+        -- Note: Application code must generate UUID v7 for user_id
     fullname NVARCHAR(100) NOT NULL,
     email VARCHAR(100) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
@@ -32,8 +32,8 @@ GO
 
 CREATE TABLE Passengers (
     passenger_id UNIQUEIDENTIFIER NOT NULL 
-        CONSTRAINT PK_Passengers PRIMARY KEY
-        DEFAULT NEWSEQUENTIALID(),
+        CONSTRAINT PK_Passengers PRIMARY KEY,
+        -- Note: Application code must generate UUID v7 for passenger_id
     user_id UNIQUEIDENTIFIER NULL,          -- người sở hữu / tạo passenger
     fullname NVARCHAR(100) NOT NULL,
     dob DATE NOT NULL,
@@ -52,8 +52,8 @@ GO
    ========================================================= */
 CREATE TABLE Airports (
     airport_id UNIQUEIDENTIFIER NOT NULL
-        CONSTRAINT PK_Airports PRIMARY KEY
-        DEFAULT NEWSEQUENTIALID(),
+        CONSTRAINT PK_Airports PRIMARY KEY,
+        -- Note: Application code must generate UUID v7 for airport_id
     iata_code CHAR(3) NOT NULL UNIQUE,      -- SGN, HAN, DAD...
     icao_code CHAR(4) NULL,                 -- VVTS, VVNB...
     name NVARCHAR(150) NOT NULL,
@@ -65,8 +65,8 @@ GO
 
 CREATE TABLE Routes (
     route_id UNIQUEIDENTIFIER NOT NULL
-        CONSTRAINT PK_Routes PRIMARY KEY
-        DEFAULT NEWSEQUENTIALID(),
+        CONSTRAINT PK_Routes PRIMARY KEY,
+        -- Note: Application code must generate UUID v7 for route_id
     origin_airport_id UNIQUEIDENTIFIER NOT NULL,
     destination_airport_id UNIQUEIDENTIFIER NOT NULL,
     distance_km INT NULL,
@@ -158,8 +158,8 @@ GO
    ========================================================= */
 CREATE TABLE AircraftTypes (
     aircraft_type_id UNIQUEIDENTIFIER NOT NULL
-        CONSTRAINT PK_AircraftTypes PRIMARY KEY
-        DEFAULT NEWSEQUENTIALID(),
+        CONSTRAINT PK_AircraftTypes PRIMARY KEY,
+        -- Note: Application code must generate UUID v7 for aircraft_type_id
     code VARCHAR(20) NOT NULL UNIQUE,       -- A321, B787-9...
     manufacturer NVARCHAR(100) NOT NULL,    -- Airbus, Boeing...
     model NVARCHAR(100) NOT NULL,
@@ -169,8 +169,8 @@ GO
 
 CREATE TABLE Aircrafts (
     aircraft_id UNIQUEIDENTIFIER NOT NULL
-        CONSTRAINT PK_Aircrafts PRIMARY KEY
-        DEFAULT NEWSEQUENTIALID(),
+        CONSTRAINT PK_Aircrafts PRIMARY KEY,
+        -- Note: Application code must generate UUID v7 for aircraft_id
     aircraft_type_id UNIQUEIDENTIFIER NOT NULL,
     registration VARCHAR(20) NOT NULL UNIQUE,   -- số hiệu máy bay: VN-A321
     in_service BIT NOT NULL DEFAULT 1,
@@ -205,8 +205,8 @@ GO
 -- Layout ghế chuẩn theo loại máy bay
 CREATE TABLE SeatConfigurations (
     seat_config_id UNIQUEIDENTIFIER NOT NULL
-        CONSTRAINT PK_SeatConfigurations PRIMARY KEY
-        DEFAULT NEWSEQUENTIALID(),
+        CONSTRAINT PK_SeatConfigurations PRIMARY KEY,
+        -- Note: Application code must generate UUID v7 for seat_config_id
     aircraft_type_id UNIQUEIDENTIFIER NOT NULL,
     seat_number VARCHAR(10) NOT NULL,       -- 1A, 10C...
     cabin_class_code VARCHAR(5) NOT NULL,   -- Economy/Business...
@@ -231,8 +231,8 @@ GO
 -- Định nghĩa lịch bay: VN210 SGN-HAN, bay các ngày 1-3-5-7...
 CREATE TABLE FlightSchedules (
     flight_schedule_id UNIQUEIDENTIFIER NOT NULL
-        CONSTRAINT PK_FlightSchedules PRIMARY KEY
-        DEFAULT NEWSEQUENTIALID(),
+        CONSTRAINT PK_FlightSchedules PRIMARY KEY,
+        -- Note: Application code must generate UUID v7 for flight_schedule_id
     flight_number VARCHAR(10) NOT NULL,      -- VN210, QH1522...
     route_id UNIQUEIDENTIFIER NOT NULL,
     aircraft_type_id UNIQUEIDENTIFIER NOT NULL,
@@ -257,8 +257,8 @@ GO
 -- Chuyến bay thực tế theo ngày (instance)
 CREATE TABLE FlightInstances (
     flight_instance_id UNIQUEIDENTIFIER NOT NULL
-        CONSTRAINT PK_FlightInstances PRIMARY KEY
-        DEFAULT NEWSEQUENTIALID(),
+        CONSTRAINT PK_FlightInstances PRIMARY KEY,
+        -- Note: Application code must generate UUID v7 for flight_instance_id
     flight_schedule_id UNIQUEIDENTIFIER NOT NULL,
     flight_date DATE NOT NULL,                  -- ngày bay
     flight_number VARCHAR(10) NOT NULL,         -- copy từ schedule để dễ query
@@ -283,8 +283,8 @@ GO
 -- Ghế theo từng FlightInstance (availability)
 CREATE TABLE FlightSeats (
     flight_seat_id UNIQUEIDENTIFIER NOT NULL
-        CONSTRAINT PK_FlightSeats PRIMARY KEY
-        DEFAULT NEWSEQUENTIALID(),
+        CONSTRAINT PK_FlightSeats PRIMARY KEY,
+        -- Note: Application code must generate UUID v7 for flight_seat_id
     flight_instance_id UNIQUEIDENTIFIER NOT NULL,
     seat_config_id UNIQUEIDENTIFIER NOT NULL,
     seat_number VARCHAR(10) NOT NULL,
@@ -324,8 +324,8 @@ GO
 
 CREATE TABLE Bookings (
     booking_id UNIQUEIDENTIFIER NOT NULL 
-        CONSTRAINT PK_Bookings PRIMARY KEY
-        DEFAULT NEWSEQUENTIALID(),
+        CONSTRAINT PK_Bookings PRIMARY KEY,
+        -- Note: Application code must generate UUID v7 for booking_id
     pnr_code VARCHAR(10) NOT NULL UNIQUE,     -- mã đặt chỗ (PNR)
     user_id UNIQUEIDENTIFIER NULL,            -- khách đã login (nếu có)
     currency_code CHAR(3) NOT NULL,
@@ -349,8 +349,8 @@ GO
 -- Hành khách trong 1 booking
 CREATE TABLE BookingPassengers (
     booking_passenger_id UNIQUEIDENTIFIER NOT NULL
-        CONSTRAINT PK_BookingPassengers PRIMARY KEY
-        DEFAULT NEWSEQUENTIALID(),
+        CONSTRAINT PK_BookingPassengers PRIMARY KEY,
+        -- Note: Application code must generate UUID v7 for booking_passenger_id
     booking_id UNIQUEIDENTIFIER NOT NULL,
     passenger_id UNIQUEIDENTIFIER NOT NULL,
     passenger_type VARCHAR(10) NOT NULL,      -- ADT/CHD/INF
@@ -370,8 +370,8 @@ GO
 -- Mỗi passenger trên mỗi chặng (flight_instance) + ghế + giá
 CREATE TABLE BookingSegments (
     booking_segment_id UNIQUEIDENTIFIER NOT NULL
-        CONSTRAINT PK_BookingSegments PRIMARY KEY
-        DEFAULT NEWSEQUENTIALID(),
+        CONSTRAINT PK_BookingSegments PRIMARY KEY,
+        -- Note: Application code must generate UUID v7 for booking_segment_id
     booking_id UNIQUEIDENTIFIER NOT NULL,
     booking_passenger_id UNIQUEIDENTIFIER NOT NULL,
     flight_instance_id UNIQUEIDENTIFIER NOT NULL,
@@ -403,8 +403,8 @@ GO
 -- Vé điện tử (e-ticket) theo passenger
 CREATE TABLE Tickets (
     ticket_id UNIQUEIDENTIFIER NOT NULL 
-        CONSTRAINT PK_Tickets PRIMARY KEY
-        DEFAULT NEWSEQUENTIALID(),
+        CONSTRAINT PK_Tickets PRIMARY KEY,
+        -- Note: Application code must generate UUID v7 for ticket_id
     booking_id UNIQUEIDENTIFIER NOT NULL,
     booking_passenger_id UNIQUEIDENTIFIER NOT NULL,
     ticket_number VARCHAR(20) NOT NULL UNIQUE,
@@ -423,8 +423,8 @@ GO
 -- Thanh toán
 CREATE TABLE Payments (
     payment_id UNIQUEIDENTIFIER NOT NULL 
-        CONSTRAINT PK_Payments PRIMARY KEY
-        DEFAULT NEWSEQUENTIALID(),
+        CONSTRAINT PK_Payments PRIMARY KEY,
+        -- Note: Application code must generate UUID v7 for payment_id
     booking_id UNIQUEIDENTIFIER NOT NULL,
     amount DECIMAL(12,2) NOT NULL,
     currency_code CHAR(3) NOT NULL,

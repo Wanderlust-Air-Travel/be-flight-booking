@@ -2,7 +2,7 @@
 
 Thư mục chứa tất cả các SQL scripts của project, được phân loại rõ ràng theo mục đích sử dụng.
 
-## 📁 Cấu trúc thư mục
+## Cấu trúc thư mục
 
 ```
 sql/
@@ -11,7 +11,10 @@ sql/
 │
 └── utils/                     # Utility scripts
     ├── data-management/       # Scripts quản lý dữ liệu
-    │   └── clear-all-seed-data.sql
+    │   ├── clear-all-seed-data.sql
+    │   ├── add-image-link-to-routes.sql
+    │   ├── create-trigger-auto-generate-image-link.sql
+    │   └── validate-routes-image-link.sql
     │
     ├── testing/               # Scripts hỗ trợ testing API
     │   ├── find-valid-flight-instance-ids.sql
@@ -21,10 +24,13 @@ sql/
     │   ├── find-valid-passenger-ids.sql  # Tìm passenger IDs hợp lệ (nhiều options)
     │   └── find-valid-user-ids.sql  # Tìm user IDs hợp lệ (UUID v7 format)
     │
-    ├── get-route-id-for-test.sql  # Lấy route_id để test upload ảnh (nhiều options)
+    ├── get-route-id-for-test.sql  # Lấy route_id để test upload ảnh
     ├── get-single-route-id.sql    # Lấy 1 route_id nhanh để test upload ảnh
     ├── get-passenger-id-for-test.sql  # Lấy passenger_id nhanh để test booking API
-    └── get-user-id-for-test.sql  # Lấy user_id hợp lệ (UUID v7) nhanh để test booking API
+    ├── get-user-id-for-test.sql  # Lấy user_id hợp lệ (UUID v7) nhanh để test booking API
+    ├── check-single-route-image.sql  # Kiểm tra image của một route
+    ├── check-uploaded-route-images.sql  # Kiểm tra các route đã upload ảnh
+    └── test-connection.sql  # Test database connection
     │
     └── debugging/             # Scripts debug và kiểm tra data
         ├── quick-check-han-dad.sql
@@ -33,7 +39,7 @@ sql/
         └── check-han-dad-instances-any-date.sql
 ```
 
-## 📂 Chi tiết từng thư mục
+## Chi tiết từng thư mục
 
 ### `schema/`
 **Mục đích:** Chứa scripts tạo database schema
@@ -66,25 +72,28 @@ sql/
 ### `utils/testing/`
 **Mục đích:** Scripts hỗ trợ testing API, tìm dữ liệu hợp lệ
 
-**Files:**
+**Files trong `utils/testing/`:**
 - `find-valid-flight-instance-ids.sql` - Tìm flightInstanceId hợp lệ để test API fare-options (economy)
 - `find-valid-flight-instance-ids-business.sql` - Tìm flightInstanceId hợp lệ để test API fare-options (business)
 - `find-valid-dates-sgn-pqc.sql` - Tìm ngày có flights cho route SGN → PQC
 - `find-valid-round-trip-dates-han-sgn.sql` - Tìm cặp ngày hợp lệ cho round trip HAN ↔ SGN
-- `find-valid-passenger-ids.sql` - Tìm passenger IDs hợp lệ để test booking APIs (nhiều options: tất cả, theo user, chưa có booking, đã có booking, v.v.)
-- `find-valid-user-ids.sql` - Tìm user IDs hợp lệ (UUID v7 format) để test booking APIs (nhiều options: tất cả, theo email, với passengers, v.v.)
-- `get-route-id-for-test.sql` - Lấy route_id để test upload ảnh (nhiều options: tất cả, chưa có image, đã có image, với route detail)
+- `find-valid-passenger-ids.sql` - Tìm passenger IDs hợp lệ để test booking APIs (nhiều options)
+- `find-valid-user-ids.sql` - Tìm user IDs hợp lệ (UUID v7 format) để test booking APIs (nhiều options)
+
+**Files trong `utils/` (root):**
+- `get-route-id-for-test.sql` - Lấy route_id để test upload ảnh
 - `get-single-route-id.sql` - Lấy 1 route_id nhanh để test upload ảnh
-- `get-passenger-id-for-test.sql` - Lấy passenger_id nhanh để test booking API (quick query)
-- `get-user-id-for-test.sql` - Lấy user_id hợp lệ (UUID v7) nhanh để test booking API (quick query)
-- `check-uploaded-route-images.sql` - Kiểm tra ảnh đã được upload và update vào database (verify sau khi upload)
+- `get-passenger-id-for-test.sql` - Lấy passenger_id nhanh để test booking API
+- `get-user-id-for-test.sql` - Lấy user_id hợp lệ (UUID v7) nhanh để test booking API
+- `check-single-route-image.sql` - Kiểm tra image của một route cụ thể
+- `check-uploaded-route-images.sql` - Kiểm tra các route đã upload ảnh
+- `test-connection.sql` - Test database connection
 
 **Khi nào dùng:**
 - Khi test API trên Postman nhưng không biết dữ liệu nào hợp lệ
 - Khi cần tìm flightInstanceId, dates, routes, passenger IDs, user IDs để test
 - Khi cần route_id để test API upload ảnh (`POST /routes/:routeId/upload-image`)
-- Khi cần passenger_id để test booking APIs (`POST /bookings`, `GET /bookings/:id/fare-details`, v.v.)
-- Khi cần user_id hợp lệ (UUID v7) để test booking APIs (user_id phải có format UUID v7, không phải NEWSEQUENTIALID())
+- Khi cần passenger_id hoặc user_id để test booking APIs
 - Sau khi upload ảnh, cần verify xem `image_url` đã được update vào database chưa
 
 ---
@@ -105,7 +114,7 @@ sql/
 
 ---
 
-## 📖 Xem thêm
+## Xem thêm
 
-Xem chi tiết về từng file SQL tại: [SQL-SCRIPTS-GUIDE.md](../SQL-SCRIPTS-GUIDE.md)
+Xem chi tiết về từng file SQL tại: [docs/database/SQL-SCRIPTS-GUIDE.md](../docs/database/SQL-SCRIPTS-GUIDE.md)
 

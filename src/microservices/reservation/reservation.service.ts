@@ -161,6 +161,7 @@ export class ReservationService {
 			expiresAt,
 			ttl: this.reservationTtl,
 			createdAt: now,
+			userId: userId || null, // Store userId for ownership validation
 		};
 
 		// Store in Redis with TTL
@@ -242,6 +243,80 @@ export class ReservationService {
 			success: true,
 			message: 'Reservation cancelled successfully',
 		};
+	}
+
+	/**
+	 * List all active reservations for a user
+	 * Note: This implementation scans all reservation keys and filters by userId.
+	 * For production with large datasets, consider maintaining a separate index:
+	 * `user:reservations:${userId}` -> Set of reservation IDs
+	 */
+	async listReservations(userId: string): Promise<ReservationResponseDto[]> {
+		const reservations: ReservationResponseDto[] = [];
+		const redisClient = this.redisService.getClient();
+
+		// Get all reservation keys (format: flight-booking:reservation:*)
+		// Note: RedisService uses keyPrefix, so keys() needs full pattern with prefix
+		const redisConfig = this.configService.get('redis');
+		const keyPrefix = redisConfig?.keyPrefix || 'flight-booking:';
+		const pattern = `${keyPrefix}reservation:*`;
+
+		const allKeys = await this.redisService.keys(pattern);
+
+		for (const fullKey of allKeys) {
+			// Extract reservation ID from full key
+			// Full key format: {prefix}reservation:{id}
+			const reservationId = fullKey.replace(`${keyPrefix}reservation:`, '');
+			const reservation = await this.redisService.get<ReservationResponseDto>(reservationId);
+
+			if (reservation && reservation.userId === userId && reservation.status === 'active') {
+				// Check if not expired
+				if (new Date(reservation.expiresAt) >= new Date()) {
+					// Update TTL
+					const ttl = await this.redisService.ttl(reservationId);
+					reservation.ttl = ttl > 0 ? ttl : 0;
+					reservations.push(reservation);
+				}
+			}
+		}
+
+		return reservations;
+	}
+
+	/**
+	 * Extend reservation TTL
+	 */
+	async extendReservation(reservationId: string, additionalSeconds: number): Promise<ReservationResponseDto> {
+		const reservation = await this.getReservation(reservationId);
+
+		if (reservation.status !== 'active') {
+			throw new BadRequestException(`Cannot extend reservation with status: ${reservation.status}`);
+		}
+
+		if (new Date(reservation.expiresAt) < new Date()) {
+			throw new BadRequestException('Cannot extend expired reservation');
+		}
+
+		const reservationKey = this.getReservationKey(reservationId);
+		const codeKey = this.getReservationCodeKey(reservation.reservationCode);
+
+		// Calculate new expiration time
+		const newExpiresAt = new Date(new Date(reservation.expiresAt).getTime() + additionalSeconds * 1000);
+		const newTtl = Math.floor((newExpiresAt.getTime() - new Date().getTime()) / 1000);
+
+		if (newTtl <= 0) {
+			throw new BadRequestException('Invalid extension time. Reservation would still be expired.');
+		}
+
+		// Update reservation with new expiration
+		reservation.expiresAt = newExpiresAt;
+		reservation.ttl = newTtl;
+
+		// Update Redis with new TTL
+		await this.redisService.set(reservationKey, reservation, newTtl);
+		await this.redisService.set(codeKey, reservationId, newTtl);
+
+		return reservation;
 	}
 }
 

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
+import { ClientsModule, Transport } from '@nestjs/microservices';
 import { Booking } from 'src/shared/entities/booking/booking.entity';
 import { BookingPassenger } from 'src/shared/entities/booking/booking-passenger.entity';
 import { BookingSegment } from 'src/shared/entities/booking/booking-segment.entity';
@@ -12,6 +13,7 @@ import { Passenger } from 'src/shared/entities/passenger/passenger.entity';
 import { User } from 'src/shared/entities/user/user.entity';
 import { BookingService } from './booking.service';
 import { BookingMsController } from './booking.controller';
+import { RESERVATION_MS } from '../reservation/reservation.messages';
 
 @Module({
 	imports: [
@@ -28,6 +30,16 @@ import { BookingMsController } from './booking.controller';
 			Currency,
 			Passenger,
 			User,
+		]),
+		ClientsModule.register([
+			{
+				name: 'RESERVATION_CLIENT',
+				transport: Transport.TCP,
+				options: {
+					host: RESERVATION_MS.TCP_HOST,
+					port: RESERVATION_MS.TCP_PORT,
+				},
+			},
 		]),
 	],
 	providers: [BookingService],

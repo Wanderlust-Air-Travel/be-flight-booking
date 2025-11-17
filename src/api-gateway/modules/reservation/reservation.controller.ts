@@ -184,5 +184,74 @@ export class ReservationController {
 			throw new Error(`Cancel reservation failed: ${error?.message || 'Unknown error'}`);
 		}
 	}
+
+	@Get()
+	@ApiOperation({
+		summary: 'List all active reservations for the current user',
+		description: 'Get a list of all active reservations belonging to the authenticated user.',
+	})
+	@ApiOkResponse({
+		description: 'List of reservations retrieved successfully',
+		type: [ReservationResponseDto],
+	})
+	async listReservations(
+		@Req() req: Request & { user: { userId: string; email: string } },
+	): Promise<ReservationResponseDto[]> {
+		try {
+			const userId = req.user.userId;
+			return await firstValueFrom(
+				this.client.send<ReservationResponseDto[]>(RESERVATION_MS.PATTERN.LIST_RESERVATIONS, userId),
+			);
+		} catch (error: any) {
+			console.error('List reservations error:', error);
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+				throw new Error('Reservation microservice is not running. Please start it with: npm run start:reservation:dev');
+			}
+			throw new Error(`List reservations failed: ${error?.message || 'Unknown error'}`);
+		}
+	}
+
+	@Post(':id/extend')
+	@ApiOperation({
+		summary: 'Extend reservation expiration time',
+		description: 'Extend the expiration time of an active reservation by a specified number of seconds.',
+	})
+	@ApiParam({
+		name: 'id',
+		description: 'Reservation ID (UUID v7)',
+		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+	})
+	@ApiOkResponse({
+		description: 'Reservation extended successfully',
+		type: ReservationResponseDto,
+	})
+	@ApiBadRequestResponse({
+		description: 'Reservation not found, expired, or invalid extension time',
+	})
+	async extendReservation(
+		@Param('id') reservationId: string,
+		@Body() body: { additionalSeconds: number },
+	): Promise<ReservationResponseDto> {
+		try {
+			return await firstValueFrom(
+				this.client.send<ReservationResponseDto>(RESERVATION_MS.PATTERN.EXTEND_RESERVATION, {
+					reservationId,
+					additionalSeconds: body.additionalSeconds,
+				}),
+			);
+		} catch (error: any) {
+			console.error('Extend reservation error:', error);
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+				throw new Error('Reservation microservice is not running. Please start it with: npm run start:reservation:dev');
+			}
+			throw new Error(`Extend reservation failed: ${error?.message || 'Unknown error'}`);
+		}
+	}
 }
 

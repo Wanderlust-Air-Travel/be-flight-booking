@@ -1,0 +1,865 @@
+{
+	"info": {
+		"_postman_id": "flight-booking-api-collection",
+		"name": "Flight Booking API",
+		"description": "Collection để test Flight Booking API trên Postman\n\n**Lưu ý:**\n- Chạy `npm run seed:full` trước khi test\n- Seed tạo data cho 60 ngày tới (từ hôm nay)\n- Có 500 users, 300-450 schedules, 50 schedules được xử lý để tạo instances\n- Dates trong requests cần nằm trong khoảng 60 ngày từ hôm nay\n\n**Microservices cần chạy:**\n- Search Microservice (port 4001): `npm run start:search:dev`\n- Services Microservice (port 4002): `npm run start:services:dev` (cho /services/deals)\n- Routes Microservice (port 4003): `npm run start:routes:dev` (cho /routes/upload-image)\n- Booking Microservice (port 4004): `npm run start:booking:dev` (cho booking APIs)\n- Reservation Microservice (port 4005): `npm run start:reservation:dev` (cho reservation APIs)\n- Redis (port 6379): `docker-compose up -d redis` (required cho Reservation Service)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Search",
+			"item": [
+				{
+					"name": "Search Flights - One Way (HAN → SGN)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/search/flights?origin=HAN&destination=SGN&departDate={{departDate}}&tripType=one_way&adults=1&minors=0",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"search",
+								"flights"
+							],
+							"query": [
+								{
+									"key": "origin",
+									"value": "HAN",
+									"description": "Origin airport IATA code"
+								},
+								{
+									"key": "destination",
+									"value": "SGN",
+									"description": "Destination airport IATA code"
+								},
+								{
+									"key": "departDate",
+									"value": "{{departDate}}",
+									"description": "Departure date (YYYY-MM-DD). Phải nằm trong khoảng 60 ngày từ hôm nay (sau khi seed)"
+								},
+								{
+									"key": "tripType",
+									"value": "one_way",
+									"description": "Trip type: one_way or round_trip"
+								},
+								{
+									"key": "adults",
+									"value": "1",
+									"description": "Number of adult passengers"
+								},
+								{
+									"key": "minors",
+									"value": "0",
+									"description": "Number of minor passengers"
+								}
+							]
+						},
+						"description": "Search for one-way flights from Hanoi to Ho Chi Minh City"
+					},
+					"response": []
+				},
+				{
+					"name": "Search Flights - Round Trip (HAN → SGN)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/search/flights?origin=HAN&destination=SGN&departDate={{departDate}}&returnDate={{returnDate}}&tripType=round_trip&adults=2&minors=1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"search",
+								"flights"
+							],
+							"query": [
+								{
+									"key": "origin",
+									"value": "HAN"
+								},
+								{
+									"key": "destination",
+									"value": "SGN"
+								},
+								{
+									"key": "departDate",
+									"value": "{{departDate}}",
+									"description": "Departure date (YYYY-MM-DD)"
+								},
+								{
+									"key": "returnDate",
+									"value": "{{returnDate}}",
+									"description": "Return date (YYYY-MM-DD). Phải sau departDate và trong khoảng 60 ngày"
+								},
+								{
+									"key": "tripType",
+									"value": "round_trip"
+								},
+								{
+									"key": "adults",
+									"value": "2"
+								},
+								{
+									"key": "minors",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Search Flights - HAN → DAD",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/search/flights?origin=HAN&destination=DAD&departDate={{departDate}}&tripType=one_way&adults=1&minors=0",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"search",
+								"flights"
+							],
+							"query": [
+								{
+									"key": "origin",
+									"value": "HAN"
+								},
+								{
+									"key": "destination",
+									"value": "DAD"
+								},
+								{
+									"key": "departDate",
+									"value": "{{departDate}}"
+								},
+								{
+									"key": "tripType",
+									"value": "one_way"
+								},
+								{
+									"key": "adults",
+									"value": "1"
+								},
+								{
+									"key": "minors",
+									"value": "0"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Search Flights - SGN → PQC",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/search/flights?origin=SGN&destination=PQC&departDate={{departDate}}&tripType=one_way&adults=1&minors=0",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"search",
+								"flights"
+							],
+							"query": [
+								{
+									"key": "origin",
+									"value": "SGN"
+								},
+								{
+									"key": "destination",
+									"value": "PQC"
+								},
+								{
+									"key": "departDate",
+									"value": "{{departDate}}"
+								},
+								{
+									"key": "tripType",
+									"value": "one_way"
+								},
+								{
+									"key": "adults",
+									"value": "1"
+								},
+								{
+									"key": "minors",
+									"value": "0"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Economy Fare Options",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/search/fare-options?flightInstanceId={{flightInstanceId}}&cabinType=economy",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"search",
+								"fare-options"
+							],
+							"query": [
+								{
+									"key": "flightInstanceId",
+									"value": "{{flightInstanceId}}",
+									"description": "Flight instance ID from search flights response"
+								},
+								{
+									"key": "cabinType",
+									"value": "economy",
+									"description": "Cabin type: economy or business"
+								}
+							]
+						},
+						"description": "Get economy fare options for a flight instance. Set flightInstanceId variable from search flights response.\n\n**Response format:**\nReturns array directly: `[{ fareClassCode, name, typeTicket, price, availableSeats, desc, ... }]`\n\nEach fare option includes:\n- `desc`: Array of descriptions with `text` and `status` (true/false)\n- `typeTicket`: Display name for the fare class\n- `price`: Price in VND\n- `availableSeats`: Number of available seats"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Business Fare Options",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/search/fare-options?flightInstanceId={{flightInstanceId}}&cabinType=business",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"search",
+								"fare-options"
+							],
+							"query": [
+								{
+									"key": "flightInstanceId",
+									"value": "{{flightInstanceId}}"
+								},
+								{
+									"key": "cabinType",
+									"value": "business"
+								}
+							]
+						},
+						"description": "Get business fare options for a flight instance. Set flightInstanceId variable from search flights response.\n\n**Response format:**\nReturns array directly: `[{ fareClassCode, name, typeTicket, price, availableSeats, desc, ... }]`\n\nEach fare option includes:\n- `desc`: Array of descriptions with `text` and `status` (true/false)\n- `typeTicket`: Display name for the fare class\n- `price`: Price in VND\n- `availableSeats`: Number of available seats"
+					},
+					"response": []
+				}
+			],
+			"description": "Search flights and get fare options"
+		},
+		{
+			"name": "Services",
+			"item": [
+				{
+					"name": "Get Flight Deals",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/services/deals",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"services",
+								"deals"
+							]
+						},
+						"description": "Get list of available flight deals with routes, dates, and prices. Returns both one-way and round-trip deals. Requires Services Microservice running on port 4002.\n\n**Response includes:**\n- `tripType`: \"one_way\" or \"round_trip\"\n- `endDate`: Empty for one-way, contains return date for round-trip\n- `service`: \"Dịch vụ bay thẳng\" (one-way) or \"Dịch vụ bay khứ hồi\" (round-trip)\n- `price`: For round-trip, this is the total price of both flights"
+					},
+					"response": [
+						{
+							"name": "Success Response",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/services/deals",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"services",
+										"deals"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"deals\": [\n    {\n      \"image\": \"/images/routes/019a8f4a-bb0e-7402-a0c4-27647b89dc71.jpg\",\n      \"title\": \"Tp. Hồ Chí Minh (SGN) đến Hà Nội (HAN)\",\n      \"link\": \"/service/019a8f4a-bb0e-7402-a0c4-27647b89dc71\",\n      \"startDate\": \"02/03/2026\",\n      \"endDate\": \"\",\n      \"tripType\": \"one_way\",\n      \"service\": \"Dịch vụ bay thẳng\",\n      \"price\": \"962,000 VND\"\n    },\n    {\n      \"image\": \"/images/routes/019a8f4a-bb0e-7402-a0c4-27647b89dc71.jpg\",\n      \"title\": \"Tp. Hồ Chí Minh (SGN) đến Hà Nội (HAN)\",\n      \"link\": \"/service/019a8f4a-bb0e-7402-a0c4-27647b89dc71\",\n      \"startDate\": \"02/03/2026\",\n      \"endDate\": \"09/03/2026\",\n      \"tripType\": \"round_trip\",\n      \"service\": \"Dịch vụ bay khứ hồi\",\n      \"price\": \"1,924,000 VND\"\n    }\n  ]\n}"
+						}
+					]
+				}
+			],
+			"description": "Services APIs - Flight deals"
+		},
+		{
+			"name": "Routes",
+			"item": [
+				{
+					"name": "Upload Route Image",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "image",
+									"type": "file",
+									"src": [],
+									"description": "Image file (JPG, JPEG, PNG, max 5MB)"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/routes/{{routeId}}/upload-image",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"routes",
+								"{{routeId}}",
+								"upload-image"
+							]
+						},
+						"description": "Upload an image for a specific route. Image will be saved to public/images/routes/ and image_url will be updated in database. Requires JWT authentication and Routes Microservice running on port 4003. routeId must be UUID v7 format."
+					},
+					"response": []
+				}
+			],
+			"description": "Routes APIs - Route management"
+		},
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Register",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"fullname\": \"Nguyen Van A\",\n  \"email\": \"user@example.com\",\n  \"password\": \"Password123!\",\n  \"phone\": \"0901234567\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/register",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"register"
+							]
+						},
+						"description": "Register a new user account"
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"Password123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						},
+						"description": "Login and get access token"
+					},
+					"response": []
+				},
+				{
+					"name": "Refresh Token",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/refresh",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"refresh"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "Authentication APIs"
+		},
+			{
+				"name": "Reservations",
+				"item": [
+					{
+						"name": "Create Reservation",
+						"event": [
+							{
+								"listen": "test",
+								"script": {
+									"exec": [
+										"if (pm.response.code === 201) {",
+										"    const response = pm.response.json();",
+										"    pm.collectionVariables.set('reservationId', response.reservationId);",
+										"    pm.collectionVariables.set('reservationCode', response.reservationCode);",
+										"}"
+									],
+									"type": "text/javascript"
+								}
+							}
+						],
+						"request": {
+							"auth": {
+								"type": "bearer",
+								"bearer": [
+									{
+										"key": "token",
+										"value": "{{access_token}}",
+										"type": "string"
+									}
+								]
+							},
+							"method": "POST",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": {
+								"mode": "raw",
+								"raw": "{\n  \"flightInstanceId\": \"{{flightInstanceId}}\",\n  \"fareClassCode\": \"YS\",\n  \"numberOfPassengers\": 1,\n  \"currencyCode\": \"VND\"\n}"
+							},
+							"url": {
+								"raw": "{{base_url}}/reservations",
+								"host": ["{{base_url}}"],
+								"path": ["reservations"]
+							},
+							"description": "Tạo reservation để giữ chỗ tạm thời. Backend lưu flightInstanceId và fareClassCode vào Redis với TTL 15 phút.\n\n**Lưu ý:**\n- Yêu cầu JWT authentication\n- Reservation tự động expire sau 15 phút\n- Response chứa reservationId và reservationCode để dùng cho bước tiếp theo"
+						},
+						"response": []
+					},
+					{
+						"name": "Get Reservation by ID",
+						"request": {
+							"auth": {
+								"type": "bearer",
+								"bearer": [
+									{
+										"key": "token",
+										"value": "{{access_token}}",
+										"type": "string"
+									}
+								]
+							},
+							"method": "GET",
+							"header": [],
+							"url": {
+								"raw": "{{base_url}}/reservations/{{reservationId}}",
+								"host": ["{{base_url}}"],
+								"path": ["reservations", "{{reservationId}}"]
+							},
+							"description": "Lấy thông tin reservation theo ID. API tự động detect nếu input là UUID v7 (ID) hay 6 ký tự (code)."
+						},
+						"response": []
+					},
+					{
+						"name": "Get Reservation by Code",
+						"request": {
+							"auth": {
+								"type": "bearer",
+								"bearer": [
+									{
+										"key": "token",
+										"value": "{{access_token}}",
+										"type": "string"
+									}
+								]
+							},
+							"method": "GET",
+							"header": [],
+							"url": {
+								"raw": "{{base_url}}/reservations/code/{{reservationCode}}",
+								"host": ["{{base_url}}"],
+								"path": ["reservations", "code", "{{reservationCode}}"]
+							},
+							"description": "Lấy thông tin reservation theo reservation code (6 alphanumeric characters)."
+						},
+						"response": []
+					},
+					{
+						"name": "List Reservations",
+						"request": {
+							"auth": {
+								"type": "bearer",
+								"bearer": [
+									{
+										"key": "token",
+										"value": "{{access_token}}",
+										"type": "string"
+									}
+								]
+							},
+							"method": "GET",
+							"header": [],
+							"url": {
+								"raw": "{{base_url}}/reservations",
+								"host": ["{{base_url}}"],
+								"path": ["reservations"]
+							},
+							"description": "Lấy danh sách tất cả active reservations của user hiện tại (từ JWT token). Chỉ trả về reservations với status 'active' và chưa expired."
+						},
+						"response": []
+					},
+					{
+						"name": "Cancel Reservation",
+						"request": {
+							"auth": {
+								"type": "bearer",
+								"bearer": [
+									{
+										"key": "token",
+										"value": "{{access_token}}",
+										"type": "string"
+									}
+								]
+							},
+							"method": "POST",
+							"header": [],
+							"url": {
+								"raw": "{{base_url}}/reservations/{{reservationId}}/cancel",
+								"host": ["{{base_url}}"],
+								"path": ["reservations", "{{reservationId}}", "cancel"]
+							},
+							"description": "Hủy một reservation đang active. Chỉ có thể cancel reservation với status 'active'."
+						},
+						"response": []
+					},
+					{
+						"name": "Extend Reservation",
+						"request": {
+							"auth": {
+								"type": "bearer",
+								"bearer": [
+									{
+										"key": "token",
+										"value": "{{access_token}}",
+										"type": "string"
+									}
+								]
+							},
+							"method": "POST",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": {
+								"mode": "raw",
+								"raw": "{\n  \"additionalSeconds\": 600\n}"
+							},
+							"url": {
+								"raw": "{{base_url}}/reservations/{{reservationId}}/extend",
+								"host": ["{{base_url}}"],
+								"path": ["reservations", "{{reservationId}}", "extend"]
+							},
+							"description": "Gia hạn thời gian expiration của reservation thêm một số giây. Chỉ có thể extend reservation với status 'active' và chưa expired. `additionalSeconds` phải là số dương."
+						},
+						"response": []
+					}
+				],
+				"description": "Reservation APIs - Giữ chỗ tạm thời trước khi tạo booking\n\n**Lưu ý:**\n- Tất cả APIs yêu cầu JWT authentication\n- Reservation được lưu trong Redis (không phải database)\n- Tự động expire sau 15 phút\n- Cần Reservation Microservice (port 4005) và Redis chạy"
+			},
+			{
+				"name": "Bookings",
+				"item": [
+				{
+					"name": "Create Booking from Reservation",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const response = pm.response.json();",
+									"    pm.collectionVariables.set('bookingId', response.bookingId);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"passengers\": [\n    {\n      \"passengerType\": \"ADT\",\n      \"fullname\": \"Nguyen Van A\",\n      \"dob\": \"1990-01-15\",\n      \"gender\": \"Male\",\n      \"documentNumber\": \"001234567890\"\n    }\n  ],\n  \"contactFullname\": \"Nguyen Van A\",\n  \"contactEmail\": \"nguyenvana@example.com\",\n  \"contactPhone\": \"0912345678\",\n  \"channel\": \"web\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/bookings?reservationId={{reservationId}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"bookings"
+							],
+							"query": [
+								{
+									"key": "reservationId",
+									"value": "{{reservationId}}",
+									"description": "Reservation ID (UUID v7) or reservation code (6 alphanumeric). Get this from POST /reservations response."
+								}
+							]
+						},
+						"description": "Create a booking from an existing reservation (Recommended Flow - Backend-managed State). Requires JWT authentication and Booking Microservice running on port 4004.\n\n**Authentication:**\n- Requires JWT Bearer Token in header: `Authorization: Bearer {{access_token}}`\n- `userId` is automatically extracted from JWT token\n\n**Query Parameter:**\n- `reservationId`: Reservation ID (UUID v7) or reservation code (6 alphanumeric). Get this from POST /reservations response.\n\n**Request body:**\n- `passengers`: Array of passengers (required). Each passenger can be:\n  - **Option 1 (Use existing passenger)**: `passengerId` (UUID v7) + `passengerType`\n  - **Option 2 (Create new passenger)**: `passengerType` + `fullname` + `dob` (YYYY-MM-DD) + `gender` + `documentNumber`\n- `contactFullname`, `contactEmail`, `contactPhone`: Optional - if not provided, will use user info from database\n- `channel`: Optional (default: \"web\")\n\n**How it works:**\n- Backend automatically retrieves `flightInstanceId`, `fareClassCode`, and pricing from reservation\n- No need to send `segments` in request body\n- Reservation will be automatically cancelled after successful booking creation\n- Number of passengers must match reservation\n\n**Response:**\n- `bookingId`: UUID v7\n- `pnrCode`: 6-character alphanumeric code (auto-generated, unique)\n- `totalAmount`: Total price\n- `currencyCode`: Currency\n- `status`: Booking status (default: \"pending\")"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Booking (Legacy Flow)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"currencyCode\": \"VND\",\n  \"contactFullname\": \"Nguyen Van A\",\n  \"contactEmail\": \"nguyenvana@example.com\",\n  \"contactPhone\": \"0912345678\",\n  \"channel\": \"web\",\n  \"passengers\": [\n    {\n      \"passengerType\": \"ADT\",\n      \"fullname\": \"Nguyen Van A\",\n      \"dob\": \"1990-01-15\",\n      \"gender\": \"Male\",\n      \"documentNumber\": \"001234567890\"\n    }\n  ],\n  \"segments\": [\n    {\n      \"flightInstanceId\": \"{{flightInstanceId}}\",\n      \"fareClassCode\": \"YS\",\n      \"baseFare\": 1577000,\n      \"taxAmount\": 0,\n      \"feeAmount\": 0\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/bookings",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"bookings"
+							]
+						},
+						"description": "Create a new booking directly without reservation (Legacy Flow - not recommended). Requires JWT authentication and Booking Microservice running on port 4004.\n\n**Note:** It's recommended to use \"Create Booking from Reservation\" instead for better backend-managed state.\n\n**Authentication:**\n- Requires JWT Bearer Token in header: `Authorization: Bearer {{access_token}}`\n- `userId` is automatically extracted from JWT token (no need to pass in body)\n\n**Request body:**\n- `currencyCode`: Required (e.g., \"VND\")\n- `contactFullname`, `contactEmail`, `contactPhone`: Optional - if not provided, will use user info from database\n- `passengers`: Array of passengers with 2 options:\n  - **Option 1 (Use existing passenger)**: `passengerId` (UUID v7) + `passengerType`\n  - **Option 2 (Create new passenger)**: `passengerType` + `fullname` + `dob` (YYYY-MM-DD) + `gender` + `documentNumber`\n- `segments`: Array of flight segments with `flightInstanceId`, `fareClassCode`, `baseFare`, `taxAmount`, `feeAmount`\n\n**About Passengers:**\n- **User**: The person who creates the booking account\n- **Passenger**: The person who actually travels (can be different from user)\n- One user can have multiple passengers (family members, friends)\n- **Passenger Creation**: If `passengerId` is not provided, passenger will be automatically created from provided info and linked to user for future use\n- **Duplicate Prevention**: If passenger with same `documentNumber` already exists for user, will reuse existing passenger\n\n**Response:**\n- `bookingId`: UUID v7\n- `pnrCode`: 6-character alphanumeric code (auto-generated, unique)\n- `totalAmount`: Total price\n- `currencyCode`: Currency\n- `status`: Booking status (default: \"pending\")"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Booking Fare Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/bookings/{{bookingId}}/fare-details",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"bookings",
+								"{{bookingId}}",
+								"fare-details"
+							]
+						},
+						"description": "Get detailed fare information for a booking including descriptions and pricing. Requires Booking Microservice running on port 4004.\n\n**Path parameter:**\n- `bookingId`: Booking ID (UUID v7)\n\n**Response:**\n- `bookingId`, `pnrCode`, `fareClassName`\n- `descriptions`: Array of fare descriptions with `text` and `status` (true/false)\n- `priceOneWay`, `totalPassengers`, `totalPrice`"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Booking Passengers",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"adults\": 2,\n  \"minors\": 1\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/bookings/{{bookingId}}/passengers",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"bookings",
+								"{{bookingId}}",
+								"passengers"
+							]
+						},
+						"description": "Update the number of adult and minor passengers for a booking. Requires Booking Microservice running on port 4004.\n\n**Path parameter:**\n- `bookingId`: Booking ID (UUID v7)\n\n**Request body:**\n- `adults`: Number of adult passengers (≥1)\n- `minors`: Number of minor passengers (≥0)\n\n**Response:**\n- `success`: Boolean\n- `message`: Status message\n- `totalPassengers`: Updated total number of passengers"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Booking Payment Info",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/bookings/{{bookingId}}/payment-info",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"bookings",
+								"{{bookingId}}",
+								"payment-info"
+							]
+						},
+						"description": "Get payment information for a booking including total amount, currency, and contact details. Requires Booking Microservice running on port 4004.\n\n**Path parameter:**\n- `bookingId`: Booking ID (UUID v7)\n\n**Response:**\n- `bookingId`, `pnrCode`\n- `totalAmount`, `currencyCode`\n- `contactFullname`, `contactEmail`, `contactPhone`\n- `status`: Booking status (pending/confirmed/cancelled/completed)"
+					},
+					"response": []
+				}
+			],
+			"description": "Booking APIs - Create and manage flight bookings. Requires Booking Microservice running on port 4004."
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:3000",
+			"type": "string"
+		},
+		{
+			"key": "flightInstanceId",
+			"value": "",
+			"type": "string",
+			"description": "Flight instance ID from search flights response. Example: 96C80E54-48C3-F011-8CC6-088FC311F15F. Get this from /search/flights API response first."
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refresh_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "userId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "departDate",
+			"value": "2025-11-18",
+			"type": "string",
+			"description": "Departure date (YYYY-MM-DD). Cập nhật theo ngày hiện tại, phải nằm trong khoảng 60 ngày từ hôm nay"
+		},
+		{
+			"key": "returnDate",
+			"value": "2025-11-25",
+			"type": "string",
+			"description": "Return date (YYYY-MM-DD). Phải sau departDate và trong khoảng 60 ngày"
+		},
+		{
+			"key": "routeId",
+			"value": "",
+			"type": "string",
+			"description": "Route ID (UUID v7 format). Example: 019a8f4a-bb0e-7402-a0c4-27647b89dc71. Get this from /services/deals API response or database."
+		},
+		{
+			"key": "bookingId",
+			"value": "",
+			"type": "string",
+			"description": "Booking ID (UUID v7 format). Get this from POST /bookings API response. Example: 019a8f4a-bb0e-7402-a0c4-27647b89dc71"
+		},
+		{
+			"key": "passengerId",
+			"value": "",
+			"type": "string",
+			"description": "Passenger ID (UUID v7 format). Get this from database or create a passenger first. Example: 019a8f4a-bb0e-7402-a0c4-27647b89dc71"
+		},
+		{
+			"key": "reservationId",
+			"value": "",
+			"type": "string",
+			"description": "Reservation ID (UUID v7 format) or reservation code (6 alphanumeric). Get this from POST /reservations API response. Example: 019a8f4a-bb0e-7402-a0c4-27647b89dc71 or ABC123"
+		},
+		{
+			"key": "reservationCode",
+			"value": "",
+			"type": "string",
+			"description": "Reservation code (6 alphanumeric characters). Get this from POST /reservations API response. Example: ABC123"
+		}
+	]
+}
+

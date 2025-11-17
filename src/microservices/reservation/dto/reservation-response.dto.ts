@@ -85,5 +85,12 @@ export class ReservationResponseDto {
 		example: '2025-01-20T10:15:00Z',
 	})
 	createdAt!: Date;
+
+	@ApiProperty({
+		description: 'User ID who created the reservation (for ownership validation)',
+		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+		required: false,
+	})
+	userId?: string | null;
 }
 

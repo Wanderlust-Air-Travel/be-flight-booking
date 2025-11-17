@@ -813,7 +813,7 @@ async function run() {
 				booking_passenger_id: uuidv7(),
 				booking,
 				passenger,
-				passenger_type: randomElement(['adult', 'child', 'infant']),
+				passenger_type: randomElement(['ADT', 'CHD', 'INF']), // ADT = Adult, CHD = Child, INF = Infant
 			}));
 			bookingPassengers.push(bp);
 		}
@@ -901,13 +901,15 @@ async function run() {
 			});
 
 			if (paymentMethod) {
+				const paymentStatus = status === 'confirmed' || status === 'completed' ? 'completed' : 'pending';
 				await repos.payment.save(repos.payment.create({
 					payment_id: uuidv7(),
 					booking,
 					amount: totalAmount,
 					currency: vnd,
 					payment_method: paymentMethod,
-					status: status === 'confirmed' || status === 'completed' ? 'completed' : 'pending',
+					status: paymentStatus,
+					paid_at: paymentStatus === 'completed' ? new Date() : null,
 					transaction_ref: `TXN${randomInt(100000000, 999999999)}`,
 				}));
 			}

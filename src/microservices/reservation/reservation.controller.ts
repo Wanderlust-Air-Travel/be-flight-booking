@@ -52,5 +52,32 @@ export class ReservationMsController {
 			throw error;
 		}
 	}
+
+	@MessagePattern(RESERVATION_MS.PATTERN.LIST_RESERVATIONS)
+	async handleListReservations(userId: string): Promise<ReservationResponseDto[]> {
+		try {
+			this.logger.log(`List reservations for user: ${userId}`);
+			const result = await this.reservationService.listReservations(userId);
+			return result;
+		} catch (error: any) {
+			this.logger.error('List reservations error:', error);
+			throw error;
+		}
+	}
+
+	@MessagePattern(RESERVATION_MS.PATTERN.EXTEND_RESERVATION)
+	async handleExtendReservation(payload: {
+		reservationId: string;
+		additionalSeconds: number;
+	}): Promise<ReservationResponseDto> {
+		try {
+			this.logger.log(`Extend reservation: ${payload.reservationId}, additionalSeconds: ${payload.additionalSeconds}`);
+			const result = await this.reservationService.extendReservation(payload.reservationId, payload.additionalSeconds);
+			return result;
+		} catch (error: any) {
+			this.logger.error('Extend reservation error:', error);
+			throw error;
+		}
+	}
 }
 
