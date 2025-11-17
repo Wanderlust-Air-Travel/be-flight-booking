@@ -79,7 +79,37 @@ BOOKING_MS_PORT=4004
 - Thay `DB_HOST` nếu dùng SQL Server trên máy khác hoặc Azure
 - `JWT_ACCESS_SECRET` và `JWT_REFRESH_SECRET` nên tạo mới cho production
 
-### Bước 4: Setup Database
+### Bước 4: Setup Redis (Required for Reservations)
+
+**Chạy Redis với Docker:**
+
+```bash
+docker-compose up -d redis
+```
+
+Hoặc chạy trực tiếp:
+
+```bash
+docker run -d \
+  --name flight-booking-redis \
+  -p 6379:6379 \
+  -v redis-data:/data \
+  redis:7-alpine \
+  redis-server --appendonly yes
+```
+
+**Kiểm tra Redis đang chạy:**
+
+```bash
+docker ps | grep redis
+# Hoặc
+docker exec -it flight-booking-redis redis-cli ping
+# Should return: PONG
+```
+
+Xem chi tiết tại: [REDIS_SETUP.md](./REDIS_SETUP.md)
+
+### Bước 5: Setup Database
 
 1. **Tạo Database trong SQL Server:**
 
@@ -98,7 +128,7 @@ GO
 3. **Cấp quyền cho user:**
    - Đảm bảo user trong `.env` có quyền `SELECT, INSERT, UPDATE, DELETE` trên database
 
-### Bước 5: Seed Database
+### Bước 6: Seed Database
 
 #### Seed full database với hàng ngàn records (Khuyến nghị cho testing)
 
@@ -145,7 +175,7 @@ Script này sẽ tạo:
 - **Để xóa toàn bộ data và chạy lại seed**: Sử dụng file `sql/utils/data-management/clear-all-seed-data.sql` (xem chi tiết trong [SEED-README.md](./SEED-README.md))
 - Xem chi tiết tại: [SEED-README.md](./SEED-README.md)
 
-### Bước 6: Chạy Backend
+### Bước 7: Chạy Backend
 
 **Cách 1: Chạy Development Mode (Recommended)**
 
@@ -178,6 +208,14 @@ Terminal 5 - Booking Microservice (Optional, nếu cần booking APIs):
 npm run start:booking:dev
 ```
 Booking Microservice sẽ chạy tại port 4004 (TCP)
+
+Terminal 6 - Reservation Microservice (Optional, nếu cần reservation APIs):
+```bash
+npm run start:reservation:dev
+```
+Reservation Microservice sẽ chạy tại port 4005 (TCP)
+
+**Lưu ý**: Reservation Microservice cần Redis chạy để quản lý reservations.
 
 **Cách 2: Chạy Production Mode**
 
@@ -280,6 +318,44 @@ curl -X POST http://localhost:3000/auth/login \
   }'
 ```
 
+**Lưu ý**: User ID được tự động generate là **UUID v7** format.
+
+### 4. Test Booking API
+
+**Tạo booking với passenger mới:**
+```bash
+curl -X POST http://localhost:3000/bookings \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <access_token>" \
+  -d '{
+    "currencyCode": "VND",
+    "passengers": [
+      {
+        "passengerType": "ADT",
+        "fullname": "Nguyen Van A",
+        "dob": "1990-01-15",
+        "gender": "Male",
+        "documentNumber": "001234567890"
+      }
+    ],
+    "segments": [
+      {
+        "flightInstanceId": "<flightInstanceId>",
+        "fareClassCode": "YS",
+        "baseFare": 1577000,
+        "taxAmount": 0,
+        "feeAmount": 0
+      }
+    ]
+  }'
+```
+
+**Lưu ý**: 
+- Cần JWT token trong header
+- `userId` không cần truyền - tự động từ JWT
+- Contact info tự động lấy từ user nếu không có
+- Passenger sẽ được tự động tạo và link với user
+
 ## 📚 Tài liệu
 
 - **API_DOCS.md**: Chi tiết tất cả APIs cho FE developers
@@ -366,6 +442,19 @@ curl -X POST http://localhost:3000/auth/login \
 2. Kiểm tra port 4004 không bị conflict
 3. Check `BOOKING_MS_HOST` và `BOOKING_MS_PORT` trong `.env`
 
+### Lỗi: "Redis connection failed" hoặc "ECONNREFUSED"
+
+**Nguyên nhân:**
+- Redis chưa chạy
+- Port 6379 bị conflict
+- Sai Redis host/port trong `.env`
+
+**Giải pháp:**
+1. Đảm bảo Redis đang chạy: `docker ps | grep redis`
+2. Chạy Redis: `docker-compose up -d redis`
+3. Kiểm tra `REDIS_HOST` và `REDIS_PORT` trong `.env`
+4. Test connection: `docker exec -it flight-booking-redis redis-cli ping`
+
 ### Lỗi: "Airport not found" khi search flights
 
 **Nguyên nhân:**
@@ -394,6 +483,11 @@ Xem chi tiết tại: [STRUCTURE.md](./STRUCTURE.md)
 2. Gửi `access_token` trong header: `Authorization: Bearer <token>`
 3. Token hết hạn → Gọi `/auth/refresh` với `refresh_token`
 4. Lấy tokens mới và tiếp tục
+
+**Lưu ý quan trọng:**
+- User ID được tự động generate là **UUID v7** khi đăng ký
+- Booking API (`POST /bookings`) yêu cầu JWT authentication
+- `userId` không cần truyền trong booking request - tự động extract từ JWT token
 
 Xem chi tiết tại: [API_DOCS.md](./API_DOCS.md)
 

@@ -25,7 +25,8 @@ src/
 │   │   ├── search/            # Search flights (proxy to microservice)
 │   │   ├── services/          # Services (deals, etc.)
 │   │   ├── routes/            # Routes management
-│   │   └── booking/           # Booking management (proxy to microservice)
+│   │   ├── booking/           # Booking management (proxy to microservice)
+│   │   └── reservation/       # Reservation management (proxy to microservice)
 │   ├── app.module.ts          # Root module
 │   └── main.ts                # Entry point
 │
@@ -48,12 +49,18 @@ src/
 │   │   ├── dto/               # Request/Response DTOs
 │   │   ├── routes.messages.ts # TCP config
 │   │   └── main.routes.ts     # Entry point
-│   └── booking/               # Booking microservice (port 4004)
+│   ├── booking/               # Booking microservice (port 4004)
+│   │   ├── controllers/       # Message handlers
+│   │   ├── services/          # Business logic
+│   │   ├── dto/               # Request/Response DTOs
+│   │   ├── booking.messages.ts # TCP config
+│   │   └── main.booking.ts    # Entry point
+│   └── reservation/           # Reservation microservice (port 4005)
 │       ├── controllers/       # Message handlers
-│       ├── services/          # Business logic
+│       ├── services/          # Business logic (Redis-based)
 │       ├── dto/               # Request/Response DTOs
-│       ├── booking.messages.ts # TCP config
-│       └── main.booking.ts    # Entry point
+│       ├── reservation.messages.ts # TCP config
+│       └── main.reservation.ts # Entry point
 │
 └── scripts/                   # Database scripts
     └── seed-domestic.ts       # Seed domestic flights data
@@ -126,15 +133,47 @@ API Gateway → Response to FE
   - **Query params**:
     - `flightInstanceId` (required): UUID v7
     - `cabinType` (required): "economy" hoặc "business"
-  - **Response**: Array format `[{ id, type, code, list: [...] }]` với `desc` array cho mỗi fare option
+  - **Response**: Array trực tiếp `[{ fareClassCode, name, typeTicket, price, availableSeats, desc, ... }]`
+    - Mỗi fare option có `desc` array với `text` và `status` (true/false)
+    - Không có group wrapper (đơn giản hơn, phù hợp với UUID v7 system)
 
 ### Services
 - `GET /services/deals` - Lấy danh sách flight deals (ưu đãi chuyến bay)
 
+### Reservations
+- `POST /reservations` - Tạo reservation (giữ chỗ tạm thời)
+  - **Auth**: Required (JWT Bearer Token)
+  - **Request**: `{ flightInstanceId, fareClassCode, numberOfPassengers, currencyCode? }`
+  - **Response**: `{ reservationId, reservationCode, totalAmount, expiresAt, status, ttl, ... }`
+  - **Lưu ý**: 
+    - Reservation được lưu trong **Redis** (không phải database)
+    - Tự động expire sau 15 phút (configurable)
+    - Backend tự động validate availability và tính giá
+    - Cần Reservation Microservice (port 4005) và Redis chạy
+- `GET /reservations/:id` - Lấy reservation theo ID hoặc code (auto-detect)
+  - **Auth**: Required (JWT Bearer Token)
+  - **Response**: Reservation details với TTL còn lại
+- `GET /reservations/code/:code` - Lấy reservation theo code (6 alphanumeric)
+  - **Auth**: Required (JWT Bearer Token)
+- `POST /reservations/:id/cancel` - Hủy reservation
+  - **Auth**: Required (JWT Bearer Token)
+
 ### Bookings
 - `POST /bookings` - Tạo booking mới
-  - **Body**: `{ userId?, currencyCode, contactFullname, contactEmail, contactPhone, channel?, passengers[], segments[] }`
+  - **Authentication**: Required (JWT Bearer Token)
+  - **Body**: 
+    - `currencyCode` (required)
+    - `contactFullname`, `contactEmail`, `contactPhone` (optional - tự động lấy từ user nếu không có)
+    - `channel` (optional)
+    - `passengers[]` (required):
+      - **Option 1**: `{ passengerId, passengerType }` - Sử dụng passenger đã có
+      - **Option 2**: `{ passengerType, fullname, dob, gender, documentNumber }` - Tạo passenger mới
+    - `segments[]` (required): `{ flightInstanceId, fareClassCode, baseFare, taxAmount, feeAmount }`
   - **Response**: `{ bookingId, pnrCode, totalAmount, currencyCode, status }`
+  - **Lưu ý**: 
+    - `userId` không cần truyền - tự động extract từ JWT token
+    - Nếu không có `passengerId`, passenger sẽ được tự động tạo và link với user
+    - Contact info tự động lấy từ user nếu không có trong body
 - `GET /bookings/:id/fare-details` - Lấy thông tin chi tiết fare đã chọn
   - **Response**: `{ bookingId, pnrCode, fareClassName, descriptions[], priceOneWay, totalPassengers, totalPrice }`
 - `PATCH /bookings/:id/passengers` - Cập nhật số lượng người
@@ -217,6 +256,11 @@ Authorization: Bearer <access_token>
 4. FE gửi `access_token` trong header cho các request cần auth
 5. Khi `access_token` hết hạn, FE gọi `/auth/refresh` với `refresh_token`
 
+### APIs yêu cầu Authentication
+- `POST /bookings` - Tạo booking (yêu cầu JWT)
+- `GET /users` - Lấy thông tin user (yêu cầu JWT)
+- Các APIs khác có thể yêu cầu authentication tùy vào implementation
+
 ## Development Commands
 
 ```bash
@@ -234,6 +278,12 @@ npm run start:routes:dev
 
 # Start Booking Microservice (port 4004) - Cần chạy nếu dùng booking APIs
 npm run start:booking:dev
+
+# Start Reservation Microservice (port 4005) - Cần chạy nếu dùng reservation APIs
+npm run start:reservation:dev
+
+# Start Redis (port 6379) - Required cho Reservation Service
+docker-compose up -d redis
 
 # Seed database với dữ liệu nội địa (HAN, SGN, DAD)
 npm run seed:domestic
@@ -276,6 +326,18 @@ ROUTES_MS_PORT=4003
 # Booking Microservice
 BOOKING_MS_HOST=127.0.0.1
 BOOKING_MS_PORT=4004
+
+# Reservation Microservice
+RESERVATION_MS_HOST=127.0.0.1
+RESERVATION_MS_PORT=4005
+
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+REDIS_DB=0
+REDIS_KEY_PREFIX=flight-booking:
+REDIS_RESERVATION_TTL=900  # 15 minutes (in seconds)
 ```
 
 ## Lưu ý cho FE
@@ -287,11 +349,17 @@ BOOKING_MS_PORT=4004
 5. **Round trip**: Nếu `tripType=round_trip` thì bắt buộc phải có `returnDate`
 6. **Error handling**: Check `statusCode` trong response để handle errors
 7. **UUID v7**: Tất cả IDs trong hệ thống (flightInstanceId, bookingId, userId...) sử dụng **UUID v7** (time-ordered UUID). Format: `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx`. UUID v7 có thể sắp xếp theo thời gian, tốt cho database indexing.
-8. **Pricing Strategy**: 
+8. **Booking API Features**:
+   - Yêu cầu JWT authentication - `userId` tự động extract từ token
+   - Contact info tự động lấy từ user nếu không có trong body
+   - Hỗ trợ tạo passenger mới trong booking request (không cần tạo trước)
+   - Passenger tự động link với user để tái sử dụng sau này
+   - Tự động detect và reuse passenger nếu cùng `documentNumber` đã tồn tại
+9. **Pricing Strategy**: 
    - Services API sử dụng historical pricing (từ BookingSegments) - tính giá trung bình
    - Nếu không có booking data, route sẽ bị bỏ qua (không hiển thị trong deals)
    - Giá được format theo chuẩn Việt Nam: "962,000 VND"
-9. **Routes Schema**:
+10. **Routes Schema**:
    - Bảng Routes có thêm 2 columns: `image_url` và `service_link`
    - Format chuẩn:
      - `image_url`: `/images/routes/{route_id}.jpg` (route_id là UUID v7, length = 55)

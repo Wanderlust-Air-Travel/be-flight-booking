@@ -17,10 +17,14 @@ sql/
     │   ├── find-valid-flight-instance-ids.sql
     │   ├── find-valid-flight-instance-ids-business.sql
     │   ├── find-valid-dates-sgn-pqc.sql
-    │   └── find-valid-round-trip-dates-han-sgn.sql
+    │   ├── find-valid-round-trip-dates-han-sgn.sql
+    │   ├── find-valid-passenger-ids.sql  # Tìm passenger IDs hợp lệ (nhiều options)
+    │   └── find-valid-user-ids.sql  # Tìm user IDs hợp lệ (UUID v7 format)
     │
     ├── get-route-id-for-test.sql  # Lấy route_id để test upload ảnh (nhiều options)
-    └── get-single-route-id.sql    # Lấy 1 route_id nhanh để test upload ảnh
+    ├── get-single-route-id.sql    # Lấy 1 route_id nhanh để test upload ảnh
+    ├── get-passenger-id-for-test.sql  # Lấy passenger_id nhanh để test booking API
+    └── get-user-id-for-test.sql  # Lấy user_id hợp lệ (UUID v7) nhanh để test booking API
     │
     └── debugging/             # Scripts debug và kiểm tra data
         ├── quick-check-han-dad.sql
@@ -67,14 +71,20 @@ sql/
 - `find-valid-flight-instance-ids-business.sql` - Tìm flightInstanceId hợp lệ để test API fare-options (business)
 - `find-valid-dates-sgn-pqc.sql` - Tìm ngày có flights cho route SGN → PQC
 - `find-valid-round-trip-dates-han-sgn.sql` - Tìm cặp ngày hợp lệ cho round trip HAN ↔ SGN
+- `find-valid-passenger-ids.sql` - Tìm passenger IDs hợp lệ để test booking APIs (nhiều options: tất cả, theo user, chưa có booking, đã có booking, v.v.)
+- `find-valid-user-ids.sql` - Tìm user IDs hợp lệ (UUID v7 format) để test booking APIs (nhiều options: tất cả, theo email, với passengers, v.v.)
 - `get-route-id-for-test.sql` - Lấy route_id để test upload ảnh (nhiều options: tất cả, chưa có image, đã có image, với route detail)
 - `get-single-route-id.sql` - Lấy 1 route_id nhanh để test upload ảnh
+- `get-passenger-id-for-test.sql` - Lấy passenger_id nhanh để test booking API (quick query)
+- `get-user-id-for-test.sql` - Lấy user_id hợp lệ (UUID v7) nhanh để test booking API (quick query)
 - `check-uploaded-route-images.sql` - Kiểm tra ảnh đã được upload và update vào database (verify sau khi upload)
 
 **Khi nào dùng:**
 - Khi test API trên Postman nhưng không biết dữ liệu nào hợp lệ
-- Khi cần tìm flightInstanceId, dates, routes để test
+- Khi cần tìm flightInstanceId, dates, routes, passenger IDs, user IDs để test
 - Khi cần route_id để test API upload ảnh (`POST /routes/:routeId/upload-image`)
+- Khi cần passenger_id để test booking APIs (`POST /bookings`, `GET /bookings/:id/fare-details`, v.v.)
+- Khi cần user_id hợp lệ (UUID v7) để test booking APIs (user_id phải có format UUID v7, không phải NEWSEQUENTIALID())
 - Sau khi upload ảnh, cần verify xem `image_url` đã được update vào database chưa
 
 ---

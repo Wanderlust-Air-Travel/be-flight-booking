@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "flight-booking-api-collection",
 		"name": "Flight Booking API",
-		"description": "Collection để test Flight Booking API trên Postman\n\n**Lưu ý:**\n- Chạy `npm run seed:full` trước khi test\n- Seed tạo data cho 60 ngày tới (từ hôm nay)\n- Có 500 users, 300-450 schedules, 50 schedules được xử lý để tạo instances\n- Dates trong requests cần nằm trong khoảng 60 ngày từ hôm nay",
+		"description": "Collection để test Flight Booking API trên Postman\n\n**Lưu ý:**\n- Chạy `npm run seed:full` trước khi test\n- Seed tạo data cho 60 ngày tới (từ hôm nay)\n- Có 500 users, 300-450 schedules, 50 schedules được xử lý để tạo instances\n- Dates trong requests cần nằm trong khoảng 60 ngày từ hôm nay\n\n**Microservices cần chạy:**\n- Search Microservice (port 4001): `npm run start:search:dev`\n- Services Microservice (port 4002): `npm run start:services:dev` (cho /services/deals)\n- Routes Microservice (port 4003): `npm run start:routes:dev` (cho /routes/upload-image)\n- Booking Microservice (port 4004): `npm run start:booking:dev` (cho booking APIs)\n- Reservation Microservice (port 4005): `npm run start:reservation:dev` (cho reservation APIs)\n- Redis (port 6379): `docker-compose up -d redis` (required cho Reservation Service)",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
@@ -225,7 +225,7 @@
 								}
 							]
 						},
-						"description": "Get economy fare options for a flight instance. Set flightInstanceId variable from search flights response."
+						"description": "Get economy fare options for a flight instance. Set flightInstanceId variable from search flights response.\n\n**Response format:**\nReturns array directly: `[{ fareClassCode, name, typeTicket, price, availableSeats, desc, ... }]`\n\nEach fare option includes:\n- `desc`: Array of descriptions with `text` and `status` (true/false)\n- `typeTicket`: Display name for the fare class\n- `price`: Price in VND\n- `availableSeats`: Number of available seats"
 					},
 					"response": []
 				},
@@ -253,7 +253,8 @@
 									"value": "business"
 								}
 							]
-						}
+						},
+						"description": "Get business fare options for a flight instance. Set flightInstanceId variable from search flights response.\n\n**Response format:**\nReturns array directly: `[{ fareClassCode, name, typeTicket, price, availableSeats, desc, ... }]`\n\nEach fare option includes:\n- `desc`: Array of descriptions with `text` and `status` (true/false)\n- `typeTicket`: Display name for the fare class\n- `price`: Price in VND\n- `availableSeats`: Number of available seats"
 					},
 					"response": []
 				}
@@ -445,6 +446,239 @@
 				}
 			],
 			"description": "Authentication APIs"
+		},
+			{
+				"name": "Reservations",
+				"item": [
+					{
+						"name": "Create Reservation",
+						"event": [
+							{
+								"listen": "test",
+								"script": {
+									"exec": [
+										"if (pm.response.code === 201) {",
+										"    const response = pm.response.json();",
+										"    pm.collectionVariables.set('reservationId', response.reservationId);",
+										"    pm.collectionVariables.set('reservationCode', response.reservationCode);",
+										"}"
+									],
+									"type": "text/javascript"
+								}
+							}
+						],
+						"request": {
+							"auth": {
+								"type": "bearer",
+								"bearer": [
+									{
+										"key": "token",
+										"value": "{{access_token}}",
+										"type": "string"
+									}
+								]
+							},
+							"method": "POST",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": {
+								"mode": "raw",
+								"raw": "{\n  \"flightInstanceId\": \"{{flightInstanceId}}\",\n  \"fareClassCode\": \"YS\",\n  \"numberOfPassengers\": 1,\n  \"currencyCode\": \"VND\"\n}"
+							},
+							"url": {
+								"raw": "{{base_url}}/reservations",
+								"host": ["{{base_url}}"],
+								"path": ["reservations"]
+							},
+							"description": "Tạo reservation để giữ chỗ tạm thời. Backend lưu flightInstanceId và fareClassCode vào Redis với TTL 15 phút.\n\n**Lưu ý:**\n- Yêu cầu JWT authentication\n- Reservation tự động expire sau 15 phút\n- Response chứa reservationId và reservationCode để dùng cho bước tiếp theo"
+						},
+						"response": []
+					},
+					{
+						"name": "Get Reservation by ID",
+						"request": {
+							"auth": {
+								"type": "bearer",
+								"bearer": [
+									{
+										"key": "token",
+										"value": "{{access_token}}",
+										"type": "string"
+									}
+								]
+							},
+							"method": "GET",
+							"header": [],
+							"url": {
+								"raw": "{{base_url}}/reservations/{{reservationId}}",
+								"host": ["{{base_url}}"],
+								"path": ["reservations", "{{reservationId}}"]
+							},
+							"description": "Lấy thông tin reservation theo ID. API tự động detect nếu input là UUID v7 (ID) hay 6 ký tự (code)."
+						},
+						"response": []
+					},
+					{
+						"name": "Get Reservation by Code",
+						"request": {
+							"auth": {
+								"type": "bearer",
+								"bearer": [
+									{
+										"key": "token",
+										"value": "{{access_token}}",
+										"type": "string"
+									}
+								]
+							},
+							"method": "GET",
+							"header": [],
+							"url": {
+								"raw": "{{base_url}}/reservations/code/{{reservationCode}}",
+								"host": ["{{base_url}}"],
+								"path": ["reservations", "code", "{{reservationCode}}"]
+							},
+							"description": "Lấy thông tin reservation theo reservation code (6 alphanumeric characters)."
+						},
+						"response": []
+					},
+					{
+						"name": "Cancel Reservation",
+						"request": {
+							"auth": {
+								"type": "bearer",
+								"bearer": [
+									{
+										"key": "token",
+										"value": "{{access_token}}",
+										"type": "string"
+									}
+								]
+							},
+							"method": "POST",
+							"header": [],
+							"url": {
+								"raw": "{{base_url}}/reservations/{{reservationId}}/cancel",
+								"host": ["{{base_url}}"],
+								"path": ["reservations", "{{reservationId}}", "cancel"]
+							},
+							"description": "Hủy một reservation đang active. Chỉ có thể cancel reservation với status 'active'."
+						},
+						"response": []
+					}
+				],
+				"description": "Reservation APIs - Giữ chỗ tạm thời trước khi tạo booking\n\n**Lưu ý:**\n- Tất cả APIs yêu cầu JWT authentication\n- Reservation được lưu trong Redis (không phải database)\n- Tự động expire sau 15 phút\n- Cần Reservation Microservice (port 4005) và Redis chạy"
+			},
+			{
+				"name": "Bookings",
+				"item": [
+				{
+					"name": "Create Booking",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"currencyCode\": \"VND\",\n  \"contactFullname\": \"Nguyen Van A\",\n  \"contactEmail\": \"nguyenvana@example.com\",\n  \"contactPhone\": \"0912345678\",\n  \"channel\": \"web\",\n  \"passengers\": [\n    {\n      \"passengerType\": \"ADT\",\n      \"fullname\": \"Nguyen Van A\",\n      \"dob\": \"1990-01-15\",\n      \"gender\": \"Male\",\n      \"documentNumber\": \"001234567890\"\n    }\n  ],\n  \"segments\": [\n    {\n      \"flightInstanceId\": \"{{flightInstanceId}}\",\n      \"fareClassCode\": \"YS\",\n      \"baseFare\": 1577000,\n      \"taxAmount\": 0,\n      \"feeAmount\": 0\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/bookings",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"bookings"
+							]
+						},
+						"description": "Create a new booking with passengers and flight segments. Requires JWT authentication and Booking Microservice running on port 4004.\n\n**Authentication:**\n- Requires JWT Bearer Token in header: `Authorization: Bearer {{access_token}}`\n- `userId` is automatically extracted from JWT token (no need to pass in body)\n\n**Request body:**\n- `currencyCode`: Required (e.g., \"VND\")\n- `contactFullname`, `contactEmail`, `contactPhone`: Optional - if not provided, will use user info from database\n- `passengers`: Array of passengers with 2 options:\n  - **Option 1 (Use existing passenger)**: `passengerId` (UUID v7) + `passengerType`\n  - **Option 2 (Create new passenger)**: `passengerType` + `fullname` + `dob` (YYYY-MM-DD) + `gender` + `documentNumber`\n- `segments`: Array of flight segments with `flightInstanceId`, `fareClassCode`, `baseFare`, `taxAmount`, `feeAmount`\n\n**About Passengers:**\n- **User**: The person who creates the booking account\n- **Passenger**: The person who actually travels (can be different from user)\n- One user can have multiple passengers (family members, friends)\n- **Passenger Creation**: If `passengerId` is not provided, passenger will be automatically created from provided info and linked to user for future use\n- **Duplicate Prevention**: If passenger with same `documentNumber` already exists for user, will reuse existing passenger\n\n**Response:**\n- `bookingId`: UUID v7\n- `pnrCode`: 6-character alphanumeric code (auto-generated, unique)\n- `totalAmount`: Total price\n- `currencyCode`: Currency\n- `status`: Booking status (default: \"pending\")"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Booking Fare Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/bookings/{{bookingId}}/fare-details",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"bookings",
+								"{{bookingId}}",
+								"fare-details"
+							]
+						},
+						"description": "Get detailed fare information for a booking including descriptions and pricing. Requires Booking Microservice running on port 4004.\n\n**Path parameter:**\n- `bookingId`: Booking ID (UUID v7)\n\n**Response:**\n- `bookingId`, `pnrCode`, `fareClassName`\n- `descriptions`: Array of fare descriptions with `text` and `status` (true/false)\n- `priceOneWay`, `totalPassengers`, `totalPrice`"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Booking Passengers",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"adults\": 2,\n  \"minors\": 1\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/bookings/{{bookingId}}/passengers",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"bookings",
+								"{{bookingId}}",
+								"passengers"
+							]
+						},
+						"description": "Update the number of adult and minor passengers for a booking. Requires Booking Microservice running on port 4004.\n\n**Path parameter:**\n- `bookingId`: Booking ID (UUID v7)\n\n**Request body:**\n- `adults`: Number of adult passengers (≥1)\n- `minors`: Number of minor passengers (≥0)\n\n**Response:**\n- `success`: Boolean\n- `message`: Status message\n- `totalPassengers`: Updated total number of passengers"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Booking Payment Info",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/bookings/{{bookingId}}/payment-info",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"bookings",
+								"{{bookingId}}",
+								"payment-info"
+							]
+						},
+						"description": "Get payment information for a booking including total amount, currency, and contact details. Requires Booking Microservice running on port 4004.\n\n**Path parameter:**\n- `bookingId`: Booking ID (UUID v7)\n\n**Response:**\n- `bookingId`, `pnrCode`\n- `totalAmount`, `currencyCode`\n- `contactFullname`, `contactEmail`, `contactPhone`\n- `status`: Booking status (pending/confirmed/cancelled/completed)"
+					},
+					"response": []
+				}
+			],
+			"description": "Booking APIs - Create and manage flight bookings. Requires Booking Microservice running on port 4004."
 		}
 	],
 	"variable": [
@@ -491,6 +725,18 @@
 			"value": "",
 			"type": "string",
 			"description": "Route ID (UUID v7 format). Example: 019a8f4a-bb0e-7402-a0c4-27647b89dc71. Get this from /services/deals API response or database."
+		},
+		{
+			"key": "bookingId",
+			"value": "",
+			"type": "string",
+			"description": "Booking ID (UUID v7 format). Get this from POST /bookings API response. Example: 019a8f4a-bb0e-7402-a0c4-27647b89dc71"
+		},
+		{
+			"key": "passengerId",
+			"value": "",
+			"type": "string",
+			"description": "Passenger ID (UUID v7 format). Get this from database or create a passenger first. Example: 019a8f4a-bb0e-7402-a0c4-27647b89dc71"
 		}
 	]
 }

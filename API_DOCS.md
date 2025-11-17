@@ -8,6 +8,33 @@ http://localhost:3000
 
 **Swagger UI**: `http://localhost:3000/api-docs` (Interactive API documentation)
 
+## Important Notes
+
+### Authentication
+- **Booking APIs** (`POST /bookings`, `GET /bookings/:id/*`, `PATCH /bookings/:id/*`) yêu cầu JWT authentication
+- **Reservation APIs** (`POST /reservations`, `GET /reservations/*`, `POST /reservations/:id/cancel`) yêu cầu JWT authentication
+- Gửi JWT token trong header: `Authorization: Bearer <access_token>`
+- `userId` không cần truyền trong request body - tự động extract từ JWT token
+
+### UUID v7
+- Tất cả IDs trong hệ thống sử dụng **UUID v7** (time-ordered UUID)
+- Format: `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx` (chữ số `7` ở vị trí version)
+- UUID v7 có thể sắp xếp theo thời gian, tốt cho database indexing
+- User IDs được tự động generate là UUID v7 khi đăng ký
+
+### Reservation Service (Backend-managed State)
+- **Reservation** là temporary state được lưu trong **Redis** (không phải database)
+- Reservation tự động expire sau 15 phút (configurable)
+- Backend quản lý state thay vì frontend - đảm bảo tính nhất quán
+- Flow: Search → Fare Options → **Create Reservation** → Create Booking from Reservation
+- Reservation giúp giữ chỗ tạm thời và lock giá trước khi tạo booking
+
+### Passenger Creation
+- `passengerId` là optional trong booking request
+- Nếu không có `passengerId`, có thể tạo passenger mới từ thông tin trong request
+- Passenger mới tự động link với user (từ JWT) để tái sử dụng sau này
+- Tự động detect và reuse passenger nếu cùng `documentNumber` đã tồn tại cho user
+
 ---
 
 ## Authentication
@@ -36,16 +63,21 @@ http://localhost:3000
 ```json
 {
   "user": {
-    "id": "a3f1f8e6-5a6b-4b2d-9f1a-2c3d4e5f6a7b",
+    "id": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
     "fullname": "Nguyen Van A",
     "email": "user@example.com",
-    "phone": "0901234567",
-    "created_at": "2025-11-17T10:00:00.000Z"
+    "phone": "0901234567"
   },
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
 ```
+
+**Lưu ý về UUID v7:**
+- `user.id` (user_id) được tự động generate là **UUID v7** (time-ordered UUID)
+- UUID v7 format: `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx` (chữ số `7` ở vị trí version)
+- UUID v7 có thể sắp xếp theo thời gian, phù hợp cho database indexing
+- Tất cả user IDs trong hệ thống đều sử dụng UUID v7
 
 **Error (400 Bad Request):**
 ```json
@@ -74,7 +106,7 @@ http://localhost:3000
 ```json
 {
   "user": {
-    "id": "a3f1f8e6-5a6b-4b2d-9f1a-2c3d4e5f6a7b",
+    "id": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
     "email": "user@example.com",
     "fullname": "Nguyen Van A",
     "phone": "0901234567"
@@ -83,6 +115,9 @@ http://localhost:3000
   "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
 ```
+
+**Lưu ý:**
+- `user.id` (user_id) là **UUID v7** format
 
 **Error (401 Unauthorized):**
 ```json
@@ -497,6 +532,196 @@ Hoặc:
 
 ---
 
+## Reservations (Giữ chỗ tạm thời)
+
+### Create Reservation (Tạo reservation)
+
+**POST** `/reservations`
+
+Tạo reservation để giữ chỗ tạm thời trước khi tạo booking. Backend lưu `flightInstanceId` và `fareClassCode` vào Redis với TTL 15 phút.
+
+**Authentication:** Required (JWT Bearer Token)
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Request Body:**
+```json
+{
+  "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "fareClassCode": "YS",
+  "numberOfPassengers": 1,
+  "currencyCode": "VND"
+}
+```
+
+**Validation:**
+- `flightInstanceId`: Required, UUID v7 (từ `/search/flights` response)
+- `fareClassCode`: Required, string (từ `/search/fare-options` response)
+- `numberOfPassengers`: Required, integer >= 1
+- `currencyCode`: Optional, default "VND"
+
+**Response (201 Created):**
+```json
+{
+  "reservationId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "reservationCode": "ABC123",
+  "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "fareClassCode": "YS",
+  "numberOfPassengers": 1,
+  "baseFare": 1577000,
+  "taxAmount": 0,
+  "feeAmount": 0,
+  "totalAmount": 1577000,
+  "currencyCode": "VND",
+  "status": "active",
+  "expiresAt": "2025-01-20T10:30:00Z",
+  "ttl": 900,
+  "createdAt": "2025-01-20T10:15:00Z"
+}
+```
+
+**Error (400 Bad Request):**
+```json
+{
+  "statusCode": 400,
+  "message": "Not enough available seats. Available: 0, Required: 1",
+  "error": "Bad Request"
+}
+```
+
+**Lưu ý:**
+- Reservation được lưu trong **Redis** (không phải database)
+- Tự động expire sau 15 phút (900 seconds) - configurable qua `REDIS_RESERVATION_TTL`
+- `reservationCode` là 6 ký tự alphanumeric (unique)
+- Backend tự động validate availability và tính giá từ `fareClassCode`
+- `totalAmount` = `baseFare * numberOfPassengers + taxAmount + feeAmount`
+
+---
+
+### Get Reservation (Lấy thông tin reservation)
+
+**GET** `/reservations/:id`
+
+Lấy thông tin reservation theo ID hoặc code (tự động detect).
+
+**Authentication:** Required (JWT Bearer Token)
+
+**Path Parameters:**
+- `id`: Reservation ID (UUID v7) hoặc Reservation Code (6 alphanumeric characters)
+
+**Example Requests:**
+```
+GET /reservations/019a8f4a-bb0e-7402-a0c4-27647b89dc71
+GET /reservations/ABC123
+```
+
+**Response (200 OK):**
+```json
+{
+  "reservationId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "reservationCode": "ABC123",
+  "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "fareClassCode": "YS",
+  "numberOfPassengers": 1,
+  "baseFare": 1577000,
+  "taxAmount": 0,
+  "feeAmount": 0,
+  "totalAmount": 1577000,
+  "currencyCode": "VND",
+  "status": "active",
+  "expiresAt": "2025-01-20T10:30:00Z",
+  "ttl": 850,
+  "createdAt": "2025-01-20T10:15:00Z"
+}
+```
+
+**Error (404 Not Found):**
+```json
+{
+  "statusCode": 404,
+  "message": "Reservation ABC123 not found or expired",
+  "error": "Not Found"
+}
+```
+
+**Error (400 Bad Request):**
+```json
+{
+  "statusCode": 400,
+  "message": "Reservation has expired",
+  "error": "Bad Request"
+}
+```
+
+**Lưu ý:**
+- API tự động detect nếu input là UUID v7 (ID) hay 6 ký tự alphanumeric (code)
+- `ttl` là thời gian còn lại tính bằng giây
+- Nếu reservation đã expired, sẽ trả về error
+
+---
+
+### Get Reservation by Code (Lấy reservation theo code)
+
+**GET** `/reservations/code/:code`
+
+Lấy thông tin reservation theo reservation code (6 alphanumeric characters).
+
+**Authentication:** Required (JWT Bearer Token)
+
+**Path Parameters:**
+- `code`: Reservation code (6 alphanumeric characters, e.g., "ABC123")
+
+**Example Request:**
+```
+GET /reservations/code/ABC123
+```
+
+**Response:** Same as Get Reservation
+
+---
+
+### Cancel Reservation (Hủy reservation)
+
+**POST** `/reservations/:id/cancel`
+
+Hủy một reservation đang active, giải phóng chỗ đã giữ.
+
+**Authentication:** Required (JWT Bearer Token)
+
+**Path Parameters:**
+- `id`: Reservation ID (UUID v7)
+
+**Example Request:**
+```
+POST /reservations/019a8f4a-bb0e-7402-a0c4-27647b89dc71/cancel
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Reservation cancelled successfully"
+}
+```
+
+**Error (400 Bad Request):**
+```json
+{
+  "statusCode": 400,
+  "message": "Cannot cancel reservation with status: expired",
+  "error": "Bad Request"
+}
+```
+
+**Lưu ý:**
+- Chỉ có thể cancel reservation với status `active`
+- Reservation đã expired hoặc cancelled không thể cancel lại
+
+---
+
 ## Bookings (Đặt vé)
 
 ### Create Booking (Tạo booking mới)
@@ -505,10 +730,16 @@ Hoặc:
 
 Tạo một booking mới với thông tin passengers, segments (flight instances), và fare classes.
 
+**Authentication:** Required (JWT Bearer Token)
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
 **Request Body:**
 ```json
 {
-  "userId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
   "currencyCode": "VND",
   "contactFullname": "Nguyen Van A",
   "contactEmail": "nguyenvana@example.com",
@@ -516,8 +747,11 @@ Tạo một booking mới với thông tin passengers, segments (flight instance
   "channel": "web",
   "passengers": [
     {
-      "passengerId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-      "passengerType": "ADT"
+      "passengerType": "ADT",
+      "fullname": "Nguyen Van A",
+      "dob": "1990-01-15",
+      "gender": "Male",
+      "documentNumber": "001234567890"
     }
   ],
   "segments": [
@@ -533,13 +767,47 @@ Tạo một booking mới với thông tin passengers, segments (flight instance
 }
 ```
 
+**Hoặc sử dụng passenger đã có:**
+```json
+{
+  "currencyCode": "VND",
+  "passengers": [
+    {
+      "passengerId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+      "passengerType": "ADT"
+    }
+  ],
+  "segments": [...]
+}
+```
+
 **Validation:**
-- `userId`: Optional (UUID v7), cho guest bookings
+- **`userId`**: Không cần truyền - sẽ được tự động extract từ JWT token
 - `currencyCode`: Required, phải tồn tại trong database
-- `contactFullname`, `contactEmail`, `contactPhone`: Required
-- `passengers`: Array, mỗi passenger cần `passengerId` (UUID v7) và `passengerType` (ADT/CHD/INF)
+- **`contactFullname`, `contactEmail`, `contactPhone`**: Optional - logic tự động:
+  - Nếu có trong body → dùng (cho phép override)
+  - Nếu không có và chỉ có 1 passenger thuộc về user → dùng `fullname` từ passenger, `email/phone` từ user
+  - Nếu không → dùng thông tin từ user (booking contact person)
+- `passengers`: Array, mỗi passenger có 2 options:
+  - **Option 1**: Sử dụng passenger đã có → chỉ cần `passengerId` (UUID v7) và `passengerType`
+  - **Option 2**: Tạo passenger mới → không cần `passengerId`, nhưng cần `fullname`, `dob` (YYYY-MM-DD), `gender`, `documentNumber` và `passengerType`
 - `segments`: Array, mỗi segment cần `flightInstanceId`, `fareClassCode`, `baseFare`, `taxAmount`, `feeAmount`
 - `flightSeatId`: Optional, có thể gán sau
+
+**Lưu ý quan trọng:**
+- **User vs Passenger**: 
+  - **User**: Người đăng ký tài khoản và đặt vé (1 user có thể đặt nhiều vé)
+  - **Passenger**: Người thực sự đi máy bay (1 user có thể có nhiều passengers: bản thân, người thân, bạn bè)
+  - Một booking có thể có nhiều passengers (ví dụ: đặt vé cho cả gia đình)
+- **Contact Info Logic**:
+  - **Booking Contact Info**: Thông tin người đặt vé (để gửi email xác nhận, gọi điện về booking)
+  - Nếu user đặt cho chính mình (1 passenger thuộc về user) → dùng tên passenger, email/phone user
+  - Nếu user đặt cho người khác hoặc nhiều người → dùng thông tin user (booking contact person)
+- **Passenger Creation Logic**:
+  - Nếu có `passengerId` → sử dụng passenger đã có trong database
+  - Nếu không có `passengerId` → tự động tạo passenger mới từ thông tin `fullname`, `dob`, `gender`, `documentNumber`
+  - Passenger mới sẽ được link với user (từ JWT token) để có thể tái sử dụng sau này
+  - Nếu passenger với cùng `documentNumber` đã tồn tại cho user → sử dụng passenger đã có (tránh duplicate)
 
 **Response (201 Created):**
 ```json
@@ -978,7 +1246,8 @@ const { data: fareOptions } = await api.get('/search/fare-options', {
    - Bước 1: Gọi `/search/flights` để lấy danh sách flights
    - Bước 2: User chọn một flight → lấy `flightInstanceId` (UUID v7)
    - Bước 3: Gọi `/search/fare-options` với `flightInstanceId` và `cabinType` (economy/business)
-   - Bước 4: Hiển thị dropdown với các fare options (cabins) tương ứng
+   - Bước 4: Response trả về array trực tiếp `[{ fareClassCode, name, typeTicket, price, desc, ... }]`
+   - Bước 5: Hiển thị dropdown với các fare options (cabins) tương ứng
 7. **UUID v7**: Tất cả IDs trong hệ thống sử dụng UUID v7 (time-ordered). Format: `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx`. UUID v7 có thể sắp xếp theo thời gian, tốt cho database indexing.
 8. **Services Microservice**: API `/services/deals` cần Services Microservice chạy (port 4002). Chạy bằng: `npm run start:services` hoặc `npm run start:services:dev`
 9. **Booking Microservice**: Tất cả booking APIs cần Booking Microservice chạy (port 4004). Chạy bằng: `npm run start:booking` hoặc `npm run start:booking:dev`
