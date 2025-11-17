@@ -5,6 +5,8 @@ import { Inject } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
 import { SearchFlightsDto, TripType } from './dto/search-flights.dto';
 import { SearchFlightsResponseDto } from './dto/search-flights-response.dto';
+import { GetFareOptionsDto, CabinType } from './dto/get-fare-options.dto';
+import { FareOptionsResponseDto } from './dto/fare-options-response.dto';
 
 @ApiTags('search')
 @Controller('search')
@@ -97,16 +99,103 @@ export class SearchController {
 		type: Number
 	})
 	async searchFlights(@Query() query: SearchFlightsDto): Promise<SearchFlightsResponseDto> {
-		const payload: SearchFlightsDto = {
-			origin: query.origin,
-			destination: query.destination,
-			departDate: query.departDate,
-			returnDate: query.returnDate,
-			tripType: query.tripType,
-			adults: Number(query.adults),
-			minors: Number(query.minors),
-		};
-		return firstValueFrom(this.client.send<SearchFlightsResponseDto>('search.flights', payload));
+		try {
+			const payload: SearchFlightsDto = {
+				origin: query.origin,
+				destination: query.destination,
+				departDate: query.departDate,
+				returnDate: query.returnDate,
+				tripType: query.tripType,
+				adults: Number(query.adults),
+				minors: Number(query.minors),
+			};
+			return await firstValueFrom(this.client.send<SearchFlightsResponseDto>('search.flights', payload));
+		} catch (error: any) {
+			console.error('Search flights error:', error);
+			// Re-throw NestJS exceptions as-is
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			// Handle microservice connection errors
+			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+				throw new Error('Search microservice is not running. Please start it with: npm run start:search');
+			}
+			// Handle timeout errors
+			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
+				throw new Error('Search microservice request timeout. Please check if the service is running.');
+			}
+			// Generic error
+			throw new Error(`Search failed: ${error?.message || 'Unknown error'}`);
+		}
+	}
+
+	@Get('fare-options')
+	@ApiOperation({
+		summary: 'Get fare options (cabins) for a flight instance',
+		description: 'Get available fare classes (cabins) for a specific flight instance and cabin type (economy or business). Returns list of fare options with prices and available seats.',
+	})
+	@ApiOkResponse({
+		description: 'List of available fare options for the flight instance',
+		type: FareOptionsResponseDto,
+	})
+	@ApiBadRequestResponse({
+		description: 'Invalid request parameters',
+	})
+	@ApiResponse({
+		status: 404,
+		description: 'Flight instance not found',
+	})
+	@ApiQuery({
+		name: 'flightInstanceId',
+		required: true,
+		description: 'Flight instance ID',
+		example: 'a3f1f8e6-5a6b-4b2d-9f1a-2c3d4e5f6a7b',
+		type: String,
+	})
+	@ApiQuery({
+		name: 'cabinType',
+		required: true,
+		enum: CabinType,
+		description: 'Cabin type: economy or business',
+		example: CabinType.ECONOMY,
+	})
+	async getFareOptions(@Query() query: GetFareOptionsDto): Promise<FareOptionsResponseDto> {
+		try {
+			// Manual validation and transformation if needed
+			if (!query.flightInstanceId || typeof query.flightInstanceId !== 'string') {
+				throw new Error('flightInstanceId is required and must be a string');
+			}
+			
+			const trimmedFlightInstanceId = query.flightInstanceId.trim();
+			console.log('[DEBUG] Get fare options request:', {
+				original: query.flightInstanceId,
+				trimmed: trimmedFlightInstanceId,
+				length: trimmedFlightInstanceId.length,
+				cabinType: query.cabinType,
+			});
+			
+			const payload: GetFareOptionsDto = {
+				flightInstanceId: trimmedFlightInstanceId,
+				cabinType: query.cabinType,
+			};
+			return await firstValueFrom(this.client.send<FareOptionsResponseDto>('search.fare-options', payload));
+		} catch (error: any) {
+			console.error('Get fare options error:', error);
+			// Re-throw NestJS exceptions as-is
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			// Handle microservice connection errors
+			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+				throw new Error('Search microservice is not running. Please start it with: npm run start:search');
+			}
+			// Handle timeout errors
+			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
+				throw new Error('Search microservice request timeout. Please check if the service is running.');
+			}
+			// Generic error
+			throw new Error(`Get fare options failed: ${error?.message || 'Unknown error'}`);
+		}
 	}
 }
 

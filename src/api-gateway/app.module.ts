@@ -3,7 +3,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './modules/auth/auth.module';
 import { SearchClientModule } from './modules/search/search.client.module';
-import { UserModule } from './modules/user/user.module';
 
 @Module({
   imports: [
@@ -23,7 +22,6 @@ import { UserModule } from './modules/user/user.module';
       entities: [__dirname + '/../shared/entities/**/*.entity.{ts,js}'],
     }),
     AuthModule,
-    UserModule,
     SearchClientModule,
   ],
   controllers: [],

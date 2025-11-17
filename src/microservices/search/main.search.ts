@@ -44,7 +44,11 @@ async function bootstrap() {
 	});
 	app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 	await app.listen();
+	console.log(`✅ Search microservice is listening on ${SEARCH_MS.TCP_HOST}:${SEARCH_MS.TCP_PORT}`);
 }
-bootstrap();
+bootstrap().catch((error) => {
+	console.error('❌ Failed to start Search microservice:', error);
+	process.exit(1);
+});
 
 

@@ -3,6 +3,7 @@ export const SEARCH_MS = {
 	TCP_HOST: process.env.SEARCH_MS_HOST ?? '127.0.0.1',
 	PATTERN: {
 		SEARCH_FLIGHTS: 'search.flights',
+		GET_FARE_OPTIONS: 'search.fare-options',
 	},
 } as const;
 

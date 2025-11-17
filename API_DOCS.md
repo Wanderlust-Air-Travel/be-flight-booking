@@ -191,7 +191,7 @@ GET /search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&tripType=on
   "tripType": "one_way",
   "outbound": [
     {
-      "flightInstanceId": "a3f1f8e6-5a6b-4b2d-9f1a-2c3d4e5f6a7b",
+      "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
       "flightNumber": "BB0100",
       "departureLocal": "2025-11-17T08:00:00.000Z",
       "arrivalLocal": "2025-11-17T10:10:00.000Z",
@@ -259,6 +259,133 @@ GET /search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&tripType=on
   "error": "Not Found"
 }
 ```
+
+---
+
+### Get Fare Options (Lấy danh sách các loại vé/cabin)
+
+**GET** `/search/fare-options`
+
+Lấy danh sách các fare options (cabins) có sẵn cho một flight instance cụ thể theo cabin type (economy hoặc business).
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description | Example |
+|-----------|------|----------|-------------|---------|
+| `flightInstanceId` | string (UUID v7) | Yes | ID của flight instance (UUID v7 - time-ordered) | `019a8f4a-bb0e-7402-a0c4-27647b89dc71` |
+| `cabinType` | string | Yes | Loại cabin: `economy` hoặc `business` | `economy` |
+
+**Example Request:**
+```
+GET /search/fare-options?flightInstanceId=019a8f4a-bb0e-7402-a0c4-27647b89dc71&cabinType=economy
+```
+
+**Lưu ý về UUID v7:**
+- `flightInstanceId` phải là **UUID v7** (time-ordered UUID)
+- UUID v7 có format: `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx` (chữ số `7` ở vị trí version)
+- UUID v7 có thể sắp xếp theo thời gian, phù hợp cho database indexing
+- Tất cả IDs trong hệ thống (flightInstanceId, bookingId, userId...) đều sử dụng UUID v7
+
+**Response (200 OK) - Economy:**
+```json
+{
+  "flightInstanceId": "a3f1f8e6-5a6b-4b2d-9f1a-2c3d4e5f6a7b",
+  "cabinType": "economy",
+  "fareOptions": [
+    {
+      "fareClassCode": "YSM",
+      "name": "Economy Saver Max",
+      "price": 1448000,
+      "availableSeats": 5,
+      "description": "Economy Saver Max",
+      "changeRule": "Change before departure: 600,000 VND",
+      "refundRule": "Non-refundable"
+    },
+    {
+      "fareClassCode": "YS",
+      "name": "Economy Smart",
+      "price": 1577000,
+      "availableSeats": 10,
+      "description": "Economy Smart",
+      "changeRule": "Change before departure: 450,000 VND",
+      "refundRule": "Refund before departure: 450,000 VND"
+    },
+    {
+      "fareClassCode": "YF",
+      "name": "Economy Flex",
+      "price": 3068000,
+      "availableSeats": 3,
+      "description": "Economy Flex",
+      "changeRule": "Free changes",
+      "refundRule": "Refund before departure: 300,000 VND"
+    }
+  ]
+}
+```
+
+**Response (200 OK) - Business:**
+```json
+{
+  "flightInstanceId": "a3f1f8e6-5a6b-4b2d-9f1a-2c3d4e5f6a7b",
+  "cabinType": "business",
+  "fareOptions": [
+    {
+      "fareClassCode": "JS",
+      "name": "Business Smart",
+      "price": 5022000,
+      "availableSeats": 8,
+      "description": "Business Smart",
+      "changeRule": "Change before departure: 300,000 VND",
+      "refundRule": "Refund before departure: 450,000 VND"
+    },
+    {
+      "fareClassCode": "JF",
+      "name": "Business Flex",
+      "price": 7074000,
+      "availableSeats": 5,
+      "description": "Business Flex",
+      "changeRule": "Free changes",
+      "refundRule": "Refund before departure: 300,000 VND"
+    }
+  ]
+}
+```
+
+**Error (400 Bad Request):**
+```json
+{
+  "statusCode": 400,
+  "message": ["flightInstanceId must be a valid UUID v7"],
+  "error": "Bad Request"
+}
+```
+
+Hoặc:
+```json
+{
+  "statusCode": 400,
+  "message": ["cabinType must be one of the following values: economy, business"],
+  "error": "Bad Request"
+}
+```
+
+**Error (404 Not Found):**
+```json
+{
+  "statusCode": 404,
+  "message": "Flight instance not found",
+  "error": "Not Found"
+}
+```
+
+**Lưu ý:**
+- API này được gọi sau khi user đã chọn một flight từ kết quả search
+- `flightInstanceId` lấy từ response của `/search/flights`
+- `cabinType` là `economy` hoặc `business` (tương ứng với 2 nút trên UI)
+- Response chỉ trả về các fare options có `availableSeats > 0`
+- Fare options được sắp xếp theo price (tăng dần)
+- Economy có 3 cabin types: Economy Saver Max, Economy Smart, Economy Flex
+- Business có 2 cabin types: Business Smart, Business Flex
 
 ---
 
@@ -371,6 +498,14 @@ const { data: flights } = await api.get('/search/flights', {
     minors: 0
   }
 });
+
+// Get Fare Options for a flight instance
+const { data: fareOptions } = await api.get('/search/fare-options', {
+  params: {
+    flightInstanceId: flights.outbound[0].flightInstanceId,
+    cabinType: 'economy'
+  }
+});
 ```
 
 ---
@@ -382,4 +517,10 @@ const { data: flights } = await api.get('/search/flights', {
 3. **Dates**: Format date là `YYYY-MM-DD` (ví dụ: `2025-11-17`)
 4. **IATA Codes**: Phải đúng 3 ký tự, uppercase (HAN, SGN, DAD...)
 5. **Token Expiry**: `access_token` hết hạn sau 15 phút, `refresh_token` sau 7 ngày
+6. **Fare Options Flow**: 
+   - Bước 1: Gọi `/search/flights` để lấy danh sách flights
+   - Bước 2: User chọn một flight → lấy `flightInstanceId` (UUID v7)
+   - Bước 3: Gọi `/search/fare-options` với `flightInstanceId` và `cabinType` (economy/business)
+   - Bước 4: Hiển thị dropdown với các fare options (cabins) tương ứng
+7. **UUID v7**: Tất cả IDs trong hệ thống sử dụng UUID v7 (time-ordered). Format: `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx`. UUID v7 có thể sắp xếp theo thời gian, tốt cho database indexing.
 

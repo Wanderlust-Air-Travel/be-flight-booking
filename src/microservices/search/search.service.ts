@@ -6,27 +6,62 @@ import { Route } from 'src/shared/entities/route/route.entity';
 import { FlightInstance } from 'src/shared/entities/flight/flight-instance.entity';
 import { FlightSeat } from 'src/shared/entities/flight/flight-seat.entity';
 import { FlightSchedule } from 'src/shared/entities/flight/flight-schedule.entity';
+import { FareClass } from 'src/shared/entities/fare/fare-class.entity';
+import { CabinClass } from 'src/shared/entities/cabin/cabin-class.entity';
+import { SeatConfiguration } from 'src/shared/entities/seat/seat-configuration.entity';
 import { SearchFlightsDto, TripType } from './dto/search-flights.dto';
 import { FlightResult } from './types/flight-result.type';
+import { GetFareOptionsDto, CabinType } from './dto/get-fare-options.dto';
+import { FareOptionsResponseDto } from './dto/fare-options-response.dto';
+import { FareOptionDto } from './dto/fare-option.dto';
 
 @Injectable()
 export class SearchService {
+	// Mapping cabin type to cabin class codes
+	private readonly CABIN_TYPE_MAP: Record<CabinType, string[]> = {
+		[CabinType.ECONOMY]: ['Y'], // Economy cabin class codes
+		[CabinType.BUSINESS]: ['J'], // Business cabin class codes
+	};
+
+	// Mapping fare class codes to display names (based on description or code)
+	private readonly FARE_CLASS_NAMES: Record<string, string> = {
+		// Economy fare classes
+		'YSM': 'Economy Saver Max',
+		'YSMX': 'Economy Saver Max',
+		'Y': 'Economy Smart',
+		'YS': 'Economy Smart',
+		'YF': 'Economy Flex',
+		'YFLX': 'Economy Flex',
+		// Business fare classes
+		'J': 'Business Smart',
+		'JS': 'Business Smart',
+		'JF': 'Business Flex',
+		'JFLX': 'Business Flex',
+	};
+
 	constructor(
 		@InjectRepository(Airport) private readonly airportRepo: Repository<Airport>,
 		@InjectRepository(Route) private readonly routeRepo: Repository<Route>,
 		@InjectRepository(FlightInstance) private readonly instanceRepo: Repository<FlightInstance>,
 		@InjectRepository(FlightSeat) private readonly seatRepo: Repository<FlightSeat>,
 		@InjectRepository(FlightSchedule) private readonly scheduleRepo: Repository<FlightSchedule>,
+		@InjectRepository(FareClass) private readonly fareClassRepo: Repository<FareClass>,
+		@InjectRepository(CabinClass) private readonly cabinClassRepo: Repository<CabinClass>,
+		@InjectRepository(SeatConfiguration) private readonly seatConfigRepo: Repository<SeatConfiguration>,
 	) {}
 
 	async search(dto: SearchFlightsDto) {
 		const totalPax = dto.adults + dto.minors;
+		console.log(`[DEBUG] Search request: ${dto.origin} -> ${dto.destination}, date: ${dto.departDate}, passengers: ${totalPax}`);
+		
 		const [origin, destination] = await Promise.all([
 			this.airportRepo.findOne({ where: { iata_code: dto.origin.toUpperCase() } }),
 			this.airportRepo.findOne({ where: { iata_code: dto.destination.toUpperCase() } }),
 		]);
 		if (!origin) throw new NotFoundException('Origin airport not found');
 		if (!destination) throw new NotFoundException('Destination airport not found');
+		
+		console.log(`[DEBUG] Found airports: ${origin.iata_code} (${origin.airport_id}) -> ${destination.iata_code} (${destination.airport_id})`);
 
 		// Query route bằng QueryBuilder vì origin_airport_id, destination_airport_id là @RelationId properties
 		const route = await this.routeRepo
@@ -35,7 +70,12 @@ export class SearchService {
 			.andWhere('route.destination_airport_id = :destId', { destId: destination.airport_id })
 			.andWhere('route.is_domestic = :domestic', { domestic: true })
 			.getOne();
-		if (!route) throw new NotFoundException('No domestic route for selected airports');
+		if (!route) {
+			console.log(`[DEBUG] No route found for ${origin.iata_code} -> ${destination.iata_code}`);
+			throw new NotFoundException('No domestic route for selected airports');
+		}
+		
+		console.log(`[DEBUG] Found route: ${route.route_id}`);
 
 		const outboundDate = new Date(dto.departDate);
 		const outbound = await this.findFlightsForDate(route.route_id, outboundDate, totalPax, origin, destination);
@@ -63,24 +103,49 @@ export class SearchService {
 	}
 
 	private async findFlightsForDate(routeId: string, date: Date, minSeats: number, origin: Airport, destination: Airport): Promise<FlightResult[]> {
-		// Prefer concrete instances on the exact date
+		// Query flight instances for the exact date
+		// Format date as YYYY-MM-DD for SQL Server comparison
+		const dateStr = date.toISOString().slice(0, 10);
+		
+		console.log(`[DEBUG] Finding flights for route ${routeId}, date: ${dateStr}, minSeats: ${minSeats}`);
+		
 		const instances = await this.instanceRepo.createQueryBuilder('fi')
 			.innerJoin('fi.flight_schedule', 'fs')
 			.where('fs.route_id = :routeId', { routeId })
-			.andWhere('CAST(fi.flight_date as date) = :date', { date: date.toISOString().slice(0, 10) })
-			.andWhere('fi.status IN (:...st)', { st: ['scheduled', 'on_time'] })
+			.andWhere('CAST(fi.flight_date AS DATE) = CAST(:date AS DATE)', { date: dateStr })
+			.andWhere('fi.status IN (:...st)', { st: ['scheduled', 'on_time', 'delayed'] })
 			.orderBy('fi.departure_datetime_local', 'ASC')
 			.getMany();
 
+		console.log(`[DEBUG] Found ${instances.length} flight instances for date ${dateStr}`);
+
+		// Calculate available seats for each instance
 		const withAvailability = await Promise.all(instances.map(async (fi) => {
-			const availableSeats = await this.seatRepo.count({
-				where: { flight_instance_id: fi.flight_instance_id, is_available: true },
-			});
+			// Use QueryBuilder with raw column name because flight_instance_id is a @RelationId property
+			// TypeORM doesn't support @RelationId properties in count() where clauses
+			// The actual column name in DB is 'flight_instance_id' (from @JoinColumn in entity)
+			const availableSeats = await this.seatRepo
+				.createQueryBuilder('seat')
+				.where('seat.flight_instance_id = :instanceId', { instanceId: fi.flight_instance_id })
+				.andWhere('seat.is_available = :available', { available: true })
+				.getCount();
+			console.log(`[DEBUG] Flight ${fi.flight_number} (${fi.flight_instance_id}): ${availableSeats} available seats`);
 			return { fi, availableSeats };
 		}));
 
-		let results: FlightResult[] = withAvailability
-			.filter(x => x.availableSeats >= minSeats)
+		// Map to FlightResult, only include flights with valid flightInstanceId and enough seats
+		const results: FlightResult[] = withAvailability
+			.filter(x => {
+				const hasEnoughSeats = x.availableSeats >= minSeats;
+				const hasValidId = !!x.fi.flight_instance_id;
+				if (!hasEnoughSeats) {
+					console.log(`[DEBUG] Filtered out ${x.fi.flight_number}: only ${x.availableSeats} seats (need ${minSeats})`);
+				}
+				if (!hasValidId) {
+					console.log(`[DEBUG] Filtered out ${x.fi.flight_number}: no flight_instance_id`);
+				}
+				return hasEnoughSeats && hasValidId;
+			})
 			.map(x => ({
 				flightInstanceId: x.fi.flight_instance_id,
 				flightNumber: x.fi.flight_number,
@@ -91,32 +156,9 @@ export class SearchService {
 				destination: { iata: destination.iata_code, name: destination.name, city: destination.city },
 			}));
 
-		// Fallback to schedules if no instances exist for that date (e.g., pre-generation not done)
-		if (results.length === 0) {
-			const dow = date.getUTCDay(); // 0..6 (Sun..Sat)
-			const dayMask = this.dayOfWeekToMask(dow);
-			const schedules = await this.scheduleRepo.createQueryBuilder('fs')
-				.where('fs.route_id = :routeId', { routeId })
-				.andWhere('fs.effective_from <= :date AND fs.effective_to >= :date', { date: date.toISOString().slice(0, 10) })
-				.getMany();
-
-			results = schedules
-				.filter(s => this.scheduleOperatesOn(s.operating_days, dayMask))
-				.map(s => {
-					// build datetime from local times (assuming local timezone handling at FE)
-					const dep = new Date(`${date.toISOString().slice(0, 10)}T${s.departure_time_local}`);
-					const arr = new Date(`${date.toISOString().slice(0, 10)}T${s.arrival_time_local}`);
-					return {
-						flightInstanceId: '',
-						flightNumber: s.flight_number,
-						departureLocal: dep,
-						arrivalLocal: arr,
-						availableSeats: 999, // unknown capacity at schedule level
-						origin: { iata: origin.iata_code, name: origin.name, city: origin.city },
-						destination: { iata: destination.iata_code, name: destination.name, city: destination.city },
-					} as FlightResult;
-				});
-		}
+		console.log(`[DEBUG] Returning ${results.length} flights with enough seats`);
+		// Note: Removed fallback to schedules because fare-options API requires flightInstanceId
+		// If no instances exist, return empty array - user needs to run seed:full to generate instances
 		return results;
 	}
 
@@ -131,5 +173,141 @@ export class SearchService {
 		const bits = operatingDays.split('').map(c => (c === '1' ? 1 : 0));
 		const dow = Math.log2(dayMask);
 		return bits[dow] === 1;
+	}
+
+	async getFareOptions(dto: GetFareOptionsDto): Promise<FareOptionsResponseDto> {
+		// Get flight instance with aircraft and aircraft type
+		const flightInstance = await this.instanceRepo
+			.createQueryBuilder('fi')
+			.leftJoinAndSelect('fi.aircraft', 'aircraft')
+			.leftJoinAndSelect('aircraft.aircraft_type', 'aircraft_type')
+			.where('fi.flight_instance_id = :id', { id: dto.flightInstanceId })
+			.getOne();
+
+		if (!flightInstance) {
+			throw new NotFoundException('Flight instance not found');
+		}
+
+		if (!flightInstance.aircraft || !flightInstance.aircraft.aircraft_type) {
+			throw new BadRequestException('Flight instance does not have aircraft assigned');
+		}
+
+		// Get cabin class codes for the requested cabin type
+		const cabinClassCodes = this.CABIN_TYPE_MAP[dto.cabinType];
+		if (!cabinClassCodes || cabinClassCodes.length === 0) {
+			throw new BadRequestException(`Invalid cabin type: ${dto.cabinType}`);
+		}
+
+		// Get all fare classes for the requested cabin types
+		const fareClasses = await this.fareClassRepo
+			.createQueryBuilder('fare')
+			.innerJoinAndSelect('fare.cabin_class', 'cabin')
+			.where('cabin.cabin_class_code IN (:...codes)', { codes: cabinClassCodes })
+			.getMany();
+
+		if (fareClasses.length === 0) {
+			return {
+				flightInstanceId: dto.flightInstanceId,
+				cabinType: dto.cabinType,
+				fareOptions: [],
+			};
+		}
+
+		// Get available seats for each fare class (cabin class)
+		const aircraftTypeId = flightInstance.aircraft.aircraft_type.aircraft_type_id;
+		const fareOptions: FareOptionDto[] = await Promise.all(
+			fareClasses.map(async (fareClass) => {
+				// Count available seats for this cabin class in this flight instance
+				// Join FlightSeat -> SeatConfiguration -> CabinClass
+				const availableSeats = await this.seatRepo
+					.createQueryBuilder('seat')
+					.innerJoin('seat.seat_config', 'config')
+					.innerJoin('config.cabin_class', 'cabin')
+					.where('seat.flight_instance_id = :instanceId', { instanceId: dto.flightInstanceId })
+					.andWhere('seat.is_available = :available', { available: true })
+					.andWhere('cabin.cabin_class_code = :cabinCode', { cabinCode: fareClass.cabin_class.cabin_class_code })
+					.andWhere('config.aircraft_type_id = :aircraftTypeId', { aircraftTypeId })
+					.getCount();
+
+				// Get fare class display name
+				const displayName = this.getFareClassName(fareClass.fare_class_code, fareClass.description);
+
+				// Calculate price (base price logic - can be enhanced with dynamic pricing)
+				const price = this.calculateFarePrice(fareClass.fare_class_code, dto.cabinType);
+
+				return {
+					fareClassCode: fareClass.fare_class_code,
+					name: displayName,
+					price,
+					availableSeats,
+					description: fareClass.description,
+					changeRule: fareClass.change_rule,
+					refundRule: fareClass.refund_rule,
+				};
+			}),
+		);
+
+		// Filter out fare options with no available seats
+		const availableFareOptions = fareOptions.filter((option) => option.availableSeats > 0);
+
+		// Sort by price (ascending)
+		availableFareOptions.sort((a, b) => a.price - b.price);
+
+		return {
+			flightInstanceId: dto.flightInstanceId,
+			cabinType: dto.cabinType,
+			fareOptions: availableFareOptions,
+		};
+	}
+
+	private getFareClassName(fareClassCode: string, description: string | null): string {
+		// Try to get from mapping first
+		if (this.FARE_CLASS_NAMES[fareClassCode]) {
+			return this.FARE_CLASS_NAMES[fareClassCode];
+		}
+
+		// Try to extract from description
+		if (description) {
+			// Check if description contains known patterns
+			if (description.toLowerCase().includes('saver max')) return 'Economy Saver Max';
+			if (description.toLowerCase().includes('smart')) return 'Economy Smart';
+			if (description.toLowerCase().includes('flex')) return 'Economy Flex';
+			if (description.toLowerCase().includes('business smart')) return 'Business Smart';
+			if (description.toLowerCase().includes('business flex')) return 'Business Flex';
+		}
+
+		// Fallback to description or code
+		return description || fareClassCode;
+	}
+
+	private calculateFarePrice(fareClassCode: string, cabinType: CabinType): number {
+		// Base pricing logic - can be enhanced with dynamic pricing from database
+		// For now, using fixed prices based on fare class code patterns
+		const code = fareClassCode.toUpperCase();
+
+		if (cabinType === CabinType.ECONOMY) {
+			if (code.includes('SMX') || code.includes('SAVER')) {
+				return 1448000; // Economy Saver Max
+			}
+			if (code.includes('SM') || code === 'Y' || code === 'YS') {
+				return 1577000; // Economy Smart
+			}
+			if (code.includes('FLX') || code.includes('FLEX') || code === 'YF') {
+				return 3068000; // Economy Flex
+			}
+			// Default economy price
+			return 1577000;
+		} else if (cabinType === CabinType.BUSINESS) {
+			if (code.includes('SM') || code === 'J' || code === 'JS') {
+				return 5022000; // Business Smart
+			}
+			if (code.includes('FLX') || code.includes('FLEX') || code === 'JF') {
+				return 7074000; // Business Flex
+			}
+			// Default business price
+			return 5022000;
+		}
+
+		return 0;
 	}
 }

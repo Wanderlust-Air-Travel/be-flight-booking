@@ -1,10 +1,10 @@
-import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, OneToMany, PrimaryColumn, UpdateDateColumn } from "typeorm";
 import { Passenger } from "src/shared/entities/passenger/passenger.entity";
 import { Booking } from "src/shared/entities/booking/booking.entity";
 
 @Entity({ name: 'Users', schema: 'dbo' })
 export class User {
-	@PrimaryGeneratedColumn('uuid')
+	@PrimaryColumn('uniqueidentifier')
 	user_id: string;
 
 	@Column({ type: 'nvarchar', nullable: false, length: 100 })
