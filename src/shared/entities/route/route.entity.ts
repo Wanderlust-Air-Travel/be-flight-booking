@@ -28,6 +28,12 @@ export class Route {
 	@Column({ type: 'bit', nullable: false, default: () => '1' })
 	is_domestic: boolean;
 
+	@Column({ type: 'nvarchar', length: 255, nullable: true })
+	image_url: string | null;
+
+	@Column({ type: 'nvarchar', length: 255, nullable: true })
+	service_link: string | null;
+
 	@CreateDateColumn({ type: 'datetime2', nullable: false, default: () => 'SYSDATETIME()' })
 	created_at: Date;
 }

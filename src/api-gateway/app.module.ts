@@ -3,6 +3,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './modules/auth/auth.module';
 import { SearchClientModule } from './modules/search/search.client.module';
+import { ServicesClientModule } from './modules/services/services.client.module';
+import { RoutesClientModule } from './modules/routes/routes.client.module';
 
 @Module({
   imports: [
@@ -23,6 +25,8 @@ import { SearchClientModule } from './modules/search/search.client.module';
     }),
     AuthModule,
     SearchClientModule,
+    ServicesClientModule,
+    RoutesClientModule,
   ],
   controllers: [],
   providers: [],

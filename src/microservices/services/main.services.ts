@@ -6,8 +6,8 @@ config({ path: resolve(process.cwd(), '.env') });
 
 import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-import { SearchModule } from './search.module';
-import { SEARCH_MS } from './search.messages';
+import { ServicesModule } from './services.module';
+import { SERVICES_MS } from './services.messages';
 import { ValidationPipe } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Module } from '@nestjs/common';
@@ -29,26 +29,25 @@ import { Module } from '@nestjs/common';
 			synchronize: false,
 			entities: [__dirname + '/../../shared/entities/**/*.entity.{ts,js}'],
 		}),
-		SearchModule,
+		ServicesModule,
 	],
 })
-class SearchBootstrapModule {}
+class ServicesBootstrapModule {}
 
 async function bootstrap() {
-	const app = await NestFactory.createMicroservice<MicroserviceOptions>(SearchBootstrapModule, {
+	const app = await NestFactory.createMicroservice<MicroserviceOptions>(ServicesBootstrapModule, {
 		transport: Transport.TCP,
 		options: {
-			host: SEARCH_MS.TCP_HOST,
-			port: SEARCH_MS.TCP_PORT,
+			host: SERVICES_MS.TCP_HOST,
+			port: SERVICES_MS.TCP_PORT,
 		},
 	});
 	app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 	await app.listen();
-	console.log(`Search microservice is listening on ${SEARCH_MS.TCP_HOST}:${SEARCH_MS.TCP_PORT}`);
+	console.log(`Services microservice is listening on ${SERVICES_MS.TCP_HOST}:${SERVICES_MS.TCP_PORT}`);
 }
 bootstrap().catch((error) => {
-	console.error('Failed to start Search microservice:', error);
+	console.error('Failed to start Services microservice:', error);
 	process.exit(1);
 });
-
 

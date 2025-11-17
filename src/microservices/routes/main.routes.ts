@@ -1,20 +1,18 @@
 import { config } from 'dotenv';
 import { resolve } from 'path';
 
-// Load .env file from project root (works with ts-node)
 config({ path: resolve(process.cwd(), '.env') });
 
 import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-import { SearchModule } from './search.module';
-import { SEARCH_MS } from './search.messages';
+import { RoutesModule } from './routes.module';
+import { ROUTES_MS } from './routes.messages';
 import { ValidationPipe } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Module } from '@nestjs/common';
 
 @Module({
 	imports: [
-		// Reuse the same global TypeORM configuration via AppModule pattern:
 		TypeOrmModule.forRoot({
 			type: 'mssql',
 			host: process.env.DB_HOST ?? 'localhost',
@@ -29,26 +27,25 @@ import { Module } from '@nestjs/common';
 			synchronize: false,
 			entities: [__dirname + '/../../shared/entities/**/*.entity.{ts,js}'],
 		}),
-		SearchModule,
+		RoutesModule,
 	],
 })
-class SearchBootstrapModule {}
+class RoutesBootstrapModule {}
 
 async function bootstrap() {
-	const app = await NestFactory.createMicroservice<MicroserviceOptions>(SearchBootstrapModule, {
+	const app = await NestFactory.createMicroservice<MicroserviceOptions>(RoutesBootstrapModule, {
 		transport: Transport.TCP,
 		options: {
-			host: SEARCH_MS.TCP_HOST,
-			port: SEARCH_MS.TCP_PORT,
+			host: ROUTES_MS.TCP_HOST,
+			port: ROUTES_MS.TCP_PORT,
 		},
 	});
 	app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 	await app.listen();
-	console.log(`Search microservice is listening on ${SEARCH_MS.TCP_HOST}:${SEARCH_MS.TCP_PORT}`);
+	console.log(`Routes microservice is listening on ${ROUTES_MS.TCP_HOST}:${ROUTES_MS.TCP_PORT}`);
 }
 bootstrap().catch((error) => {
-	console.error('Failed to start Search microservice:', error);
+	console.error('Failed to start Routes microservice:', error);
 	process.exit(1);
 });
-
 
