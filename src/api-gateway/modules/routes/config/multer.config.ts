@@ -23,7 +23,7 @@ export const multerConfig = {
 			const routeId = req.params.routeId;
 
 			// Validate file extension
-			const ext = extname(file.originalname).toLowerCase();
+			const ext = extname(file.originalname).toLowerCase() as '.jpg' | '.jpeg' | '.png';
 			if (!FILE_UPLOAD_CONSTANTS.ALLOWED_EXTENSIONS.includes(ext)) {
 				cb(
 					new BadRequestException(
