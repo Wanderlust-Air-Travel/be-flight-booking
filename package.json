@@ -16,6 +16,8 @@
     "start:services:dev": "nodemon --exec ts-node -r tsconfig-paths/register src/microservices/services/main.services.ts",
     "start:routes": "ts-node -r tsconfig-paths/register src/microservices/routes/main.routes.ts",
     "start:routes:dev": "nodemon --exec ts-node -r tsconfig-paths/register src/microservices/routes/main.routes.ts",
+    "start:booking": "ts-node -r tsconfig-paths/register src/microservices/booking/main.booking.ts",
+    "start:booking:dev": "nodemon --exec ts-node -r tsconfig-paths/register src/microservices/booking/main.booking.ts",
     "seed:domestic": "ts-node -r tsconfig-paths/register src/scripts/seed-domestic.ts",
     "seed:full": "ts-node -r tsconfig-paths/register src/scripts/seed-full-database.ts",
     "start:debug": "nest start --debug --watch",

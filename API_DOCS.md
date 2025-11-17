@@ -288,39 +288,144 @@ GET /search/fare-options?flightInstanceId=019a8f4a-bb0e-7402-a0c4-27647b89dc71&c
 
 **Response (200 OK) - Economy:**
 ```json
-{
-  "flightInstanceId": "a3f1f8e6-5a6b-4b2d-9f1a-2c3d4e5f6a7b",
-  "cabinType": "economy",
-  "fareOptions": [
-    {
-      "fareClassCode": "YSM",
-      "name": "Economy Saver Max",
-      "price": 1448000,
-      "availableSeats": 5,
-      "description": "Economy Saver Max",
-      "changeRule": "Change before departure: 600,000 VND",
-      "refundRule": "Non-refundable"
-    },
-    {
-      "fareClassCode": "YS",
-      "name": "Economy Smart",
-      "price": 1577000,
-      "availableSeats": 10,
-      "description": "Economy Smart",
-      "changeRule": "Change before departure: 450,000 VND",
-      "refundRule": "Refund before departure: 450,000 VND"
-    },
-    {
-      "fareClassCode": "YF",
-      "name": "Economy Flex",
-      "price": 3068000,
-      "availableSeats": 3,
-      "description": "Economy Flex",
-      "changeRule": "Free changes",
-      "refundRule": "Refund before departure: 300,000 VND"
-    }
-  ]
-}
+[
+  {
+    "fareClassCode": "YSM",
+    "name": "Economy Saver Max",
+    "typeTicket": "Economy Saver Max",
+    "price": 1448000,
+    "availableSeats": 5,
+    "desc": [
+          {
+            "text": "Hành lý xách tay: 7kg",
+            "status": true
+          },
+          {
+            "text": "Không bao gồm hành lý ký gửi",
+            "status": false
+          },
+          {
+            "text": "Không được hoàn/hủy",
+            "status": false
+          },
+          {
+            "text": "Thay đổi trước giờ khởi hành: 600.000 VND (*)",
+            "status": true
+          },
+          {
+            "text": "Không thay đổi sau giờ khởi hành (*)",
+            "status": false
+          },
+          {
+            "text": "Hệ số cộng điểm Bamboo Club: 0.25",
+            "status": true
+          },
+          {
+            "text": "Chọn ghế ngồi mất phí",
+            "status": false
+          },
+          {
+            "text": "Không áp dụng cho go-show",
+            "status": false
+          }
+        ],
+        "description": "Economy Saver Max",
+        "changeRule": "Change before departure: 600,000 VND",
+        "refundRule": "Non-refundable"
+      },
+      {
+        "fareClassCode": "YS",
+        "name": "Economy Smart",
+        "typeTicket": "Economy Smart",
+        "price": 1577000,
+        "availableSeats": 10,
+        "desc": [
+          {
+            "text": "Hành lý xách tay: 7kg",
+            "status": true
+          },
+          {
+            "text": "Không bao gồm hành lý ký gửi",
+            "status": false
+          },
+          {
+            "text": "Hoàn/hủy trước giờ khởi hành: 450.000 VND (*)",
+            "status": true
+          },
+          {
+            "text": "Hoàn/hủy sau giờ khởi hành: 600.000 VND (*)",
+            "status": true
+          },
+          {
+            "text": "Thay đổi trước giờ khởi hành: 450.000 VND (*)",
+            "status": true
+          },
+          {
+            "text": "Thay đổi sau giờ khởi hành: 600.000 VND (*)",
+            "status": true
+          },
+          {
+            "text": "Hệ số cộng điểm Bamboo Club: 0.5",
+            "status": true
+          },
+          {
+            "text": "Chọn ghế ngồi mất phí",
+            "status": true
+          },
+          {
+            "text": "Không áp dụng cho go-show",
+            "status": false
+          }
+        ],
+        "description": "Economy Smart",
+        "changeRule": "Change before departure: 450,000 VND",
+        "refundRule": "Refund before departure: 450,000 VND"
+      },
+      {
+        "fareClassCode": "YF",
+        "name": "Economy Flex",
+        "typeTicket": "Economy Flex",
+        "price": 3068000,
+        "availableSeats": 3,
+        "desc": [
+          {
+            "text": "Hành lý xách tay: 7kg",
+            "status": true
+          },
+          {
+            "text": "01 kiện hành lý ký gửi 20kg",
+            "status": true
+          },
+          {
+            "text": "Hoàn/hủy trước giờ khởi hành: 300.000 VND (*)",
+            "status": true
+          },
+          {
+            "text": "Hoàn/hủy sau giờ khởi hành: 300.000 VND (*)",
+            "status": true
+          },
+          {
+            "text": "Thay đổi miễn phí",
+            "status": true
+          },
+          {
+            "text": "Hệ số cộng điểm Bamboo Club: 1.00",
+            "status": true
+          },
+          {
+            "text": "Chọn ghế ngồi miễn phí",
+            "status": true
+          },
+          {
+            "text": "Đổi chuyến tại sân bay miễn phí",
+            "status": true
+          }
+        ],
+    "description": "Economy Flex",
+    "changeRule": "Free changes",
+    "refundRule": "Refund before departure: 300,000 VND"
+  }
+]
 ```
 
 **Response (200 OK) - Business:**
@@ -382,10 +487,264 @@ Hoặc:
 - API này được gọi sau khi user đã chọn một flight từ kết quả search
 - `flightInstanceId` lấy từ response của `/search/flights`
 - `cabinType` là `economy` hoặc `business` (tương ứng với 2 nút trên UI)
+- **Response format**: Trả về array trực tiếp của fare options `[{ fareClassCode, name, typeTicket, price, availableSeats, desc, ... }]`
 - Response chỉ trả về các fare options có `availableSeats > 0`
 - Fare options được sắp xếp theo price (tăng dần)
 - Economy có 3 cabin types: Economy Saver Max, Economy Smart, Economy Flex
 - Business có 2 cabin types: Business Smart, Business Flex
+- Mỗi fare option có `desc` array chứa các mô tả chi tiết với `text` và `status` (true/false)
+- `typeTicket` field chứa tên hiển thị của fare class (tương tự `name`)
+
+---
+
+## Bookings (Đặt vé)
+
+### Create Booking (Tạo booking mới)
+
+**POST** `/bookings`
+
+Tạo một booking mới với thông tin passengers, segments (flight instances), và fare classes.
+
+**Request Body:**
+```json
+{
+  "userId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "currencyCode": "VND",
+  "contactFullname": "Nguyen Van A",
+  "contactEmail": "nguyenvana@example.com",
+  "contactPhone": "0912345678",
+  "channel": "web",
+  "passengers": [
+    {
+      "passengerId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+      "passengerType": "ADT"
+    }
+  ],
+  "segments": [
+    {
+      "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+      "fareClassCode": "YS",
+      "baseFare": 1577000,
+      "taxAmount": 0,
+      "feeAmount": 0,
+      "flightSeatId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71"
+    }
+  ]
+}
+```
+
+**Validation:**
+- `userId`: Optional (UUID v7), cho guest bookings
+- `currencyCode`: Required, phải tồn tại trong database
+- `contactFullname`, `contactEmail`, `contactPhone`: Required
+- `passengers`: Array, mỗi passenger cần `passengerId` (UUID v7) và `passengerType` (ADT/CHD/INF)
+- `segments`: Array, mỗi segment cần `flightInstanceId`, `fareClassCode`, `baseFare`, `taxAmount`, `feeAmount`
+- `flightSeatId`: Optional, có thể gán sau
+
+**Response (201 Created):**
+```json
+{
+  "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "pnrCode": "ABC123",
+  "totalAmount": 1577000,
+  "currencyCode": "VND",
+  "status": "pending"
+}
+```
+
+**Error (400 Bad Request):**
+```json
+{
+  "statusCode": 400,
+  "message": "Currency VND not found",
+  "error": "Bad Request"
+}
+```
+
+**Error (404 Not Found):**
+```json
+{
+  "statusCode": 404,
+  "message": "Flight instance 019a8f4a-bb0e-7402-a0c4-27647b89dc71 not found",
+  "error": "Not Found"
+}
+```
+
+**Lưu ý:**
+- PNR code được tự động generate (6 ký tự alphanumeric, unique)
+- Total amount được tính từ tổng của tất cả segments (baseFare + taxAmount + feeAmount)
+- Booking được tạo với status `pending`
+- Transaction-safe: Tất cả operations được thực hiện trong một transaction
+
+---
+
+### Get Booking Fare Details (Lấy thông tin chi tiết fare đã chọn)
+
+**GET** `/bookings/:id/fare-details`
+
+Lấy thông tin chi tiết về fare class đã chọn trong booking, bao gồm descriptions và pricing.
+
+**Path Parameters:**
+- `id`: Booking ID (UUID v7)
+
+**Example Request:**
+```
+GET /bookings/019a8f4a-bb0e-7402-a0c4-27647b89dc71/fare-details
+```
+
+**Response (200 OK):**
+```json
+{
+  "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "pnrCode": "ABC123",
+  "fareClassName": "Economy Smart",
+  "descriptions": [
+    {
+      "text": "Hành lý xách tay: 7kg",
+      "status": true
+    },
+    {
+      "text": "Không bao gồm hành lý ký gửi",
+      "status": false
+    },
+    {
+      "text": "Hoàn/hủy trước giờ khởi hành: 450.000 VND (*)",
+      "status": true
+    },
+    {
+      "text": "Hoàn/hủy sau giờ khởi hành: 600.000 VND (*)",
+      "status": true
+    },
+    {
+      "text": "Thay đổi trước giờ khởi hành: 450.000 VND (*)",
+      "status": true
+    },
+    {
+      "text": "Thay đổi sau giờ khởi hành: 600.000 VND (*)",
+      "status": true
+    },
+    {
+      "text": "Hệ số cộng điểm Bamboo Club: 0.5",
+      "status": true
+    },
+    {
+      "text": "Chọn ghế ngồi mất phí",
+      "status": true
+    },
+    {
+      "text": "Không áp dụng cho go-show",
+      "status": false
+    }
+  ],
+  "priceOneWay": 1577000,
+  "totalPassengers": 1,
+  "totalPrice": 1577000
+}
+```
+
+**Error (404 Not Found):**
+```json
+{
+  "statusCode": 404,
+  "message": "Booking 019a8f4a-bb0e-7402-a0c4-27647b89dc71 not found",
+  "error": "Not Found"
+}
+```
+
+**Lưu ý:**
+- API này được gọi sau khi user đã chọn fare class và tạo booking
+- `descriptions` chứa danh sách các điều kiện/quyền lợi của fare class
+- `priceOneWay` là tổng giá của tất cả segments trong booking
+- `totalPassengers` là số lượng passengers trong booking
+
+---
+
+### Update Booking Passengers (Cập nhật số lượng người)
+
+**PATCH** `/bookings/:id/passengers`
+
+Cập nhật số lượng adult và minor passengers cho một booking.
+
+**Path Parameters:**
+- `id`: Booking ID (UUID v7)
+
+**Request Body:**
+```json
+{
+  "adults": 2,
+  "minors": 1
+}
+```
+
+**Validation:**
+- `adults`: Required, integer ≥ 1
+- `minors`: Required, integer ≥ 0
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Passenger count updated from 1 to 3",
+  "totalPassengers": 3
+}
+```
+
+**Error (404 Not Found):**
+```json
+{
+  "statusCode": 404,
+  "message": "Booking 019a8f4a-bb0e-7402-a0c4-27647b89dc71 not found",
+  "error": "Not Found"
+}
+```
+
+**Lưu ý:**
+- API này cho phép thay đổi số lượng người sau khi đã tạo booking
+- Có thể cần recalculate total amount dựa trên số lượng mới (tính năng này có thể được mở rộng)
+
+---
+
+### Get Booking Payment Info (Lấy thông tin thanh toán)
+
+**GET** `/bookings/:id/payment-info`
+
+Lấy thông tin thanh toán cho một booking, bao gồm total amount, currency, và contact details.
+
+**Path Parameters:**
+- `id`: Booking ID (UUID v7)
+
+**Example Request:**
+```
+GET /bookings/019a8f4a-bb0e-7402-a0c4-27647b89dc71/payment-info
+```
+
+**Response (200 OK):**
+```json
+{
+  "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "pnrCode": "ABC123",
+  "totalAmount": 1577000,
+  "currencyCode": "VND",
+  "contactFullname": "Nguyen Van A",
+  "contactEmail": "nguyenvana@example.com",
+  "contactPhone": "0912345678",
+  "status": "pending"
+}
+```
+
+**Error (404 Not Found):**
+```json
+{
+  "statusCode": 404,
+  "message": "Booking 019a8f4a-bb0e-7402-a0c4-27647b89dc71 not found",
+  "error": "Not Found"
+}
+```
+
+**Lưu ý:**
+- API này được gọi khi user chuyển đến trang thanh toán
+- Thông tin này được dùng để hiển thị trên payment page
+- `status` có thể là: `pending`, `confirmed`, `cancelled`, `completed`
 
 ---
 
@@ -622,8 +981,17 @@ const { data: fareOptions } = await api.get('/search/fare-options', {
    - Bước 4: Hiển thị dropdown với các fare options (cabins) tương ứng
 7. **UUID v7**: Tất cả IDs trong hệ thống sử dụng UUID v7 (time-ordered). Format: `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx`. UUID v7 có thể sắp xếp theo thời gian, tốt cho database indexing.
 8. **Services Microservice**: API `/services/deals` cần Services Microservice chạy (port 4002). Chạy bằng: `npm run start:services` hoặc `npm run start:services:dev`
-9. **Pricing Strategy**: 
-   - Giá trong deals được tính từ historical pricing (BookingSegments) nếu có
-   - Nếu chưa có booking, dùng fallback prices (giá mặc định)
-   - Giá được format theo chuẩn Việt Nam: "962,000 VND"
+9. **Booking Microservice**: Tất cả booking APIs cần Booking Microservice chạy (port 4004). Chạy bằng: `npm run start:booking` hoặc `npm run start:booking:dev`
+10. **Pricing Strategy**: 
+    - Giá trong deals được tính từ historical pricing (BookingSegments) nếu có
+    - Nếu chưa có booking, dùng fallback prices (giá mặc định)
+    - Giá được format theo chuẩn Việt Nam: "962,000 VND"
+11. **Booking Flow**:
+    - Bước 1: Search flights → `/search/flights`
+    - Bước 2: Chọn flight → Get fare options → `/search/fare-options`
+    - Bước 3: Chọn fare class → Create booking → `POST /bookings`
+    - Bước 4: Xem fare details → `GET /bookings/:id/fare-details`
+    - Bước 5: Update passengers (nếu cần) → `PATCH /bookings/:id/passengers`
+    - Bước 6: Get payment info → `GET /bookings/:id/payment-info`
+    - Bước 7: Thanh toán (API này sẽ được implement sau)
 

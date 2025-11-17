@@ -68,6 +68,10 @@ SERVICES_MS_PORT=4002
 # Routes Microservice
 ROUTES_MS_HOST=127.0.0.1
 ROUTES_MS_PORT=4003
+
+# Booking Microservice
+BOOKING_MS_HOST=127.0.0.1
+BOOKING_MS_PORT=4004
 ```
 
 **Lưu ý:**
@@ -169,6 +173,12 @@ npm run start:routes:dev
 ```
 Routes Microservice sẽ chạy tại port 4003 (TCP)
 
+Terminal 5 - Booking Microservice (Optional, nếu cần booking APIs):
+```bash
+npm run start:booking:dev
+```
+Booking Microservice sẽ chạy tại port 4004 (TCP)
+
 **Cách 2: Chạy Production Mode**
 
 Build project:
@@ -191,18 +201,25 @@ Chạy Services Microservice:
 npm run start:services
 ```
 
+Chạy Booking Microservice:
+```bash
+npm run start:booking
+```
+
 ## 📝 Scripts Available
 
 | Script | Mô tả |
 |--------|-------|
 | `npm run start:dev` | Chạy API Gateway ở development mode (watch mode) |
 | `npm run start:search:dev` | Chạy Search Microservice ở development mode (watch mode) |
+| `npm run start:booking:dev` | Chạy Booking Microservice ở development mode (watch mode) |
 | `npm run start:services:dev` | Chạy Services Microservice ở development mode (watch mode) |
 | `npm run start:routes:dev` | Chạy Routes Microservice ở development mode (watch mode) |
 | `npm run start:prod` | Chạy API Gateway ở production mode |
 | `npm run start:search` | Chạy Search Microservice ở production mode |
 | `npm run start:services` | Chạy Services Microservice ở production mode |
 | `npm run start:routes` | Chạy Routes Microservice ở production mode |
+| `npm run start:booking` | Chạy Booking Microservice ở production mode |
 | `npm run seed:domestic` | Seed dữ liệu mẫu cho domestic flights (nhanh) |
 | `npm run seed:full` | Seed full database với hàng ngàn records (cho testing) |
 | `npm run build` | Build project (compile TypeScript) |
@@ -337,6 +354,17 @@ curl -X POST http://localhost:3000/auth/login \
 1. Đảm bảo đã chạy: `npm run start:routes:dev`
 2. Kiểm tra port 4003 không bị conflict
 3. Check `ROUTES_MS_HOST` và `ROUTES_MS_PORT` trong `.env`
+
+### Lỗi: "Booking microservice connection failed"
+
+**Nguyên nhân:**
+- Booking Microservice chưa chạy
+- Port 4004 bị conflict
+
+**Giải pháp:**
+1. Đảm bảo đã chạy: `npm run start:booking:dev`
+2. Kiểm tra port 4004 không bị conflict
+3. Check `BOOKING_MS_HOST` và `BOOKING_MS_PORT` trong `.env`
 
 ### Lỗi: "Airport not found" khi search flights
 

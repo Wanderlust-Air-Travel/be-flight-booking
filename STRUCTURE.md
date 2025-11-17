@@ -22,7 +22,10 @@ src/
 │   ├── modules/               # Feature modules
 │   │   ├── auth/              # Authentication (login, register)
 │   │   ├── user/              # User management
-│   │   └── search/            # Search flights (proxy to microservice)
+│   │   ├── search/            # Search flights (proxy to microservice)
+│   │   ├── services/          # Services (deals, etc.)
+│   │   ├── routes/            # Routes management
+│   │   └── booking/           # Booking management (proxy to microservice)
 │   ├── app.module.ts          # Root module
 │   └── main.ts                # Entry point
 │
@@ -33,12 +36,24 @@ src/
 │   │   ├── dto/               # Request/Response DTOs
 │   │   ├── types/             # Internal types
 │   │   └── main.search.ts     # Entry point
-│   └── services/              # Services microservice (port 4002)
+│   ├── services/              # Services microservice (port 4002)
+│   │   ├── controllers/       # Message handlers
+│   │   ├── services/          # Business logic
+│   │   ├── dto/               # Request/Response DTOs
+│   │   ├── services.messages.ts  # TCP config
+│   │   └── main.services.ts   # Entry point
+│   ├── routes/                # Routes microservice (port 4003)
+│   │   ├── controllers/       # Message handlers
+│   │   ├── services/          # Business logic
+│   │   ├── dto/               # Request/Response DTOs
+│   │   ├── routes.messages.ts # TCP config
+│   │   └── main.routes.ts     # Entry point
+│   └── booking/               # Booking microservice (port 4004)
 │       ├── controllers/       # Message handlers
 │       ├── services/          # Business logic
 │       ├── dto/               # Request/Response DTOs
-│       ├── services.messages.ts  # TCP config
-│       └── main.services.ts   # Entry point
+│       ├── booking.messages.ts # TCP config
+│       └── main.booking.ts    # Entry point
 │
 └── scripts/                   # Database scripts
     └── seed-domestic.ts       # Seed domestic flights data
@@ -106,8 +121,27 @@ API Gateway → Response to FE
     }
     ```
 
+### Search Flights - Fare Options
+- `GET /search/fare-options` - Lấy danh sách fare options (cabins) cho một flight instance
+  - **Query params**:
+    - `flightInstanceId` (required): UUID v7
+    - `cabinType` (required): "economy" hoặc "business"
+  - **Response**: Array format `[{ id, type, code, list: [...] }]` với `desc` array cho mỗi fare option
+
 ### Services
 - `GET /services/deals` - Lấy danh sách flight deals (ưu đãi chuyến bay)
+
+### Bookings
+- `POST /bookings` - Tạo booking mới
+  - **Body**: `{ userId?, currencyCode, contactFullname, contactEmail, contactPhone, channel?, passengers[], segments[] }`
+  - **Response**: `{ bookingId, pnrCode, totalAmount, currencyCode, status }`
+- `GET /bookings/:id/fare-details` - Lấy thông tin chi tiết fare đã chọn
+  - **Response**: `{ bookingId, pnrCode, fareClassName, descriptions[], priceOneWay, totalPassengers, totalPrice }`
+- `PATCH /bookings/:id/passengers` - Cập nhật số lượng người
+  - **Body**: `{ adults, minors }`
+  - **Response**: `{ success, message, totalPassengers }`
+- `GET /bookings/:id/payment-info` - Lấy thông tin thanh toán
+  - **Response**: `{ bookingId, pnrCode, totalAmount, currencyCode, contactFullname, contactEmail, contactPhone, status }`
   - **Response**:
     ```json
     {
@@ -195,6 +229,12 @@ npm run start:search:dev
 # Start Services Microservice (port 4002) - Cần chạy nếu dùng API /services/deals
 npm run start:services:dev
 
+# Start Routes Microservice (port 4003) - Cần chạy nếu dùng API /routes/upload-image
+npm run start:routes:dev
+
+# Start Booking Microservice (port 4004) - Cần chạy nếu dùng booking APIs
+npm run start:booking:dev
+
 # Seed database với dữ liệu nội địa (HAN, SGN, DAD)
 npm run seed:domestic
 ```
@@ -228,6 +268,14 @@ SEARCH_MS_PORT=4001
 # Services Microservice
 SERVICES_MS_HOST=127.0.0.1
 SERVICES_MS_PORT=4002
+
+# Routes Microservice
+ROUTES_MS_HOST=127.0.0.1
+ROUTES_MS_PORT=4003
+
+# Booking Microservice
+BOOKING_MS_HOST=127.0.0.1
+BOOKING_MS_PORT=4004
 ```
 
 ## Lưu ý cho FE
