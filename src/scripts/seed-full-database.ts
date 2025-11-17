@@ -110,11 +110,11 @@ function generateDocumentNumber(): string {
 }
 
 async function run() {
-	console.log('🚀 Starting full database seed...');
+	console.log('Starting full database seed...');
 	
 	try {
 		await ds.initialize();
-		console.log('✅ Database connected');
+		console.log('Database connected');
 		
 		// Test connection with a simple query and set command timeout
 		console.log('Testing connection...');
@@ -122,9 +122,9 @@ async function run() {
 		await queryRunner.connect();
 		await queryRunner.query('SELECT 1 as test');
 		await queryRunner.release();
-		console.log('✅ Connection test successful');
+		console.log('Connection test successful');
 	} catch (error) {
-		console.error('❌ Database connection failed:', error);
+		console.error('Database connection failed:', error);
 		console.error('Error details:', error);
 		throw error;
 	}
@@ -154,7 +154,7 @@ async function run() {
 	// ============================================================
 	// 1. CURRENCIES & PAYMENT METHODS
 	// ============================================================
-	console.log('\n📊 Seeding Currencies and Payment Methods...');
+	console.log('\nSeeding Currencies and Payment Methods...');
 	
 	const currencies = [
 		{ currency_code: 'VND', name: 'Vietnamese Dong' },
@@ -168,10 +168,10 @@ async function run() {
 			const existing = await repos.currency.findOne({ where: { currency_code: c.currency_code } });
 			if (!existing) {
 				await repos.currency.save(repos.currency.create(c));
-				console.log(`  ✅ Created currency: ${c.currency_code}`);
+				console.log(`  Created currency: ${c.currency_code}`);
 			}
 		} catch (error) {
-			console.error(`  ❌ Error with currency ${c.currency_code}:`, error);
+			console.error(`  Error with currency ${c.currency_code}:`, error);
 			// Continue with next currency instead of failing completely
 		}
 	}
@@ -180,7 +180,7 @@ async function run() {
 	try {
 		vnd = await repos.currency.findOneByOrFail({ currency_code: 'VND' });
 	} catch (error) {
-		console.error('❌ Failed to find VND currency. Creating it now...');
+		console.error('Failed to find VND currency. Creating it now...');
 		vnd = await repos.currency.save(repos.currency.create({ currency_code: 'VND', name: 'Vietnamese Dong' }));
 	}
 
@@ -199,7 +199,7 @@ async function run() {
 	// ============================================================
 	// 2. CABIN CLASSES & FARE CLASSES
 	// ============================================================
-	console.log('\n✈️ Seeding Cabin Classes and Fare Classes...');
+	console.log('\nSeeding Cabin Classes and Fare Classes...');
 	
 	const cabinClasses = [
 		{ cabin_class_code: 'Y', name: 'Economy' },
@@ -233,7 +233,7 @@ async function run() {
 	// ============================================================
 	// 3. AIRCRAFT TYPES & AIRCRAFTS
 	// ============================================================
-	console.log('\n🛫 Seeding Aircraft Types and Aircrafts...');
+	console.log('\nSeeding Aircraft Types and Aircrafts...');
 	
 	const aircraftTypes = [
 		{ code: 'A320', manufacturer: 'Airbus', model: 'A320-200', total_seats: 180 },
@@ -271,12 +271,12 @@ async function run() {
 			aircrafts.push(ac);
 		}
 	}
-	console.log(`✅ Created ${aircrafts.length} aircrafts`);
+	console.log(`Created ${aircrafts.length} aircrafts`);
 
 	// ============================================================
 	// 4. SEAT CONFIGURATIONS (for each aircraft type)
 	// ============================================================
-	console.log('\n💺 Seeding Seat Configurations...');
+	console.log('\nSeeding Seat Configurations...');
 	
 	for (const aircraftType of savedAircraftTypes) {
 		const existing = await repos.seatConfig.count({ where: { aircraft_type: { aircraft_type_id: aircraftType.aircraft_type_id } } });
@@ -327,13 +327,13 @@ async function run() {
 				seat_config_id: uuidv7(),
 			})));
 		}
-		console.log(`✅ Created ${seatConfigs.length} seat configurations for ${aircraftType.code}`);
+		console.log(`Created ${seatConfigs.length} seat configurations for ${aircraftType.code}`);
 	}
 
 	// ============================================================
 	// 5. AIRPORTS
 	// ============================================================
-	console.log('\n🌍 Seeding Airports...');
+	console.log('\nSeeding Airports...');
 	
 	const airportsData = [
 		// Vietnam domestic
@@ -371,12 +371,12 @@ async function run() {
 		}
 		savedAirports.push(existing);
 	}
-	console.log(`✅ Created ${savedAirports.length} airports`);
+	console.log(`Created ${savedAirports.length} airports`);
 
 	// ============================================================
 	// 6. ROUTES
 	// ============================================================
-	console.log('\n🛣️ Seeding Routes...');
+	console.log('\nSeeding Routes...');
 	
 	const routes: Route[] = [];
 	const distances: Record<string, number> = {
@@ -425,12 +425,12 @@ async function run() {
 			}
 		}
 	}
-	console.log(`✅ Created ${routesCreated} new routes, total: ${routes.length} routes`);
+	console.log(`Created ${routesCreated} new routes, total: ${routes.length} routes`);
 
 	// ============================================================
 	// 7. USERS & PASSENGERS
 	// ============================================================
-	console.log('\n👥 Seeding Users and Passengers...');
+	console.log('\nSeeding Users and Passengers...');
 	
 	const passwordHash = await bcrypt.hash('Password123!', 10);
 	const users: User[] = [];
@@ -473,16 +473,16 @@ async function run() {
 			}
 
 			if ((i + 1) % 100 === 0) {
-				console.log(`  ✅ Created ${i + 1} users...`);
+				console.log(`  Created ${i + 1} users...`);
 			}
 		}
 	}
-	console.log(`✅ Created ${users.length} users with passengers`);
+	console.log(`Created ${users.length} users with passengers`);
 
 	// ============================================================
 	// 8. FLIGHT SCHEDULES
 	// ============================================================
-	console.log('\n📅 Seeding Flight Schedules...');
+	console.log('\nSeeding Flight Schedules...');
 	
 	const now = new Date();
 	// Set from date to today at midnight (local timezone)
@@ -616,7 +616,7 @@ async function run() {
 				} catch (error: any) {
 					// If still duplicate (race condition), skip this schedule
 					if (error?.code === 'EREQUEST' && error?.number === 2627) {
-						console.log(`  ⚠️  Skipping duplicate schedule: ${flightNum}`);
+						console.log(`  Skipping duplicate schedule: ${flightNum}`);
 						continue;
 					}
 					throw error;
@@ -628,15 +628,15 @@ async function run() {
 		}
 		
 		if (schedulesCreated > 0 && schedulesCreated % 50 === 0) {
-			console.log(`  ✅ Created ${schedulesCreated} schedules...`);
+			console.log(`  Created ${schedulesCreated} schedules...`);
 		}
 	}
-	console.log(`✅ Created ${schedulesCreated} new schedules, total: ${schedules.length} schedules`);
+	console.log(`Created ${schedulesCreated} new schedules, total: ${schedules.length} schedules`);
 
 	// ============================================================
 	// 9. FLIGHT INSTANCES & FLIGHT SEATS
 	// ============================================================
-	console.log('\n✈️ Seeding Flight Instances and Seats...');
+	console.log('\nSeeding Flight Instances and Seats...');
 	
 	let instanceCount = 0;
 	const startDate = new Date(from);
@@ -736,19 +736,19 @@ async function run() {
 
 					instanceCount++;
 					if (instanceCount % 100 === 0) {
-						console.log(`  ✅ Created ${instanceCount} flight instances...`);
+						console.log(`  Created ${instanceCount} flight instances...`);
 					}
 				}
 			}
 			currentDate.setDate(currentDate.getDate() + 1);
 		}
 	}
-	console.log(`✅ Created ${instanceCount} flight instances with seats`);
+	console.log(`Created ${instanceCount} flight instances with seats`);
 
 	// ============================================================
 	// 10. BOOKINGS, BOOKING PASSENGERS, SEGMENTS, TICKETS, PAYMENTS
 	// ============================================================
-	console.log('\n🎫 Seeding Bookings and related data...');
+	console.log('\nSeeding Bookings and related data...');
 	
 	// Get all available flight instances (limit to 10000 for performance)
 	const allInstances = await repos.instance
@@ -764,7 +764,7 @@ async function run() {
 	let bookingCount = 0;
 	
 	if (allInstances.length === 0) {
-		console.log('  ⚠️  No flight instances available. Skipping bookings...');
+		console.log('  No flight instances available. Skipping bookings...');
 	} else {
 		const maxBookings = Math.min(1000, Math.floor(allInstances.length * 0.5)); // 50% of instances or max 1000
 		console.log(`  Creating up to ${maxBookings} bookings...`);
@@ -917,14 +917,14 @@ async function run() {
 
 			bookingCount++;
 			if (bookingCount % 100 === 0) {
-				console.log(`  ✅ Created ${bookingCount} bookings...`);
+				console.log(`  Created ${bookingCount} bookings...`);
 			}
 		}
-		console.log(`✅ Created ${bookingCount} bookings with related data`);
+		console.log(`Created ${bookingCount} bookings with related data`);
 	}
 
-	console.log('\n🎉 Full database seed completed successfully!');
-	console.log('\n📊 Summary:');
+	console.log('\nFull database seed completed successfully!');
+	console.log('\nSummary:');
 	console.log(`  - Airports: ${savedAirports.length}`);
 	console.log(`  - Routes: ${routes.length}`);
 	console.log(`  - Aircraft Types: ${savedAircraftTypes.length}`);
@@ -938,7 +938,7 @@ async function run() {
 }
 
 run().catch((e) => {
-	console.error('❌ Seed failed:', e);
+	console.error('Seed failed:', e);
 	process.exit(1);
 });
 
