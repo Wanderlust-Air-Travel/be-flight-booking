@@ -49,6 +49,7 @@ DB_TRUST_CERT=true            # local dev hay dùng true
 
 # API Gateway
 PORT=3000
+FRONTEND_URL=http://localhost:5173  # Frontend URL for CORS (optional, defaults to allow all in dev)
 
 # Token
 JWT_ACCESS_SECRET=c769850ee4f001088ba440c3211390099dbb7f9e2e0593be9233e395dce6e931

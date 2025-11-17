@@ -9,6 +9,16 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   
+  // Enable CORS for frontend
+  app.enableCors({
+    origin: process.env.FRONTEND_URL || true, // Allow all origins in dev, or set specific URL in production
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
+    exposedHeaders: ['Content-Range', 'X-Content-Range'],
+    credentials: true, // Allow cookies/credentials
+    maxAge: 86400, // 24 hours
+  });
+  
   // Serve static files from public directory
   app.useStaticAssets(join(process.cwd(), 'public'), {
     prefix: '/',

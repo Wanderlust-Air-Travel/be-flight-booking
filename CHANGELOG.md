@@ -23,6 +23,10 @@ Tất cả các thay đổi quan trọng của project sẽ được ghi nhận 
 
 ### Changed
 
+- **CORS**: Đã bật CORS cho API Gateway (port 3000) để frontend có thể gọi API
+  - Cho phép tất cả origins trong dev mode (hoặc set `FRONTEND_URL` trong `.env` để giới hạn)
+  - Hỗ trợ credentials (cookies, authorization headers)
+  - Methods: GET, POST, PUT, DELETE, PATCH, OPTIONS
 - **Services API**: `/services/deals` giờ hỗ trợ cả one-way và round-trip deals
   - Thêm field `tripType`: `"one_way"` hoặc `"round_trip"`
   - Round-trip: `endDate` có giá trị, `service` = "Dịch vụ bay khứ hồi", `price` = tổng giá 2 chuyến
@@ -32,6 +36,7 @@ Tất cả các thay đổi quan trọng của project sẽ được ghi nhận 
 
 ### Notes for Frontend
 
+- **CORS**: API Gateway đã bật CORS, frontend có thể gọi API từ bất kỳ origin nào (dev mode)
 - Routes API cần Routes Microservice (port 4003)
 - Services API cần Services Microservice (port 4002)
 - Image URLs: `/images/routes/{uuid-v7}.jpg`
