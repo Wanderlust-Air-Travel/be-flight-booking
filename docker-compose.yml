@@ -20,6 +20,7 @@ services:
       retries: 10
       start_period: 30s
     restart: unless-stopped
+    # npm run init-db && (npm run seed-db || true)
 
   # Redis Cache
   redis:

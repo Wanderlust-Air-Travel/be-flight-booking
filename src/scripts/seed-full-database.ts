@@ -23,6 +23,7 @@ import { User } from 'src/shared/entities/user/user.entity';
 import { Passenger } from 'src/shared/entities/passenger/passenger.entity';
 import { Currency } from 'src/shared/entities/currency/currency.entity';
 import { PaymentMethod } from 'src/shared/entities/payment/payment-method.entity';
+import { Reservation } from 'src/shared/entities/reservation/reservation.entity';
 import { Booking } from 'src/shared/entities/booking/booking.entity';
 import { BookingPassenger } from 'src/shared/entities/booking/booking-passenger.entity';
 import { BookingSegment } from 'src/shared/entities/booking/booking-segment.entity';
@@ -32,7 +33,7 @@ import { Payment } from 'src/shared/entities/payment/payment.entity';
 const ds = new DataSource({
 	type: 'mssql',
 	host: process.env.DB_HOST ?? 'localhost',
-	port: Number(process.env.DB_PORT ?? 1433),
+	port: Number(process.env.DB_PORT ?? 1434),
 	username: process.env.DB_USER,
 	password: process.env.DB_PASS,
 	database: process.env.DB_NAME,
@@ -53,8 +54,8 @@ const ds = new DataSource({
 	entities: [
 		Airport, Route, FlightSchedule, FlightInstance, FlightSeat,
 		AircraftType, Aircraft, CabinClass, FareClass, SeatConfiguration,
-		User, Passenger, Currency, PaymentMethod, Booking, BookingPassenger,
-		BookingSegment, Ticket, Payment,
+		User, Passenger, Currency, PaymentMethod, Reservation,
+		Booking, BookingPassenger, BookingSegment, Ticket, Payment,
 	],
 	synchronize: false,
 });

@@ -99,7 +99,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: sh -c "npm run wait-for-db && npm run init-db && (npm run seed-db || true) && npm run start:all"
+    command: sh -c "npm run start:all"
+    # npm run wait-for-db && npm run init-db && (npm run seed-db || true) && 
     restart: unless-stopped
 
 volumes:
