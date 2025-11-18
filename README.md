@@ -110,11 +110,17 @@ REDIS_RESERVATION_TTL=900
 
 ### 4. Setup Redis
 
+**Option 1: Dùng docker-compose (Khuyến nghị)**
+```bash
+docker-compose -f docker-compose.redis.yml up -d
+```
+
+**Option 2: Dùng docker-compose chính (nếu đã có file docker-compose.yml với Redis)**
 ```bash
 docker-compose up -d redis
 ```
 
-Hoặc chạy trực tiếp:
+**Option 3: Chạy trực tiếp**
 ```bash
 docker run -d --name flight-booking-redis -p 6379:6379 redis:7-alpine
 ```

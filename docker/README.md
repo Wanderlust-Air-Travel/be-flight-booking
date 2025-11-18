@@ -9,6 +9,19 @@ Hướng dẫn chạy toàn bộ hệ thống Flight Booking Backend bằng Dock
 
 ## Cách sử dụng
 
+### 0. Chỉ chạy Redis (nếu chỉ cần Redis)
+
+Nếu bạn chỉ cần chạy Redis để test local:
+
+```bash
+docker-compose -f docker-compose.redis.yml up -d
+```
+
+Hoặc dừng:
+```bash
+docker-compose -f docker-compose.redis.yml down
+```
+
 ### 1. Chạy toàn bộ hệ thống (lần đầu)
 
 ```bash
