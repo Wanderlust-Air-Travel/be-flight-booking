@@ -5,6 +5,7 @@ Thư mục chứa các migration files cho database schema.
 ## Cấu trúc
 
 - `1700000000000-InitialSchema.ts` - Migration ban đầu tạo toàn bộ database schema
+- `1734567890000-AddReservationsTable.ts` - Migration thêm bảng Reservations (Hybrid Approach: Database + Redis)
 
 ## Cách sử dụng
 

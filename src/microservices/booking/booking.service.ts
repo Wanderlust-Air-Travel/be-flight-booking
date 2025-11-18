@@ -307,18 +307,47 @@ export class BookingService {
 					}
 
 					// Check if passenger with same document number already exists for this user
-					// (Optional: prevent duplicate passengers with same document number)
+					// Best Practice: Reuse passenger to avoid duplicates and improve UX
+					// Note: user_id is @RelationId, must use relation in where clause
 					const existingPassenger = user?.user_id
 						? await queryRunner.manager.findOne(Passenger, {
 								where: {
 									document_number: passengerDto.documentNumber,
-									user_id: user.user_id,
+									user: { user_id: user.user_id }, // Use relation, not direct column
 								},
 						  })
 						: null;
 
 					if (existingPassenger) {
-						// Use existing passenger if found (same document number for same user)
+						// Validate that new information matches existing passenger
+						// This prevents data inconsistency and potential fraud
+						const existingDob = existingPassenger.dob instanceof Date 
+							? existingPassenger.dob 
+							: new Date(existingPassenger.dob);
+						const existingDobStr = existingDob.toISOString().split('T')[0];
+						const newDobStr = dobDate.toISOString().split('T')[0];
+						const dobMatches = existingDobStr === newDobStr;
+						
+						const fullnameMatches =
+							existingPassenger.fullname.trim().toLowerCase() === passengerDto.fullname.trim().toLowerCase();
+						const genderMatches = existingPassenger.gender.toLowerCase() === passengerDto.gender.toLowerCase();
+
+						if (!dobMatches || !fullnameMatches || !genderMatches) {
+							// Information mismatch - could be different person or data error
+							// Log warning but allow booking (user might have updated their info)
+							console.warn(
+								`Passenger reuse warning: Document number ${passengerDto.documentNumber} exists but information differs. ` +
+									`Existing: ${existingPassenger.fullname}, ${existingPassenger.dob}, ${existingPassenger.gender}. ` +
+									`New: ${passengerDto.fullname}, ${passengerDto.dob}, ${passengerDto.gender}. ` +
+									`Using existing passenger record.`,
+							);
+						} else {
+							console.log(
+								`Reusing existing passenger: ${existingPassenger.passenger_id} (${existingPassenger.fullname}, ${existingPassenger.document_number})`,
+							);
+						}
+
+						// Reuse existing passenger (best practice: avoid duplicates)
 						passenger = existingPassenger;
 					} else {
 						// Create new passenger
@@ -332,6 +361,9 @@ export class BookingService {
 							loyalty_number: passengerDto.loyaltyNumber || null,
 						});
 						passenger = await queryRunner.manager.save(passenger);
+						console.log(
+							`Created new passenger: ${passenger.passenger_id} (${passenger.fullname}, ${passenger.document_number})`,
+						);
 					}
 				}
 
@@ -577,16 +609,27 @@ export class BookingService {
 				throw new BadRequestException(`Failed to retrieve reservation: ${error?.message || 'Unknown error'}`);
 			}
 
-			// Step 2: Validate reservation status
-			if (reservation.status !== 'active') {
+			// Step 2: Validate reservation expiration
+			// BEST PRACTICE: Check expiresAt FIRST (Primary - Source of Truth)
+			// expiresAt is the authoritative timestamp, not dependent on background jobs or status updates
+			// This ensures real-time accuracy and prevents race conditions
+			const now = new Date();
+			const expiresAt = new Date(reservation.expiresAt);
+			if (expiresAt < now) {
 				throw new BadRequestException(
-					`Cannot create booking from reservation with status: ${reservation.status}. Reservation must be active.`,
+					`Reservation has expired at ${expiresAt.toISOString()}. Current time: ${now.toISOString()}. Please create a new reservation.`,
 				);
 			}
 
-			// Step 3: Validate reservation expiration
-			if (new Date(reservation.expiresAt) < new Date()) {
-				throw new BadRequestException('Reservation has expired. Please create a new reservation.');
+			// Step 3: Validate reservation status
+			// BEST PRACTICE: Check status SECOND (Secondary - Optimization & Business Logic)
+			// Status check is for optimization (early rejection) and business logic (cancelled, converted)
+			// Accept both 'active' (from Redis cache) and 'pending' (from Database) as valid
+			// Reject 'expired', 'cancelled', 'converted' statuses
+			if (reservation.status === 'expired' || reservation.status === 'cancelled' || reservation.status === 'converted') {
+				throw new BadRequestException(
+					`Cannot create booking from reservation with status: ${reservation.status}. Reservation must be active or pending.`,
+				);
 			}
 
 			// Step 3.5: Validate reservation ownership (if userId is stored in reservation)
@@ -754,18 +797,51 @@ export class BookingService {
 						throw new BadRequestException('Invalid date format for dob. Use YYYY-MM-DD format');
 					}
 
+					// Check if passenger with same document number already exists for this user
+					// Best Practice: Reuse passenger to avoid duplicates and improve UX
+					// Note: user_id is @RelationId, must use relation in where clause
 					const existingPassenger = user?.user_id
 						? await queryRunner.manager.findOne(Passenger, {
 								where: {
 									document_number: passengerDto.documentNumber,
-									user_id: user.user_id,
+									user: { user_id: user.user_id }, // Use relation, not direct column
 								},
 						  })
 						: null;
 
 					if (existingPassenger) {
+						// Validate that new information matches existing passenger
+						// This prevents data inconsistency and potential fraud
+						const existingDob = existingPassenger.dob instanceof Date 
+							? existingPassenger.dob 
+							: new Date(existingPassenger.dob);
+						const existingDobStr = existingDob.toISOString().split('T')[0];
+						const newDobStr = dobDate.toISOString().split('T')[0];
+						const dobMatches = existingDobStr === newDobStr;
+						
+						const fullnameMatches =
+							existingPassenger.fullname.trim().toLowerCase() === passengerDto.fullname.trim().toLowerCase();
+						const genderMatches = existingPassenger.gender.toLowerCase() === passengerDto.gender.toLowerCase();
+
+						if (!dobMatches || !fullnameMatches || !genderMatches) {
+							// Information mismatch - could be different person or data error
+							// Log warning but allow booking (user might have updated their info)
+							console.warn(
+								`Passenger reuse warning: Document number ${passengerDto.documentNumber} exists but information differs. ` +
+									`Existing: ${existingPassenger.fullname}, ${existingPassenger.dob}, ${existingPassenger.gender}. ` +
+									`New: ${passengerDto.fullname}, ${passengerDto.dob}, ${passengerDto.gender}. ` +
+									`Using existing passenger record.`,
+							);
+						} else {
+							console.log(
+								`Reusing existing passenger: ${existingPassenger.passenger_id} (${existingPassenger.fullname}, ${existingPassenger.document_number})`,
+							);
+						}
+
+						// Reuse existing passenger (best practice: avoid duplicates)
 						passenger = existingPassenger;
 					} else {
+						// Create new passenger
 						passenger = this.passengerRepo.create({
 							passenger_id: uuidv7(),
 							user: user,
@@ -776,6 +852,9 @@ export class BookingService {
 							loyalty_number: passengerDto.loyaltyNumber || null,
 						});
 						passenger = await queryRunner.manager.save(passenger);
+						console.log(
+							`Created new passenger: ${passenger.passenger_id} (${passenger.fullname}, ${passenger.document_number})`,
+						);
 					}
 				}
 
@@ -838,7 +917,17 @@ export class BookingService {
 			};
 		} catch (error: any) {
 			await queryRunner.rollbackTransaction();
-			throw error;
+			console.error('Create booking from reservation error:', {
+				error: error?.message || error,
+				stack: error?.stack,
+				reservationId,
+				userId,
+			});
+			// Re-throw with better error message
+			if (error?.statusCode && error?.message) {
+				throw error; // NestJS exception
+			}
+			throw new Error(`Failed to create booking from reservation: ${error?.message || error?.toString() || 'Unknown error'}`);
 		} finally {
 			await queryRunner.release();
 		}

@@ -41,10 +41,14 @@ export class ReservationController {
 		@Body() dto: CreateReservationDto,
 	): Promise<ReservationResponseDto> {
 		try {
+			// Extract userId from JWT token (validated by JwtAuthGuard)
+			// JWT token is validated at Gateway level, userId is extracted and sent to microservice
 			const userId = req.user.userId;
+			
+			// Send userId to microservice (NOT JWT token)
 			return await firstValueFrom(
 				this.client.send<ReservationResponseDto>(RESERVATION_MS.PATTERN.CREATE_RESERVATION, {
-					userId,
+					userId, // Send userId (extracted from JWT), NOT token
 					dto,
 				}),
 			);
@@ -198,9 +202,12 @@ export class ReservationController {
 		@Req() req: Request & { user: { userId: string; email: string } },
 	): Promise<ReservationResponseDto[]> {
 		try {
+			// BEST PRACTICE: Extract userId from JWT token (validated by JwtAuthGuard)
 			const userId = req.user.userId;
+			
+			// Send userId to microservice (NOT JWT token) - Best Practice: Option 2
 			return await firstValueFrom(
-				this.client.send<ReservationResponseDto[]>(RESERVATION_MS.PATTERN.LIST_RESERVATIONS, userId),
+				this.client.send<ReservationResponseDto[]>(RESERVATION_MS.PATTERN.LIST_RESERVATIONS, userId), // ✅ Send userId, NOT token
 			);
 		} catch (error: any) {
 			console.error('List reservations error:', error);

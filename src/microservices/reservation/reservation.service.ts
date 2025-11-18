@@ -307,18 +307,24 @@ export class ReservationService {
 		let reservation = await this.redisService.get<ReservationResponseDto>(reservationKey);
 
 		if (reservation) {
-			// Check if expired
-			if (new Date(reservation.expiresAt) < new Date()) {
+			// BEST PRACTICE: Check expiresAt (Source of Truth) before status
+			// expiresAt is the authoritative timestamp for expiration
+			const now = new Date();
+			const expiresAt = new Date(reservation.expiresAt);
+			if (expiresAt < now) {
+				// Update status to 'expired' for consistency (optimization)
 				reservation.status = 'expired';
 				await this.redisService.del(reservationKey);
 				const codeKey = this.getReservationCodeKey(reservation.reservationCode);
 				await this.redisService.del(codeKey);
-				// Update Database status
+				// Update Database status for consistency
 				await this.reservationRepo.update(
 					{ reservation_id: reservationId },
 					{ status: 'expired' },
 				);
-				throw new BadRequestException('Reservation has expired');
+				throw new BadRequestException(
+					`Reservation has expired at ${expiresAt.toISOString()}. Current time: ${now.toISOString()}.`,
+				);
 			}
 
 			// Update TTL
@@ -338,8 +344,10 @@ export class ReservationService {
 			throw new NotFoundException(`Reservation ${reservationId} not found`);
 		}
 
-		// Check if expired
-		if (dbReservation.expires_at < new Date() && dbReservation.status === 'pending') {
+		// BEST PRACTICE: Check expiresAt (Source of Truth) before status
+		// Update status to 'expired' if expired and still marked as 'pending' (lazy update)
+		const now = new Date();
+		if (dbReservation.expires_at < now && dbReservation.status === 'pending') {
 			dbReservation.status = 'expired';
 			await this.reservationRepo.save(dbReservation);
 		}

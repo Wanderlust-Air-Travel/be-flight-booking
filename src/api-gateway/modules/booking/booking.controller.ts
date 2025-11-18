@@ -62,7 +62,9 @@ export class BookingController {
 		@Body() dto: CreateBookingFromReservationDto,
 	): Promise<CreateBookingResponseDto> {
 		try {
-			// Extract userId from JWT token
+			// Extract userId from JWT token (validated by JwtAuthGuard)
+			// JWT token is validated at Gateway level, userId is extracted and sent to microservice
+			// Microservice trusts Gateway - no need to forward JWT token
 			const userId = req.user.userId;
 
 			// Validate reservationId is provided
@@ -75,26 +77,41 @@ export class BookingController {
 				throw new Error('Request body is required when creating booking from reservation');
 			}
 
-			// Create booking from reservation (only supported flow)
+			// Send userId to microservice (NOT JWT token) - Best Practice: Option 2
+			// Gateway validates JWT once, extracts userId, microservice trusts Gateway
 			return await firstValueFrom(
 				this.client.send<CreateBookingResponseDto>(BOOKING_MS.PATTERN.CREATE_BOOKING_FROM_RESERVATION, {
 					reservationId,
-					userId,
+					userId, // ✅ Send userId (extracted from JWT), NOT token
 					dto,
 				}),
 			);
 		} catch (error: any) {
 			console.error('Create booking error:', error);
+			
+			// Handle NestJS HTTP exceptions
 			if (error?.statusCode && error?.message) {
 				throw error;
 			}
+			
+			// Handle microservice error format: { status: 'error', message: '...' }
+			if (error?.status === 'error' && error?.message) {
+				throw new Error(`Create booking failed: ${error.message}`);
+			}
+			
+			// Handle connection errors
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
 				throw new Error('Booking microservice is not running. Please start it with: npm run start:booking:dev');
 			}
+			
+			// Handle timeout errors
 			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
 				throw new Error('Booking microservice request timeout. Please check if the service is running.');
 			}
-			throw new Error(`Create booking failed: ${error?.message || 'Unknown error'}`);
+			
+			// Handle other errors
+			const errorMessage = error?.message || error?.toString() || 'Unknown error';
+			throw new Error(`Create booking failed: ${errorMessage}`);
 		}
 	}
 

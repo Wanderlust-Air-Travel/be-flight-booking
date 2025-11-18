@@ -12,8 +12,10 @@ export class ReservationMsController {
 	constructor(private readonly reservationService: ReservationService) {}
 
 	@MessagePattern(RESERVATION_MS.PATTERN.CREATE_RESERVATION)
+	// Receive userId from Gateway (NOT JWT token)
+	// Gateway validates JWT and extracts userId, microservice trusts Gateway
 	async handleCreateReservation(payload: {
-		userId: string | null;
+		userId: string | null; // Receive userId (extracted by Gateway), NOT token
 		dto: CreateReservationDto;
 	}): Promise<ReservationResponseDto> {
 		try {
@@ -57,7 +59,8 @@ export class ReservationMsController {
 	}
 
 	@MessagePattern(RESERVATION_MS.PATTERN.LIST_RESERVATIONS)
-	async handleListReservations(userId: string): Promise<ReservationResponseDto[]> {
+	// BEST PRACTICE: Receive userId from Gateway (NOT JWT token)
+	async handleListReservations(userId: string): Promise<ReservationResponseDto[]> { // ✅ Receive userId, NOT token
 		try {
 			this.logger.log(`List reservations for user: ${userId}`);
 			const result = await this.reservationService.listReservations(userId);

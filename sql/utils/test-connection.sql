@@ -82,7 +82,7 @@ PRINT '   DB_USER=maxnoah';
 PRINT '   DB_PASS=12341234';
 PRINT '   DB_NAME=flight_booking_db';
 PRINT '   DB_HOST=localhost';
-PRINT '   DB_PORT=1433';
+PRINT '   DB_PORT=1434';
 PRINT '';
 PRINT '2. Test trong SSMS:';
 PRINT '   - Server: localhost';
