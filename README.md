@@ -65,7 +65,7 @@ Copy `env.example` thành `.env` và cấu hình:
 ```env
 # Database
 DB_HOST=localhost
-DB_PORT=1433
+DB_PORT=1434
 DB_USER=sa
 DB_PASS=12341234              # Default password cho local SQL Server
 DB_NAME=flight_booking_db
@@ -102,118 +102,6 @@ REDIS_KEY_PREFIX=flight-booking:
 REDIS_RESERVATION_TTL=900
 ```
 
-### 4. Setup Redis
-
-**Option 1: Dùng docker-compose (Khuyến nghị)**
-```bash
-docker-compose up -d
-```
-
-**Option 2: Dùng docker-compose chính (chỉ SQL Server và Redis)**
-```bash
-docker-compose up -d redis
-```
-
-**Option 3: Chạy trực tiếp**
-```bash
-docker run -d --name flight-booking-redis -p 6379:6379 redis:7-alpine
-```
-
-Kiểm tra: `docker exec -it flight-booking-redis redis-cli ping` (should return: PONG)
-
-### 5. Seed Database
-
-```bash
-npm run seed:full
-```
-
-Script này tạo hàng ngàn records (users, flights, bookings, etc.) cho 60 ngày tới. Có thể chạy 15-45 phút.
-
-**Lưu ý:** Tất cả users có password mặc định: `Password123!`
-
-### 6. Chạy Backend
-
-**Development Mode (Recommended):**
-
-Mở 6 terminals:
-
-```bash
-# Terminal 1 - API Gateway
-npm run start:dev
-
-# Terminal 2 - Search Microservice
-npm run start:search:dev
-
-# Terminal 3 - Services Microservice (Optional)
-npm run start:services:dev
-
-# Terminal 4 - Routes Microservice (Optional)
-npm run start:routes:dev
-
-# Terminal 5 - Booking Microservice
-npm run start:booking:dev
-
-# Terminal 6 - Reservation Microservice
-npm run start:reservation:dev
-```
-
-**Production Mode:**
-
-```bash
-npm run build
-npm run start:prod        # API Gateway
-npm run start:search      # Search MS
-npm run start:services    # Services MS
-npm run start:routes      # Routes MS
-npm run start:booking     # Booking MS
-npm run start:reservation # Reservation MS
-```
-
-## Kiểm tra cài đặt
-
-1. **Swagger UI**: `http://localhost:3000/api-docs`
-2. **Test Search API**:
-   ```bash
-   curl "http://localhost:3000/search/flights?origin=HAN&destination=SGN&departDate=2025-11-18&tripType=one_way&adults=1&minors=0"
-   ```
-3. **Test Auth**:
-   ```bash
-   # Register
-   curl -X POST http://localhost:3000/auth/register \
-     -H "Content-Type: application/json" \
-     -d '{"fullname":"Test User","email":"test@example.com","password":"Test123456","phone":"0901234567"}'
-   
-   # Login
-   curl -X POST http://localhost:3000/auth/login \
-     -H "Content-Type: application/json" \
-     -d '{"email":"test@example.com","password":"Test123456"}'
-   ```
-
-## Booking Flow (Recommended)
-
-1. **Search Flights**: `GET /search/flights`
-2. **Get Fare Options**: `GET /search/fare-options?flightInstanceId=xxx&cabinType=economy`
-3. **Create Reservation**: `POST /reservations` (lưu `reservationId`)
-4. **Create Booking from Reservation**: `POST /bookings?reservationId=xxx`
-5. **Get Booking Details**: `GET /bookings/:id/fare-details`, `GET /bookings/:id/payment-info`
-
-**Lưu ý:** Reservation tự động expire sau 15 phút và được cancel sau khi tạo booking thành công.
-
-## Scripts
-
-| Script | Mô tả |
-|--------|-------|
-| `npm run start:dev` | API Gateway (dev mode) |
-| `npm run start:search:dev` | Search Microservice (dev mode) |
-| `npm run start:services:dev` | Services Microservice (dev mode) |
-| `npm run start:routes:dev` | Routes Microservice (dev mode) |
-| `npm run start:booking:dev` | Booking Microservice (dev mode) |
-| `npm run start:reservation:dev` | Reservation Microservice (dev mode) |
-| `npm run init-db` | Tạo database và chạy migrations (TypeScript) |
-| `npm run seed:full` | Seed full database |
-| `npm run build` | Build project |
-| `npm run test:db` | Test database connection |
-
 ## Cấu trúc Project
 
 ```
@@ -239,27 +127,6 @@ Tất cả tài liệu trong thư mục [`docs/`](./docs/):
 - **[Design Documents](./docs/design/)** - Microservices design
 
 **Swagger UI**: `http://localhost:3000/api-docs`
-
-## Troubleshooting
-
-### "Login failed for user 'sa'"
-
-1. Tạo database (xem hướng dẫn ở Bước 2)
-2. Kiểm tra SQL Server Authentication đã bật (Mixed Mode)
-3. Test connection: `npm run test:db`
-
-### "Redis connection failed"
-
-1. Chạy Redis: `docker-compose up -d redis` (hoặc `docker-compose up -d` để chạy cả SQL Server và Redis)
-2. Kiểm tra: `docker ps | grep redis`
-3. Test: `docker exec -it flight-booking-redis redis-cli ping`
-
-### "Microservice connection failed"
-
-Đảm bảo microservice tương ứng đã chạy:
-- Search: `npm run start:search:dev`
-- Booking: `npm run start:booking:dev`
-- Reservation: `npm run start:reservation:dev` (cần Redis)
 
 ## Tech Stack
 

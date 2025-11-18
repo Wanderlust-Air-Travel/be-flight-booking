@@ -11,10 +11,35 @@ http://localhost:3000
 ## Important Notes
 
 ### Authentication
+
+#### JWT Authentication Pattern (Best Practice: Option 2 - Extract userId từ Gateway)
+
+**Architecture:**
+- **API Gateway** là single point of authentication - validate JWT một lần
+- **Gateway** extract `userId` từ JWT token và gửi đến microservices
+- **Microservices** trust Gateway - không validate JWT, chỉ nhận `userId`
+- **Security**: JWT secret chỉ ở Gateway, microservices không cần biết về JWT
+
+**Flow:**
+```
+Client → Gateway (Validate JWT) → Extract userId → Send userId → Microservice (Trust Gateway)
+```
+
+**Implementation:**
 - **Booking APIs** (`POST /bookings`, `GET /bookings/:id/*`, `PATCH /bookings/:id/*`) yêu cầu JWT authentication
 - **Reservation APIs** (`POST /reservations`, `GET /reservations`, `GET /reservations/:id`, `POST /reservations/:id/cancel`, `POST /reservations/:id/extend`) yêu cầu JWT authentication
+- **Routes APIs** (`POST /routes/:routeId/upload-image`) yêu cầu JWT authentication
 - Gửi JWT token trong header: `Authorization: Bearer <access_token>`
-- `userId` không cần truyền trong request body - tự động extract từ JWT token
+- `userId` **KHÔNG cần** truyền trong request body - tự động extract từ JWT token tại Gateway
+- Gateway tự động gửi `userId` đến microservices (không gửi JWT token)
+
+**Benefits:**
+- Performance: JWT validated một lần (Gateway) thay vì N lần (N microservices)
+- Security: JWT secret chỉ ở Gateway (single point of trust)
+- Simplicity: Microservices không cần JWT logic
+- Scalability: Dễ thêm microservices mới (không cần setup JWT)
+
+**Xem thêm:** `docs/design/JWT_MICROSERVICES_PATTERN.md` và `docs/design/JWT_IMPLEMENTATION_SUMMARY.md`
 
 ### UUID v7
 - Tất cả IDs trong hệ thống sử dụng **UUID v7** (time-ordered UUID)
@@ -22,18 +47,52 @@ http://localhost:3000
 - UUID v7 có thể sắp xếp theo thời gian, tốt cho database indexing
 - User IDs được tự động generate là UUID v7 khi đăng ký
 
-### Reservation Service (Backend-managed State)
-- **Reservation** là temporary state được lưu trong **Redis** (không phải database)
+### Reservation Service (Backend-managed State - Hybrid Approach)
+
+**Storage: Database + Redis (Best Practice)**
+- **Database**: Persistent storage cho audit trail, analytics, recovery
+  - Table: `Reservations` với status tracking (`pending`, `expired`, `converted`, `cancelled`)
+  - Full history với timestamps (`created_at`, `converted_at`, `expires_at`)
+- **Redis**: Fast cache với TTL 15 phút (auto cleanup)
+  - Status: `active` (trong Redis) vs `pending` (trong Database)
+- **Get Flow**: Try Redis first (fast) → Fallback to Database → Re-cache if needed
+- **Recovery**: Nếu Redis down, vẫn có thể lấy reservation từ Database
+
+**Reservation Expiration Validation (Best Practice):**
+- **Primary**: Check `expiresAt` timestamp (source of truth)
+- **Secondary**: Check `status` field (optimization & business logic)
+- Real-time accuracy, không phụ thuộc vào background jobs
+
+**Multi-Segment Support:**
+- Hỗ trợ round-trip bookings với 1 reservation cho nhiều segments
+- `segments[]` array: `[{flightInstanceId, fareClassCode, segmentType: 'outbound'}, {..., segmentType: 'inbound'}]`
+- Atomic validation và price calculation cho tất cả segments
+
+**Backend-managed State:**
 - Reservation tự động expire sau 15 phút (configurable)
 - Backend quản lý state thay vì frontend - đảm bảo tính nhất quán
 - Flow: Search → Fare Options → **Create Reservation** → Create Booking from Reservation
 - Reservation giúp giữ chỗ tạm thời và lock giá trước khi tạo booking
 
-### Passenger Creation
-- `passengerId` là optional trong booking request
-- Nếu không có `passengerId`, có thể tạo passenger mới từ thông tin trong request
+**Xem thêm:** `docs/design/RESERVATION_STORAGE_ANALYSIS.md`
+
+### Passenger Creation & Reuse (Best Practice)
+
+**Options:**
+- **Option 1 (Use existing passenger)**: `passengerId` + `passengerType`
+  - Dùng khi đã từng đặt vé cho passenger này
+  - Backend validate passenger thuộc về user hiện tại
+- **Option 2 (Create new passenger)**: `passengerType` + `fullname` + `dob` + `gender` + `documentNumber`
+  - Dùng khi lần đầu đặt vé cho passenger này
+  - Backend tự động kiểm tra và reuse nếu passenger với cùng `documentNumber` đã tồn tại
+
+**Automatic Reuse Logic:**
+- Backend tự động detect passenger với cùng `documentNumber` và `userId`
+- Validate thông tin khớp (`fullname`, `dob`, `gender`) - log warning nếu không khớp
+- Reuse existing passenger để tránh duplicates và cải thiện UX
 - Passenger mới tự động link với user (từ JWT) để tái sử dụng sau này
-- Tự động detect và reuse passenger nếu cùng `documentNumber` đã tồn tại cho user
+
+**Xem thêm:** `docs/design/PASSENGER_REUSE_BEST_PRACTICE.md`
 
 ---
 

@@ -18,8 +18,8 @@ cd <path-to-project>
 
 **Cách 2: Chạy lệnh trực tiếp**
 ```powershell
-Remove-NetFirewallRule -DisplayName "SQL Server 1433 WSL" -ErrorAction SilentlyContinue
-New-NetFirewallRule -DisplayName "SQL Server 1433 WSL" -Direction Inbound -LocalPort 1433 -Protocol TCP -Action Allow -Profile Any
+Remove-NetFirewallRule -DisplayName "SQL Server 1434 WSL" -ErrorAction SilentlyContinue
+New-NetFirewallRule -DisplayName "SQL Server 1434 WSL" -Direction Inbound -LocalPort 1434 -Protocol TCP -Action Allow -Profile Any
 ```
 
 ### Bước 2: Lấy IP Windows host và test kết nối
@@ -31,14 +31,14 @@ Lấy IP Windows host:
 cat /etc/resolv.conf | grep nameserver | awk '{print $2}'
 ```
 
-Test kết nối port 1433:
+Test kết nối port 1434:
 ```bash
 # Dùng script test (khuyến nghị)
 ./test-db-connection.sh
 
 # Hoặc test nhanh (thay <WINDOWS_IP> bằng IP vừa lấy được)
 WINDOWS_IP=$(cat /etc/resolv.conf | grep nameserver | awk '{print $2}')
-timeout 5 bash -c "</dev/tcp/$WINDOWS_IP/1433" && echo "Port OPEN" || echo "Port CLOSED"
+timeout 5 bash -c "</dev/tcp/$WINDOWS_IP/1434" && echo "Port OPEN" || echo "Port CLOSED"
 ```
 
 ### Bước 3: Cập nhật .env
@@ -51,7 +51,7 @@ cat /etc/resolv.conf | grep nameserver | awk '{print $2}'
 Cập nhật file `.env` với IP vừa lấy được:
 ```env
 DB_HOST=<WINDOWS_IP>  # Thay <WINDOWS_IP> bằng IP thực tế
-DB_PORT=1433
+DB_PORT=1434
 DB_USER=your_username
 DB_PASS=your_password
 DB_NAME=your_database_name
@@ -82,8 +82,8 @@ DB_TRUST_CERT=true
 ### 4. Kiểm tra SQL Server đang chạy
 ```powershell
 # Trong PowerShell
-netstat -an | findstr 1433
-# Phải thấy: TCP    0.0.0.0:1433           0.0.0.0:0              LISTENING
+netstat -an | findstr 1433 # 1434 (DB_PORT in docker)
+# Phải thấy: TCP    0.0.0.0:1434           0.0.0.0:0              LISTENING
 ```
 
 ## Lưu ý

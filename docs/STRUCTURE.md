@@ -295,7 +295,7 @@ npm run seed:domestic
 # Database
 DB_TYPE=mssql
 DB_HOST=localhost
-DB_PORT=1433
+DB_PORT=1434
 DB_USER=...
 DB_PASS=...
 DB_NAME=flight_booking_db

@@ -1,6 +1,67 @@
 # Changelog - API Documentation Updates
 
-## Ngày cập nhật: 2025-11-19 (Latest)
+## Ngày cập nhật: 2025-11-19 (Latest - JWT Pattern Implementation)
+
+### Major Changes - JWT Authentication Pattern (Best Practice: Option 2)
+
+#### 1. **JWT Pattern: Extract userId từ Gateway (Industry Standard)**
+- **Architecture**: API Gateway là single point of authentication - validate JWT một lần
+- **Gateway**: Extract `userId` từ JWT token và gửi đến microservices
+- **Microservices**: Trust Gateway - không validate JWT, chỉ nhận `userId`
+- **Security**: JWT secret chỉ ở Gateway, microservices không cần biết về JWT
+
+**Implementation:**
+- All protected endpoints: `@UseGuards(JwtAuthGuard)` at Gateway level
+- Gateway extracts `userId` from `req.user.userId` (set by JwtStrategy)
+- Gateway sends `userId` to microservices (NOT JWT token)
+- Microservices receive `userId` directly, no JWT validation needed
+
+**Benefits:**
+- Performance: JWT validated một lần (Gateway) thay vì N lần (N microservices)
+- Security: JWT secret chỉ ở Gateway (single point of trust)
+- Simplicity: Microservices không cần JWT logic
+- Scalability: Dễ thêm microservices mới (không cần setup JWT)
+
+**Code Locations:**
+- Gateway: `src/api-gateway/modules/auth/strategies/jwt.strategyt.ts`
+- Gateway Controllers: `src/api-gateway/modules/booking/booking.controller.ts`, `src/api-gateway/modules/reservation/reservation.controller.ts`
+- Microservices: `src/microservices/booking/booking.controller.ts`, `src/microservices/reservation/reservation.controller.ts`
+
+**Documentation:**
+- `docs/design/JWT_MICROSERVICES_PATTERN.md`: Best practice analysis
+- `docs/design/JWT_IMPLEMENTATION_SUMMARY.md`: Implementation summary
+- `docs/api/API_DOCS.md`: Updated with JWT pattern details
+- `docs/api/API_SEQUENCE_DIAGRAMS.md`: Updated sequence diagrams with JWT validation flow
+
+#### 2. **Reservation Expiration Validation (Best Practice)**
+- **Primary**: Check `expiresAt` timestamp (source of truth) - real-time accuracy
+- **Secondary**: Check `status` field (optimization & business logic)
+- Prevents race conditions, không phụ thuộc vào background jobs
+
+**Implementation:**
+- `BookingService.createBookingFromReservation`: Check `expiresAt` first, then `status`
+- `ReservationService.getReservation`: Check `expiresAt` first, update `status` if expired
+- Detailed error messages with timestamps
+
+**Documentation:**
+- `docs/design/RESERVATION_EXPIRATION_VALIDATION.md`: Best practice explanation
+
+#### 3. **Passenger Reuse Best Practice**
+- **Automatic Reuse**: Backend tự động detect và reuse passenger với cùng `documentNumber` và `userId`
+- **Validation**: Validate thông tin khớp (`fullname`, `dob`, `gender`) - log warning nếu không khớp
+- **Benefits**: Tránh duplicates, cải thiện UX
+
+**Implementation:**
+- `BookingService.createBookingFromReservation`: Check existing passenger by `documentNumber` and `user_id`
+- Validate matching details, log warnings for mismatches
+- Reuse existing passenger to avoid duplicates
+
+**Documentation:**
+- `docs/design/PASSENGER_REUSE_BEST_PRACTICE.md`: Best practice explanation
+
+---
+
+## Ngày cập nhật: 2025-11-19 (Previous - Hybrid Approach)
 
 ### Major Changes - Reservation Storage Hybrid Approach
 
@@ -34,7 +95,6 @@
 - Reservation được delete từ Redis sau khi booking được tạo
 
 #### 4. **Updated Documentation**
-- `API_FLOW.md`: Updated reservation flow với Hybrid Approach details
 - `API_SEQUENCE_DIAGRAMS.md`: Updated sequence diagrams với Database save và fallback
 - `API_DOCS.md`: Updated reservation API notes với Hybrid Approach
 - `ERD.md`: Added Reservations table và relationships
@@ -62,10 +122,10 @@
 - Response format: `{ segments: [{ segmentId, flightInstanceId, fareClassCode, segmentType, baseFare, ... }, ...], totalAmount, ... }`
 
 #### 3. **Updated Documentation**
-- `API_FLOW.md`: Cập nhật booking flow và reservation flow với multi-segment
 - `API_DOCS.md`: Cập nhật reservation và booking endpoints
 - `API_SEQUENCE_DIAGRAMS.md`: Cập nhật sequence diagrams với multi-segment flow
-- `STATE_MANAGEMENT_RECOMMENDATIONS.md`: Mark Priority 1 & 2 as completed
+- `API_TESTING_FLOW.md`: Hướng dẫn test API theo flow từng bước
+- `BACKEND_STATE_MANAGEMENT_ANALYSIS.md`: Updated status to 100% Backend-managed (COMPLETED)
 
 #### 4. **Removed Backward Compatibility (Breaking Change)**
 - **Đã xóa hoàn toàn backward compatibility code** - Chỉ support format mới với `segments[]` array
@@ -99,19 +159,10 @@
   - **Tickets**: Thêm `issued_at`
   - **Payments**: Thêm `paid_at`, `created_at`
 
-#### 3. **API Flow Documentation**
-- Tạo file `docs/api/API_FLOW.md` với:
-  - Tổng quan kiến trúc hệ thống
-  - Danh sách đầy đủ API endpoints
-  - Flow chính (Booking Flow)
-  - Flow chi tiết từng API
-  - Data Flow Diagram
-  - Authentication & Authorization
-  - Error Handling
-  - Link đến Sequence Diagrams
-
-#### 4. **Documentation Links**
-- Thêm link từ `API_FLOW.md` đến `API_SEQUENCE_DIAGRAMS.md`
+#### 3. **API Documentation**
+- `API_DOCS.md`: Tài liệu đầy đủ về tất cả API endpoints
+- `API_SEQUENCE_DIAGRAMS.md`: Sequence diagrams mô tả flow xử lý của toàn bộ hệ thống
+- `API_TESTING_FLOW.md`: Hướng dẫn test API theo flow từng bước
 - Tất cả diagrams sử dụng Mermaid format, có thể render trên GitHub
 
 ---
@@ -124,10 +175,9 @@
    - 10+ sequence diagrams chi tiết
    - Mô tả đầy đủ flow xử lý từ Client → API Gateway → Microservices → Database/Redis
 
-2. **`docs/api/API_FLOW.md`** (MỚI)
-   - Tài liệu tổng quan về API flow
-   - Link đến sequence diagrams
-   - Hướng dẫn sử dụng API
+2. **`docs/api/API_TESTING_FLOW.md`** (MỚI)
+   - Hướng dẫn test API theo flow từng bước
+   - Prerequisites, step-by-step flows, troubleshooting
 
 3. **`docs/database/ERD.md`** (CẬP NHẬT)
    - Cập nhật các fields còn thiếu

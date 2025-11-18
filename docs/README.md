@@ -9,7 +9,9 @@ Tài liệu dự án Flight Booking Backend được tổ chức theo các danh 
 
 ### [API Documentation](./api/)
 - **[API_DOCS.md](./api/API_DOCS.md)** - Tài liệu đầy đủ về tất cả API endpoints
-- **[API_FLOW_ANALYSIS.md](./api/API_FLOW_ANALYSIS.md)** - Phân tích flow API và các vấn đề đã được fix
+- **[API_SEQUENCE_DIAGRAMS.md](./api/API_SEQUENCE_DIAGRAMS.md)** - Sequence diagrams mô tả flow xử lý của toàn bộ hệ thống
+- **[API_TESTING_FLOW.md](./api/API_TESTING_FLOW.md)** - Hướng dẫn test API theo flow từng bước
+- **[CHANGELOG_API_DOCS.md](./api/CHANGELOG_API_DOCS.md)** - Lịch sử thay đổi API documentation
 
 ### [Database Documentation](./database/)
 - **[SQL-SCRIPTS-GUIDE.md](./database/SQL-SCRIPTS-GUIDE.md)** - Hướng dẫn sử dụng các SQL scripts
@@ -20,10 +22,15 @@ Tài liệu dự án Flight Booking Backend được tổ chức theo các danh 
 ### [Setup Guides](./setup/)
 - **[REDIS_SETUP.md](./setup/REDIS_SETUP.md)** - Hướng dẫn setup Redis với Docker
 - **[WSL-SQL-SERVER-SETUP.md](./setup/WSL-SQL-SERVER-SETUP.md)** - Hướng dẫn kết nối SQL Server từ WSL
-- **[QUICK_FIX.md](./setup/QUICK_FIX.md)** - Quick fix cho các lỗi thường gặp
+- **[SSMS_CONNECT_DOCKER.md](./setup/SSMS_CONNECT_DOCKER.md)** - Hướng dẫn kết nối SQL Server từ SSMS (Docker)
 
 ### [Design Documents](./design/)
-- **[RESERVATION_DESIGN.md](./design/RESERVATION_DESIGN.md)** - Thiết kế Reservation Microservice
+- **[RESERVATION_STORAGE_ANALYSIS.md](./design/RESERVATION_STORAGE_ANALYSIS.md)** - Phân tích và thiết kế Reservation Storage (Hybrid Approach: Database + Redis)
+- **[BACKEND_STATE_MANAGEMENT_ANALYSIS.md](./design/BACKEND_STATE_MANAGEMENT_ANALYSIS.md)** - Phân tích Backend State Management & Best Practices
+- **[JWT_MICROSERVICES_PATTERN.md](./design/JWT_MICROSERVICES_PATTERN.md)** - JWT Authentication Pattern trong Microservices
+- **[JWT_IMPLEMENTATION_SUMMARY.md](./design/JWT_IMPLEMENTATION_SUMMARY.md)** - Tóm tắt Implementation JWT Pattern
+- **[PASSENGER_REUSE_BEST_PRACTICE.md](./design/PASSENGER_REUSE_BEST_PRACTICE.md)** - Best Practice cho Passenger Reuse
+- **[RESERVATION_EXPIRATION_VALIDATION.md](./design/RESERVATION_EXPIRATION_VALIDATION.md)** - Best Practice cho Reservation Expiration Validation
 
 ### [Project Documentation](./)
 - **[CHANGELOG.md](./CHANGELOG.md)** - Lịch sử thay đổi của dự án

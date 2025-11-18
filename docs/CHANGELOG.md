@@ -10,7 +10,9 @@ Tất cả các thay đổi quan trọng của project sẽ được ghi nhận 
   - Entry point: `src/microservices/reservation/main.reservation.ts`
   - Chạy bằng: `npm run start:reservation` hoặc `npm run start:reservation:dev`
   - Environment variables: `RESERVATION_MS_HOST`, `RESERVATION_MS_PORT`
-  - **Sử dụng Redis** để lưu temporary state (không cần database table)
+  - **Sử dụng Hybrid Approach (Database + Redis)** để lưu reservation state
+    - Database: Persistent storage, audit trail, analytics
+    - Redis: Fast cache với TTL 15 phút
   - Reservation tự động expire sau 15 phút (configurable)
   - **Reservation APIs**:
     - `POST /reservations` - Tạo reservation, lưu vào Redis

@@ -48,8 +48,9 @@ sequenceDiagram
 
     Note over Client,Redis: Phase 4: Create Reservation (Multi-Segment Support - Hybrid: Database + Redis)
     Client->>API Gateway: POST /reservations<br/>Authorization: Bearer <token><br/>{segments: [{flightInstanceId, fareClassCode, segmentType}, ...], ...}
-    API Gateway->>API Gateway: Extract userId from JWT
-    API Gateway->>Reservation MS: CREATE_RESERVATION message (TCP)
+    API Gateway->>API Gateway: JwtAuthGuard: Validate JWT token<br/>JwtStrategy: Extract userId from payload
+    API Gateway->>API Gateway: Extract userId from req.user.userId
+    API Gateway->>Reservation MS: CREATE_RESERVATION message (TCP)<br/>{userId, dto} (NOT token)
     Reservation MS->>Database: Validate all segments (flight & fare class)
     Database-->>Reservation MS: Validation result for each segment
     Reservation MS->>Reservation MS: Calculate price for each segment<br/>Validate round-trip (if has inbound, must have outbound)
@@ -63,8 +64,9 @@ sequenceDiagram
 
     Note over Client,Redis: Phase 5: Create Booking (From Reservation - REQUIRED - Hybrid Approach)
     Client->>API Gateway: POST /bookings?reservationId=xxx<br/>Authorization: Bearer <token><br/>{passengers: [...], contactInfo}
-    API Gateway->>API Gateway: Extract userId from JWT<br/>Validate reservationId is provided
-    API Gateway->>Booking MS: CREATE_BOOKING_FROM_RESERVATION message (TCP)
+    API Gateway->>API Gateway: JwtAuthGuard: Validate JWT token<br/>JwtStrategy: Extract userId from payload
+    API Gateway->>API Gateway: Extract userId from req.user.userId<br/>Validate reservationId is provided
+    API Gateway->>Booking MS: CREATE_BOOKING_FROM_RESERVATION message (TCP)<br/>{reservationId, userId, dto} (NOT token)
     Booking MS->>Reservation MS: GET_RESERVATION message (TCP)
     Reservation MS->>Redis: GET reservation:{id}
     alt Found in Redis
@@ -145,12 +147,12 @@ sequenceDiagram
         Search MS-->>Search Module: Response
         Search Module-->>API Gateway: Response
     else Protected Endpoint (Booking, Reservation)
-        API Gateway->>Auth Module: Validate JWT
-        Auth Module->>Auth Module: Verify token signature
-        Auth Module->>Auth Module: Extract userId, email
-        Auth Module-->>API Gateway: User info
-        API Gateway->>Booking Module: Forward request
-        Booking Module->>Booking MS: TCP Message
+        API Gateway->>API Gateway: JwtAuthGuard: Validate JWT token<br/>(JwtStrategy.validate())
+        API Gateway->>API Gateway: Verify token signature<br/>Extract userId from payload.sub
+        API Gateway->>API Gateway: Store in req.user: {userId, email}
+        API Gateway->>Booking Module: Forward request<br/>(req.user.userId available)
+        Booking Module->>Booking Module: Extract userId from req.user.userId
+        Booking Module->>Booking MS: TCP Message<br/>{userId, ...} (NOT token)
         Booking MS->>Database: SQL Query (Transaction)
         Database-->>Booking MS: Result
         Booking MS->>Reservation MS: Inter-service call (TCP)
@@ -275,20 +277,26 @@ sequenceDiagram
     end
 
     rect rgb(255, 248, 240)
-        Note over Client,Database: Protected Endpoint Access
-        Client->>API Gateway: GET /bookings/:id<br/>Authorization: Bearer <token>
+        Note over Client,Database: Protected Endpoint Access (Best Practice: Option 2 - Extract userId từ Gateway)
+        Client->>API Gateway: POST /bookings?reservationId=xxx<br/>Authorization: Bearer <token><br/>{passengers: [...]}
         API Gateway->>JwtAuthGuard: Intercept request
-        JwtAuthGuard->>JwtAuthGuard: Extract token from header
-        JwtAuthGuard->>JwtAuthGuard: Verify token signature
+        JwtAuthGuard->>JwtAuthGuard: Extract token from header<br/>(ExtractJwt.fromAuthHeaderAsBearerToken())
+        JwtAuthGuard->>JwtAuthGuard: Verify token signature<br/>(JWT_ACCESS_SECRET)
         JwtAuthGuard->>JwtAuthGuard: Check expiration
         alt Token invalid or expired
             JwtAuthGuard-->>API Gateway: 401 Unauthorized
             API Gateway-->>Client: 401 Unauthorized
         else Token valid
-            JwtAuthGuard->>JwtAuthGuard: Extract payload<br/>{userId, email}
-            JwtAuthGuard->>API Gateway: Attach user to req.user
-            API Gateway->>API Gateway: Process request
-            API Gateway-->>Client: 200 OK
+            JwtAuthGuard->>JwtStrategy: validate(payload)
+            JwtStrategy->>JwtStrategy: Extract userId from payload.sub<br/>Extract email from payload.email
+            JwtStrategy-->>JwtAuthGuard: {userId, email}
+            JwtAuthGuard->>API Gateway: Attach to req.user: {userId, email}
+            API Gateway->>API Gateway: Extract userId from req.user.userId
+            API Gateway->>Booking MS: CREATE_BOOKING_FROM_RESERVATION<br/>{reservationId, userId, dto} (NOT token)
+            Note over API Gateway,Booking MS: Gateway sends userId, NOT JWT token<br/>Microservice trusts Gateway
+            Booking MS->>Booking MS: Use userId directly<br/>(No JWT validation needed)
+            Booking MS-->>API Gateway: Response
+            API Gateway-->>Client: 201 Created
         end
     end
 
@@ -425,7 +433,12 @@ sequenceDiagram
 
 4. **Error Handling**: Tất cả các layers đều có error handling và trả về appropriate HTTP status codes.
 
-5. **JWT Authentication**: Tất cả protected endpoints yêu cầu JWT token trong header `Authorization: Bearer <token>`.
+5. **JWT Authentication (Best Practice: Option 2 - Extract userId từ Gateway)**:
+   - **Gateway**: Validate JWT một lần, extract `userId` từ payload
+   - **Gateway → Microservices**: Send `userId` (NOT JWT token)
+   - **Microservices**: Trust Gateway, use `userId` directly (no JWT validation)
+   - **Benefits**: Performance (validate once), Security (JWT secret only at Gateway), Simplicity (microservices don't need JWT logic)
+   - **Xem thêm**: `docs/design/JWT_MICROSERVICES_PATTERN.md` và `docs/design/JWT_IMPLEMENTATION_SUMMARY.md`
 
 6. **UUID v7**: Tất cả IDs được generate là UUID v7 (time-ordered UUID) để tối ưu database indexing.
 
