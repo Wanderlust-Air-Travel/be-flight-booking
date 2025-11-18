@@ -1,4 +1,9 @@
 import { DataSource } from "typeorm";
+import { config } from 'dotenv';
+import { resolve } from 'path';
+
+// Load .env file
+config({ path: resolve(process.cwd(), '.env') });
 
 export default new DataSource({
     type: 'mssql',

@@ -22,12 +22,12 @@ git clone <repository-url>
 cd be-flight-booking
 
 # Chạy toàn bộ hệ thống (SQL Server + Redis + Backend + Seed DB)
-docker-compose up --build
+docker-compose -f docker-compose-full-services.yml up --build
 ```
 
 Hệ thống sẽ tự động:
 - Tạo database và user
-- **Chạy TypeORM migrations** (tạo tables, indexes, triggers)
+- **Chạy TypeORM migrations** (tạo tables, indexes, triggers) qua script TypeScript `docker/init-database.ts`
 - Seed database với dữ liệu mẫu
 - Khởi động tất cả services
 
@@ -47,18 +47,10 @@ npm install
 
 ### 2. Setup Database
 
-**Tạo database và user:**
+**Tạo database:**
 1. Mở SQL Server Management Studio (SSMS)
-2. Kết nối với user `sa` (hoặc user có quyền sysadmin)
+2. Kết nối với user `sa` (password mặc định: `12341234` hoặc password bạn đã đặt)
 3. Tạo database: `CREATE DATABASE flight_booking_db;`
-4. Tạo login và user:
-   ```sql
-   USE master;
-   CREATE LOGIN maxnoah WITH PASSWORD = 'Passw0rd123!';
-   USE flight_booking_db;
-   CREATE USER maxnoah FOR LOGIN maxnoah;
-   ALTER ROLE db_owner ADD MEMBER maxnoah;
-   ```
 
 **Chạy migrations:**
 1. Kết nối với database `flight_booking_db`
@@ -74,8 +66,8 @@ Copy `env.example` thành `.env` và cấu hình:
 # Database
 DB_HOST=localhost
 DB_PORT=1433
-DB_USER=maxnoah
-DB_PASS=Passw0rd123!
+DB_USER=sa
+DB_PASS=12341234              # Default password cho local SQL Server
 DB_NAME=flight_booking_db
 DB_ENCRYPT=false
 DB_TRUST_CERT=true
@@ -114,10 +106,10 @@ REDIS_RESERVATION_TTL=900
 
 **Option 1: Dùng docker-compose (Khuyến nghị)**
 ```bash
-docker-compose -f docker-compose.redis.yml up -d
+docker-compose up -d
 ```
 
-**Option 2: Dùng docker-compose chính (nếu đã có file docker-compose.yml với Redis)**
+**Option 2: Dùng docker-compose chính (chỉ SQL Server và Redis)**
 ```bash
 docker-compose up -d redis
 ```
@@ -217,6 +209,7 @@ npm run start:reservation # Reservation MS
 | `npm run start:routes:dev` | Routes Microservice (dev mode) |
 | `npm run start:booking:dev` | Booking Microservice (dev mode) |
 | `npm run start:reservation:dev` | Reservation Microservice (dev mode) |
+| `npm run init-db` | Tạo database và chạy migrations (TypeScript) |
 | `npm run seed:full` | Seed full database |
 | `npm run build` | Build project |
 | `npm run test:db` | Test database connection |
@@ -249,15 +242,15 @@ Tất cả tài liệu trong thư mục [`docs/`](./docs/):
 
 ## Troubleshooting
 
-### "Login failed for user 'maxnoah'"
+### "Login failed for user 'sa'"
 
-1. Tạo database và user (xem hướng dẫn ở Bước 2)
+1. Tạo database (xem hướng dẫn ở Bước 2)
 2. Kiểm tra SQL Server Authentication đã bật (Mixed Mode)
-3. Test connection: `npm run test:db` hoặc chạy `sql/utils/test-connection.sql`
+3. Test connection: `npm run test:db`
 
 ### "Redis connection failed"
 
-1. Chạy Redis: `docker-compose up -d redis`
+1. Chạy Redis: `docker-compose up -d redis` (hoặc `docker-compose up -d` để chạy cả SQL Server và Redis)
 2. Kiểm tra: `docker ps | grep redis`
 3. Test: `docker exec -it flight-booking-redis redis-cli ping`
 

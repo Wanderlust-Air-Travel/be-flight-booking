@@ -33,7 +33,7 @@ npm run migration:create src/migrations/MigrationName
 
 ### Trong Docker
 
-Migrations sẽ tự động chạy khi khởi động Docker container thông qua script `docker/init-database.js`.
+Migrations sẽ tự động chạy khi khởi động Docker container thông qua script `docker/init-database.ts`.
 
 ## Lưu ý
 

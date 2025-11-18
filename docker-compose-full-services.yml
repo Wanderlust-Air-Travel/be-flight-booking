@@ -1,0 +1,110 @@
+services:
+  # SQL Server Database
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sqlserver
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=Passw0rd123!
+      - MSSQL_PID=Developer
+      # - MSSQL_TCP_PORT=1433
+      # - MSSQL_IP_ADDRESS=0.0.0.0
+    ports:
+      - "1434:1433"  # Đổi port host thành 1434 để tránh conflict với SQL Server local
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "Passw0rd123!" -C -Q "SELECT 1" || exit 1
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # Backend Application
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: backend
+    environment:
+      # Database
+      - DB_TYPE=mssql
+      - DB_HOST=sqlserver
+      - DB_PORT=1433
+      - DB_USER=sa
+      - DB_PASS=Passw0rd123!
+      - DB_NAME=flight_booking_db
+      - DB_ENCRYPT=false
+      - DB_TRUST_CERT=true
+      - SA_PASSWORD=Passw0rd123!
+      
+      # API Gateway
+      - PORT=3000
+      - FRONTEND_URL=http://localhost:3001
+      
+      # JWT
+      - JWT_ACCESS_SECRET=c769850ee4f001088ba440c3211390099dbb7f9e2e0593be9233e395dce6e931
+      - JWT_ACCESS_EXPIRES=15m
+      - JWT_REFRESH_SECRET=1bbf355aefde63bd595ec266351544354991b215124ed1b88ab7c8ef92f876d8
+      - JWT_REFRESH_EXPIRES=7d
+      
+      # Microservices
+      - SEARCH_MS_HOST=0.0.0.0
+      - SEARCH_MS_PORT=4001
+      - SERVICES_MS_HOST=0.0.0.0
+      - SERVICES_MS_PORT=4002
+      - ROUTES_MS_HOST=0.0.0.0
+      - ROUTES_MS_PORT=4003
+      - BOOKING_MS_HOST=0.0.0.0
+      - BOOKING_MS_PORT=4004
+      - RESERVATION_MS_HOST=0.0.0.0
+      - RESERVATION_MS_PORT=4005
+      
+      # Redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+      - REDIS_DB=0
+      - "REDIS_KEY_PREFIX=flight-booking:"
+      - REDIS_RESERVATION_TTL=900
+    ports:
+      - "3000:3000"  # API Gateway
+      - "4001:4001"  # Search MS
+      - "4002:4002"  # Services MS
+      - "4003:4003"  # Routes MS
+      - "4004:4004"  # Booking MS
+      - "4005:4005"  # Reservation MS
+    volumes:
+      # Persist uploaded images to host filesystem
+      - ./public:/app/public
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: sh -c "npm run wait-for-db && npm run init-db && (npm run seed-db || true) && npm run start:all"
+    restart: unless-stopped
+
+volumes:
+  # SQL Server data persistence
+  sqlserver-data:
+  # Redis data persistence
+  redis-data:
+

@@ -12,6 +12,9 @@ COPY . .
 # Build the application
 RUN npm run build
 
+# Create public/images/routes directory for uploaded images
+RUN mkdir -p public/images/routes
+
 # Make scripts executable
 RUN chmod +x docker/*.sh || true
 

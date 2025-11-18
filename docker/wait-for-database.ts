@@ -1,14 +1,27 @@
-const sql = require('mssql');
+import * as sql from 'mssql';
 
-async function waitForDatabase() {
+interface SqlConfig {
+  server: string;
+  port: number;
+  user: string;
+  password: string;
+  options: {
+    encrypt: boolean;
+    trustServerCertificate: boolean;
+    enableArithAbort: boolean;
+  };
+  connectionTimeout: number;
+}
+
+async function waitForDatabase(): Promise<boolean> {
   console.log('Waiting for SQL Server to be ready...');
   const maxAttempts = 30;
   
   for (let i = 0; i < maxAttempts; i++) {
     try {
-      const config = {
+      const config: SqlConfig = {
         server: process.env.DB_HOST || 'sqlserver',
-        port: parseInt(process.env.DB_PORT || '1433'),
+        port: parseInt(process.env.DB_PORT || '1433', 10),
         user: 'sa',
         password: process.env.SA_PASSWORD || 'Passw0rd123!',
         options: {
@@ -25,11 +38,12 @@ async function waitForDatabase() {
       console.log('SQL Server is ready!');
       return true;
     } catch (error) {
+      const err = error as Error;
       if (i < maxAttempts - 1) {
         console.log(`Waiting for SQL Server... (${i + 1}/${maxAttempts})`);
         await new Promise(resolve => setTimeout(resolve, 2000));
       } else {
-        console.error('Failed to connect to SQL Server:', error.message);
+        console.error('Failed to connect to SQL Server:', err.message);
         return false;
       }
     }

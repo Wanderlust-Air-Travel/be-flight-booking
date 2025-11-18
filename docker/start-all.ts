@@ -1,7 +1,17 @@
-const { spawn } = require('child_process');
-const path = require('path');
+import { spawn, ChildProcess } from 'child_process';
 
-const services = [
+interface Service {
+  name: string;
+  script: string;
+  port: number;
+}
+
+interface ProcessInfo {
+  name: string;
+  process: ChildProcess;
+}
+
+const services: Service[] = [
   { name: 'Search MS', script: 'dist/microservices/search/main.search.js', port: 4001 },
   { name: 'Services MS', script: 'dist/microservices/services/main.services.js', port: 4002 },
   { name: 'Routes MS', script: 'dist/microservices/routes/main.routes.js', port: 4003 },
@@ -9,7 +19,7 @@ const services = [
   { name: 'Reservation MS', script: 'dist/microservices/reservation/main.reservation.js', port: 4005 },
 ];
 
-const processes = [];
+const processes: ProcessInfo[] = [];
 
 // Start all microservices
 console.log('Starting all microservices...');
@@ -19,11 +29,11 @@ services.forEach(service => {
     cwd: process.cwd(),
   });
   
-  proc.on('error', (error) => {
+  proc.on('error', (error: Error) => {
     console.error(`Error starting ${service.name}:`, error);
   });
   
-  proc.on('exit', (code) => {
+  proc.on('exit', (code: number | null) => {
     if (code !== 0 && code !== null) {
       console.error(`${service.name} exited with code ${code}`);
     }
@@ -41,11 +51,11 @@ setTimeout(() => {
     cwd: process.cwd(),
   });
   
-  apiGateway.on('error', (error) => {
+  apiGateway.on('error', (error: Error) => {
     console.error('Error starting API Gateway:', error);
   });
   
-  apiGateway.on('exit', (code) => {
+  apiGateway.on('exit', (code: number | null) => {
     console.log(`API Gateway exited with code ${code}`);
     // Kill all microservices when API Gateway exits
     processes.forEach(({ name, process: proc }) => {
