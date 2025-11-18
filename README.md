@@ -4,13 +4,36 @@ Backend cho hệ thống đặt vé máy bay nội địa Việt Nam, sử dụn
 
 ## Yêu cầu
 
-- **Node.js**: v18.x+
-- **npm**: v9.x+
-- **SQL Server**: 2019+ (Local hoặc Azure)
-- **Docker**: Để chạy Redis (required cho Reservation Service)
+- **Node.js**: v18.x+ (nếu chạy local)
+- **npm**: v9.x+ (nếu chạy local)
+- **SQL Server**: 2019+ (Local hoặc Azure) - hoặc dùng Docker
+- **Docker**: Để chạy toàn bộ hệ thống hoặc chỉ Redis
 - **Git**: Để clone repository
 
 ## Cài đặt nhanh
+
+### Option 1: Chạy bằng Docker (Khuyến nghị cho FE Developer)
+
+Cách đơn giản nhất để chạy toàn bộ hệ thống:
+
+```bash
+# Clone repository
+git clone <repository-url>
+cd be-flight-booking
+
+# Chạy toàn bộ hệ thống (SQL Server + Redis + Backend + Seed DB)
+docker-compose up --build
+```
+
+Hệ thống sẽ tự động:
+- Tạo database và user
+- Chạy schema SQL
+- Seed database với dữ liệu mẫu
+- Khởi động tất cả services
+
+**Xem chi tiết:** [Docker Setup Guide](./docker/README.md)
+
+### Option 2: Chạy local (Manual Setup)
 
 ### 1. Clone và cài đặt dependencies
 
