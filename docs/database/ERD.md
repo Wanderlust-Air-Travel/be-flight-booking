@@ -5,6 +5,15 @@ erDiagram
         UNIQUEIDENTIFIER user_id PK
         NVARCHAR fullname
         VARCHAR email
+        VARCHAR password_hash
+        VARCHAR phone
+        DATETIME2 created_at
+        DATETIME2 updated_at
+        VARCHAR refresh_token
+        DATETIME2 refresh_token_expires_at
+        VARCHAR forgot_password_token
+        DATETIME2 forgot_password_token_expires_at
+        BIT is_active
     }
 
     Passengers {
@@ -15,6 +24,7 @@ erDiagram
         NVARCHAR gender
         VARCHAR document_number
         VARCHAR loyalty_number
+        DATETIME2 created_at
     }
 
     %% ============ AIRPORTS & ROUTES ============
@@ -64,6 +74,8 @@ erDiagram
         VARCHAR fare_class_code PK
         VARCHAR cabin_class_code FK
         NVARCHAR description
+        NVARCHAR change_rule
+        NVARCHAR refund_rule
     }
 
     SeatConfigurations {
@@ -98,6 +110,8 @@ erDiagram
         DATETIME2 departure_datetime_local
         DATETIME2 arrival_datetime_local
         VARCHAR status
+        DATETIME2 created_at
+        DATETIME2 updated_at
     }
 
     FlightSeats {
@@ -131,6 +145,8 @@ erDiagram
         NVARCHAR contact_fullname
         VARCHAR contact_email
         VARCHAR contact_phone
+        DATETIME2 created_at
+        DATETIME2 updated_at
     }
 
     BookingPassengers {
@@ -159,6 +175,7 @@ erDiagram
         UNIQUEIDENTIFIER booking_passenger_id FK
         VARCHAR ticket_number
         VARCHAR status
+        DATETIME2 issued_at
     }
 
     Payments {
@@ -168,7 +185,9 @@ erDiagram
         CHAR currency_code FK
         VARCHAR payment_method_code FK
         VARCHAR status
+        DATETIME2 paid_at
         VARCHAR transaction_ref
+        DATETIME2 created_at
     }
 
     %% ============ RELATIONSHIPS ============

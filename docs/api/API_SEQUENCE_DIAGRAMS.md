@@ -1,0 +1,407 @@
+# System Sequence Diagrams - Flight Booking Backend
+
+Tài liệu này chứa các sequence diagrams mô tả flow xử lý tổng thể của toàn bộ hệ thống ở mức architecture/system level.
+
+---
+
+## 1. Complete Booking Flow (End-to-End)
+
+Sequence diagram mô tả toàn bộ flow từ khi user tìm kiếm chuyến bay đến khi hoàn tất booking:
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API Gateway
+    participant Auth Service
+    participant Search MS
+    participant Reservation MS
+    participant Booking MS
+    participant Database
+    participant Redis
+
+    Note over Client,Redis: Phase 1: Authentication
+    Client->>API Gateway: POST /auth/login<br/>{email, password}
+    API Gateway->>Auth Service: Validate credentials
+    Auth Service->>Database: Query Users table
+    Database-->>Auth Service: User data
+    Auth Service->>Auth Service: Generate JWT tokens
+    Auth Service-->>API Gateway: {access_token, refresh_token}
+    API Gateway-->>Client: 200 OK<br/>{access_token, refresh_token}
+    Client->>Client: Store tokens
+
+    Note over Client,Redis: Phase 2: Search Flights
+    Client->>API Gateway: GET /search/flights<br/>?origin=HAN&destination=SGN&departDate=...
+    API Gateway->>Search MS: SEARCH_FLIGHTS message (TCP)
+    Search MS->>Database: Query FlightInstances, Routes, Airports
+    Database-->>Search MS: Flight data
+    Search MS->>Search MS: Calculate available seats
+    Search MS-->>API Gateway: {tripType, outbound: [...]}
+    API Gateway-->>Client: 200 OK<br/>{flights list}
+
+    Note over Client,Redis: Phase 3: Get Fare Options
+    Client->>API Gateway: GET /search/fare-options<br/>?flightInstanceId=xxx&cabinType=economy
+    API Gateway->>Search MS: GET_FARE_OPTIONS message (TCP)
+    Search MS->>Database: Query FareClasses, FlightSeats
+    Database-->>Search MS: Fare classes & availability
+    Search MS-->>API Gateway: [{fareClassCode, price, ...}]
+    API Gateway-->>Client: 200 OK<br/>{fare options}
+
+    Note over Client,Redis: Phase 4: Create Reservation
+    Client->>API Gateway: POST /reservations<br/>Authorization: Bearer <token><br/>{flightInstanceId, fareClassCode, ...}
+    API Gateway->>API Gateway: Extract userId from JWT
+    API Gateway->>Reservation MS: CREATE_RESERVATION message (TCP)
+    Reservation MS->>Database: Validate flight & fare class
+    Database-->>Reservation MS: Validation result
+    Reservation MS->>Reservation MS: Calculate price, generate IDs
+    Reservation MS->>Redis: SET reservation:{id}<br/>TTL: 900 seconds
+    Redis-->>Reservation MS: OK
+    Reservation MS-->>API Gateway: {reservationId, reservationCode, ...}
+    API Gateway-->>Client: 201 Created<br/>{reservationId, ...}
+
+    Note over Client,Redis: Phase 5: Create Booking
+    Client->>API Gateway: POST /bookings?reservationId=xxx<br/>Authorization: Bearer <token><br/>{passengers: [...], contactInfo}
+    API Gateway->>API Gateway: Extract userId from JWT
+    API Gateway->>Booking MS: CREATE_BOOKING_FROM_RESERVATION message (TCP)
+    Booking MS->>Reservation MS: GET_RESERVATION message (TCP)
+    Reservation MS->>Redis: GET reservation:{id}
+    Redis-->>Reservation MS: Reservation data
+    Reservation MS-->>Booking MS: Reservation data
+    Booking MS->>Booking MS: Validate reservation
+    Booking MS->>Database: BEGIN TRANSACTION
+    Booking MS->>Database: Create/Find Passengers
+    Booking MS->>Database: Create Booking record
+    Booking MS->>Database: Create BookingPassengers
+    Booking MS->>Database: Create BookingSegments
+    Booking MS->>Database: Calculate & update total_amount
+    Booking MS->>Database: COMMIT TRANSACTION
+    Database-->>Booking MS: Transaction committed
+    Booking MS->>Reservation MS: CANCEL_RESERVATION message (TCP)
+    Reservation MS->>Redis: DEL reservation:{id}
+    Redis-->>Reservation MS: OK
+    Reservation MS-->>Booking MS: Reservation cancelled
+    Booking MS-->>API Gateway: {bookingId, pnrCode, totalAmount}
+    API Gateway-->>Client: 201 Created<br/>{bookingId, pnrCode, ...}
+
+    Note over Client,Redis: Phase 6: Get Booking Details
+    Client->>API Gateway: GET /bookings/:id/fare-details<br/>Authorization: Bearer <token>
+    API Gateway->>Booking MS: GET_FARE_DETAILS message (TCP)
+    Booking MS->>Database: Query BookingSegments, FareClasses
+    Database-->>Booking MS: Booking & fare data
+    Booking MS-->>API Gateway: {fareClassName, descriptions, ...}
+    API Gateway-->>Client: 200 OK<br/>{fare details}
+
+    Client->>API Gateway: GET /bookings/:id/payment-info<br/>Authorization: Bearer <token>
+    API Gateway->>Booking MS: GET_PAYMENT_INFO message (TCP)
+    Booking MS->>Database: Query Bookings
+    Database-->>Booking MS: Booking data
+    Booking MS-->>API Gateway: {totalAmount, contactInfo, ...}
+    API Gateway-->>Client: 200 OK<br/>{payment info}
+```
+
+---
+
+## 2. System Architecture Flow
+
+Sequence diagram mô tả kiến trúc tổng thể và cách các components tương tác:
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API Gateway
+    participant Auth Module
+    participant Search Module
+    participant Booking Module
+    participant Reservation Module
+    participant Search MS
+    participant Booking MS
+    participant Reservation MS
+    participant Database
+    participant Redis
+
+    Note over Client,Redis: Request Flow Through System
+
+    Client->>API Gateway: HTTP Request<br/>(REST API)
+    API Gateway->>API Gateway: 1. Validate Request<br/>(ValidationPipe)
+    API Gateway->>API Gateway: 2. Extract JWT Token<br/>(if required)
+    API Gateway->>API Gateway: 3. Route to Module
+
+    alt Public Endpoint (Search, Services)
+        API Gateway->>Search Module: Direct call
+        Search Module->>Search MS: TCP Message<br/>(RabbitMQ/ClientProxy)
+        Search MS->>Database: SQL Query
+        Database-->>Search MS: Result
+        Search MS-->>Search Module: Response
+        Search Module-->>API Gateway: Response
+    else Protected Endpoint (Booking, Reservation)
+        API Gateway->>Auth Module: Validate JWT
+        Auth Module->>Auth Module: Verify token signature
+        Auth Module->>Auth Module: Extract userId, email
+        Auth Module-->>API Gateway: User info
+        API Gateway->>Booking Module: Forward request
+        Booking Module->>Booking MS: TCP Message
+        Booking MS->>Database: SQL Query (Transaction)
+        Database-->>Booking MS: Result
+        Booking MS->>Reservation MS: Inter-service call (TCP)
+        Reservation MS->>Redis: GET/SET operation
+        Redis-->>Reservation MS: Result
+        Reservation MS-->>Booking MS: Response
+        Booking MS-->>Booking Module: Response
+        Booking Module-->>API Gateway: Response
+    end
+
+    API Gateway->>API Gateway: 4. Format Response
+    API Gateway->>API Gateway: 5. Error Handling
+    API Gateway-->>Client: HTTP Response
+```
+
+---
+
+## 3. Microservices Communication Pattern
+
+Sequence diagram mô tả pattern giao tiếp giữa các microservices:
+
+```mermaid
+sequenceDiagram
+    participant API Gateway
+    participant Search MS
+    participant Booking MS
+    participant Reservation MS
+    participant Services MS
+    participant Routes MS
+    participant Database
+    participant Redis
+
+    Note over API Gateway,Redis: Microservices Communication via TCP/RabbitMQ
+
+    rect rgb(240, 248, 255)
+        Note over API Gateway,Search MS: Direct Request-Response Pattern
+        API Gateway->>Search MS: SEARCH_FLIGHTS message
+        Search MS->>Database: Query
+        Database-->>Search MS: Data
+        Search MS-->>API Gateway: Response
+    end
+
+    rect rgb(255, 248, 240)
+        Note over API Gateway,Reservation MS: Request-Response with Redis
+        API Gateway->>Reservation MS: CREATE_RESERVATION message
+        Reservation MS->>Database: Validate
+        Database-->>Reservation MS: Validation
+        Reservation MS->>Redis: SET reservation:{id}
+        Redis-->>Reservation MS: OK
+        Reservation MS-->>API Gateway: Response
+    end
+
+    rect rgb(248, 255, 248)
+        Note over Booking MS,Reservation MS: Inter-Service Communication
+        API Gateway->>Booking MS: CREATE_BOOKING message
+        Booking MS->>Reservation MS: GET_RESERVATION message
+        Reservation MS->>Redis: GET reservation:{id}
+        Redis-->>Reservation MS: Data
+        Reservation MS-->>Booking MS: Reservation data
+        Booking MS->>Database: Transaction
+        Database-->>Booking MS: Result
+        Booking MS->>Reservation MS: CANCEL_RESERVATION message
+        Reservation MS->>Redis: DEL reservation:{id}
+        Redis-->>Reservation MS: OK
+        Reservation MS-->>Booking MS: Cancelled
+        Booking MS-->>API Gateway: Response
+    end
+
+    rect rgb(255, 240, 245)
+        Note over API Gateway,Services MS: Aggregation Pattern
+        API Gateway->>Services MS: GET_DEALS message
+        Services MS->>Database: Query Routes
+        Database-->>Services MS: Routes
+        loop For each route
+            Services MS->>Database: Query Flights
+            Database-->>Services MS: Flights
+            Services MS->>Database: Calculate average price
+            Database-->>Services MS: Price
+        end
+        Services MS->>Services MS: Aggregate & format
+        Services MS-->>API Gateway: Aggregated response
+    end
+```
+
+---
+
+## 4. Authentication & Authorization Flow
+
+Sequence diagram mô tả flow authentication và authorization trong hệ thống:
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API Gateway
+    participant Auth Module
+    participant Auth Service
+    participant JwtAuthGuard
+    participant Database
+
+    Note over Client,Database: Authentication Flow
+
+    rect rgb(240, 248, 255)
+        Note over Client,Database: Registration/Login
+        Client->>API Gateway: POST /auth/register<br/>{email, password, ...}
+        API Gateway->>Auth Module: register()
+        Auth Module->>Auth Service: Create user
+        Auth Service->>Database: INSERT INTO Users
+        Database-->>Auth Service: User created
+        Auth Service->>Auth Service: Generate JWT tokens
+        Auth Service-->>Auth Module: {access_token, refresh_token}
+        Auth Module-->>API Gateway: Response
+        API Gateway-->>Client: 201 Created<br/>{tokens}
+    end
+
+    rect rgb(255, 248, 240)
+        Note over Client,Database: Protected Endpoint Access
+        Client->>API Gateway: GET /bookings/:id<br/>Authorization: Bearer <token>
+        API Gateway->>JwtAuthGuard: Intercept request
+        JwtAuthGuard->>JwtAuthGuard: Extract token from header
+        JwtAuthGuard->>JwtAuthGuard: Verify token signature
+        JwtAuthGuard->>JwtAuthGuard: Check expiration
+        alt Token invalid or expired
+            JwtAuthGuard-->>API Gateway: 401 Unauthorized
+            API Gateway-->>Client: 401 Unauthorized
+        else Token valid
+            JwtAuthGuard->>JwtAuthGuard: Extract payload<br/>{userId, email}
+            JwtAuthGuard->>API Gateway: Attach user to req.user
+            API Gateway->>API Gateway: Process request
+            API Gateway-->>Client: 200 OK
+        end
+    end
+
+    rect rgb(248, 255, 248)
+        Note over Client,Database: Token Refresh
+        Client->>API Gateway: POST /auth/refresh<br/>{userId, refresh_token}
+        API Gateway->>Auth Module: refresh()
+        Auth Module->>Auth Service: Validate refresh_token
+        Auth Service->>Database: Query Users<br/>WHERE refresh_token = ?
+        Database-->>Auth Service: User data
+        alt Refresh token invalid or expired
+            Auth Service-->>Auth Module: Error
+            Auth Module-->>API Gateway: 401 Unauthorized
+            API Gateway-->>Client: 401 Unauthorized
+        else Refresh token valid
+            Auth Service->>Auth Service: Generate new tokens
+            Auth Service->>Database: UPDATE Users<br/>SET refresh_token = ?
+            Database-->>Auth Service: Updated
+            Auth Service-->>Auth Module: {new_tokens}
+            Auth Module-->>API Gateway: Response
+            API Gateway-->>Client: 200 OK<br/>{new_tokens}
+        end
+    end
+```
+
+---
+
+## 5. Error Handling Flow
+
+Sequence diagram mô tả cách hệ thống xử lý errors:
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API Gateway
+    participant Controller
+    participant Microservice
+    participant Database
+    participant Redis
+
+    Note over Client,Redis: Error Handling Flow
+
+    Client->>API Gateway: HTTP Request
+    API Gateway->>API Gateway: ValidationPipe validation
+    alt Validation Error
+        API Gateway-->>Client: 400 Bad Request<br/>{message: ["error1", "error2"]}
+    else Validation Passed
+        API Gateway->>Controller: Process request
+        Controller->>Microservice: TCP Message
+        alt Microservice Not Running
+            Microservice-->>Controller: ECONNREFUSED
+            Controller->>Controller: Catch error
+            Controller-->>API Gateway: 500 Internal Server Error<br/>{message: "Service not running"}
+            API Gateway-->>Client: 500 Internal Server Error
+        else Microservice Running
+            Microservice->>Database: SQL Query
+            alt Database Error
+                Database-->>Microservice: SQL Error
+                Microservice->>Microservice: Catch error
+                Microservice-->>Controller: Error response
+                Controller->>Controller: Format error
+                Controller-->>API Gateway: 500/400 Error
+                API Gateway-->>Client: Error response
+            else Database Success
+                Database-->>Microservice: Data
+                alt Business Logic Error
+                    Microservice->>Microservice: Validate business rules
+                    Microservice-->>Controller: 400 Bad Request<br/>{message: "Business error"}
+                    Controller-->>API Gateway: Error
+                    API Gateway-->>Client: 400 Bad Request
+                else Success
+                    Microservice-->>Controller: Success response
+                    Controller-->>API Gateway: Response
+                    API Gateway-->>Client: 200/201 OK
+                end
+            end
+        end
+    end
+```
+
+---
+
+## 6. Data Flow Through System
+
+Sequence diagram mô tả luồng dữ liệu qua các layers của hệ thống:
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API Gateway
+    participant Controller Layer
+    participant Service Layer
+    participant Microservice
+    participant Database
+    participant Redis
+
+    Note over Client,Redis: Data Flow Through System Layers
+
+    Client->>API Gateway: HTTP Request<br/>{data}
+    API Gateway->>API Gateway: 1. Parse & Validate<br/>(DTO transformation)
+    API Gateway->>Controller Layer: Route to controller
+    Controller Layer->>Controller Layer: 2. Extract params<br/>(Query, Body, Params)
+    Controller Layer->>Controller Layer: 3. Extract user from JWT<br/>(if authenticated)
+    Controller Layer->>Service Layer: 4. Call service method<br/>(with DTO)
+    Service Layer->>Microservice: 5. Send TCP message<br/>(message pattern)
+    Microservice->>Microservice: 6. Transform message to entity
+    Microservice->>Database: 7. SQL Query<br/>(TypeORM Entity)
+    Database-->>Microservice: 8. Raw data
+    Microservice->>Microservice: 9. Map to DTO
+    alt Need Redis
+        Microservice->>Redis: 10. GET/SET operation
+        Redis-->>Microservice: 11. Cached data
+    end
+    Microservice-->>Service Layer: 12. Response DTO
+    Service Layer-->>Controller Layer: 13. Response
+    Controller Layer-->>API Gateway: 14. HTTP Response
+    API Gateway->>API Gateway: 15. Format response<br/>(JSON serialization)
+    API Gateway-->>Client: 16. HTTP Response<br/>{data}
+```
+
+---
+
+## Notes
+
+1. **Microservice Communication**: Tất cả communication giữa API Gateway và Microservices sử dụng TCP (RabbitMQ hoặc TCP socket) với message patterns.
+
+2. **Transaction Safety**: Booking creation sử dụng database transaction để đảm bảo tính nhất quán dữ liệu.
+
+3. **Redis TTL**: Reservations được lưu trong Redis với TTL 15 phút (900 seconds), tự động expire.
+
+4. **Error Handling**: Tất cả các layers đều có error handling và trả về appropriate HTTP status codes.
+
+5. **JWT Authentication**: Tất cả protected endpoints yêu cầu JWT token trong header `Authorization: Bearer <token>`.
+
+6. **UUID v7**: Tất cả IDs được generate là UUID v7 (time-ordered UUID) để tối ưu database indexing.
+
+7. **Data Transformation**: Dữ liệu được transform qua các layers: HTTP Request → DTO → Entity → Database → Entity → DTO → HTTP Response.
