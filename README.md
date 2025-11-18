@@ -31,7 +31,9 @@ Hệ thống sẽ tự động:
 - Seed database với dữ liệu mẫu
 - Khởi động tất cả services
 
-**Xem chi tiết:** [Docker Setup Guide](./docker/README.md)
+**Xem chi tiết:** 
+- [Docker Setup Guide](./docker/README.md) - Tổng quan về Docker setup
+- [Hướng dẫn chạy Full Services](./docker/HOW_TO_RUN.md) - Hướng dẫn chi tiết từng bước
 
 ### Option 2: Chạy local (Manual Setup)
 

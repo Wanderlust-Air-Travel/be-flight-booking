@@ -2,6 +2,8 @@
 
 Hướng dẫn chạy toàn bộ hệ thống Flight Booking Backend bằng Docker.
 
+> **Hướng dẫn chi tiết từng bước:** [HOW_TO_RUN.md](./HOW_TO_RUN.md)
+
 ## Yêu cầu
 
 - Docker Desktop (Windows/Mac) hoặc Docker Engine (Linux)
