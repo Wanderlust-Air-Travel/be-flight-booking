@@ -205,12 +205,6 @@ export class ReservationService {
 			ttl: this.reservationTtl,
 			createdAt: now,
 			userId: userId || null, // Store userId for ownership validation
-			// Backward compatibility fields
-			flightInstanceId: validatedSegments[0]?.flightInstanceId,
-			fareClassCode: validatedSegments[0]?.fareClassCode,
-			baseFare: validatedSegments[0]?.baseFare,
-			taxAmount: validatedSegments[0]?.taxAmount,
-			feeAmount: validatedSegments[0]?.feeAmount,
 		};
 
 		// Store in Redis with TTL

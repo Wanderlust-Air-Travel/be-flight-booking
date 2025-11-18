@@ -27,7 +27,7 @@ export class ReservationController {
 	@ApiOperation({
 		summary: 'Create a new reservation',
 		description:
-			'Create a reservation to temporarily hold seats. Backend stores flightInstanceId and fareClassCode in Redis. Reservation expires after 15 minutes (configurable). Requires JWT authentication.',
+			'Create a reservation to temporarily hold seats. Supports multi-segment for round-trip bookings. Backend stores segments array in Redis. Reservation expires after 15 minutes (configurable). Requires JWT authentication.',
 	})
 	@ApiOkResponse({
 		description: 'Reservation created successfully',

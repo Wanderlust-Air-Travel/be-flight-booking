@@ -653,20 +653,14 @@ export class BookingService {
 				feeAmount: number;
 			}> = [];
 
-			// Use segments array if available (new format), otherwise fallback to old format for backward compatibility
-			const segments = reservation.segments || [
-				{
-					segmentId: uuidv7(),
-					flightInstanceId: reservation.flightInstanceId!,
-					fareClassCode: reservation.fareClassCode!,
-					segmentType: 'outbound' as const,
-					baseFare: reservation.baseFare || 0,
-					taxAmount: reservation.taxAmount || 0,
-					feeAmount: reservation.feeAmount || 0,
-				},
-			];
+			// Validate that reservation has segments array (required)
+			if (!reservation.segments || reservation.segments.length === 0) {
+				throw new BadRequestException(
+					'Reservation must have at least one segment. Invalid reservation format.',
+				);
+			}
 
-			for (const segment of segments) {
+			for (const segment of reservation.segments) {
 				const flightInstance = await queryRunner.manager.findOne(FlightInstance, {
 					where: { flight_instance_id: segment.flightInstanceId },
 					relations: ['aircraft', 'aircraft.aircraft_type'],

@@ -113,46 +113,5 @@ export class ReservationResponseDto {
 		required: false,
 	})
 	userId?: string | null;
-
-	// Backward compatibility fields (deprecated - use segments array instead)
-	@ApiProperty({
-		description: 'Flight instance ID (deprecated - use segments[0].flightInstanceId instead)',
-		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
-		required: false,
-		deprecated: true,
-	})
-	flightInstanceId?: string;
-
-	@ApiProperty({
-		description: 'Fare class code (deprecated - use segments[0].fareClassCode instead)',
-		example: 'YS',
-		required: false,
-		deprecated: true,
-	})
-	fareClassCode?: string;
-
-	@ApiProperty({
-		description: 'Base fare amount (deprecated - use segments array instead)',
-		example: 1577000,
-		required: false,
-		deprecated: true,
-	})
-	baseFare?: number;
-
-	@ApiProperty({
-		description: 'Tax amount (deprecated - use segments array instead)',
-		example: 0,
-		required: false,
-		deprecated: true,
-	})
-	taxAmount?: number;
-
-	@ApiProperty({
-		description: 'Fee amount (deprecated - use segments array instead)',
-		example: 0,
-		required: false,
-		deprecated: true,
-	})
-	feeAmount?: number;
 }
 

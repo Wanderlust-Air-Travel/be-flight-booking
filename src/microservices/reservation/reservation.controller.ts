@@ -17,8 +17,11 @@ export class ReservationMsController {
 		dto: CreateReservationDto;
 	}): Promise<ReservationResponseDto> {
 		try {
+			const segmentsInfo = payload.dto.segments
+				.map((seg) => `${seg.flightInstanceId} (${seg.fareClassCode}, ${seg.segmentType})`)
+				.join(', ');
 			this.logger.log(
-				`Create reservation: ${payload.dto.flightInstanceId} - ${payload.dto.fareClassCode}`,
+				`Create reservation: ${payload.dto.segments.length} segment(s) - ${segmentsInfo}, passengers: ${payload.dto.numberOfPassengers}`,
 			);
 			const result = await this.reservationService.createReservation(payload.userId, payload.dto);
 			this.logger.log(`Reservation created: ${result.reservationId} (Code: ${result.reservationCode})`);
