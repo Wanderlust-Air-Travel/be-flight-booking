@@ -21,7 +21,7 @@ async function waitForDatabase(): Promise<boolean> {
     try {
       const config: SqlConfig = {
         server: process.env.DB_HOST || 'sqlserver',
-        port: parseInt(process.env.DB_PORT || '1433', 10),
+        port: parseInt(process.env.DB_PORT || '1434', 10),
         user: 'sa',
         password: process.env.SA_PASSWORD || 'Passw0rd123!',
         options: {
