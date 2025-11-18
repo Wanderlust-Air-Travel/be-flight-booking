@@ -2,7 +2,7 @@
    VALIDATION: Kiểm tra format của image_url và service_link
    ========================================================= */
 
--- Lưu ý: Thay đổi database name nếu cần (flight_booking_db hoặc flight_booking_db_v2)
+-- Lưu ý: Thay đổi database name nếu cần (flight_booking_db)
 USE flight_booking_db;
 GO
 

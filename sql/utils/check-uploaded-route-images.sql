@@ -1,7 +1,7 @@
 -- Script để kiểm tra ảnh đã được upload và update vào database
 -- Dùng để verify sau khi upload ảnh qua API
 
-USE flight_booking_db_v2; -- Thay đổi database name nếu cần
+USE flight_booking_db; -- Thay đổi database name nếu cần
 GO
 
 -- Option 1: Kiểm tra route cụ thể (thay route_id bằng route_id bạn vừa upload)

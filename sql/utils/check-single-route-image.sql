@@ -1,7 +1,7 @@
 -- Script đơn giản: Kiểm tra ảnh đã upload cho 1 route cụ thể
 -- Thay route_id bằng route_id bạn vừa upload
 
-USE flight_booking_db_v2; -- Thay đổi database name nếu cần
+USE flight_booking_db; -- Thay đổi database name nếu cần
 GO
 
 -- Thay route_id này bằng route_id bạn vừa upload

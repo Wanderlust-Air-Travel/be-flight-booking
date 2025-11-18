@@ -1,7 +1,7 @@
 -- Script đơn giản: Lấy 1 route_id để test upload ảnh
 -- Copy route_id từ kết quả và dùng trong Postman/API test
 
-USE flight_booking_db_v2; -- Thay đổi database name nếu cần
+USE flight_booking_db; -- Thay đổi database name nếu cần
 GO
 
 -- Lấy route_id đầu tiên (domestic route)

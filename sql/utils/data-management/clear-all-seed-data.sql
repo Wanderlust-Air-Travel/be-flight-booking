@@ -3,7 +3,7 @@
 -- Chạy script này trước khi chạy lại npm run seed:full
 -- ============================================================
 
-USE flight_booking_db_v2;
+USE flight_booking_db;
 GO
 
 BEGIN TRANSACTION;

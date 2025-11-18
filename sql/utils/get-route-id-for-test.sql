@@ -1,7 +1,7 @@
 -- Script để lấy route_id hợp lệ để test upload ảnh
 -- Route ID phải là UUID v7 format (36 ký tự)
 
-USE flight_booking_db_v2; -- Thay đổi database name nếu cần
+USE flight_booking_db; -- Thay đổi database name nếu cần
 GO
 
 -- Option 1: Lấy tất cả route_id (domestic routes)
