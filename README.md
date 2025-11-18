@@ -27,7 +27,7 @@ docker-compose up --build
 
 Hệ thống sẽ tự động:
 - Tạo database và user
-- Chạy schema SQL
+- **Chạy TypeORM migrations** (tạo tables, indexes, triggers)
 - Seed database với dữ liệu mẫu
 - Khởi động tất cả services
 
@@ -52,15 +52,15 @@ npm install
 4. Tạo login và user:
    ```sql
    USE master;
-   CREATE LOGIN maxnoah WITH PASSWORD = '12341234';
+   CREATE LOGIN maxnoah WITH PASSWORD = 'Passw0rd123!';
    USE flight_booking_db;
    CREATE USER maxnoah FOR LOGIN maxnoah;
    ALTER ROLE db_owner ADD MEMBER maxnoah;
    ```
 
-**Tạo schema:**
+**Chạy migrations:**
 1. Kết nối với database `flight_booking_db`
-2. Chạy script: `sql/schema/flight_booking_db.sql`
+2. Chạy TypeORM migrations: `npm run migration:run`
 
 **Lưu ý:** Schema không dùng `DEFAULT NEWSEQUENTIALID()`. Tất cả IDs phải được generate từ application code (UUID v7).
 
@@ -73,7 +73,7 @@ Copy `env.example` thành `.env` và cấu hình:
 DB_HOST=localhost
 DB_PORT=1433
 DB_USER=maxnoah
-DB_PASS=12341234
+DB_PASS=Passw0rd123!
 DB_NAME=flight_booking_db
 DB_ENCRYPT=false
 DB_TRUST_CERT=true

@@ -10,7 +10,7 @@ async function waitForDatabase() {
         server: process.env.DB_HOST || 'sqlserver',
         port: parseInt(process.env.DB_PORT || '1433'),
         user: 'sa',
-        password: 'YourStrong@Passw0rd',
+        password: process.env.SA_PASSWORD || 'Passw0rd123!',
         options: {
           encrypt: false,
           trustServerCertificate: true,

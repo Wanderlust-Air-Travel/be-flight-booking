@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # SQL Server Database
   sqlserver:
@@ -7,14 +5,14 @@ services:
     container_name: flight-booking-sqlserver
     environment:
       - ACCEPT_EULA=Y
-      - SA_PASSWORD=YourStrong@Passw0rd
+      - SA_PASSWORD=Passw0rd123!
       - MSSQL_PID=Developer
     ports:
       - "1433:1433"
     volumes:
       - sqlserver-data:/var/opt/mssql
     healthcheck:
-      test: /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P YourStrong@Passw0rd -Q "SELECT 1" || exit 1
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "Passw0rd123!" -C -Q "SELECT 1" || exit 1
       interval: 10s
       timeout: 3s
       retries: 10
@@ -49,10 +47,11 @@ services:
       - DB_HOST=sqlserver
       - DB_PORT=1433
       - DB_USER=maxnoah
-      - DB_PASS=12341234
+      - DB_PASS=Passw0rd123!
       - DB_NAME=flight_booking_db
       - DB_ENCRYPT=false
       - DB_TRUST_CERT=true
+      - SA_PASSWORD=Passw0rd123!
       
       # API Gateway
       - PORT=3000
@@ -81,7 +80,7 @@ services:
       - REDIS_PORT=6379
       - REDIS_PASSWORD=
       - REDIS_DB=0
-      - REDIS_KEY_PREFIX=flight-booking:
+      - "REDIS_KEY_PREFIX=flight-booking:"
       - REDIS_RESERVATION_TTL=900
     ports:
       - "3000:3000"  # API Gateway

@@ -1,5 +1,3 @@
-import { Passenger } from "../entities/passenger/passenger.entity";
-import { User } from "../entities/user/user.entity";
 import { DataSource } from "typeorm";
 
 export default new DataSource({
@@ -11,7 +9,8 @@ export default new DataSource({
     database: process.env.DB_NAME,
     options: { encrypt: process.env.DB_ENCRYPT === 'true'},
     extra: { trustServerCertificate: process.env.DB_TRUST_CERT === 'true'},
-    entities: [User, Passenger],
-    migrations: ['/dist/migration/*.js'],
+    entities: [__dirname + '/../entities/**/*.entity.{ts,js}'],
+    migrations: [__dirname + '/../migrations/*.{ts,js}'],
+    migrationsTableName: 'migrations',
     synchronize: false,
 })

@@ -8,11 +8,13 @@ async function createDatabaseAndUser() {
   console.log('Creating database and user...');
   try {
     const sql = require('mssql');
+    // Use SA password from environment (set in docker-compose.yml) or default
+    const saPassword = process.env.SA_PASSWORD || 'Passw0rd123!';
     const config = {
       server: process.env.DB_HOST || 'sqlserver',
       port: parseInt(process.env.DB_PORT || '1433'),
       user: 'sa',
-      password: 'YourStrong@Passw0rd',
+      password: saPassword,
       options: {
         encrypt: false,
         trustServerCertificate: true,
@@ -32,29 +34,56 @@ async function createDatabaseAndUser() {
     console.log('Database created or already exists');
 
     // Create login and user
-    await pool.request().query(`
-      IF NOT EXISTS (SELECT * FROM sys.server_principals WHERE name = 'maxnoah')
-      BEGIN
-        CREATE LOGIN maxnoah WITH PASSWORD = '12341234';
-      END
+    const dbPassword = process.env.DB_PASS || 'Passw0rd123!';
+    // Escape single quotes in password for SQL
+    const escapedPassword = dbPassword.replace(/'/g, "''");
+    
+    // Check if login exists and update password, or create new
+    const loginCheck = await pool.request().query(`
+      SELECT COUNT(*) as count FROM sys.server_principals WHERE name = 'maxnoah'
     `);
+    
+    if (loginCheck.recordset[0].count > 0) {
+      // Update existing login password
+      await pool.request().query(`
+        ALTER LOGIN maxnoah WITH PASSWORD = '${escapedPassword}';
+      `);
+      console.log('Login password updated');
+    } else {
+      // Create new login
+      await pool.request().query(`
+        CREATE LOGIN maxnoah WITH PASSWORD = '${escapedPassword}';
+      `);
+      console.log('Login created');
+    }
     console.log('Login created or already exists');
 
     // Switch to flight_booking_db and create user
-    const dbPool = await sql.connect({
-      ...config,
-      database: 'flight_booking_db',
-    });
-    
-    await dbPool.request().query(`
-      IF NOT EXISTS (SELECT * FROM sys.database_principals WHERE name = 'maxnoah')
-      BEGIN
-        CREATE USER maxnoah FOR LOGIN maxnoah;
-        ALTER ROLE db_owner ADD MEMBER maxnoah;
-      END
-    `);
-    await dbPool.close();
-    console.log('User created or already exists');
+    try {
+      const dbPool = await sql.connect({
+        ...config,
+        database: 'flight_booking_db',
+      });
+      
+      const userCheck = await dbPool.request().query(`
+        SELECT COUNT(*) as count FROM sys.database_principals WHERE name = 'maxnoah'
+      `);
+      
+      if (userCheck.recordset[0].count === 0) {
+        await dbPool.request().query(`
+          CREATE USER maxnoah FOR LOGIN maxnoah;
+          ALTER ROLE db_owner ADD MEMBER maxnoah;
+        `);
+        console.log('User created in database');
+      } else {
+        console.log('User already exists in database');
+      }
+      
+      await dbPool.close();
+    } catch (error) {
+      console.error('Error creating user in database:', error.message);
+      throw error;
+    }
 
     await pool.close();
     return true;
@@ -64,66 +93,44 @@ async function createDatabaseAndUser() {
   }
 }
 
-async function runSchema() {
-  console.log('Running database schema...');
+async function runMigrations() {
+  console.log('Running TypeORM migrations...');
   try {
-    const sql = require('mssql');
-    const config = {
-      server: process.env.DB_HOST || 'sqlserver',
-      port: parseInt(process.env.DB_PORT || '1433'),
-      user: process.env.DB_USER || 'maxnoah',
-      password: process.env.DB_PASS || '12341234',
-      database: process.env.DB_NAME || 'flight_booking_db',
-      options: {
-        encrypt: process.env.DB_ENCRYPT === 'true',
-        trustServerCertificate: process.env.DB_TRUST_CERT === 'true',
-        enableArithAbort: true,
-      },
-    };
-
-    const pool = await sql.connect(config);
-    const schemaPath = path.join(__dirname, '../sql/schema/flight_booking_db.sql');
-    const schemaSQL = await fs.readFile(schemaPath, 'utf8');
+    // Import TypeORM DataSource and run migrations programmatically
+    // This works better in Docker environment
+    const typeorm = require('typeorm');
+    const dataSource = require('../dist/shared/config/typeorm').default;
     
-    // Remove CREATE DATABASE statement if exists (already created)
-    let cleanedSQL = schemaSQL.replace(/CREATE DATABASE.*?GO/gi, '');
-    
-    // Split by GO statements and execute each batch
-    const batches = cleanedSQL.split(/\bGO\b/i).filter(batch => batch.trim());
-    
-    let successCount = 0;
-    let errorCount = 0;
-    
-    for (let i = 0; i < batches.length; i++) {
-      const trimmedBatch = batches[i].trim();
-      if (trimmedBatch && !trimmedBatch.match(/^\s*USE\s+master/i)) {
-        try {
-          await pool.request().query(trimmedBatch);
-          successCount++;
-        } catch (error) {
-          // Ignore errors for existing objects
-          const errorMsg = error.message || '';
-          if (errorMsg.includes('already exists') || 
-              errorMsg.includes('There is already') ||
-              errorMsg.includes('duplicate key') ||
-              errorMsg.includes('Cannot drop') ||
-              errorMsg.includes('does not exist')) {
-            // Expected errors, ignore
-          } else {
-            console.warn(`Warning executing batch ${i + 1}:`, errorMsg.substring(0, 100));
-            errorCount++;
-          }
-        }
-      }
+    if (!dataSource.isInitialized) {
+      await dataSource.initialize();
+      console.log('TypeORM DataSource initialized');
     }
     
-    console.log(`Schema execution: ${successCount} batches succeeded, ${errorCount} warnings`);
-
-    await pool.close();
-    console.log('Schema executed successfully');
+    const migrations = await dataSource.runMigrations();
+    
+    if (migrations && migrations.length > 0) {
+      console.log(`Executed ${migrations.length} migration(s):`);
+      migrations.forEach(migration => {
+        console.log(`  - ${migration.name}`);
+      });
+    } else {
+      console.log('No pending migrations, database is up to date');
+    }
+    
+    await dataSource.destroy();
+    console.log('Migrations executed successfully');
     return true;
   } catch (error) {
-    console.error('Error running schema:', error);
+    console.error('Error running migrations:', error.message);
+    console.error('Error details:', error);
+    // Check if it's just "no migrations pending" error
+    if (error.message && (
+      error.message.includes('No migrations') ||
+      error.message.includes('already been executed')
+    )) {
+      console.log('No pending migrations, database is up to date');
+      return true;
+    }
     return false;
   }
 }
@@ -134,9 +141,9 @@ async function main() {
     process.exit(1);
   }
 
-  const schemaRun = await runSchema();
-  if (!schemaRun) {
-    console.warn('Schema execution had warnings, but continuing...');
+  const migrationsRun = await runMigrations();
+  if (!migrationsRun) {
+    console.warn('Migration execution had issues, but continuing...');
   }
 
   console.log('Database initialization completed!');

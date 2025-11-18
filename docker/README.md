@@ -33,9 +33,11 @@ Lệnh này sẽ:
 - Khởi động SQL Server
 - Khởi động Redis
 - Tự động tạo database và user
-- Chạy schema SQL
+- **Chạy TypeORM migrations** (tạo tables, indexes, triggers)
 - Seed database với dữ liệu mẫu
 - Khởi động tất cả services (API Gateway + 5 microservices)
+
+**Xem chi tiết về migrations:** [MIGRATIONS.md](./MIGRATIONS.md)
 
 **Lưu ý:** Lần đầu chạy có thể mất 5-10 phút để:
 - Download images
@@ -120,8 +122,8 @@ curl http://localhost:3000/health
 - **Port**: `1433`
 - **Database**: `flight_booking_db`
 - **User**: `maxnoah`
-- **Password**: `12341234`
-- **SA Password**: `YourStrong@Passw0rd`
+- **Password**: `Passw0rd123!`
+- **SA Password**: `Passw0rd123!`
 
 ## Redis Credentials
 
@@ -139,6 +141,20 @@ docker-compose logs sqlserver
 ```
 
 Đợi thông báo "SQL Server is ready" trước khi backend khởi động.
+
+### Migrations không chạy hoặc bị lỗi
+
+Xem chi tiết: [MIGRATIONS.md](./MIGRATIONS.md)
+
+**Chạy migrations thủ công:**
+```bash
+docker-compose exec backend npm run migration:run
+```
+
+**Xem trạng thái migrations:**
+```bash
+docker-compose exec backend npm run migration:show
+```
 
 ### Seed database bị lỗi
 

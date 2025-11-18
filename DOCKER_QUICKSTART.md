@@ -77,9 +77,9 @@ docker-compose up --build
 
 ## Thông tin đăng nhập
 
-- **Database User**: `maxnoah` / `12341234`
+- **Database User**: `maxnoah` / `Passw0rd123!`
 - **Database**: `flight_booking_db`
-- **SA Password**: `YourStrong@Passw0rd`
+- **SA Password**: `Passw0rd123!`
 
 ## Xem thêm
 
