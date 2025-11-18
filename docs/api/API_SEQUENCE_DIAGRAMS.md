@@ -46,33 +46,35 @@ sequenceDiagram
     Search MS-->>API Gateway: [{fareClassCode, price, ...}]
     API Gateway-->>Client: 200 OK<br/>{fare options}
 
-    Note over Client,Redis: Phase 4: Create Reservation
-    Client->>API Gateway: POST /reservations<br/>Authorization: Bearer <token><br/>{flightInstanceId, fareClassCode, ...}
+    Note over Client,Redis: Phase 4: Create Reservation (Multi-Segment Support)
+    Client->>API Gateway: POST /reservations<br/>Authorization: Bearer <token><br/>{segments: [{flightInstanceId, fareClassCode, segmentType}, ...], ...}
     API Gateway->>API Gateway: Extract userId from JWT
     API Gateway->>Reservation MS: CREATE_RESERVATION message (TCP)
-    Reservation MS->>Database: Validate flight & fare class
-    Database-->>Reservation MS: Validation result
-    Reservation MS->>Reservation MS: Calculate price, generate IDs
-    Reservation MS->>Redis: SET reservation:{id}<br/>TTL: 900 seconds
+    Reservation MS->>Database: Validate all segments (flight & fare class)
+    Database-->>Reservation MS: Validation result for each segment
+    Reservation MS->>Reservation MS: Calculate price for each segment<br/>Validate round-trip (if has inbound, must have outbound)
+    Reservation MS->>Reservation MS: Generate reservationId & code
+    Reservation MS->>Redis: SET reservation:{id}<br/>TTL: 900 seconds<br/>{segments: [...], totalAmount, ...}
     Redis-->>Reservation MS: OK
-    Reservation MS-->>API Gateway: {reservationId, reservationCode, ...}
-    API Gateway-->>Client: 201 Created<br/>{reservationId, ...}
+    Reservation MS-->>API Gateway: {reservationId, reservationCode, segments: [...], totalAmount, ...}
+    API Gateway-->>Client: 201 Created<br/>{reservationId, segments: [...], ...}
 
-    Note over Client,Redis: Phase 5: Create Booking
+    Note over Client,Redis: Phase 5: Create Booking (From Reservation - REQUIRED)
     Client->>API Gateway: POST /bookings?reservationId=xxx<br/>Authorization: Bearer <token><br/>{passengers: [...], contactInfo}
-    API Gateway->>API Gateway: Extract userId from JWT
+    API Gateway->>API Gateway: Extract userId from JWT<br/>Validate reservationId is provided
     API Gateway->>Booking MS: CREATE_BOOKING_FROM_RESERVATION message (TCP)
     Booking MS->>Reservation MS: GET_RESERVATION message (TCP)
     Reservation MS->>Redis: GET reservation:{id}
-    Redis-->>Reservation MS: Reservation data
-    Reservation MS-->>Booking MS: Reservation data
-    Booking MS->>Booking MS: Validate reservation
+    Redis-->>Reservation MS: Reservation data (with segments array)
+    Reservation MS-->>Booking MS: Reservation data (segments: [...])
+    Booking MS->>Booking MS: Validate reservation<br/>(active, not expired, ownership)
     Booking MS->>Database: BEGIN TRANSACTION
+    Booking MS->>Database: Validate all segments from reservation.segments
     Booking MS->>Database: Create/Find Passengers
     Booking MS->>Database: Create Booking record
     Booking MS->>Database: Create BookingPassengers
-    Booking MS->>Database: Create BookingSegments
-    Booking MS->>Database: Calculate & update total_amount
+    Booking MS->>Database: Create BookingSegments<br/>(from all reservation segments)
+    Booking MS->>Database: Calculate & update total_amount<br/>(from reservation.totalAmount)
     Booking MS->>Database: COMMIT TRANSACTION
     Database-->>Booking MS: Transaction committed
     Booking MS->>Reservation MS: CANCEL_RESERVATION message (TCP)

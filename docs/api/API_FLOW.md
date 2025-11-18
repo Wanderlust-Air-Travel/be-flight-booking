@@ -83,7 +83,7 @@
 
 | Method | Endpoint | Mô tả | Auth Required |
 |--------|----------|-------|---------------|
-| POST | `/bookings` | Tạo booking mới | Yes |
+| POST | `/bookings?reservationId=xxx` | Tạo booking từ reservation (REQUIRED) | Yes |
 | GET | `/bookings/:id/fare-details` | Lấy chi tiết fare đã chọn | Yes |
 | GET | `/bookings/:id/payment-info` | Lấy thông tin thanh toán | Yes |
 | PATCH | `/bookings/:id/passengers` | Cập nhật số lượng passengers | Yes |
@@ -184,21 +184,29 @@ HOẶC
      │
      │ 3. POST /reservations
      │    Authorization: Bearer <token>
-     │    { flightInstanceId, fareClassCode, numberOfPassengers, currencyCode }
+     │    { 
+     │      segments: [
+     │        { flightInstanceId, fareClassCode, segmentType: 'outbound' },
+     │        { flightInstanceId, fareClassCode, segmentType: 'inbound' }  // For round-trip
+     │      ],
+     │      numberOfPassengers,
+     │      currencyCode 
+     │    }
      ▼
 ┌─────────┐
-│Reservation│ → Validate flight & fare class
-│   MS    │ → Check available seats
-│ (Redis) │ → Calculate price
-└────┬────┘ → Store in Redis (TTL: 15 phút)
+│Reservation│ → Validate all segments (flight & fare class)
+│   MS    │ → Check available seats for each segment
+│ (Redis) │ → Calculate price for each segment
+│         │ → Validate round-trip (if has inbound, must have outbound)
+└────┬────┘ → Store in Redis (TTL: 15 phút) with segments array
      │
-     │ Response: { reservationId, reservationCode, totalAmount, expiresAt, ... }
+     │ Response: { reservationId, reservationCode, segments: [...], totalAmount, expiresAt, ... }
      ▼
 ┌─────────┐
-│ Client  │ → Lưu reservationId vào state
+│ Client  │ → Lưu reservationId (1 reservation cho cả round-trip)
 └────┬────┘ → Chuyển đến trang điền thông tin passenger
      │
-     │ 4. POST /bookings?reservationId=xxx
+     │ 4. POST /bookings?reservationId=xxx (REQUIRED)
      │    Authorization: Bearer <token>
      │    { passengers: [{ fullname, dob, gender, documentNumber, ... }],
      │      contactFullname, contactEmail, contactPhone, channel }
@@ -206,9 +214,10 @@ HOẶC
 ┌─────────┐
 │ Booking │ → Get reservation from Redis
 │   MS    │ → Validate reservation (active, not expired, ownership)
+│         │ → Validate all segments from reservation.segments
 │         │ → Create passengers (nếu chưa có)
-│         │ → Create booking & booking segments
-│         │ → Calculate total amount
+│         │ → Create booking & booking segments (from all reservation segments)
+│         │ → Calculate total amount (from reservation.totalAmount)
 │         │ → Generate PNR code
 └────┬────┘ → Auto-cancel reservation
      │
@@ -332,25 +341,39 @@ HOẶC
 │                   RESERVATION FLOW                          │
 └─────────────────────────────────────────────────────────────┘
 
-1. CREATE RESERVATION
+1. CREATE RESERVATION (Supports Multi-Segment for Round-Trip)
    POST /reservations
    Headers: Authorization: Bearer <token>
-   Body: { flightInstanceId, fareClassCode, numberOfPassengers, currencyCode }
+   Body: { 
+     segments: [
+       { flightInstanceId, fareClassCode, segmentType: 'outbound' },
+       { flightInstanceId, fareClassCode, segmentType: 'inbound' }  // Optional for round-trip
+     ],
+     numberOfPassengers,
+     currencyCode 
+   }
    
    → ReservationController.createReservation()
    → Extract userId from JWT token
    → Reservation Microservice (TCP port 4005)
-   → Validate:
-     - Flight instance exists
-     - Fare class exists
-     - Available seats >= numberOfPassengers
-   → Calculate price from fare class
+   → Validate all segments:
+     - Flight instance exists for each segment
+     - Fare class exists for each segment
+     - Available seats >= numberOfPassengers for each segment
+     - Round-trip validation: if has inbound, must have outbound
+   → Calculate price for each segment
    → Generate reservationId (UUID v7) & reservationCode (6 chars)
    → Store in Redis:
      Key: reservation:{reservationId}
-     Value: { reservationId, userId, flightInstanceId, fareClassCode, ... }
+     Value: { 
+       reservationId, 
+       userId, 
+       segments: [{ segmentId, flightInstanceId, fareClassCode, segmentType, baseFare, ... }, ...],
+       totalAmount,  // Sum of all segments
+       ...
+     }
      TTL: 900 seconds (15 phút)
-   → Return: { reservationId, reservationCode, totalAmount, expiresAt, ... }
+   → Return: { reservationId, reservationCode, segments: [...], totalAmount, expiresAt, ... }
 
 2. GET RESERVATION
    GET /reservations/:id
@@ -404,7 +427,7 @@ HOẶC
 │                     BOOKING FLOW                            │
 └─────────────────────────────────────────────────────────────┘
 
-1. CREATE BOOKING (FROM RESERVATION - Recommended)
+1. CREATE BOOKING (FROM RESERVATION - REQUIRED)
    POST /bookings?reservationId=xxx
    Headers: Authorization: Bearer <token>
    Body: { passengers: [...], contactFullname, contactEmail, contactPhone, channel }
@@ -419,28 +442,29 @@ HOẶC
      - Reservation belongs to user (userId match)
      - Number of passengers matches reservation
    → Start database transaction:
-     a. Create/Find passengers:
+     a. Validate all segments from reservation (supports multi-segment for round-trip):
+        - For each segment in reservation.segments:
+          - Validate flight instance exists
+          - Validate fare class exists
+          - Re-check availability
+     b. Create/Find passengers:
         - If passengerId provided → use existing
         - If not → create new passenger (link to user)
         - Auto-detect duplicate by documentNumber
-     b. Create booking record
-     c. Create booking segments (from reservation)
-     d. Create booking passengers
-     e. Calculate total amount
-     f. Generate PNR code (6 alphanumeric chars)
+     c. Create booking record
+     d. Create booking segments (from all reservation segments):
+        - For each segment in reservation.segments
+        - For each passenger
+        - Create BookingSegment with flight instance, fare class, pricing
+     e. Create booking passengers
+     f. Calculate total amount (from reservation.totalAmount)
+     g. Generate PNR code (6 alphanumeric chars)
    → Commit transaction
    → Auto-cancel reservation (via Reservation MS)
    → Return: { bookingId, pnrCode, totalAmount, status }
 
-2. CREATE BOOKING (DIRECT - Legacy)
-   POST /bookings
-   Headers: Authorization: Bearer <token>
-   Body: { currencyCode, passengers: [...], segments: [...], contactInfo, ... }
-   
-   → Similar to above, but:
-     - No reservation validation
-     - Segments must be provided in request body
-     - Frontend must manage state
+Note: Direct booking without reservation is deprecated and no longer supported.
+All bookings must be created from a reservation to ensure backend-managed state.
 
 3. GET FARE DETAILS
    GET /bookings/:id/fare-details

@@ -1,6 +1,37 @@
 # Changelog - API Documentation Updates
 
-## Ngày cập nhật: 2025-01-XX
+## Ngày cập nhật: 2025-01-XX (Latest)
+
+### Major Changes - Backend State Management Improvements
+
+#### 1. **Priority 1: Deprecate Legacy Booking Flow**
+- **Booking API**: `reservationId` query parameter bây giờ là **REQUIRED**
+- **Direct booking** (không có reservationId) đã deprecated và không còn được hỗ trợ
+- Tất cả bookings phải được tạo từ reservation để đảm bảo backend-managed state
+- Frontend chỉ cần gửi: `reservationId` + `passengers` + `contactInfo`
+- Backend tự động lấy tất cả flight info, pricing từ reservation
+
+#### 2. **Priority 2: Multi-Segment Reservation (Round-Trip Support)**
+- **Reservation API**: Hỗ trợ `segments[]` array thay vì single segment
+- **One-way booking**: 1 segment với `segmentType: 'outbound'`
+- **Round-trip booking**: 1 reservation với 2 segments (outbound + inbound)
+- Frontend chỉ cần lưu 1 `reservationId` cho cả round-trip
+- Backend validate tất cả segments cùng lúc, đảm bảo atomic operations
+- Response format: `{ segments: [{ segmentId, flightInstanceId, fareClassCode, segmentType, baseFare, ... }, ...], totalAmount, ... }`
+
+#### 3. **Updated Documentation**
+- `API_FLOW.md`: Cập nhật booking flow và reservation flow với multi-segment
+- `API_DOCS.md`: Cập nhật reservation và booking endpoints
+- `API_SEQUENCE_DIAGRAMS.md`: Cập nhật sequence diagrams với multi-segment flow
+- `STATE_MANAGEMENT_RECOMMENDATIONS.md`: Mark Priority 1 & 2 as completed
+
+#### 4. **Backward Compatibility**
+- `ReservationResponseDto` vẫn có các fields cũ (`flightInstanceId`, `fareClassCode`, etc.) nhưng marked as deprecated
+- `BookingService` vẫn support old format nếu reservation không có `segments` array
+
+---
+
+## Ngày cập nhật: 2025-01-XX (Previous)
 
 ### Đã hoàn thành
 

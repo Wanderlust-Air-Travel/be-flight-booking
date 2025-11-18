@@ -538,7 +538,7 @@ Hoặc:
 
 **POST** `/reservations`
 
-Tạo reservation để giữ chỗ tạm thời trước khi tạo booking. Backend lưu `flightInstanceId` và `fareClassCode` vào Redis với TTL 15 phút.
+Tạo reservation để giữ chỗ tạm thời trước khi tạo booking. Hỗ trợ multi-segment cho round-trip bookings. Backend lưu tất cả segments vào Redis với TTL 15 phút.
 
 **Authentication:** Required (JWT Bearer Token)
 
@@ -550,36 +550,69 @@ Authorization: Bearer <access_token>
 **Request Body:**
 ```json
 {
-  "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-  "fareClassCode": "YS",
+  "segments": [
+    {
+      "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+      "fareClassCode": "YS",
+      "segmentType": "outbound"
+    },
+    {
+      "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
+      "fareClassCode": "YS",
+      "segmentType": "inbound"
+    }
+  ],
   "numberOfPassengers": 1,
   "currencyCode": "VND"
 }
 ```
 
 **Validation:**
-- `flightInstanceId`: Required, UUID v7 (từ `/search/flights` response)
-- `fareClassCode`: Required, string (từ `/search/fare-options` response)
+- `segments`: Required, array of segments (minimum 1 segment)
+  - `flightInstanceId`: Required, UUID v7 (từ `/search/flights` response)
+  - `fareClassCode`: Required, string (từ `/search/fare-options` response)
+  - `segmentType`: Required, enum: `'outbound'` or `'inbound'`
 - `numberOfPassengers`: Required, integer >= 1
 - `currencyCode`: Optional, default "VND"
+
+**Round-Trip Validation:**
+- One-way: 1 segment với `segmentType: 'outbound'` (hợp lệ)
+- Round-trip: 2 segments với cả `outbound` và `inbound` (hợp lệ)
+- Invalid: có `inbound` mà không có `outbound` (sẽ throw error)
 
 **Response (201 Created):**
 ```json
 {
   "reservationId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
   "reservationCode": "ABC123",
-  "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-  "fareClassCode": "YS",
+  "segments": [
+    {
+      "segmentId": "019a8f4a-bb0e-7402-a0c4-27647b89dc73",
+      "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+      "fareClassCode": "YS",
+      "segmentType": "outbound",
+      "baseFare": 1577000,
+      "taxAmount": 0,
+      "feeAmount": 0
+    },
+    {
+      "segmentId": "019a8f4a-bb0e-7402-a0c4-27647b89dc74",
+      "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
+      "fareClassCode": "YS",
+      "segmentType": "inbound",
+      "baseFare": 1577000,
+      "taxAmount": 0,
+      "feeAmount": 0
+    }
+  ],
   "numberOfPassengers": 1,
-  "baseFare": 1577000,
-  "taxAmount": 0,
-  "feeAmount": 0,
-  "totalAmount": 1577000,
+  "totalAmount": 3154000,
   "currencyCode": "VND",
   "status": "active",
   "expiresAt": "2025-01-20T10:30:00Z",
   "ttl": 900,
-  "createdAt": "2025-01-20T10:15:00Z"
+  "createdAt": "2025-01-20T10:15:00Z",
+  "userId": "019a8f4a-bb0e-7402-a0c4-27647b89dc75"
 }
 ```
 
@@ -596,8 +629,10 @@ Authorization: Bearer <access_token>
 - Reservation được lưu trong **Redis** (không phải database)
 - Tự động expire sau 15 phút (900 seconds) - configurable qua `REDIS_RESERVATION_TTL`
 - `reservationCode` là 6 ký tự alphanumeric (unique)
-- Backend tự động validate availability và tính giá từ `fareClassCode`
-- `totalAmount` = `baseFare * numberOfPassengers + taxAmount + feeAmount`
+- Backend tự động validate availability và tính giá cho từng segment
+- `totalAmount` = sum of (baseFare + taxAmount + feeAmount) * numberOfPassengers for all segments
+- **Multi-segment support**: 1 reservation có thể chứa nhiều segments (outbound + inbound cho round-trip)
+- **Backward compatibility**: Response vẫn có các fields cũ (`flightInstanceId`, `fareClassCode`, etc.) nhưng marked as deprecated
 
 ---
 
@@ -836,9 +871,9 @@ Content-Type: application/json
 
 ### Create Booking (Tạo booking mới)
 
-**POST** `/bookings`
+**POST** `/bookings?reservationId=xxx`
 
-Tạo một booking mới với thông tin passengers, segments (flight instances), và fare classes.
+Tạo một booking mới từ reservation. **Reservation ID là REQUIRED**. Backend sẽ tự động lấy tất cả segments, pricing từ reservation để đảm bảo backend-managed state.
 
 **Authentication:** Required (JWT Bearer Token)
 
@@ -847,12 +882,10 @@ Tạo một booking mới với thông tin passengers, segments (flight instance
 Authorization: Bearer <access_token>
 ```
 
-**Query Parameters (Optional):**
-- `reservationId` (string, optional): Reservation ID (UUID v7) hoặc reservation code (6 alphanumeric). Nếu có, booking sẽ được tạo từ reservation (recommended flow). Backend sẽ tự động lấy `flightInstanceId`, `fareClassCode`, và pricing từ reservation.
+**Query Parameters (Required):**
+- `reservationId` (string, **required**): Reservation ID (UUID v7) hoặc reservation code (6 alphanumeric). Backend sẽ tự động lấy tất cả segments, `fareClassCode`, và pricing từ reservation.
 
 **Request Body:**
-
-**Option 1: Tạo booking từ Reservation (Recommended - Backend-managed State):**
 ```json
 POST /bookings?reservationId=019a8f4a-bb0e-7402-a0c4-27647b89dc71
 {
@@ -872,35 +905,11 @@ POST /bookings?reservationId=019a8f4a-bb0e-7402-a0c4-27647b89dc71
 }
 ```
 
-**Option 2: Tạo booking trực tiếp (Legacy Flow):**
-```json
-{
-  "currencyCode": "VND",
-  "contactFullname": "Nguyen Van A",
-  "contactEmail": "nguyenvana@example.com",
-  "contactPhone": "0912345678",
-  "channel": "web",
-  "passengers": [
-    {
-      "passengerType": "ADT",
-      "fullname": "Nguyen Van A",
-      "dob": "1990-01-15",
-      "gender": "Male",
-      "documentNumber": "001234567890"
-    }
-  ],
-  "segments": [
-    {
-      "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-      "fareClassCode": "YS",
-      "baseFare": 1577000,
-      "taxAmount": 0,
-      "feeAmount": 0,
-      "flightSeatId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71"
-    }
-  ]
-}
-```
+**Lưu ý quan trọng:**
+- **Direct booking (không có reservationId) đã deprecated và không còn được hỗ trợ**
+- Tất cả bookings phải được tạo từ reservation để đảm bảo backend-managed state
+- Backend tự động lấy tất cả segments từ reservation (hỗ trợ multi-segment cho round-trip)
+- Frontend chỉ cần gửi: `reservationId` + `passengers` + `contactInfo`
 
 **Hoặc sử dụng passenger đã có:**
 ```json
