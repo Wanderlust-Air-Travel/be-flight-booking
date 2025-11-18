@@ -38,14 +38,15 @@ export class BookingController {
 
 	@Post()
 	@ApiOperation({
-		summary: 'Create a new booking',
+		summary: 'Create a new booking from reservation',
 		description:
-			'Create a new flight booking with passengers and segments. Returns booking ID and PNR code. Requires JWT authentication. User ID is extracted from JWT token. Contact info is optional - if not provided, will use user info from database. If `reservationId` query parameter is provided, booking will be created from reservation (recommended flow).',
+			'Create a new flight booking from an existing reservation. This is the recommended and only supported flow. Reservation ID is REQUIRED. Returns booking ID and PNR code. Requires JWT authentication. User ID is extracted from JWT token. Contact info is optional - if not provided, will use user info from database. Direct booking without reservation is deprecated and will be removed in a future version.',
+		deprecated: false,
 	})
 	@ApiQuery({
 		name: 'reservationId',
-		required: false,
-		description: 'Reservation ID (UUID v7) or reservation code (6 alphanumeric). If provided, booking will be created from reservation.',
+		required: true,
+		description: 'Reservation ID (UUID v7) or reservation code (6 alphanumeric). REQUIRED. Booking must be created from a reservation.',
 		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
 	})
 	@ApiOkResponse({
@@ -53,91 +54,34 @@ export class BookingController {
 		type: CreateBookingResponseDto,
 	})
 	@ApiBadRequestResponse({
-		description: 'Invalid request parameters or validation failed',
+		description: 'Invalid request parameters, reservation not found, or validation failed',
 	})
-		async createBooking(
+	async createBooking(
 		@Req() req: Request & { user: { userId: string; email: string } },
-		@Query('reservationId') reservationId?: string,
-		@Body() dto?: CreateBookingDto | CreateBookingFromReservationDto,
+		@Query('reservationId') reservationId: string,
+		@Body() dto: CreateBookingFromReservationDto,
 	): Promise<CreateBookingResponseDto> {
 		try {
 			// Extract userId from JWT token
 			const userId = req.user.userId;
 
-			// If reservationId is provided, create booking from reservation (recommended flow)
-			if (reservationId) {
-				if (!dto) {
-					throw new Error('Request body is required when creating booking from reservation');
-				}
-
-				const reservationDto = dto as CreateBookingFromReservationDto;
-				return await firstValueFrom(
-					this.client.send<CreateBookingResponseDto>(BOOKING_MS.PATTERN.CREATE_BOOKING_FROM_RESERVATION, {
-						reservationId,
-						userId,
-						dto: reservationDto,
-					}),
-				);
+			// Validate reservationId is provided
+			if (!reservationId) {
+				throw new Error('reservationId query parameter is required. Booking must be created from a reservation.');
 			}
 
-			// Otherwise, create booking directly (legacy flow)
+			// Validate request body
 			if (!dto) {
-				throw new Error('Request body is required');
+				throw new Error('Request body is required when creating booking from reservation');
 			}
 
-			const bookingDto = dto as CreateBookingDto;
-
-			// Get user info from database
-			const user = await this.userRepo.findOne({ where: { user_id: userId } });
-			if (!user) {
-				throw new Error('User not found');
-			}
-
-			// Determine contact info:
-			// 1. If provided in body → use it (allow override)
-			// 2. If not provided and only 1 passenger → try to use passenger's contact info (if passenger belongs to user)
-			// 3. Otherwise → use user's contact info (booking contact person)
-			let contactFullname = bookingDto.contactFullname;
-			let contactEmail = bookingDto.contactEmail;
-			let contactPhone = bookingDto.contactPhone;
-
-			if (!contactFullname || !contactEmail || !contactPhone) {
-				// If only 1 passenger and passenger belongs to this user, use passenger info
-				if (bookingDto.passengers && bookingDto.passengers.length === 1 && bookingDto.passengers[0].passengerId) {
-					const passenger = await this.passengerRepo.findOne({
-						where: { passenger_id: bookingDto.passengers[0].passengerId },
-					});
-
-					// If passenger exists and belongs to this user, use passenger's name
-					// Note: Passenger doesn't have email/phone, so we'll use user's email/phone
-					if (passenger && passenger.user_id === userId) {
-						contactFullname = contactFullname || passenger.fullname;
-						contactEmail = contactEmail || user.email;
-						contactPhone = contactPhone || user.phone || '';
-					} else {
-						// Passenger doesn't belong to user or not found, use user info
-						contactFullname = contactFullname || user.fullname;
-						contactEmail = contactEmail || user.email;
-						contactPhone = contactPhone || user.phone || '';
-					}
-				} else {
-					// Multiple passengers or no passengerId, use user info (booking contact person)
-					contactFullname = contactFullname || user.fullname;
-					contactEmail = contactEmail || user.email;
-					contactPhone = contactPhone || user.phone || '';
-				}
-			}
-
-			const finalDto = {
-				...bookingDto,
-				userId: userId, // Always use userId from JWT
-				contactFullname,
-				contactEmail,
-				contactPhone,
-			};
-
+			// Create booking from reservation (only supported flow)
 			return await firstValueFrom(
-				this.client.send<CreateBookingResponseDto>(BOOKING_MS.PATTERN.CREATE_BOOKING, finalDto),
+				this.client.send<CreateBookingResponseDto>(BOOKING_MS.PATTERN.CREATE_BOOKING_FROM_RESERVATION, {
+					reservationId,
+					userId,
+					dto,
+				}),
 			);
 		} catch (error: any) {
 			console.error('Create booking error:', error);

@@ -73,52 +73,99 @@ export class ReservationService {
 	}
 
 	/**
-	 * Create reservation (store in Redis)
+	 * Validate availability for a flight segment
 	 */
-	async createReservation(userId: string | null, dto: CreateReservationDto): Promise<ReservationResponseDto> {
-		// Validate flight instance
-		const flightInstance = await this.flightInstanceRepo.findOne({
-			where: { flight_instance_id: dto.flightInstanceId },
-			relations: ['aircraft', 'aircraft.aircraft_type'],
-		});
-		if (!flightInstance) {
-			throw new NotFoundException(`Flight instance ${dto.flightInstanceId} not found`);
-		}
-
-		// Validate fare class
-		const fareClass = await this.fareClassRepo.findOne({
-			where: { fare_class_code: dto.fareClassCode },
-			relations: ['cabin_class'],
-		});
-		if (!fareClass) {
-			throw new NotFoundException(`Fare class ${dto.fareClassCode} not found`);
-		}
-
-		// Determine cabin type
-		const cabinType =
-			fareClass.cabin_class.cabin_class_code === 'Y' ? CabinType.ECONOMY : CabinType.BUSINESS;
-
-		// Calculate price
-		const baseFare = this.calculateFarePrice(fareClass.fare_class_code, cabinType);
-		const taxAmount = 0;
-		const feeAmount = 0;
-		const totalAmount = baseFare * dto.numberOfPassengers + taxAmount + feeAmount;
-
-		// Validate availability
+	private async validateAvailability(
+		flightInstanceId: string,
+		fareClass: FareClass,
+		numberOfPassengers: number,
+	): Promise<void> {
 		const availableSeats = await this.flightSeatRepo
 			.createQueryBuilder('seat')
 			.innerJoin('seat.seat_config', 'config')
 			.innerJoin('config.cabin_class', 'cabin')
-			.where('seat.flight_instance_id = :instanceId', { instanceId: dto.flightInstanceId })
+			.where('seat.flight_instance_id = :instanceId', { instanceId: flightInstanceId })
 			.andWhere('seat.is_available = :available', { available: true })
 			.andWhere('cabin.cabin_class_code = :cabinCode', {
 				cabinCode: fareClass.cabin_class.cabin_class_code,
 			})
 			.getCount();
 
-		if (availableSeats < dto.numberOfPassengers) {
+		if (availableSeats < numberOfPassengers) {
 			throw new BadRequestException(
-				`Not enough available seats. Available: ${availableSeats}, Required: ${dto.numberOfPassengers}`,
+				`Not enough available seats for flight ${flightInstanceId}. Available: ${availableSeats}, Required: ${numberOfPassengers}`,
+			);
+		}
+	}
+
+	/**
+	 * Create reservation (store in Redis)
+	 * Supports multiple segments for round-trip bookings
+	 */
+	async createReservation(userId: string | null, dto: CreateReservationDto): Promise<ReservationResponseDto> {
+		// Validate all segments
+		const validatedSegments: Array<{
+			segmentId: string;
+			flightInstanceId: string;
+			fareClassCode: string;
+			segmentType: 'outbound' | 'inbound';
+			baseFare: number;
+			taxAmount: number;
+			feeAmount: number;
+		}> = [];
+		let totalAmount = 0;
+
+		for (const segmentDto of dto.segments) {
+			// Validate flight instance
+			const flightInstance = await this.flightInstanceRepo.findOne({
+				where: { flight_instance_id: segmentDto.flightInstanceId },
+				relations: ['aircraft', 'aircraft.aircraft_type'],
+			});
+			if (!flightInstance) {
+				throw new NotFoundException(`Flight instance ${segmentDto.flightInstanceId} not found`);
+			}
+
+			// Validate fare class
+			const fareClass = await this.fareClassRepo.findOne({
+				where: { fare_class_code: segmentDto.fareClassCode },
+				relations: ['cabin_class'],
+			});
+			if (!fareClass) {
+				throw new NotFoundException(`Fare class ${segmentDto.fareClassCode} not found`);
+			}
+
+			// Determine cabin type
+			const cabinType =
+				fareClass.cabin_class.cabin_class_code === 'Y' ? CabinType.ECONOMY : CabinType.BUSINESS;
+
+			// Calculate price
+			const baseFare = this.calculateFarePrice(fareClass.fare_class_code, cabinType);
+			const taxAmount = 0;
+			const feeAmount = 0;
+			const segmentTotal = (baseFare + taxAmount + feeAmount) * dto.numberOfPassengers;
+
+			// Validate availability
+			await this.validateAvailability(segmentDto.flightInstanceId, fareClass, dto.numberOfPassengers);
+
+			validatedSegments.push({
+				segmentId: uuidv7(),
+				flightInstanceId: segmentDto.flightInstanceId,
+				fareClassCode: segmentDto.fareClassCode,
+				segmentType: segmentDto.segmentType,
+				baseFare,
+				taxAmount,
+				feeAmount,
+			});
+
+			totalAmount += segmentTotal;
+		}
+
+		// Validate round-trip: if has inbound, must have outbound (one-way with only outbound is valid)
+		const hasOutbound = validatedSegments.some((s) => s.segmentType === 'outbound');
+		const hasInbound = validatedSegments.some((s) => s.segmentType === 'inbound');
+		if (hasInbound && !hasOutbound) {
+			throw new BadRequestException(
+				'Round-trip reservation must include both outbound and inbound segments. Please add an outbound segment.',
 			);
 		}
 
@@ -149,12 +196,8 @@ export class ReservationService {
 		const reservation: ReservationResponseDto = {
 			reservationId,
 			reservationCode,
-			flightInstanceId: dto.flightInstanceId,
-			fareClassCode: dto.fareClassCode,
+			segments: validatedSegments,
 			numberOfPassengers: dto.numberOfPassengers,
-			baseFare,
-			taxAmount,
-			feeAmount,
 			totalAmount,
 			currencyCode,
 			status: 'active',
@@ -162,6 +205,12 @@ export class ReservationService {
 			ttl: this.reservationTtl,
 			createdAt: now,
 			userId: userId || null, // Store userId for ownership validation
+			// Backward compatibility fields
+			flightInstanceId: validatedSegments[0]?.flightInstanceId,
+			fareClassCode: validatedSegments[0]?.fareClassCode,
+			baseFare: validatedSegments[0]?.baseFare,
+			taxAmount: validatedSegments[0]?.taxAmount,
+			feeAmount: validatedSegments[0]?.feeAmount,
 		};
 
 		// Store in Redis with TTL

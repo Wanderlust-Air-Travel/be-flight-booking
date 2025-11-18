@@ -644,46 +644,77 @@ export class BookingService {
 				throw new NotFoundException(`Currency ${reservation.currencyCode} not found`);
 			}
 
-			// Step 8: Validate flight instance and fare class from reservation
-			const flightInstance = await queryRunner.manager.findOne(FlightInstance, {
-				where: { flight_instance_id: reservation.flightInstanceId },
-				relations: ['aircraft', 'aircraft.aircraft_type'],
-			});
-			if (!flightInstance) {
-				throw new NotFoundException(`Flight instance ${reservation.flightInstanceId} not found`);
-			}
+			// Step 8: Validate all segments from reservation (supports multi-segment for round-trip)
+			const validatedSegments: Array<{
+				flightInstance: FlightInstance;
+				fareClass: FareClass;
+				baseFare: number;
+				taxAmount: number;
+				feeAmount: number;
+			}> = [];
 
-			const fareClass = await queryRunner.manager.findOne(FareClass, {
-				where: { fare_class_code: reservation.fareClassCode },
-				relations: ['cabin_class'],
-			});
-			if (!fareClass) {
-				throw new NotFoundException(`Fare class ${reservation.fareClassCode} not found`);
-			}
+			// Use segments array if available (new format), otherwise fallback to old format for backward compatibility
+			const segments = reservation.segments || [
+				{
+					segmentId: uuidv7(),
+					flightInstanceId: reservation.flightInstanceId!,
+					fareClassCode: reservation.fareClassCode!,
+					segmentType: 'outbound' as const,
+					baseFare: reservation.baseFare || 0,
+					taxAmount: reservation.taxAmount || 0,
+					feeAmount: reservation.feeAmount || 0,
+				},
+			];
 
-			// Step 9: Validate availability (re-check seats)
-			const availableSeats = await queryRunner.manager
-				.createQueryBuilder(FlightSeat, 'seat')
-				.innerJoin('seat.seat_config', 'config')
-				.innerJoin('config.cabin_class', 'cabin')
-				.where('seat.flight_instance_id = :instanceId', { instanceId: reservation.flightInstanceId })
-				.andWhere('seat.is_available = :available', { available: true })
-				.andWhere('cabin.cabin_class_code = :cabinCode', {
-					cabinCode: fareClass.cabin_class.cabin_class_code,
-				})
-				.getCount();
+			for (const segment of segments) {
+				const flightInstance = await queryRunner.manager.findOne(FlightInstance, {
+					where: { flight_instance_id: segment.flightInstanceId },
+					relations: ['aircraft', 'aircraft.aircraft_type'],
+				});
+				if (!flightInstance) {
+					throw new NotFoundException(`Flight instance ${segment.flightInstanceId} not found`);
+				}
 
-			if (availableSeats < reservation.numberOfPassengers) {
-				throw new BadRequestException(
-					`Not enough available seats for flight ${reservation.flightInstanceId}. Available: ${availableSeats}, Required: ${reservation.numberOfPassengers}`,
-				);
+				const fareClass = await queryRunner.manager.findOne(FareClass, {
+					where: { fare_class_code: segment.fareClassCode },
+					relations: ['cabin_class'],
+				});
+				if (!fareClass) {
+					throw new NotFoundException(`Fare class ${segment.fareClassCode} not found`);
+				}
+
+				// Step 9: Validate availability (re-check seats) for each segment
+				const availableSeats = await queryRunner.manager
+					.createQueryBuilder(FlightSeat, 'seat')
+					.innerJoin('seat.seat_config', 'config')
+					.innerJoin('config.cabin_class', 'cabin')
+					.where('seat.flight_instance_id = :instanceId', { instanceId: segment.flightInstanceId })
+					.andWhere('seat.is_available = :available', { available: true })
+					.andWhere('cabin.cabin_class_code = :cabinCode', {
+						cabinCode: fareClass.cabin_class.cabin_class_code,
+					})
+					.getCount();
+
+				if (availableSeats < reservation.numberOfPassengers) {
+					throw new BadRequestException(
+						`Not enough available seats for flight ${segment.flightInstanceId}. Available: ${availableSeats}, Required: ${reservation.numberOfPassengers}`,
+					);
+				}
+
+				validatedSegments.push({
+					flightInstance,
+					fareClass,
+					baseFare: segment.baseFare,
+					taxAmount: segment.taxAmount,
+					feeAmount: segment.feeAmount,
+				});
 			}
 
 			// Step 10: Generate unique PNR
 			const pnrCode = await this.generateUniquePNR();
 
-			// Step 11: Calculate total amount from reservation (per passenger * number of passengers)
-			const totalAmount = reservation.totalAmount; // Reservation already has total amount
+			// Step 11: Calculate total amount from reservation (already calculated in reservation)
+			const totalAmount = reservation.totalAmount;
 
 			// Step 12: Create booking
 			const booking = this.bookingRepo.create({
@@ -764,22 +795,24 @@ export class BookingService {
 				bookingPassengers.push(savedBookingPassenger);
 			}
 
-			// Step 14: Create booking segments from reservation
-			// For each passenger, create a segment with the same flight and fare class
-			for (const bookingPassenger of bookingPassengers) {
-				const bookingSegment = this.bookingSegmentRepo.create({
-					booking_segment_id: uuidv7(),
-					booking: savedBooking,
-					booking_passenger: bookingPassenger,
-					flight_instance: flightInstance,
-					fare_class: fareClass,
-					base_fare: reservation.baseFare,
-					tax_amount: reservation.taxAmount,
-					fee_amount: reservation.feeAmount,
-					status: 'booked',
-					flight_seat: null, // Seat can be assigned later
-				});
-				await queryRunner.manager.save(bookingSegment);
+			// Step 14: Create booking segments from reservation (supports multiple segments)
+			// For each segment in reservation, create booking segments for all passengers
+			for (const validatedSegment of validatedSegments) {
+				for (const bookingPassenger of bookingPassengers) {
+					const bookingSegment = this.bookingSegmentRepo.create({
+						booking_segment_id: uuidv7(),
+						booking: savedBooking,
+						booking_passenger: bookingPassenger,
+						flight_instance: validatedSegment.flightInstance,
+						fare_class: validatedSegment.fareClass,
+						base_fare: validatedSegment.baseFare,
+						tax_amount: validatedSegment.taxAmount,
+						fee_amount: validatedSegment.feeAmount,
+						status: 'booked',
+						flight_seat: null, // Seat can be assigned later
+					});
+					await queryRunner.manager.save(bookingSegment);
+				}
 			}
 
 			// Step 15: Cancel reservation after successful booking creation
