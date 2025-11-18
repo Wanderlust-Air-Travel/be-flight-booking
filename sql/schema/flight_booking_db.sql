@@ -445,6 +445,33 @@ CREATE TABLE Payments (
 );
 GO
 
+-- Reservations (Hybrid: Database + Redis)
+CREATE TABLE Reservations (
+    reservation_id UNIQUEIDENTIFIER NOT NULL 
+        CONSTRAINT PK_Reservations PRIMARY KEY,
+        -- Note: Application code must generate UUID v7 for reservation_id
+    reservation_code VARCHAR(6) NOT NULL UNIQUE,
+    user_id UNIQUEIDENTIFIER NULL,
+    
+    -- Segments stored as JSON (supports multi-segment for round-trip)
+    segments_json NVARCHAR(MAX) NOT NULL, -- JSON array of segments
+    
+    number_of_passengers INT NOT NULL,
+    total_amount DECIMAL(12,2) NOT NULL,
+    currency_code CHAR(3) NOT NULL,
+    
+    status VARCHAR(20) NOT NULL DEFAULT 'pending', -- pending/expired/converted/cancelled
+    expires_at DATETIME2 NOT NULL,
+    created_at DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+    converted_at DATETIME2 NULL, -- When booking is created from this reservation
+    
+    CONSTRAINT FK_Reservations_Users 
+        FOREIGN KEY (user_id) REFERENCES Users(user_id),
+    CONSTRAINT FK_Reservations_Currencies 
+        FOREIGN KEY (currency_code) REFERENCES Currencies(currency_code)
+);
+GO
+
 /* =========================================================
    INDEXES (GỢI Ý)
    ========================================================= */
@@ -462,6 +489,18 @@ CREATE INDEX IX_BookingSegments_FlightInstance
 
 CREATE INDEX IX_Payments_BookingId
     ON Payments(booking_id);
+
+CREATE INDEX IX_Reservations_UserId
+    ON Reservations(user_id);
+
+CREATE INDEX IX_Reservations_Code
+    ON Reservations(reservation_code);
+
+CREATE INDEX IX_Reservations_Status
+    ON Reservations(status);
+
+CREATE INDEX IX_Reservations_ExpiresAt
+    ON Reservations(expires_at);
 GO
 
 /* =========================================================

@@ -1,6 +1,7 @@
 import { Column, CreateDateColumn, Entity, OneToMany, PrimaryColumn, UpdateDateColumn } from "typeorm";
 import { Passenger } from "src/shared/entities/passenger/passenger.entity";
 import { Booking } from "src/shared/entities/booking/booking.entity";
+import { Reservation } from "src/shared/entities/reservation/reservation.entity";
 
 @Entity({ name: 'Users', schema: 'dbo' })
 export class User {
@@ -47,4 +48,8 @@ export class User {
 	// 1 User -> N Bookings (nullable user_id in Bookings)
 	@OneToMany(() => Booking, (b) => b.user, { cascade: false })
 	bookings: Booking[];
+
+	// 1 User -> N Reservations (nullable user_id in Reservations)
+	@OneToMany(() => Reservation, (r) => r.user, { cascade: false })
+	reservations: Reservation[];
 }

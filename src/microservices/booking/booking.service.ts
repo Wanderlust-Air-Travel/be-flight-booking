@@ -809,18 +809,21 @@ export class BookingService {
 				}
 			}
 
-			// Step 15: Cancel reservation after successful booking creation
+			// Step 15: Mark reservation as converted after successful booking creation
 			try {
 				await firstValueFrom(
-					this.reservationClient.send<{ success: boolean; message: string }>(
-						RESERVATION_MS.PATTERN.CANCEL_RESERVATION,
+					this.reservationClient.send<void>(
+						RESERVATION_MS.PATTERN.MARK_RESERVATION_AS_CONVERTED,
 						reservation.reservationId,
 					),
 				);
 			} catch (error: any) {
 				// Log error but don't fail the booking creation
-				console.error(`Failed to cancel reservation ${reservation.reservationId} after booking creation:`, error);
-				// Continue with booking creation even if reservation cancellation fails
+				console.error(
+					`Failed to mark reservation ${reservation.reservationId} as converted after booking creation:`,
+					error,
+				);
+				// Continue with booking creation even if reservation update fails
 			}
 
 			// Commit transaction

@@ -46,7 +46,7 @@ sequenceDiagram
     Search MS-->>API Gateway: [{fareClassCode, price, ...}]
     API Gateway-->>Client: 200 OK<br/>{fare options}
 
-    Note over Client,Redis: Phase 4: Create Reservation (Multi-Segment Support)
+    Note over Client,Redis: Phase 4: Create Reservation (Multi-Segment Support - Hybrid: Database + Redis)
     Client->>API Gateway: POST /reservations<br/>Authorization: Bearer <token><br/>{segments: [{flightInstanceId, fareClassCode, segmentType}, ...], ...}
     API Gateway->>API Gateway: Extract userId from JWT
     API Gateway->>Reservation MS: CREATE_RESERVATION message (TCP)
@@ -54,20 +54,28 @@ sequenceDiagram
     Database-->>Reservation MS: Validation result for each segment
     Reservation MS->>Reservation MS: Calculate price for each segment<br/>Validate round-trip (if has inbound, must have outbound)
     Reservation MS->>Reservation MS: Generate reservationId & code
-    Reservation MS->>Redis: SET reservation:{id}<br/>TTL: 900 seconds<br/>{segments: [...], totalAmount, ...}
+    Reservation MS->>Database: INSERT INTO Reservations<br/>(status: 'pending', segments_json, ...)
+    Database-->>Reservation MS: Reservation saved
+    Reservation MS->>Redis: SET reservation:{id}<br/>TTL: 900 seconds<br/>{segments: [...], totalAmount, status: 'active', ...}
     Redis-->>Reservation MS: OK
     Reservation MS-->>API Gateway: {reservationId, reservationCode, segments: [...], totalAmount, ...}
     API Gateway-->>Client: 201 Created<br/>{reservationId, segments: [...], ...}
 
-    Note over Client,Redis: Phase 5: Create Booking (From Reservation - REQUIRED)
+    Note over Client,Redis: Phase 5: Create Booking (From Reservation - REQUIRED - Hybrid Approach)
     Client->>API Gateway: POST /bookings?reservationId=xxx<br/>Authorization: Bearer <token><br/>{passengers: [...], contactInfo}
     API Gateway->>API Gateway: Extract userId from JWT<br/>Validate reservationId is provided
     API Gateway->>Booking MS: CREATE_BOOKING_FROM_RESERVATION message (TCP)
     Booking MS->>Reservation MS: GET_RESERVATION message (TCP)
     Reservation MS->>Redis: GET reservation:{id}
-    Redis-->>Reservation MS: Reservation data (with segments array)
+    alt Found in Redis
+        Redis-->>Reservation MS: Reservation data (with segments array)
+    else Not found in Redis (fallback to Database)
+        Reservation MS->>Database: SELECT FROM Reservations<br/>WHERE reservation_id = :id
+        Database-->>Reservation MS: Reservation entity
+        Reservation MS->>Reservation MS: Convert entity to DTO<br/>Re-cache to Redis if active
+    end
     Reservation MS-->>Booking MS: Reservation data (segments: [...])
-    Booking MS->>Booking MS: Validate reservation<br/>(active, not expired, ownership)
+    Booking MS->>Booking MS: Validate reservation<br/>(active/pending, not expired, ownership)
     Booking MS->>Database: BEGIN TRANSACTION
     Booking MS->>Database: Validate all segments from reservation.segments
     Booking MS->>Database: Create/Find Passengers
@@ -77,10 +85,12 @@ sequenceDiagram
     Booking MS->>Database: Calculate & update total_amount<br/>(from reservation.totalAmount)
     Booking MS->>Database: COMMIT TRANSACTION
     Database-->>Booking MS: Transaction committed
-    Booking MS->>Reservation MS: CANCEL_RESERVATION message (TCP)
+    Booking MS->>Reservation MS: MARK_RESERVATION_AS_CONVERTED message (TCP)
+    Reservation MS->>Database: UPDATE Reservations<br/>SET status = 'converted', converted_at = now
+    Database-->>Reservation MS: Updated
     Reservation MS->>Redis: DEL reservation:{id}
     Redis-->>Reservation MS: OK
-    Reservation MS-->>Booking MS: Reservation cancelled
+    Reservation MS-->>Booking MS: Reservation marked as converted
     Booking MS-->>API Gateway: {bookingId, pnrCode, totalAmount}
     API Gateway-->>Client: 201 Created<br/>{bookingId, pnrCode, ...}
 
@@ -184,28 +194,37 @@ sequenceDiagram
     end
 
     rect rgb(255, 248, 240)
-        Note over API Gateway,Reservation MS: Request-Response with Redis
+        Note over API Gateway,Reservation MS: Request-Response with Hybrid (Database + Redis)
         API Gateway->>Reservation MS: CREATE_RESERVATION message
-        Reservation MS->>Database: Validate
+        Reservation MS->>Database: Validate segments
         Database-->>Reservation MS: Validation
-        Reservation MS->>Redis: SET reservation:{id}
+        Reservation MS->>Database: INSERT INTO Reservations (persistent)
+        Database-->>Reservation MS: Saved
+        Reservation MS->>Redis: SET reservation:{id} (cache, TTL)
         Redis-->>Reservation MS: OK
         Reservation MS-->>API Gateway: Response
     end
 
     rect rgb(248, 255, 248)
-        Note over Booking MS,Reservation MS: Inter-Service Communication
+        Note over Booking MS,Reservation MS: Inter-Service Communication (Hybrid Approach)
         API Gateway->>Booking MS: CREATE_BOOKING message
         Booking MS->>Reservation MS: GET_RESERVATION message
         Reservation MS->>Redis: GET reservation:{id}
-        Redis-->>Reservation MS: Data
+        alt Found in Redis
+            Redis-->>Reservation MS: Data
+        else Not found (fallback)
+            Reservation MS->>Database: SELECT FROM Reservations
+            Database-->>Reservation MS: Reservation entity
+            Reservation MS->>Redis: Re-cache if active
+        end
         Reservation MS-->>Booking MS: Reservation data
         Booking MS->>Database: Transaction
         Database-->>Booking MS: Result
-        Booking MS->>Reservation MS: CANCEL_RESERVATION message
+        Booking MS->>Reservation MS: MARK_RESERVATION_AS_CONVERTED message
+        Reservation MS->>Database: UPDATE status = 'converted'
         Reservation MS->>Redis: DEL reservation:{id}
         Redis-->>Reservation MS: OK
-        Reservation MS-->>Booking MS: Cancelled
+        Reservation MS-->>Booking MS: Marked as converted
         Booking MS-->>API Gateway: Response
     end
 
@@ -398,7 +417,11 @@ sequenceDiagram
 
 2. **Transaction Safety**: Booking creation sử dụng database transaction để đảm bảo tính nhất quán dữ liệu.
 
-3. **Redis TTL**: Reservations được lưu trong Redis với TTL 15 phút (900 seconds), tự động expire.
+3. **Reservation Storage (Hybrid Approach)**: 
+   - **Database**: Persistent storage, audit trail, analytics (status: `pending`, `expired`, `converted`, `cancelled`)
+   - **Redis**: Fast cache với TTL 15 phút (900 seconds), tự động expire
+   - **Get Flow**: Try Redis first (fast) → Fallback to Database → Re-cache if needed
+   - **Recovery**: Nếu Redis down, vẫn có thể lấy reservation từ Database
 
 4. **Error Handling**: Tất cả các layers đều có error handling và trả về appropriate HTTP status codes.
 

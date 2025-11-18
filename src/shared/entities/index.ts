@@ -30,6 +30,9 @@ export * from './booking/booking-segment.entity';
 export * from './booking/booking-passenger.entity';
 export * from './ticket/ticket.entity';
 
+// Reservation
+export * from './reservation/reservation.entity';
+
 // Payment & Fare
 export * from './payment/payment.entity';
 export * from './payment/payment-method.entity';

@@ -82,5 +82,16 @@ export class ReservationMsController {
 			throw error;
 		}
 	}
+
+	@MessagePattern(RESERVATION_MS.PATTERN.MARK_RESERVATION_AS_CONVERTED)
+	async handleMarkReservationAsConverted(reservationId: string): Promise<void> {
+		try {
+			this.logger.log(`Mark reservation as converted: ${reservationId}`);
+			await this.reservationService.markReservationAsConverted(reservationId);
+		} catch (error: any) {
+			this.logger.error('Mark reservation as converted error:', error);
+			throw error;
+		}
+	}
 }
 

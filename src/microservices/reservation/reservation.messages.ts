@@ -7,6 +7,7 @@ export const RESERVATION_MS = {
 		CANCEL_RESERVATION: 'reservation.cancel',
 		LIST_RESERVATIONS: 'reservation.list',
 		EXTEND_RESERVATION: 'reservation.extend',
+		MARK_RESERVATION_AS_CONVERTED: 'reservation.mark-as-converted',
 	},
 } as const;
 

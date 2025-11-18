@@ -133,6 +133,21 @@ erDiagram
         NVARCHAR name
     }
 
+    %% ============ RESERVATIONS (Hybrid: Database + Redis) ============
+    Reservations {
+        UNIQUEIDENTIFIER reservation_id PK
+        VARCHAR reservation_code
+        UNIQUEIDENTIFIER user_id FK
+        NVARCHAR segments_json
+        INT number_of_passengers
+        DECIMAL total_amount
+        CHAR currency_code FK
+        VARCHAR status
+        DATETIME2 expires_at
+        DATETIME2 created_at
+        DATETIME2 converted_at
+    }
+
     %% ============ BOOKINGS / SEGMENTS / TICKETS / PAYMENTS ============
     Bookings {
         UNIQUEIDENTIFIER booking_id PK
@@ -192,9 +207,10 @@ erDiagram
 
     %% ============ RELATIONSHIPS ============
 
-    %% Users & Passengers & Bookings
-    Users ||--o{ Passengers : "user_id"
-    Users ||--o{ Bookings   : "user_id"
+    %% Users & Passengers & Reservations & Bookings
+    Users ||--o{ Passengers   : "user_id"
+    Users ||--o{ Reservations : "user_id"
+    Users ||--o{ Bookings     : "user_id"
 
     %% Airports & Routes
     Airports ||--o{ Routes : "origin/destination"
@@ -223,8 +239,9 @@ erDiagram
     FlightInstances    ||--o{ BookingSegments    : "flight_instance_id"
 
     %% Currency / PaymentMethods
-    Currencies     ||--o{ Bookings : "currency_code"
-    Currencies     ||--o{ Payments : "currency_code"
+    Currencies     ||--o{ Reservations : "currency_code"
+    Currencies     ||--o{ Bookings     : "currency_code"
+    Currencies     ||--o{ Payments     : "currency_code"
     PaymentMethods ||--o{ Payments : "payment_method_code"
 
     %% Bookings / BookingPassengers / Segments / Tickets / Payments
@@ -268,6 +285,15 @@ erDiagram
   - Currencies: mã tiền (VND/USD…).
   - PaymentMethods: từ điển phương thức thanh toán (Card/BankTransfer/Momo…).
 
+- **Reservations (Hybrid: Database + Redis)**
+  - Reservations: Giữ chỗ tạm thời trước khi tạo booking (Hybrid Approach).
+    - Database: Persistent storage, audit trail, analytics (status: `pending`, `expired`, `converted`, `cancelled`).
+    - Redis: Fast cache với TTL 15 phút (auto cleanup).
+    - `reservation_code` unique (6 alphanumeric), `segments_json` lưu multi-segment (round-trip support).
+    - Status tracking: `pending` → `converted` (khi tạo booking) hoặc `expired`/`cancelled`.
+    - `converted_at`: Timestamp khi booking được tạo từ reservation này.
+    - Get flow: Try Redis first (fast) → Fallback to Database → Re-cache if needed.
+
 - **Commerce (Aggregate root: Booking)**
   - Bookings: PNR unique, `user_id` nullable, tổng tiền/trạng thái + thông tin liên hệ.
   - BookingPassengers: mapping Passenger vào Booking; unique (booking_id, passenger_id).
@@ -276,7 +302,7 @@ erDiagram
   - Payments: thanh toán cho Booking (số tiền, tiền tệ, phương thức, trạng thái, transaction_ref).
 
 - **Ràng buộc chính**
-  - Unique: Routes(origin,destination), FlightSchedules(flight_number,from,to), FlightInstances(flight_number,flight_date), FlightSeats(instance,seat_number), BookingPassengers(booking,passenger), Bookings.pnr_code, Tickets.ticket_number.
+  - Unique: Routes(origin,destination), FlightSchedules(flight_number,from,to), FlightInstances(flight_number,flight_date), FlightSeats(instance,seat_number), BookingPassengers(booking,passenger), Reservations.reservation_code, Bookings.pnr_code, Tickets.ticket_number.
   - FK với cascade hợp lý (xóa Booking dọn dẹp chi tiết).
 
 - **Seat availability (logic DB)**

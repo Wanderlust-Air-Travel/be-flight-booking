@@ -42,7 +42,8 @@
 ┌──────────────────────────────────────────────────┐
 │         Redis (Port 6379)                        │
 │  ┌──────────────────────────────────────────┐   │
-│  │      Reservations (TTL: 15 phút)         │   │
+│  │  Reservations Cache (TTL: 15 phút)       │   │
+│  │  Hybrid: Database (persistent) + Redis   │   │
 │  └──────────────────────────────────────────┘   │
 └──────────────────────────────────────────────────┘
 ```
@@ -363,60 +364,80 @@ HOẶC
      - Round-trip validation: if has inbound, must have outbound
    → Calculate price for each segment
    → Generate reservationId (UUID v7) & reservationCode (6 chars)
-   → Store in Redis:
-     Key: reservation:{reservationId}
-     Value: { 
-       reservationId, 
-       userId, 
-       segments: [{ segmentId, flightInstanceId, fareClassCode, segmentType, baseFare, ... }, ...],
-       totalAmount,  // Sum of all segments
-       ...
-     }
-     TTL: 900 seconds (15 phút)
+   → **Hybrid Storage (Database + Redis):**
+     a. Save to Database (persistent):
+        - Table: Reservations
+        - Status: 'pending'
+        - Fields: reservation_id, reservation_code, user_id, segments_json, total_amount, expires_at, ...
+     b. Save to Redis (cache):
+        Key: reservation:{reservationId}
+        Value: { 
+          reservationId, 
+          userId, 
+          segments: [{ segmentId, flightInstanceId, fareClassCode, segmentType, baseFare, ... }, ...],
+          totalAmount,  // Sum of all segments
+          status: 'active',
+          ...
+        }
+        TTL: 900 seconds (15 phút)
    → Return: { reservationId, reservationCode, segments: [...], totalAmount, expiresAt, ... }
 
-2. GET RESERVATION
+2. GET RESERVATION (Hybrid: Redis first, fallback to Database)
    GET /reservations/:id
    Headers: Authorization: Bearer <token>
    
    → ReservationController.getReservation()
    → Reservation Microservice
-   → Get from Redis by ID or code (auto-detect)
-   → Check if expired
-   → Return: { reservationId, reservationCode, ... }
+   → **Hybrid Retrieval:**
+     a. Try Redis first (fast):
+        - GET reservation:{id} or lookup by code
+        - If found and not expired → Return
+     b. Fallback to Database:
+        - Query Reservations table by ID or code
+        - Check if expired → Update status to 'expired' if needed
+        - Re-cache to Redis if still active
+   → Return: { reservationId, reservationCode, segments: [...], ... }
 
-3. LIST RESERVATIONS
+3. LIST RESERVATIONS (Hybrid: Query Database, enrich with Redis cache)
    GET /reservations
    Headers: Authorization: Bearer <token>
    
    → ReservationController.listReservations()
    → Extract userId from JWT
    → Reservation Microservice
-   → Scan Redis for user's reservations
-   → Filter by status = 'active' and not expired
-   → Return: [{ reservationId, ... }, ...]
+   → **Hybrid Retrieval:**
+     a. Query Database for user's pending reservations
+     b. For each reservation:
+        - Try Redis cache first (faster, has TTL)
+        - If not in Redis, convert from Database entity and re-cache
+        - Filter expired reservations (update status to 'expired')
+   → Return: [{ reservationId, segments: [...], ... }, ...]
 
-4. CANCEL RESERVATION
+4. CANCEL RESERVATION (Hybrid: Update Database + Delete from Redis)
    POST /reservations/:id/cancel
    Headers: Authorization: Bearer <token>
    
    → ReservationController.cancelReservation()
    → Reservation Microservice
-   → Get reservation from Redis
-   → Validate status = 'active'
-   → Delete from Redis
+   → Get reservation (Redis or Database)
+   → Validate status = 'active' or 'pending'
+   → **Hybrid Update:**
+     a. Update Database: status = 'cancelled'
+     b. Delete from Redis
    → Return: { success: true, message: "..." }
 
-5. EXTEND RESERVATION
+5. EXTEND RESERVATION (Hybrid: Update Database + Redis)
    POST /reservations/:id/extend
    Headers: Authorization: Bearer <token>
    Body: { additionalSeconds: 600 }
    
    → ReservationController.extendReservation()
    → Reservation Microservice
-   → Get reservation from Redis
-   → Validate status = 'active' and not expired
-   → Update TTL in Redis
+   → Get reservation (Redis or Database)
+   → Validate status = 'active' or 'pending' and not expired
+   → **Hybrid Update:**
+     a. Update Database: expires_at = new expiration time
+     b. Update Redis: SET with new TTL
    → Return: { reservationId, expiresAt, ttl, ... }
 ```
 
@@ -435,9 +456,9 @@ HOẶC
    → BookingController.createBooking()
    → Extract userId from JWT token
    → Booking Microservice (TCP port 4004)
-   → Get reservation from Redis (via Reservation MS)
+   → Get reservation (Redis or Database via Reservation MS - Hybrid Approach)
    → Validate:
-     - Reservation exists and active
+     - Reservation exists and active/pending
      - Reservation not expired
      - Reservation belongs to user (userId match)
      - Number of passengers matches reservation
@@ -460,7 +481,9 @@ HOẶC
      f. Calculate total amount (from reservation.totalAmount)
      g. Generate PNR code (6 alphanumeric chars)
    → Commit transaction
-   → Auto-cancel reservation (via Reservation MS)
+   → Mark reservation as converted (via Reservation MS):
+     - Update Database: status = 'converted', converted_at = now
+     - Delete from Redis (no longer needed)
    → Return: { bookingId, pnrCode, totalAmount, status }
 
 Note: Direct booking without reservation is deprecated and no longer supported.
@@ -677,11 +700,18 @@ Nếu microservice không chạy, API Gateway sẽ trả về:
 ## Notes
 
 1. **UUID v7**: Tất cả IDs sử dụng UUID v7 (time-ordered UUID)
-2. **Reservation TTL**: Mặc định 15 phút (900 seconds), có thể config qua `REDIS_RESERVATION_TTL`
+2. **Reservation Storage (Hybrid Approach)**: 
+   - **Database**: Persistent storage, audit trail, analytics (status: `pending`, `expired`, `converted`, `cancelled`)
+   - **Redis**: Fast cache với TTL 15 phút (900 seconds) - configurable qua `REDIS_RESERVATION_TTL`
+   - **Get Flow**: Try Redis first (fast) → Fallback to Database → Re-cache if needed
+   - **Recovery**: Nếu Redis down, vẫn có thể lấy reservation từ Database
 3. **Transaction Safety**: Booking creation sử dụng database transaction
-4. **Auto-cleanup**: Reservation tự động bị cancel sau khi tạo booking thành công
+4. **Reservation Status Tracking**: 
+   - `pending` → `converted` (khi tạo booking) hoặc `expired`/`cancelled`
+   - `converted_at` timestamp được lưu khi booking được tạo
 5. **Passenger Reuse**: Hệ thống tự động detect và reuse passenger nếu cùng `documentNumber`
 6. **Contact Info Logic**: Tự động điền contact info từ user hoặc passenger nếu không được cung cấp
+7. **Cleanup Job**: Method `cleanupExpiredReservations()` available để update expired reservations trong Database
 
 ---
 

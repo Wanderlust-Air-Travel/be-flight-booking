@@ -1,11 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, LessThan } from 'typeorm';
 import { v7 as uuidv7 } from 'uuid';
 import { FlightInstance } from 'src/shared/entities/flight/flight-instance.entity';
 import { FlightSeat } from 'src/shared/entities/flight/flight-seat.entity';
 import { FareClass } from 'src/shared/entities/fare/fare-class.entity';
 import { Currency } from 'src/shared/entities/currency/currency.entity';
+import { Reservation } from 'src/shared/entities/reservation/reservation.entity';
 import { RedisService } from 'src/shared/modules/redis/redis.service';
 import { ConfigService } from '@nestjs/config';
 import { CreateReservationDto } from './dto/create-reservation.dto';
@@ -21,6 +22,7 @@ export class ReservationService {
 		@InjectRepository(FlightSeat) private readonly flightSeatRepo: Repository<FlightSeat>,
 		@InjectRepository(FareClass) private readonly fareClassRepo: Repository<FareClass>,
 		@InjectRepository(Currency) private readonly currencyRepo: Repository<Currency>,
+		@InjectRepository(Reservation) private readonly reservationRepo: Repository<Reservation>,
 		private readonly redisService: RedisService,
 		private readonly configService: ConfigService,
 	) {
@@ -99,8 +101,48 @@ export class ReservationService {
 	}
 
 	/**
-	 * Create reservation (store in Redis)
+	 * Convert Reservation entity to ReservationResponseDto
+	 */
+	private entityToDto(entity: Reservation): ReservationResponseDto {
+		return {
+			reservationId: entity.reservation_id,
+			reservationCode: entity.reservation_code,
+			segments: JSON.parse(entity.segments_json),
+			numberOfPassengers: entity.number_of_passengers,
+			totalAmount: Number(entity.total_amount),
+			currencyCode: entity.currency.currency_code,
+			status: entity.status,
+			expiresAt: entity.expires_at,
+			ttl: Math.floor((entity.expires_at.getTime() - new Date().getTime()) / 1000),
+			createdAt: entity.created_at,
+			userId: entity.user?.user_id || null,
+		};
+	}
+
+	/**
+	 * Ensure reservation code is unique (check both Redis and Database)
+	 */
+	private async ensureUniqueReservationCode(code: string): Promise<string> {
+		let reservationCode = code;
+		let codeExists =
+			(await this.redisService.exists(this.getReservationCodeKey(reservationCode))) ||
+			(await this.reservationRepo.findOne({ where: { reservation_code: reservationCode } }));
+
+		while (codeExists) {
+			reservationCode = this.generateReservationCode();
+			codeExists =
+				(await this.redisService.exists(this.getReservationCodeKey(reservationCode))) ||
+				(await this.reservationRepo.findOne({ where: { reservation_code: reservationCode } }));
+		}
+
+		return reservationCode;
+	}
+
+	/**
+	 * Create reservation (Hybrid: Database + Redis)
 	 * Supports multiple segments for round-trip bookings
+	 * 1. Save to Database (persistent)
+	 * 2. Save to Redis (cache)
 	 */
 	async createReservation(userId: string | null, dto: CreateReservationDto): Promise<ReservationResponseDto> {
 		// Validate all segments
@@ -182,17 +224,29 @@ export class ReservationService {
 		const reservationId = uuidv7();
 		let reservationCode = this.generateReservationCode();
 
-		// Ensure reservation code is unique
-		let codeExists = await this.redisService.exists(this.getReservationCodeKey(reservationCode));
-		while (codeExists) {
-			reservationCode = this.generateReservationCode();
-			codeExists = await this.redisService.exists(this.getReservationCodeKey(reservationCode));
-		}
+		// Ensure reservation code is unique (check both Redis and Database)
+		reservationCode = await this.ensureUniqueReservationCode(reservationCode);
 
 		// Create reservation data
 		const now = new Date();
 		const expiresAt = new Date(now.getTime() + this.reservationTtl * 1000);
 
+		// 1. Save to Database (persistent)
+		const dbReservation = this.reservationRepo.create({
+			reservation_id: reservationId,
+			reservation_code: reservationCode,
+			user: userId ? { user_id: userId } : null,
+			segments_json: JSON.stringify(validatedSegments),
+			number_of_passengers: dto.numberOfPassengers,
+			total_amount: totalAmount,
+			currency: { currency_code: currencyCode },
+			status: 'pending', // Database uses 'pending', Redis uses 'active'
+			expires_at: expiresAt,
+			converted_at: null,
+		});
+		await this.reservationRepo.save(dbReservation);
+
+		// 2. Create DTO for Redis and response
 		const reservation: ReservationResponseDto = {
 			reservationId,
 			reservationCode,
@@ -200,14 +254,14 @@ export class ReservationService {
 			numberOfPassengers: dto.numberOfPassengers,
 			totalAmount,
 			currencyCode,
-			status: 'active',
+			status: 'active', // Redis uses 'active' for active reservations
 			expiresAt,
 			ttl: this.reservationTtl,
 			createdAt: now,
-			userId: userId || null, // Store userId for ownership validation
+			userId: userId || null,
 		};
 
-		// Store in Redis with TTL
+		// 3. Store in Redis with TTL (cache)
 		const reservationKey = this.getReservationKey(reservationId);
 		const codeKey = this.getReservationCodeKey(reservationCode);
 
@@ -218,7 +272,7 @@ export class ReservationService {
 	}
 
 	/**
-	 * Get reservation by ID or code
+	 * Get reservation by ID or code (Hybrid: Redis first, fallback to Database)
 	 * If input is 6 characters (alphanumeric), treat as code; otherwise treat as ID
 	 */
 	async getReservation(reservationIdOrCode: string): Promise<ReservationResponseDto> {
@@ -227,59 +281,107 @@ export class ReservationService {
 
 		let reservationId: string;
 		if (isCode) {
-			// Lookup by code
+			// 1. Try Redis first (fast)
 			const codeKey = this.getReservationCodeKey(reservationIdOrCode);
 			const id = await this.redisService.get<string>(codeKey);
-			if (!id) {
-				throw new NotFoundException(`Reservation code ${reservationIdOrCode} not found or expired`);
+			if (id) {
+				reservationId = id;
+			} else {
+				// 2. Fallback to Database
+				const dbReservation = await this.reservationRepo.findOne({
+					where: { reservation_code: reservationIdOrCode },
+					relations: ['user', 'currency'],
+				});
+				if (!dbReservation) {
+					throw new NotFoundException(`Reservation code ${reservationIdOrCode} not found`);
+				}
+				reservationId = dbReservation.reservation_id;
 			}
-			reservationId = id;
 		} else {
 			// Treat as ID
 			reservationId = reservationIdOrCode;
 		}
 
+		// 1. Try Redis first (fast)
 		const reservationKey = this.getReservationKey(reservationId);
-		const reservation = await this.redisService.get<ReservationResponseDto>(reservationKey);
+		let reservation = await this.redisService.get<ReservationResponseDto>(reservationKey);
 
-		if (!reservation) {
-			throw new NotFoundException(`Reservation ${reservationId} not found or expired`);
+		if (reservation) {
+			// Check if expired
+			if (new Date(reservation.expiresAt) < new Date()) {
+				reservation.status = 'expired';
+				await this.redisService.del(reservationKey);
+				const codeKey = this.getReservationCodeKey(reservation.reservationCode);
+				await this.redisService.del(codeKey);
+				// Update Database status
+				await this.reservationRepo.update(
+					{ reservation_id: reservationId },
+					{ status: 'expired' },
+				);
+				throw new BadRequestException('Reservation has expired');
+			}
+
+			// Update TTL
+			const ttl = await this.redisService.ttl(reservationKey);
+			reservation.ttl = ttl > 0 ? ttl : 0;
+
+			return reservation;
+		}
+
+		// 2. Fallback to Database
+		const dbReservation = await this.reservationRepo.findOne({
+			where: { reservation_id: reservationId },
+			relations: ['user', 'currency'],
+		});
+
+		if (!dbReservation) {
+			throw new NotFoundException(`Reservation ${reservationId} not found`);
 		}
 
 		// Check if expired
-		if (new Date(reservation.expiresAt) < new Date()) {
-			reservation.status = 'expired';
-			await this.redisService.del(reservationKey);
-			const codeKey = this.getReservationCodeKey(reservation.reservationCode);
-			await this.redisService.del(codeKey);
-			throw new BadRequestException('Reservation has expired');
+		if (dbReservation.expires_at < new Date() && dbReservation.status === 'pending') {
+			dbReservation.status = 'expired';
+			await this.reservationRepo.save(dbReservation);
 		}
 
-		// Update TTL
-		const ttl = await this.redisService.ttl(reservationKey);
-		reservation.ttl = ttl > 0 ? ttl : 0;
+		// Convert to DTO
+		reservation = this.entityToDto(dbReservation);
+
+		// Optionally: Re-cache to Redis if still active
+		if (reservation.status === 'pending' && reservation.expiresAt > new Date()) {
+			const remainingTtl = Math.floor((reservation.expiresAt.getTime() - new Date().getTime()) / 1000);
+			if (remainingTtl > 0) {
+				reservation.status = 'active'; // Redis uses 'active'
+				await this.redisService.set(reservationKey, reservation, remainingTtl);
+				await this.redisService.set(
+					this.getReservationCodeKey(reservation.reservationCode),
+					reservationId,
+					remainingTtl,
+				);
+				reservation.ttl = remainingTtl;
+			}
+		}
 
 		return reservation;
 	}
 
 	/**
-	 * Cancel reservation
+	 * Cancel reservation (Hybrid: Update Database + Redis)
 	 */
 	async cancelReservation(reservationId: string): Promise<{ success: boolean; message: string }> {
 		const reservation = await this.getReservation(reservationId);
 
-		if (reservation.status !== 'active') {
+		if (reservation.status !== 'active' && reservation.status !== 'pending') {
 			throw new BadRequestException(`Cannot cancel reservation with status: ${reservation.status}`);
 		}
 
+		// 1. Update Database status
+		await this.reservationRepo.update({ reservation_id: reservationId }, { status: 'cancelled' });
+
+		// 2. Delete from Redis
 		const reservationKey = this.getReservationKey(reservationId);
 		const codeKey = this.getReservationCodeKey(reservation.reservationCode);
-
-		// Update status to cancelled
-		reservation.status = 'cancelled';
-		await this.redisService.set(reservationKey, reservation, this.reservationTtl);
-
-		// Delete code mapping
+		await this.redisService.del(reservationKey);
 		await this.redisService.del(codeKey);
 
 		return {
@@ -289,59 +391,75 @@ export class ReservationService {
 	}
 
 	/**
-	 * List all active reservations for a user
-	 * Note: This implementation scans all reservation keys and filters by userId.
-	 * For production with large datasets, consider maintaining a separate index:
-	 * `user:reservations:${userId}` -> Set of reservation IDs
+	 * List all active reservations for a user (Hybrid: Query Database, enrich with Redis cache)
 	 */
 	async listReservations(userId: string): Promise<ReservationResponseDto[]> {
+		// Query Database for user's active/pending reservations
+		const dbReservations = await this.reservationRepo.find({
+			where: {
+				user: { user_id: userId },
+				status: 'pending', // Only pending reservations (not expired, converted, or cancelled)
+			},
+			relations: ['user', 'currency'],
+			order: { created_at: 'DESC' },
+		});
+
 		const reservations: ReservationResponseDto[] = [];
-		const redisClient = this.redisService.getClient();
+		const now = new Date();
 
-		// Get all reservation keys (format: flight-booking:reservation:*)
-		// Note: RedisService uses keyPrefix, so keys() needs full pattern with prefix
-		const redisConfig = this.configService.get('redis');
-		const keyPrefix = redisConfig?.keyPrefix || 'flight-booking:';
-		const pattern = `${keyPrefix}reservation:*`;
+		for (const dbReservation of dbReservations) {
+			// Check if expired
+			if (dbReservation.expires_at < now) {
+				// Update status to expired
+				dbReservation.status = 'expired';
+				await this.reservationRepo.save(dbReservation);
+				continue;
+			}
 
-		const allKeys = await this.redisService.keys(pattern);
+			// Try to get from Redis first (faster, has TTL)
+			const reservationKey = this.getReservationKey(dbReservation.reservation_id);
+			let reservation = await this.redisService.get<ReservationResponseDto>(reservationKey);
 
-		for (const fullKey of allKeys) {
-			// Extract reservation ID from full key
-			// Full key format: {prefix}reservation:{id}
-			const reservationId = fullKey.replace(`${keyPrefix}reservation:`, '');
-			const reservation = await this.redisService.get<ReservationResponseDto>(reservationId);
-
-			if (reservation && reservation.userId === userId && reservation.status === 'active') {
-				// Check if not expired
-				if (new Date(reservation.expiresAt) >= new Date()) {
-					// Update TTL
-					const ttl = await this.redisService.ttl(reservationId);
-					reservation.ttl = ttl > 0 ? ttl : 0;
-					reservations.push(reservation);
+			if (reservation) {
+				// Use Redis data (has TTL)
+				const ttl = await this.redisService.ttl(reservationKey);
+				reservation.ttl = ttl > 0 ? ttl : 0;
+			} else {
+				// Convert from Database entity
+				reservation = this.entityToDto(dbReservation);
+				// Re-cache to Redis
+				const remainingTtl = Math.floor((reservation.expiresAt.getTime() - now.getTime()) / 1000);
+				if (remainingTtl > 0) {
+					reservation.status = 'active'; // Redis uses 'active'
+					await this.redisService.set(reservationKey, reservation, remainingTtl);
+					await this.redisService.set(
+						this.getReservationCodeKey(reservation.reservationCode),
+						reservation.reservationId,
+						remainingTtl,
+					);
+					reservation.ttl = remainingTtl;
 				}
 			}
+
+			reservations.push(reservation);
 		}
 
 		return reservations;
 	}
 
 	/**
-	 * Extend reservation TTL
+	 * Extend reservation TTL (Hybrid: Update Database + Redis)
 	 */
 	async extendReservation(reservationId: string, additionalSeconds: number): Promise<ReservationResponseDto> {
 		const reservation = await this.getReservation(reservationId);
 
-		if (reservation.status !== 'active') {
+		if (reservation.status !== 'active' && reservation.status !== 'pending') {
 			throw new BadRequestException(`Cannot extend reservation with status: ${reservation.status}`);
 		}
 
 		if (new Date(reservation.expiresAt) < new Date()) {
 			throw new BadRequestException('Cannot extend expired reservation');
 		}
-
-		const reservationKey = this.getReservationKey(reservationId);
-		const codeKey = this.getReservationCodeKey(reservation.reservationCode);
 
 		// Calculate new expiration time
 		const newExpiresAt = new Date(new Date(reservation.expiresAt).getTime() + additionalSeconds * 1000);
@@ -351,15 +469,58 @@ export class ReservationService {
 			throw new BadRequestException('Invalid extension time. Reservation would still be expired.');
 		}
 
-		// Update reservation with new expiration
+		// 1. Update Database expires_at
+		await this.reservationRepo.update({ reservation_id: reservationId }, { expires_at: newExpiresAt });
+
+		// 2. Update Redis with new TTL
 		reservation.expiresAt = newExpiresAt;
 		reservation.ttl = newTtl;
 
-		// Update Redis with new TTL
+		const reservationKey = this.getReservationKey(reservationId);
+		const codeKey = this.getReservationCodeKey(reservation.reservationCode);
+
 		await this.redisService.set(reservationKey, reservation, newTtl);
 		await this.redisService.set(codeKey, reservationId, newTtl);
 
 		return reservation;
+	}
+
+	/**
+	 * Update reservation status to 'converted' when booking is created
+	 * Called by Booking Service
+	 */
+	async markReservationAsConverted(reservationId: string): Promise<void> {
+		// Update Database
+		await this.reservationRepo.update(
+			{ reservation_id: reservationId },
+			{ status: 'converted', converted_at: new Date() },
+		);
+
+		// Delete from Redis (no longer needed)
+		const reservationKey = this.getReservationKey(reservationId);
+		const reservation = await this.redisService.get<ReservationResponseDto>(reservationKey);
+		if (reservation) {
+			await this.redisService.del(reservationKey);
+			await this.redisService.del(this.getReservationCodeKey(reservation.reservationCode));
+		}
+	}
+
+	/**
+	 * Cleanup expired reservations (update status to 'expired' in Database)
+	 * Should be called periodically (e.g., via cron job or scheduled task)
+	 * Returns number of reservations updated
+	 */
+	async cleanupExpiredReservations(): Promise<number> {
+		const now = new Date();
+		const result = await this.reservationRepo.update(
+			{
+				status: 'pending',
+				expires_at: LessThan(now),
+			},
+			{ status: 'expired' },
+		);
+
+		return result.affected || 0;
 	}
 }
 

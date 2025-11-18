@@ -626,13 +626,17 @@ Authorization: Bearer <access_token>
 ```
 
 **Lưu ý:**
-- Reservation được lưu trong **Redis** (không phải database)
-- Tự động expire sau 15 phút (900 seconds) - configurable qua `REDIS_RESERVATION_TTL`
-- `reservationCode` là 6 ký tự alphanumeric (unique)
+- Reservation được lưu trong **Database + Redis (Hybrid Approach)**:
+  - **Database**: Persistent storage, audit trail, analytics (status: `pending`, `expired`, `converted`, `cancelled`)
+  - **Redis**: Fast cache với TTL 15 phút (900 seconds) - configurable qua `REDIS_RESERVATION_TTL`
+  - **Get Reservation**: Try Redis first (fast), fallback to Database nếu không tìm thấy
+  - **Recovery**: Nếu Redis down, vẫn có thể lấy reservation từ Database
+- `reservationCode` là 6 ký tự alphanumeric (unique, check cả Redis và Database)
 - Backend tự động validate availability và tính giá cho từng segment
 - `totalAmount` = sum of (baseFare + taxAmount + feeAmount) * numberOfPassengers for all segments
 - **Multi-segment support**: 1 reservation có thể chứa nhiều segments (outbound + inbound cho round-trip)
-- **Backward compatibility**: Response vẫn có các fields cũ (`flightInstanceId`, `fareClassCode`, etc.) nhưng marked as deprecated
+- **Format mới**: Response chỉ có `segments[]` array, không còn các fields cũ (đã xóa backward compatibility)
+- **Status tracking**: Database lưu status (`pending`, `expired`, `converted`, `cancelled`) để analytics và audit trail
 
 ---
 
