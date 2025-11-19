@@ -131,6 +131,7 @@ erDiagram
     PaymentMethods {
         VARCHAR payment_method_code PK
         NVARCHAR name
+        BIT is_active
     }
 
     %% ============ RESERVATIONS (Hybrid: Database + Redis) ============
@@ -202,6 +203,8 @@ erDiagram
         VARCHAR status
         DATETIME2 paid_at
         VARCHAR transaction_ref
+        VARCHAR idempotency_key
+        DATETIME2 expires_at
         DATETIME2 created_at
     }
 

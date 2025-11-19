@@ -1,6 +1,90 @@
 # Changelog - API Documentation Updates
 
-## Ngày cập nhật: 2025-01-20 (Latest - Payment API Implementation)
+## Ngày cập nhật: 2025-01-20 (Latest - Payment Service Phase 1 & 2: Production Ready Improvements)
+
+### Major Changes - Payment Service Production Ready Improvements (Phase 1 & 2)
+
+#### 1. **Payment Service Enhancements (Phase 1: Critical Fixes)**
+- **Idempotency & Duplicate Prevention**: 
+  - Thêm `idempotency_key` field vào Payment entity
+  - Thêm `idempotencyKey` vào CreatePaymentDto (optional)
+  - System check và return existing payment nếu đã tồn tại (prevent duplicate payments)
+  
+- **Amount Validation**: 
+  - Thêm `amount` vào CreatePaymentDto (optional, defaults to booking total amount)
+  - Strict validation: payment amount PHẢI bằng booking total amount (no partial payments)
+  
+- **Concurrency Control**: 
+  - Sử dụng database pessimistic lock (UPDLOCK, ROWLOCK) khi create/process payment
+  - Prevent race condition khi multiple requests cùng lúc
+  
+- **Payment Gateway Integration Structure**:
+  - Tạo `IPaymentGateway` interface cho payment gateway abstraction
+  - Tạo `PaymentGatewayFactory` để manage multiple gateways (VNPay, MoMo, Stripe, etc.)
+  - Implement `MockPaymentGateway` cho development/testing
+  - Ready structure để tích hợp payment gateway thực tế (không cần sửa business logic)
+
+#### 2. **Payment Service Enhancements (Phase 2: Production Ready)**
+- **Webhook Handling**:
+  - Thêm endpoint `POST /payments/webhooks/:gateway` để nhận webhook từ payment gateway
+  - Verify webhook signature để đảm bảo request hợp lệ
+  - Process webhook và update payment status automatically
+  - Async payment status update (không block user request)
+  
+- **Payment Expiration**:
+  - Thêm `expires_at` field vào Payment entity
+  - Payment tự động expire sau **15 phút** nếu chưa thanh toán
+  - Validate expiration khi process payment
+  
+- **Payment Method Availability Check**:
+  - Thêm `is_active` field vào PaymentMethod entity
+  - Validate payment method phải active trước khi tạo payment
+  
+- **Payment Notification Service**:
+  - Tạo `PaymentNotificationService` để gửi notification khi payment success/failed/pending
+  - Ready để integrate với email/SMS service
+  - Automatic notification khi payment status được update (via webhook)
+
+#### 3. **Payment Gateway Architecture**
+- **Code Structure** (Best Practice):
+  ```
+  src/microservices/payment/
+  ├── gateways/
+  │   ├── payment-gateway.interface.ts
+  │   ├── payment-gateway.factory.ts
+  │   ├── mock-payment.gateway.ts
+  │   └── vnpay.gateway.example.ts
+  ├── services/
+  │   ├── payment-validation.service.ts
+  │   └── payment-notification.service.ts
+  └── ...
+  ```
+
+- **Payment Gateway Factory Pattern**:
+  - Switch giữa Mock Gateway (development) và Real Gateway (production) dễ dàng
+  - Support multiple payment gateways cùng lúc
+  - Easy to extend với gateway mới (chỉ cần implement interface)
+
+#### 4. **API Changes**
+- **Create Payment DTO**: Thêm `idempotencyKey` (optional) và `amount` (optional)
+- **Payment Response DTO**: Thêm `expiresAt` và `paymentUrl` fields
+- **Webhook Endpoint**: Thêm `POST /payments/webhooks/:gateway` (public endpoint, no auth required)
+
+#### 5. **Updated Documentation**
+- `API_DOCS.md`: Update Payment APIs với các features mới (idempotency, expiration, webhook, etc.)
+- `API_TESTING_FLOW.md`: Thêm Step 10 - Payment Gateway Webhook testing
+- `API_SEQUENCE_DIAGRAMS.md`: Update Phase 7 & 8 với payment gateway integration và webhook flow
+- `CHANGELOG_API_DOCS.md`: Document Phase 1 & 2 improvements
+- Postman Collection: Update payment requests với fields mới và thêm webhook request
+
+**Documentation:**
+- `docs/design/PAYMENT_SERVICE_ANALYSIS.md`: Phân tích Payment Service và đề xuất improvements
+- `docs/design/PAYMENT_GATEWAY_EXPLANATION.md`: Giải thích Mock vs Real Payment Gateway
+- `src/microservices/payment/gateways/vnpay.gateway.example.ts`: Example code để implement VNPay gateway
+
+---
+
+## Ngày cập nhật: 2025-01-20 (Previous - Payment API Implementation)
 
 ### Major Changes - Payment Microservice & APIs
 

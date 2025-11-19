@@ -401,10 +401,46 @@ Content-Type: application/json
 - Postman collection sẽ tự động set `paymentId` vào variable
 - Payment status = `success` và booking status tự động update thành `paid`
 - `paidAt` được set khi payment thành công
+- Response có thể chứa `paymentUrl` để redirect user đến payment gateway (trong production)
+- Payment tự động expire sau 15 phút (`expiresAt` field)
 
 ---
 
-### Step 10: Verify Payment (Optional)
+### Step 10: Payment Gateway Webhook (Optional - Testing Webhook)
+
+**Request (Simulate Webhook từ Payment Gateway):**
+```http
+POST {{base_url}}/payments/webhooks/mock
+Content-Type: application/json
+x-signature: test-signature
+
+{
+  "transactionId": "TXN123456789",
+  "status": "success",
+  "amount": 1577000,
+  "currency": "VND",
+  "message": "Payment processed successfully"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Webhook processed successfully"
+}
+```
+
+**Lưu ý:**
+- Endpoint này được gọi bởi payment gateway khi payment status thay đổi
+- Trong production, webhook sẽ đến từ payment gateway thực tế (VNPay, MoMo, etc.)
+- System verify webhook signature để đảm bảo request hợp lệ
+- Payment status và booking status sẽ được update tự động
+- Gateway name phải match: `vnpay`, `momo`, `stripe`, `mock` (for testing)
+
+---
+
+### Step 11: Verify Payment (Optional)
 
 **Request:**
 ```http
@@ -433,7 +469,9 @@ Authorization: Bearer {{access_token}}
     "status": "success",
     "transactionRef": "TXN123456789",
     "createdAt": "2025-11-20T10:15:00Z",
-    "paidAt": "2025-11-20T10:15:05Z"
+    "paidAt": "2025-11-20T10:15:05Z",
+    "expiresAt": "2025-11-20T10:30:00Z",
+    "paymentUrl": null
   }
 ]
 ```

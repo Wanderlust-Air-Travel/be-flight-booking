@@ -112,29 +112,52 @@ sequenceDiagram
     Booking MS-->>API Gateway: {totalAmount, contactInfo, ...}
     API Gateway-->>Client: 200 OK<br/>{payment info}
 
-    Note over Client,Redis: Phase 7: Process Payment (NEW)
-    Client->>API Gateway: POST /payments/bookings/:bookingId/process<br/>Authorization: Bearer <token><br/>{paymentMethodCode, transactionRef}
+    Note over Client,Redis: Phase 7: Process Payment (NEW - Production Ready)
+    Client->>API Gateway: POST /payments/bookings/:bookingId/process<br/>Authorization: Bearer <token><br/>{paymentMethodCode, idempotencyKey?, amount?}
     API Gateway->>API Gateway: JwtAuthGuard: Validate JWT token<br/>JwtStrategy: Extract userId from payload
     API Gateway->>API Gateway: Extract userId from req.user.userId
     API Gateway->>Payment MS: PROCESS_PAYMENT message (TCP)<br/>{userId, bookingId, dto} (NOT token)
-    Payment MS->>Database: BEGIN TRANSACTION
-    Payment MS->>Database: Validate booking exists & belongs to user<br/>Check booking status (not paid, not cancelled)
-    Database-->>Payment MS: Booking data
-    Payment MS->>Database: Validate payment method exists
+    Payment MS->>Database: BEGIN TRANSACTION (WITH LOCK)
+    Payment MS->>Database: Lock booking row (UPDLOCK, ROWLOCK)<br/>Validate booking exists & belongs to user<br/>Check booking status (not paid, not cancelled)
+    Database-->>Payment MS: Booking data (locked)
+    Payment MS->>Payment MS: Check idempotency key (if provided)<br/>Prevent duplicate payments
+    Payment MS->>Database: Validate payment method exists & active<br/>Validate amount = booking total
     Database-->>Payment MS: PaymentMethod data
-    Payment MS->>Payment MS: Create Payment record<br/>(status: pending)
-    Payment MS->>Database: INSERT INTO Payments<br/>(payment_id, booking_id, amount, status: 'pending', ...)
+    Payment MS->>Payment MS: Create Payment record<br/>(status: pending, expires_at: now + 15min)
+    Payment MS->>Database: INSERT INTO Payments<br/>(payment_id, booking_id, amount, status: 'pending', expires_at, idempotency_key, ...)
     Database-->>Payment MS: Payment created
-    Payment MS->>Payment MS: Simulate payment processing<br/>(In production: call payment gateway)
-    Payment MS->>Payment MS: Update payment status to 'success'<br/>Set paid_at timestamp
-    Payment MS->>Database: UPDATE Payments<br/>SET status = 'success', paid_at = now
+    Payment MS->>Payment MS: Call Payment Gateway<br/>(VNPay, MoMo, Stripe, etc.)
+    Payment MS->>Payment Gateway: Create payment request<br/>(In production: HTTP API call)
+    Payment Gateway-->>Payment MS: {transactionId, paymentUrl, status: 'pending'}
+    Payment MS->>Database: UPDATE Payments<br/>SET transaction_ref = :transactionId
     Database-->>Payment MS: Payment updated
-    Payment MS->>Database: UPDATE Bookings<br/>SET status = 'paid', updated_at = now
-    Database-->>Payment MS: Booking updated
+    Payment MS->>Payment MS: Send payment pending notification
     Payment MS->>Database: COMMIT TRANSACTION
     Database-->>Payment MS: Transaction committed
-    Payment MS-->>API Gateway: {paymentId, bookingId, status: 'success', paidAt, ...}
-    API Gateway-->>Client: 201 Created<br/>{payment details with status: 'success'}
+    Payment MS-->>API Gateway: {paymentId, bookingId, status: 'pending', paymentUrl, expiresAt, ...}
+    API Gateway-->>Client: 201 Created<br/>{payment details with paymentUrl}<br/>Client redirects to paymentUrl
+    
+    Note over Client,Redis: Phase 8: Payment Gateway Webhook (Async)
+    Payment Gateway->>API Gateway: POST /payments/webhooks/:gateway<br/>x-signature: <signature><br/>{transactionId, status: 'success/failed', ...}
+    API Gateway->>Payment MS: HANDLE_WEBHOOK message (TCP)<br/>{gateway, signature, payload}
+    Payment MS->>Payment MS: Verify webhook signature<br/>Validate request from gateway
+    Payment MS->>Database: BEGIN TRANSACTION
+    Payment MS->>Database: Find payment by transaction_ref
+    Database-->>Payment MS: Payment data
+    Payment MS->>Payment MS: Update payment status<br/>(status: success/failed, paid_at: now if success)
+    Payment MS->>Database: UPDATE Payments<br/>SET status = :status, paid_at = :paidAt
+    Database-->>Payment MS: Payment updated
+    alt Payment Success
+        Payment MS->>Database: UPDATE Bookings<br/>SET status = 'paid', updated_at = now
+        Database-->>Payment MS: Booking updated
+        Payment MS->>Payment MS: Send payment success notification
+    else Payment Failed
+        Payment MS->>Payment MS: Send payment failed notification
+    end
+    Payment MS->>Database: COMMIT TRANSACTION
+    Database-->>Payment MS: Transaction committed
+    Payment MS-->>API Gateway: {success: true}
+    API Gateway-->>Payment Gateway: 200 OK<br/>{success: true}
 ```
 
 ---
@@ -284,21 +307,35 @@ sequenceDiagram
     end
 
     rect rgb(255, 248, 240)
-        Note over API Gateway,Payment MS: Payment Processing Pattern
-        API Gateway->>Payment MS: PROCESS_PAYMENT message<br/>{userId, bookingId, dto}
-        Payment MS->>Database: BEGIN TRANSACTION
-        Payment MS->>Database: Validate booking & payment method
-        Database-->>Payment MS: Validation result
-        Payment MS->>Database: INSERT INTO Payments<br/>(status: 'pending')
+        Note over API Gateway,Payment MS: Payment Processing Pattern (Production Ready - Phase 1 & 2)
+        API Gateway->>Payment MS: PROCESS_PAYMENT message<br/>{userId, bookingId, dto: {idempotencyKey?, amount?}}
+        Payment MS->>Database: BEGIN TRANSACTION (WITH LOCK)
+        Payment MS->>Database: Lock booking row (UPDLOCK, ROWLOCK)<br/>Validate booking exists & belongs to user<br/>Check payment method active & amount
+        Database-->>Payment MS: Validation result (locked)
+        Payment MS->>Payment MS: Check idempotency key<br/>Prevent duplicate payments
+        Payment MS->>Database: INSERT INTO Payments<br/>(status: 'pending', expires_at: now + 15min, idempotency_key)
         Database-->>Payment MS: Payment created
-        Payment MS->>Payment MS: Process payment<br/>(simulate payment gateway)
-        Payment MS->>Database: UPDATE Payments<br/>SET status = 'success', paid_at = now
+        Payment MS->>Payment MS: Call Payment Gateway Factory<br/>Get gateway instance (VNPay, MoMo, Stripe, etc.)
+        Payment MS->>Payment Gateway: createPayment()<br/>(In production: HTTP API call)
+        Payment Gateway-->>Payment MS: {transactionId, paymentUrl, status: 'pending'}
+        Payment MS->>Database: UPDATE Payments<br/>SET transaction_ref = :transactionId
         Database-->>Payment MS: Payment updated
-        Payment MS->>Database: UPDATE Bookings<br/>SET status = 'paid'
-        Database-->>Payment MS: Booking updated
+        Payment MS->>Payment MS: Send payment pending notification
         Payment MS->>Database: COMMIT TRANSACTION
         Database-->>Payment MS: Transaction committed
-        Payment MS-->>API Gateway: Payment response
+        Payment MS-->>API Gateway: {paymentId, paymentUrl, expiresAt, ...}
+        
+        Note over Payment Gateway,Payment MS: Webhook Flow (Async)
+        Payment Gateway->>API Gateway: POST /payments/webhooks/:gateway<br/>x-signature: <signature><br/>{transactionId, status}
+        API Gateway->>Payment MS: HANDLE_WEBHOOK message<br/>{gateway, signature, payload}
+        Payment MS->>Payment MS: Verify webhook signature
+        Payment MS->>Database: Find payment by transaction_ref
+        Payment MS->>Database: UPDATE Payments<br/>SET status = :status, paid_at = now
+        alt Payment Success
+            Payment MS->>Database: UPDATE Bookings<br/>SET status = 'paid'
+            Payment MS->>Payment MS: Send payment success notification
+        end
+        Payment MS-->>API Gateway: {success: true}
     end
 ```
 

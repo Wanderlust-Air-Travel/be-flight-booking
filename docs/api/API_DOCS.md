@@ -1256,13 +1256,17 @@ Authorization: Bearer <access_token>
 ```json
 {
   "paymentMethodCode": "CREDIT_CARD",
-  "transactionRef": "TXN123456789"
+  "transactionRef": "TXN123456789",
+  "idempotencyKey": "idempotency-key-12345",
+  "amount": 1577000
 }
 ```
 
 **Validation:**
 - `paymentMethodCode`: Required, enum: `CREDIT_CARD`, `DEBIT_CARD`, `BANK_TRANSFER`, `EWALLET`, `CASH`
 - `transactionRef`: Optional, transaction reference from payment gateway
+- `idempotencyKey`: Optional, idempotency key để prevent duplicate payments
+- `amount`: Optional, payment amount (defaults to booking total amount, must equal booking total amount)
 
 **Response (201 Created):**
 ```json
@@ -1277,7 +1281,8 @@ Authorization: Bearer <access_token>
   "status": "pending",
   "transactionRef": "TXN123456789",
   "createdAt": "2025-01-20T10:15:00Z",
-  "paidAt": null
+  "paidAt": null,
+  "expiresAt": "2025-01-20T10:30:00Z"
 }
 ```
 
@@ -1292,6 +1297,11 @@ Authorization: Bearer <access_token>
 
 **Lưu ý:**
 - Payment được tạo với status `pending`
+- Payment tự động expire sau **15 phút** (expiresAt = createdAt + 15 minutes)
+- **Idempotency**: Nếu có `idempotencyKey`, system sẽ check và return existing payment nếu đã tồn tại (prevent duplicate payments)
+- **Amount Validation**: Nếu có `amount`, phải bằng booking total amount (strict validation, no partial payments)
+- **Payment Method Availability**: Payment method phải active (`is_active = true`)
+- **Concurrency Control**: Sử dụng database lock để prevent concurrent payments
 - Booking phải thuộc về user hiện tại (từ JWT token)
 - Booking không được đã paid hoặc cancelled
 - `userId` tự động extract từ JWT token (không cần gửi trong request body)
@@ -1318,7 +1328,9 @@ Authorization: Bearer <access_token>
 ```json
 {
   "paymentMethodCode": "CREDIT_CARD",
-  "transactionRef": "TXN123456789"
+  "transactionRef": "TXN123456789",
+  "idempotencyKey": "idempotency-key-12345",
+  "amount": 1577000
 }
 ```
 
@@ -1335,15 +1347,21 @@ Authorization: Bearer <access_token>
   "status": "success",
   "transactionRef": "TXN123456789",
   "createdAt": "2025-01-20T10:15:00Z",
-  "paidAt": "2025-01-20T10:15:05Z"
+  "paidAt": "2025-01-20T10:15:05Z",
+  "expiresAt": "2025-01-20T10:30:00Z",
+  "paymentUrl": "https://payment-gateway.com/pay/TXN123456789"
 }
 ```
 
 **Lưu ý:**
-- Payment được tạo và xử lý trong một transaction
+- Payment được tạo và xử lý trong một transaction với **concurrency control** (database lock)
+- **Payment Gateway Integration**: Endpoint này sẽ gọi payment gateway (VNPay, MoMo, Stripe, etc.) để tạo payment URL
+- **Payment URL**: Response có thể chứa `paymentUrl` để redirect user đến payment gateway page
+- **Async Processing**: Trong production, payment status thường được update qua **webhook** từ payment gateway
+- **Idempotency**: Nếu có `idempotencyKey`, system sẽ check và return existing payment nếu đã tồn tại
+- **Payment Expiration**: Payment tự động expire sau 15 phút nếu chưa thanh toán
 - Nếu payment thành công, booking status tự động update thành `paid`
 - `paidAt` được set khi payment status = `success`
-- Trong production, endpoint này sẽ gọi payment gateway và xử lý async (webhook)
 
 ---
 
@@ -1371,7 +1389,9 @@ Lấy thông tin chi tiết của một payment theo payment ID.
   "status": "success",
   "transactionRef": "TXN123456789",
   "createdAt": "2025-01-20T10:15:00Z",
-  "paidAt": "2025-01-20T10:15:05Z"
+  "paidAt": "2025-01-20T10:15:05Z",
+  "expiresAt": "2025-01-20T10:30:00Z",
+  "paymentUrl": null
 }
 ```
 
@@ -1415,7 +1435,9 @@ Lấy danh sách tất cả payments của một booking cụ thể.
     "status": "success",
     "transactionRef": "TXN123456789",
     "createdAt": "2025-01-20T10:15:00Z",
-    "paidAt": "2025-01-20T10:15:05Z"
+    "paidAt": "2025-01-20T10:15:05Z",
+    "expiresAt": "2025-01-20T10:30:00Z",
+    "paymentUrl": null
   }
 ]
 ```
@@ -1463,15 +1485,73 @@ Cập nhật status của payment. Thường được sử dụng bởi payment 
   "status": "success",
   "transactionRef": "TXN123456789",
   "createdAt": "2025-01-20T10:15:00Z",
-  "paidAt": "2025-01-20T10:20:00Z"
+  "paidAt": "2025-01-20T10:20:00Z",
+  "expiresAt": "2025-01-20T10:30:00Z",
+  "paymentUrl": null
 }
 ```
 
 **Lưu ý:**
 - Nếu status = `success`, `paidAt` được tự động set
 - Nếu payment thành công, booking status tự động update thành `paid`
+- **Payment Notifications**: System tự động gửi notification khi payment success/failed
 - User chỉ có thể update payments của bookings thuộc về mình
 - Trong production, endpoint này thường được gọi bởi payment gateway webhook
+
+---
+
+### Handle Payment Gateway Webhook (Xử lý webhook từ payment gateway)
+
+**POST** `/payments/webhooks/:gateway`
+
+Endpoint để nhận webhook từ payment gateway (VNPay, MoMo, Stripe, etc.) khi payment status được update.
+
+**Authentication:** NOT Required (Payment gateway calls this endpoint directly)
+
+**Path Parameters:**
+- `gateway`: Payment gateway name (e.g., `vnpay`, `momo`, `stripe`, `mock`)
+
+**Request Headers:**
+```
+x-signature: <webhook_signature>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "transactionId": "TXN123456789",
+  "status": "success",
+  "amount": 1577000,
+  "currency": "VND",
+  "message": "Payment processed successfully"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Webhook processed successfully"
+}
+```
+
+**Error (400 Bad Request):**
+```json
+{
+  "statusCode": 400,
+  "message": "Invalid webhook signature",
+  "error": "Bad Request"
+}
+```
+
+**Lưu ý:**
+- **Webhook Verification**: System verify webhook signature để đảm bảo request đến từ payment gateway hợp lệ
+- **Async Payment Status Update**: Payment gateway gọi webhook khi payment status thay đổi (success/failed)
+- **Automatic Booking Update**: Khi webhook xác nhận payment success, booking status tự động update thành `paid`
+- **Transaction Safety**: Webhook processing sử dụng transactions để đảm bảo data consistency
+- **Payment Notification**: System tự động gửi notification khi payment status được update qua webhook
+- Gateway name phải match với payment method code (e.g., `vnpay` → EWALLET, `stripe` → CREDIT_CARD)
 
 ---
 
@@ -1723,11 +1803,18 @@ const { data: fareOptions } = await api.get('/search/fare-options', {
     - Bước 5: Xem fare details → `GET /bookings/:id/fare-details`
     - Bước 6: Update passengers (nếu cần) → `PATCH /bookings/:id/passengers`
     - Bước 7: Get payment info → `GET /bookings/:id/payment-info`
-    - Bước 8: Process payment → `POST /payments/bookings/:bookingId/process` (tạo và thanh toán ngay)
-    - Bước 9: Verify payment → `GET /payments/:id` hoặc `GET /payments/bookings/:bookingId`
+    - Bước 8: Process payment → `POST /payments/bookings/:bookingId/process` (tạo và integrate với payment gateway)
+      - Response có thể chứa `paymentUrl` để redirect user đến payment gateway
+      - Payment được tạo với status `pending`, expires sau 15 phút
+    - Bước 9: Payment Gateway Webhook (Async) → `POST /payments/webhooks/:gateway`
+      - Payment gateway gọi webhook khi payment status thay đổi
+      - System verify signature và update payment status automatically
+    - Bước 10: Verify payment → `GET /payments/:id` hoặc `GET /payments/bookings/:bookingId`
     
     **Lưu ý**: 
     - Reservation sẽ tự động được cancel sau khi tạo booking thành công
-    - Payment sẽ tự động update booking status thành `paid` khi payment thành công
+    - Payment sẽ tự động update booking status thành `paid` khi payment thành công (via webhook)
     - Payment status: `pending` → `success` (hoặc `failed`)
+    - Payment tự động expire sau 15 phút nếu chưa thanh toán
+    - System tự động gửi notification khi payment success/failed
 
