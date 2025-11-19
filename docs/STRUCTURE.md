@@ -26,7 +26,8 @@ src/
 │   │   ├── services/          # Services (deals, etc.)
 │   │   ├── routes/            # Routes management
 │   │   ├── booking/           # Booking management (proxy to microservice)
-│   │   └── reservation/       # Reservation management (proxy to microservice)
+│   │   ├── reservation/       # Reservation management (proxy to microservice)
+│   │   └── payment/           # Payment management (proxy to microservice)
 │   ├── app.module.ts          # Root module
 │   └── main.ts                # Entry point
 │
@@ -55,12 +56,23 @@ src/
 │   │   ├── dto/               # Request/Response DTOs
 │   │   ├── booking.messages.ts # TCP config
 │   │   └── main.booking.ts    # Entry point
-│   └── reservation/           # Reservation microservice (port 4005)
+│   ├── reservation/           # Reservation microservice (port 4005)
+│   │   ├── controllers/       # Message handlers
+│   │   ├── services/          # Business logic (Redis-based)
+│   │   ├── dto/               # Request/Response DTOs
+│   │   ├── reservation.messages.ts # TCP config
+│   │   └── main.reservation.ts # Entry point
+│   └── payment/               # Payment microservice (port 4006)
 │       ├── controllers/       # Message handlers
-│       ├── services/          # Business logic (Redis-based)
+│       ├── services/          # Business logic
 │       ├── dto/               # Request/Response DTOs
-│       ├── reservation.messages.ts # TCP config
-│       └── main.reservation.ts # Entry point
+│       ├── gateways/          # Payment gateway implementations
+│       │   ├── payment-gateway.interface.ts
+│       │   ├── payment-gateway.factory.ts
+│       │   ├── mock-payment.gateway.ts
+│       │   └── vnpay.gateway.example.ts
+│       ├── payment.messages.ts # TCP config
+│       └── main.payment.ts    # Entry point
 │
 └── scripts/                   # Database scripts
     └── seed-domestic.ts       # Seed domestic flights data
@@ -282,6 +294,9 @@ npm run start:booking:dev
 # Start Reservation Microservice (port 4005) - Cần chạy nếu dùng reservation APIs
 npm run start:reservation:dev
 
+# Start Payment Microservice (port 4006) - Cần chạy nếu dùng payment APIs
+npm run start:payment:dev
+
 # Start Redis (port 6379) - Required cho Reservation Service
 docker-compose up -d redis
 
@@ -331,6 +346,10 @@ BOOKING_MS_PORT=4004
 RESERVATION_MS_HOST=127.0.0.1
 RESERVATION_MS_PORT=4005
 
+# Payment Microservice
+PAYMENT_MS_HOST=127.0.0.1
+PAYMENT_MS_PORT=4006
+
 # Redis
 REDIS_HOST=localhost
 REDIS_PORT=6379
@@ -349,7 +368,16 @@ REDIS_RESERVATION_TTL=900  # 15 minutes (in seconds)
 5. **Round trip**: Nếu `tripType=round_trip` thì bắt buộc phải có `returnDate`
 6. **Error handling**: Check `statusCode` trong response để handle errors
 7. **UUID v7**: Tất cả IDs trong hệ thống (flightInstanceId, bookingId, userId...) sử dụng **UUID v7** (time-ordered UUID). Format: `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx`. UUID v7 có thể sắp xếp theo thời gian, tốt cho database indexing.
-8. **Booking API Features**:
+8. **Payment Service Features (Phase 1 & 2 - Production Ready)**:
+   - Idempotency: Prevent duplicate payments với idempotency key
+   - Amount Validation: Payment amount phải bằng booking total amount
+   - Concurrency Control: Database lock để prevent concurrent payments
+   - Payment Gateway Integration: Ready structure để tích hợp VNPay, MoMo, Stripe
+   - Webhook Handling: Endpoint `/payments/webhooks/:gateway` để nhận webhook từ payment gateway
+   - Payment Expiration: Payment tự động expire sau 15 phút
+   - Payment Method Availability: Check payment method is active
+   - Payment Notifications: Tự động gửi notification khi payment success/failed
+9. **Booking API Features**:
    - Yêu cầu JWT authentication - `userId` tự động extract từ token
    - Contact info tự động lấy từ user nếu không có trong body
    - Hỗ trợ tạo passenger mới trong booking request (không cần tạo trước)

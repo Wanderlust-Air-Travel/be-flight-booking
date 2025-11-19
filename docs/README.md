@@ -31,6 +31,8 @@ Tài liệu dự án Flight Booking Backend được tổ chức theo các danh 
 - **[JWT_IMPLEMENTATION_SUMMARY.md](./design/JWT_IMPLEMENTATION_SUMMARY.md)** - Tóm tắt Implementation JWT Pattern
 - **[PASSENGER_REUSE_BEST_PRACTICE.md](./design/PASSENGER_REUSE_BEST_PRACTICE.md)** - Best Practice cho Passenger Reuse
 - **[RESERVATION_EXPIRATION_VALIDATION.md](./design/RESERVATION_EXPIRATION_VALIDATION.md)** - Best Practice cho Reservation Expiration Validation
+- **[PAYMENT_SERVICE_ANALYSIS.md](./design/PAYMENT_SERVICE_ANALYSIS.md)** - Phân tích Payment Service và Phase 1 & 2 improvements (Production Ready)
+- **[PAYMENT_GATEWAY_EXPLANATION.md](./design/PAYMENT_GATEWAY_EXPLANATION.md)** - Giải thích Payment Gateway Architecture và cách implement real payment gateways
 
 ### [Project Documentation](./)
 - **[CHANGELOG.md](./CHANGELOG.md)** - Lịch sử thay đổi của dự án

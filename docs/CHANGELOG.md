@@ -6,6 +6,40 @@ Tất cả các thay đổi quan trọng của project sẽ được ghi nhận 
 
 ### Added
 
+- **Payment Microservice** (port 4006): Microservice mới xử lý payment logic (Production Ready - Phase 1 & 2)
+  - Entry point: `src/microservices/payment/main.payment.ts`
+  - Chạy bằng: `npm run start:payment` hoặc `npm run start:payment:dev`
+  - Environment variables: `PAYMENT_MS_HOST`, `PAYMENT_MS_PORT`
+  - **Payment Service Features (Phase 1 & 2)**:
+    - **Idempotency**: Prevent duplicate payments với idempotency key
+    - **Amount Validation**: Payment amount phải bằng booking total amount (strict validation)
+    - **Concurrency Control**: Database lock (pessimistic) để prevent concurrent payments
+    - **Payment Gateway Integration**: Ready structure để tích hợp VNPay, MoMo, Stripe, etc.
+    - **Webhook Handling**: Endpoint `/payments/webhooks/:gateway` để nhận webhook từ payment gateway
+    - **Payment Expiration**: Payment tự động expire sau 15 phút
+    - **Payment Method Availability**: Check payment method is active (`is_active = true`)
+    - **Payment Notifications**: Tự động gửi notification khi payment success/failed
+  - **Payment APIs**:
+    - `POST /payments/bookings/:bookingId` - Tạo payment record (status: pending)
+    - `POST /payments/bookings/:bookingId/process` - Tạo và integrate với payment gateway
+    - `GET /payments/:id` - Lấy payment details
+    - `GET /payments/bookings/:bookingId` - Lấy tất cả payments của booking
+    - `PATCH /payments/:id/status` - Update payment status
+    - `POST /payments/webhooks/:gateway` - Handle webhook từ payment gateway (public endpoint, no auth)
+  - **Database Changes**:
+    - Payments table: thêm `idempotency_key VARCHAR(100) NULL`, `expires_at DATETIME2 NULL`
+    - PaymentMethods table: thêm `is_active BIT NOT NULL DEFAULT 1`
+    - Indexes: `IX_Payments_IdempotencyKey`, `IX_Payments_ExpiresAt`
+  - **Migration**: `1734600000000-UpdatePaymentTables.ts` - Migration để add các fields mới
+  - **Payment Gateway Architecture**:
+    - `IPaymentGateway` interface cho payment gateway abstraction
+    - `PaymentGatewayFactory` để manage multiple gateways
+    - `MockPaymentGateway` cho development/testing
+    - Ready structure để tích hợp real payment gateways (VNPay, MoMo, Stripe)
+  - **Docker**: Payment Service (port 4006) đã được thêm vào docker-compose-full-services.yml và start-all.ts
+
+### Added
+
 - **Reservation Microservice** (port 4005): Microservice mới xử lý reservation logic với Redis
   - Entry point: `src/microservices/reservation/main.reservation.ts`
   - Chạy bằng: `npm run start:reservation` hoặc `npm run start:reservation:dev`
@@ -102,6 +136,11 @@ Tất cả các thay đổi quan trọng của project sẽ được ghi nhận 
   - Cho phép tất cả origins trong dev mode (hoặc set `FRONTEND_URL` trong `.env` để giới hạn)
   - Hỗ trợ credentials (cookies, authorization headers)
   - Methods: GET, POST, PUT, DELETE, PATCH, OPTIONS
+- **Payment Flow**: Complete booking flow bây giờ bao gồm Payment step
+  - Flow: Search → Fare Options → Create Reservation → Create Booking → **Process Payment** → Payment Gateway Webhook (Async) → Verify Payment
+  - Payment sẽ tự động update booking status thành `paid` khi payment thành công (via webhook)
+  - Payment tự động expire sau 15 phút nếu chưa thanh toán
+  - System tự động gửi notification khi payment success/failed
 - **Services API**: `/services/deals` giờ hỗ trợ cả one-way và round-trip deals
   - Thêm field `tripType`: `"one_way"` hoặc `"round_trip"`
   - Round-trip: `endDate` có giá trị, `service` = "Dịch vụ bay khứ hồi", `price` = tổng giá 2 chuyến
@@ -135,6 +174,7 @@ Tất cả các thay đổi quan trọng của project sẽ được ghi nhận 
 - Services API cần Services Microservice (port 4002)
 - Booking APIs cần Booking Microservice (port 4004)
 - **Reservation APIs cần Reservation Microservice (port 4005) và Redis**
+- **Payment APIs cần Payment Microservice (port 4006)**
   - Chạy Reservation Microservice: `npm run start:reservation:dev`
   - Chạy Redis: `docker-compose up -d redis`
   - Reservation được lưu trong Redis với TTL 15 phút (tự động expire)

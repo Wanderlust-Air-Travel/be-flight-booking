@@ -92,6 +92,8 @@ BOOKING_MS_HOST=127.0.0.1
 BOOKING_MS_PORT=4004
 RESERVATION_MS_HOST=127.0.0.1
 RESERVATION_MS_PORT=4005
+PAYMENT_MS_HOST=127.0.0.1
+PAYMENT_MS_PORT=4006
 
 # Redis (Required for Reservation Service)
 REDIS_HOST=localhost
@@ -112,7 +114,8 @@ src/
 │   ├── services/        # Port 4002
 │   ├── routes/          # Port 4003
 │   ├── booking/         # Port 4004
-│   └── reservation/     # Port 4005 (Redis-based)
+│   ├── reservation/     # Port 4005 (Redis-based)
+│   └── payment/         # Port 4006 (Production Ready - Phase 1 & 2)
 ├── shared/              # Entities, types, config
 └── scripts/             # Seed scripts
 ```
@@ -140,9 +143,15 @@ Tất cả tài liệu trong thư mục [`docs/`](./docs/):
 
 ## Features
 
-- **Microservices Architecture**: Tách biệt Search, Services, Routes, Booking, Reservation
-- **Backend-managed State**: Reservation Service quản lý state trong Redis
+- **Microservices Architecture**: Tách biệt Search, Services, Routes, Booking, Reservation, Payment
+- **Backend-managed State**: Reservation Service quản lý state trong Redis (Hybrid: Database + Redis)
+- **Payment Service**: Production Ready với Phase 1 & 2 improvements
+  - Idempotency & Duplicate Prevention
+  - Amount Validation & Concurrency Control
+  - Payment Gateway Integration Structure
+  - Webhook Handling & Payment Expiration
+  - Payment Method Availability & Notifications
 - **UUID v7**: Tất cả IDs sử dụng UUID v7 (time-ordered)
-- **JWT Authentication**: Tự động extract userId từ token
-- **Passenger Creation**: Tự động tạo passenger khi booking
-- **Transaction Safety**: Booking creation với transaction rollback
+- **JWT Authentication**: Tự động extract userId từ token tại Gateway
+- **Passenger Creation**: Tự động tạo passenger khi booking (với reuse logic)
+- **Transaction Safety**: Booking & Payment creation với transaction rollback

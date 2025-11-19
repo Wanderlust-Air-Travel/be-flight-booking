@@ -89,6 +89,7 @@ docker-compose -f docker-compose-full-services.yml down -v     # Xóa tất cả
 - Routes MS: Port 4003
 - Booking MS: Port 4004
 - Reservation MS: Port 4005
+- Payment MS: Port 4006
 
 ## Troubleshooting
 

@@ -6,6 +6,11 @@ Thư mục chứa các migration files cho database schema.
 
 - `1700000000000-InitialSchema.ts` - Migration ban đầu tạo toàn bộ database schema
 - `1734567890000-AddReservationsTable.ts` - Migration thêm bảng Reservations (Hybrid Approach: Database + Redis)
+- `1734600000000-UpdatePaymentTables.ts` - Migration update Payment và PaymentMethod tables (Phase 1 & 2 improvements)
+  - Add `is_active BIT NOT NULL DEFAULT 1` to PaymentMethods table
+  - Add `idempotency_key VARCHAR(100) NULL` to Payments table
+  - Add `expires_at DATETIME2 NULL` to Payments table
+  - Create indexes: `IX_Payments_IdempotencyKey`, `IX_Payments_ExpiresAt`
 
 ## Cách sử dụng
 
