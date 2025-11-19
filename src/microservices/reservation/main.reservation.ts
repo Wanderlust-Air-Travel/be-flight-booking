@@ -23,7 +23,7 @@ import { RedisModule } from 'src/shared/modules/redis/redis.module';
 		TypeOrmModule.forRoot({
 			type: 'mssql',
 			host: process.env.DB_HOST ?? 'localhost',
-			port: Number(process.env.DB_PORT ?? 1433),
+			port: Number(process.env.DB_PORT ?? 1434),
 			username: process.env.DB_USER,
 			password: process.env.DB_PASS,
 			database: process.env.DB_NAME,

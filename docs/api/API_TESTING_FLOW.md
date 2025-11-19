@@ -366,6 +366,80 @@ Authorization: Bearer {{access_token}}
 
 ---
 
+### Step 9: Process Payment
+
+**Request:**
+```http
+POST {{base_url}}/payments/bookings/{{bookingId}}/process
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "paymentMethodCode": "CREDIT_CARD",
+  "transactionRef": "TXN123456789"
+}
+```
+
+**Response:**
+```json
+{
+  "paymentId": "019a8f4a-bb0e-7402-a0c4-27647b89dc75",
+  "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc74",
+  "pnrCode": "XYZ789",
+  "amount": 1577000,
+  "currencyCode": "VND",
+  "paymentMethodCode": "CREDIT_CARD",
+  "paymentMethodName": "Credit Card",
+  "status": "success",
+  "transactionRef": "TXN123456789",
+  "createdAt": "2025-11-20T10:15:00Z",
+  "paidAt": "2025-11-20T10:15:05Z"
+}
+```
+
+**Lưu ý:** 
+- Postman collection sẽ tự động set `paymentId` vào variable
+- Payment status = `success` và booking status tự động update thành `paid`
+- `paidAt` được set khi payment thành công
+
+---
+
+### Step 10: Verify Payment (Optional)
+
+**Request:**
+```http
+GET {{base_url}}/payments/{{paymentId}}
+Authorization: Bearer {{access_token}}
+```
+
+Hoặc xem tất cả payments của booking:
+
+```http
+GET {{base_url}}/payments/bookings/{{bookingId}}
+Authorization: Bearer {{access_token}}
+```
+
+**Response:**
+```json
+[
+  {
+    "paymentId": "019a8f4a-bb0e-7402-a0c4-27647b89dc75",
+    "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc74",
+    "pnrCode": "XYZ789",
+    "amount": 1577000,
+    "currencyCode": "VND",
+    "paymentMethodCode": "CREDIT_CARD",
+    "paymentMethodName": "Credit Card",
+    "status": "success",
+    "transactionRef": "TXN123456789",
+    "createdAt": "2025-11-20T10:15:00Z",
+    "paidAt": "2025-11-20T10:15:05Z"
+  }
+]
+```
+
+---
+
 ## Flow 2: Round-Trip Booking (Chuyến khứ hồi)
 
 ### Step 1-2: Register & Login
@@ -571,8 +645,8 @@ Content-Type: application/json
 
 ---
 
-### Step 8-9: Get Booking Details
-Giống như Flow 1 (Step 7-8)
+### Step 8-10: Get Booking Details & Process Payment
+Giống như Flow 1 (Step 7-10)
 
 ---
 
@@ -693,6 +767,10 @@ Content-Type: application/json
 - [ ] Verify reservation deleted từ Redis
 - [ ] Get booking fare details
 - [ ] Get booking payment info
+- [ ] Process payment
+- [ ] Verify payment status = 'success'
+- [ ] Verify booking status = 'paid'
+- [ ] Get payment details
 
 ### Round-Trip Booking Flow
 - [ ] Register user
@@ -707,6 +785,9 @@ Content-Type: application/json
 - [ ] Verify booking có 2 segments (outbound + inbound)
 - [ ] Verify reservation status = 'converted' trong Database
 - [ ] Get booking details
+- [ ] Process payment
+- [ ] Verify payment status = 'success'
+- [ ] Verify booking status = 'paid'
 
 ### Additional Operations
 - [ ] List reservations
@@ -715,6 +796,10 @@ Content-Type: application/json
 - [ ] Cancel reservation
 - [ ] Extend reservation
 - [ ] Verify Hybrid Approach (Redis down → fallback to Database)
+- [ ] Create payment (without processing)
+- [ ] Get payment by ID
+- [ ] Get payments by booking
+- [ ] Update payment status
 
 ---
 
@@ -809,6 +894,7 @@ Sau khi chạy các requests, Postman collection sẽ tự động set các vari
 - `reservationId`: Reservation ID
 - `reservationCode`: Reservation code (6 alphanumeric)
 - `bookingId`: Booking ID
+- `paymentId`: Payment ID
 - `departDate`: Departure date (YYYY-MM-DD)
 - `returnDate`: Return date (YYYY-MM-DD)
 

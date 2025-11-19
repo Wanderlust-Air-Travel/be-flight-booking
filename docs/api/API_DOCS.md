@@ -28,6 +28,7 @@ Client → Gateway (Validate JWT) → Extract userId → Send userId → Microse
 **Implementation:**
 - **Booking APIs** (`POST /bookings`, `GET /bookings/:id/*`, `PATCH /bookings/:id/*`) yêu cầu JWT authentication
 - **Reservation APIs** (`POST /reservations`, `GET /reservations`, `GET /reservations/:id`, `POST /reservations/:id/cancel`, `POST /reservations/:id/extend`) yêu cầu JWT authentication
+- **Payment APIs** (`POST /payments/bookings/:bookingId`, `POST /payments/bookings/:bookingId/process`, `GET /payments/:id`, `GET /payments/bookings/:bookingId`, `PATCH /payments/:id/status`) yêu cầu JWT authentication
 - **Routes APIs** (`POST /routes/:routeId/upload-image`) yêu cầu JWT authentication
 - Gửi JWT token trong header: `Authorization: Bearer <access_token>`
 - `userId` **KHÔNG cần** truyền trong request body - tự động extract từ JWT token tại Gateway
@@ -1233,6 +1234,247 @@ GET /bookings/019a8f4a-bb0e-7402-a0c4-27647b89dc71/payment-info
 
 ---
 
+## Payments (Thanh toán)
+
+### Create Payment (Tạo payment record)
+
+**POST** `/payments/bookings/:bookingId`
+
+Tạo một payment record mới cho booking. Payment sẽ có status `pending`. Để thanh toán ngay, sử dụng endpoint `/payments/bookings/:bookingId/process`.
+
+**Authentication:** Required (JWT Bearer Token)
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Path Parameters:**
+- `bookingId`: Booking ID (UUID v7)
+
+**Request Body:**
+```json
+{
+  "paymentMethodCode": "CREDIT_CARD",
+  "transactionRef": "TXN123456789"
+}
+```
+
+**Validation:**
+- `paymentMethodCode`: Required, enum: `CREDIT_CARD`, `DEBIT_CARD`, `BANK_TRANSFER`, `EWALLET`, `CASH`
+- `transactionRef`: Optional, transaction reference from payment gateway
+
+**Response (201 Created):**
+```json
+{
+  "paymentId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
+  "pnrCode": "ABC123",
+  "amount": 1577000,
+  "currencyCode": "VND",
+  "paymentMethodCode": "CREDIT_CARD",
+  "paymentMethodName": "Credit Card",
+  "status": "pending",
+  "transactionRef": "TXN123456789",
+  "createdAt": "2025-01-20T10:15:00Z",
+  "paidAt": null
+}
+```
+
+**Error (400 Bad Request):**
+```json
+{
+  "statusCode": 400,
+  "message": "Booking is already paid",
+  "error": "Bad Request"
+}
+```
+
+**Lưu ý:**
+- Payment được tạo với status `pending`
+- Booking phải thuộc về user hiện tại (từ JWT token)
+- Booking không được đã paid hoặc cancelled
+- `userId` tự động extract từ JWT token (không cần gửi trong request body)
+
+---
+
+### Process Payment (Tạo và thanh toán ngay)
+
+**POST** `/payments/bookings/:bookingId/process`
+
+Tạo payment record và xử lý thanh toán ngay lập tức. Payment sẽ được tạo và status được update thành `success`, booking status sẽ được update thành `paid`. Trong production, endpoint này sẽ tích hợp với payment gateway thực tế.
+
+**Authentication:** Required (JWT Bearer Token)
+
+**Request Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Path Parameters:**
+- `bookingId`: Booking ID (UUID v7)
+
+**Request Body:**
+```json
+{
+  "paymentMethodCode": "CREDIT_CARD",
+  "transactionRef": "TXN123456789"
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "paymentId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
+  "pnrCode": "ABC123",
+  "amount": 1577000,
+  "currencyCode": "VND",
+  "paymentMethodCode": "CREDIT_CARD",
+  "paymentMethodName": "Credit Card",
+  "status": "success",
+  "transactionRef": "TXN123456789",
+  "createdAt": "2025-01-20T10:15:00Z",
+  "paidAt": "2025-01-20T10:15:05Z"
+}
+```
+
+**Lưu ý:**
+- Payment được tạo và xử lý trong một transaction
+- Nếu payment thành công, booking status tự động update thành `paid`
+- `paidAt` được set khi payment status = `success`
+- Trong production, endpoint này sẽ gọi payment gateway và xử lý async (webhook)
+
+---
+
+### Get Payment (Lấy thông tin payment)
+
+**GET** `/payments/:id`
+
+Lấy thông tin chi tiết của một payment theo payment ID.
+
+**Authentication:** Required (JWT Bearer Token)
+
+**Path Parameters:**
+- `id`: Payment ID (UUID v7)
+
+**Response (200 OK):**
+```json
+{
+  "paymentId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
+  "pnrCode": "ABC123",
+  "amount": 1577000,
+  "currencyCode": "VND",
+  "paymentMethodCode": "CREDIT_CARD",
+  "paymentMethodName": "Credit Card",
+  "status": "success",
+  "transactionRef": "TXN123456789",
+  "createdAt": "2025-01-20T10:15:00Z",
+  "paidAt": "2025-01-20T10:15:05Z"
+}
+```
+
+**Error (404 Not Found):**
+```json
+{
+  "statusCode": 404,
+  "message": "Payment 019a8f4a-bb0e-7402-a0c4-27647b89dc71 not found",
+  "error": "Not Found"
+}
+```
+
+**Lưu ý:**
+- User chỉ có thể xem payments của bookings thuộc về mình
+- Payment phải thuộc về booking của user hiện tại (từ JWT token)
+
+---
+
+### Get Payments by Booking (Lấy tất cả payments của booking)
+
+**GET** `/payments/bookings/:bookingId`
+
+Lấy danh sách tất cả payments của một booking cụ thể.
+
+**Authentication:** Required (JWT Bearer Token)
+
+**Path Parameters:**
+- `bookingId`: Booking ID (UUID v7)
+
+**Response (200 OK):**
+```json
+[
+  {
+    "paymentId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+    "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
+    "pnrCode": "ABC123",
+    "amount": 1577000,
+    "currencyCode": "VND",
+    "paymentMethodCode": "CREDIT_CARD",
+    "paymentMethodName": "Credit Card",
+    "status": "success",
+    "transactionRef": "TXN123456789",
+    "createdAt": "2025-01-20T10:15:00Z",
+    "paidAt": "2025-01-20T10:15:05Z"
+  }
+]
+```
+
+**Lưu ý:**
+- Payments được sắp xếp theo `createdAt` DESC (mới nhất trước)
+- User chỉ có thể xem payments của bookings thuộc về mình
+- Một booking có thể có nhiều payments (ví dụ: payment failed, retry payment)
+
+---
+
+### Update Payment Status (Cập nhật payment status)
+
+**PATCH** `/payments/:id/status`
+
+Cập nhật status của payment. Thường được sử dụng bởi payment gateway webhooks hoặc admin operations.
+
+**Authentication:** Required (JWT Bearer Token)
+
+**Path Parameters:**
+- `id`: Payment ID (UUID v7)
+
+**Request Body:**
+```json
+{
+  "status": "success",
+  "transactionRef": "TXN123456789"
+}
+```
+
+**Validation:**
+- `status`: Required, enum: `pending`, `success`, `failed`
+- `transactionRef`: Optional, transaction reference from payment gateway
+
+**Response (200 OK):**
+```json
+{
+  "paymentId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
+  "pnrCode": "ABC123",
+  "amount": 1577000,
+  "currencyCode": "VND",
+  "paymentMethodCode": "CREDIT_CARD",
+  "paymentMethodName": "Credit Card",
+  "status": "success",
+  "transactionRef": "TXN123456789",
+  "createdAt": "2025-01-20T10:15:00Z",
+  "paidAt": "2025-01-20T10:20:00Z"
+}
+```
+
+**Lưu ý:**
+- Nếu status = `success`, `paidAt` được tự động set
+- Nếu payment thành công, booking status tự động update thành `paid`
+- User chỉ có thể update payments của bookings thuộc về mình
+- Trong production, endpoint này thường được gọi bởi payment gateway webhook
+
+---
+
 ## Services (Dịch vụ chuyến bay)
 
 ### Get Flight Deals (Lấy danh sách deals chuyến bay)
@@ -1468,11 +1710,12 @@ const { data: fareOptions } = await api.get('/search/fare-options', {
 7. **UUID v7**: Tất cả IDs trong hệ thống sử dụng UUID v7 (time-ordered). Format: `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx`. UUID v7 có thể sắp xếp theo thời gian, tốt cho database indexing.
 8. **Services Microservice**: API `/services/deals` cần Services Microservice chạy (port 4002). Chạy bằng: `npm run start:services` hoặc `npm run start:services:dev`
 9. **Booking Microservice**: Tất cả booking APIs cần Booking Microservice chạy (port 4004). Chạy bằng: `npm run start:booking` hoặc `npm run start:booking:dev`
-10. **Pricing Strategy**: 
+10. **Payment Microservice**: Tất cả payment APIs cần Payment Microservice chạy (port 4006). Chạy bằng: `npm run start:payment` hoặc `npm run start:payment:dev`
+11. **Pricing Strategy**: 
     - Giá trong deals được tính từ historical pricing (BookingSegments) nếu có
     - Nếu chưa có booking, dùng fallback prices (giá mặc định)
     - Giá được format theo chuẩn Việt Nam: "962,000 VND"
-11. **Booking Flow (Recommended - Backend-managed State)**:
+12. **Booking Flow (Recommended - Backend-managed State)**:
     - Bước 1: Search flights → `GET /search/flights`
     - Bước 2: Chọn flight → Get fare options → `GET /search/fare-options`
     - Bước 3: Chọn fare class → Create reservation → `POST /reservations` (lưu `reservationId`)
@@ -1480,7 +1723,11 @@ const { data: fareOptions } = await api.get('/search/fare-options', {
     - Bước 5: Xem fare details → `GET /bookings/:id/fare-details`
     - Bước 6: Update passengers (nếu cần) → `PATCH /bookings/:id/passengers`
     - Bước 7: Get payment info → `GET /bookings/:id/payment-info`
-    - Bước 8: Thanh toán (API này sẽ được implement sau)
+    - Bước 8: Process payment → `POST /payments/bookings/:bookingId/process` (tạo và thanh toán ngay)
+    - Bước 9: Verify payment → `GET /payments/:id` hoặc `GET /payments/bookings/:bookingId`
     
-    **Lưu ý**: Reservation sẽ tự động được cancel sau khi tạo booking thành công.
+    **Lưu ý**: 
+    - Reservation sẽ tự động được cancel sau khi tạo booking thành công
+    - Payment sẽ tự động update booking status thành `paid` khi payment thành công
+    - Payment status: `pending` → `success` (hoặc `failed`)
 

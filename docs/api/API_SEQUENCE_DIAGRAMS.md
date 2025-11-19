@@ -16,6 +16,7 @@ sequenceDiagram
     participant Search MS
     participant Reservation MS
     participant Booking MS
+    participant Payment MS
     participant Database
     participant Redis
 
@@ -110,6 +111,30 @@ sequenceDiagram
     Database-->>Booking MS: Booking data
     Booking MS-->>API Gateway: {totalAmount, contactInfo, ...}
     API Gateway-->>Client: 200 OK<br/>{payment info}
+
+    Note over Client,Redis: Phase 7: Process Payment (NEW)
+    Client->>API Gateway: POST /payments/bookings/:bookingId/process<br/>Authorization: Bearer <token><br/>{paymentMethodCode, transactionRef}
+    API Gateway->>API Gateway: JwtAuthGuard: Validate JWT token<br/>JwtStrategy: Extract userId from payload
+    API Gateway->>API Gateway: Extract userId from req.user.userId
+    API Gateway->>Payment MS: PROCESS_PAYMENT message (TCP)<br/>{userId, bookingId, dto} (NOT token)
+    Payment MS->>Database: BEGIN TRANSACTION
+    Payment MS->>Database: Validate booking exists & belongs to user<br/>Check booking status (not paid, not cancelled)
+    Database-->>Payment MS: Booking data
+    Payment MS->>Database: Validate payment method exists
+    Database-->>Payment MS: PaymentMethod data
+    Payment MS->>Payment MS: Create Payment record<br/>(status: pending)
+    Payment MS->>Database: INSERT INTO Payments<br/>(payment_id, booking_id, amount, status: 'pending', ...)
+    Database-->>Payment MS: Payment created
+    Payment MS->>Payment MS: Simulate payment processing<br/>(In production: call payment gateway)
+    Payment MS->>Payment MS: Update payment status to 'success'<br/>Set paid_at timestamp
+    Payment MS->>Database: UPDATE Payments<br/>SET status = 'success', paid_at = now
+    Database-->>Payment MS: Payment updated
+    Payment MS->>Database: UPDATE Bookings<br/>SET status = 'paid', updated_at = now
+    Database-->>Payment MS: Booking updated
+    Payment MS->>Database: COMMIT TRANSACTION
+    Database-->>Payment MS: Transaction committed
+    Payment MS-->>API Gateway: {paymentId, bookingId, status: 'success', paidAt, ...}
+    API Gateway-->>Client: 201 Created<br/>{payment details with status: 'success'}
 ```
 
 ---
@@ -129,6 +154,7 @@ sequenceDiagram
     participant Search MS
     participant Booking MS
     participant Reservation MS
+    participant Payment MS
     participant Database
     participant Redis
 
@@ -146,21 +172,32 @@ sequenceDiagram
         Database-->>Search MS: Result
         Search MS-->>Search Module: Response
         Search Module-->>API Gateway: Response
-    else Protected Endpoint (Booking, Reservation)
+    else Protected Endpoint (Booking, Reservation, Payment)
         API Gateway->>API Gateway: JwtAuthGuard: Validate JWT token<br/>(JwtStrategy.validate())
         API Gateway->>API Gateway: Verify token signature<br/>Extract userId from payload.sub
         API Gateway->>API Gateway: Store in req.user: {userId, email}
-        API Gateway->>Booking Module: Forward request<br/>(req.user.userId available)
-        Booking Module->>Booking Module: Extract userId from req.user.userId
-        Booking Module->>Booking MS: TCP Message<br/>{userId, ...} (NOT token)
-        Booking MS->>Database: SQL Query (Transaction)
-        Database-->>Booking MS: Result
-        Booking MS->>Reservation MS: Inter-service call (TCP)
-        Reservation MS->>Redis: GET/SET operation
-        Redis-->>Reservation MS: Result
-        Reservation MS-->>Booking MS: Response
-        Booking MS-->>Booking Module: Response
-        Booking Module-->>API Gateway: Response
+        alt Booking/Reservation Module
+            API Gateway->>Booking Module: Forward request<br/>(req.user.userId available)
+            Booking Module->>Booking Module: Extract userId from req.user.userId
+            Booking Module->>Booking MS: TCP Message<br/>{userId, ...} (NOT token)
+            Booking MS->>Database: SQL Query (Transaction)
+            Database-->>Booking MS: Result
+            Booking MS->>Reservation MS: Inter-service call (TCP)
+            Reservation MS->>Redis: GET/SET operation
+            Redis-->>Reservation MS: Result
+            Reservation MS-->>Booking MS: Response
+            Booking MS-->>Booking Module: Response
+            Booking Module-->>API Gateway: Response
+        else Payment Module
+            API Gateway->>Payment Module: Forward request<br/>(req.user.userId available)
+            Payment Module->>Payment Module: Extract userId from req.user.userId
+            Payment Module->>Payment MS: TCP Message<br/>{userId, ...} (NOT token)
+            Payment MS->>Database: SQL Query (Transaction)
+            Database-->>Payment MS: Result
+            Payment MS->>Payment MS: Update booking status if payment success
+            Payment MS-->>Payment Module: Response
+            Payment Module-->>API Gateway: Response
+        end
     end
 
     API Gateway->>API Gateway: 4. Format Response
@@ -180,6 +217,7 @@ sequenceDiagram
     participant Search MS
     participant Booking MS
     participant Reservation MS
+    participant Payment MS
     participant Services MS
     participant Routes MS
     participant Database
@@ -243,6 +281,24 @@ sequenceDiagram
         end
         Services MS->>Services MS: Aggregate & format
         Services MS-->>API Gateway: Aggregated response
+    end
+
+    rect rgb(255, 248, 240)
+        Note over API Gateway,Payment MS: Payment Processing Pattern
+        API Gateway->>Payment MS: PROCESS_PAYMENT message<br/>{userId, bookingId, dto}
+        Payment MS->>Database: BEGIN TRANSACTION
+        Payment MS->>Database: Validate booking & payment method
+        Database-->>Payment MS: Validation result
+        Payment MS->>Database: INSERT INTO Payments<br/>(status: 'pending')
+        Database-->>Payment MS: Payment created
+        Payment MS->>Payment MS: Process payment<br/>(simulate payment gateway)
+        Payment MS->>Database: UPDATE Payments<br/>SET status = 'success', paid_at = now
+        Database-->>Payment MS: Payment updated
+        Payment MS->>Database: UPDATE Bookings<br/>SET status = 'paid'
+        Database-->>Payment MS: Booking updated
+        Payment MS->>Database: COMMIT TRANSACTION
+        Database-->>Payment MS: Transaction committed
+        Payment MS-->>API Gateway: Payment response
     end
 ```
 

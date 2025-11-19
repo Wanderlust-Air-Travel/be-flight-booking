@@ -1,6 +1,77 @@
 # Changelog - API Documentation Updates
 
-## Ngày cập nhật: 2025-11-19 (Latest - JWT Pattern Implementation)
+## Ngày cập nhật: 2025-01-20 (Latest - Payment API Implementation)
+
+### Major Changes - Payment Microservice & APIs
+
+#### 1. **Payment Microservice (Port 4006)**
+- **New Microservice**: Payment Microservice được tạo để xử lý tất cả payment operations
+- **Port**: 4006 (TCP)
+- **Architecture**: Microservice pattern với NestJS, TypeORM, SQL Server
+- **Transaction Safety**: Tất cả payment operations sử dụng database transactions
+
+**Implementation:**
+- `PaymentService`: Business logic với transaction handling
+- `PaymentMsController`: Microservice controller xử lý message patterns
+- `PaymentModule`: Module với TypeORM entities (Payment, PaymentMethod, Booking, Currency)
+- Message Patterns: `CREATE_PAYMENT`, `PROCESS_PAYMENT`, `GET_PAYMENT`, `GET_PAYMENTS_BY_BOOKING`, `UPDATE_PAYMENT_STATUS`
+
+**Code Locations:**
+- Microservice: `src/microservices/payment/`
+- API Gateway: `src/api-gateway/modules/payment/`
+- Entities: `src/shared/entities/payment/`
+
+#### 2. **Payment APIs (REST Endpoints)**
+- **POST** `/payments/bookings/:bookingId` - Create payment record (status: pending)
+- **POST** `/payments/bookings/:bookingId/process` - Create and process payment immediately (status: success)
+- **GET** `/payments/:id` - Get payment by ID
+- **GET** `/payments/bookings/:bookingId` - Get all payments for a booking
+- **PATCH** `/payments/:id/status` - Update payment status (for webhooks/admin)
+
+**Features:**
+- Transaction-safe: Tất cả operations sử dụng TypeORM transactions
+- Auto-update booking status: Khi payment success → booking status = 'paid'
+- Validation: Kiểm tra booking thuộc về user, booking chưa paid, etc.
+- JWT Authentication: Extract userId từ JWT token (giống như Booking/Reservation APIs)
+- Payment Methods: CREDIT_CARD, DEBIT_CARD, BANK_TRANSFER, EWALLET, CASH
+- Payment Status: pending → success (hoặc failed)
+
+#### 3. **Payment Flow Integration**
+- **Complete Booking Flow** bây giờ bao gồm Payment step:
+  1. Search flights
+  2. Get fare options
+  3. Create reservation
+  4. Create booking from reservation
+  5. Get booking payment info
+  6. **Process payment** (NEW)
+  7. Verify payment
+
+- **Payment Processing**:
+  - Create payment record với status `pending`
+  - Process payment (simulate payment gateway - trong production sẽ tích hợp với payment gateway thực tế)
+  - Update payment status thành `success`
+  - Auto-update booking status thành `paid`
+  - Set `paidAt` timestamp
+
+#### 4. **Updated Documentation**
+- `API_DOCS.md`: Thêm Payment APIs section với đầy đủ endpoints
+- `API_TESTING_FLOW.md`: Thêm Payment flow steps (Step 9-10)
+- `API_SEQUENCE_DIAGRAMS.md`: Thêm Phase 7 - Process Payment sequence diagram
+- `CHANGELOG_API_DOCS.md`: Document Payment API changes
+- Postman Collection: Thêm Payment APIs requests
+
+#### 5. **Package.json Scripts**
+- Thêm scripts: `start:payment` và `start:payment:dev`
+
+**Documentation:**
+- `docs/api/API_DOCS.md`: Payment APIs documentation
+- `docs/api/API_TESTING_FLOW.md`: Payment testing flow
+- `docs/api/API_SEQUENCE_DIAGRAMS.md`: Payment sequence diagrams
+- `tools/Flight-Booking-API.postman_collection.json`: Payment API requests
+
+---
+
+## Ngày cập nhật: 2025-11-19 (Previous - JWT Pattern Implementation)
 
 ### Major Changes - JWT Authentication Pattern (Best Practice: Option 2)
 
