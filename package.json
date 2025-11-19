@@ -20,6 +20,8 @@
     "start:booking:dev": "nodemon --exec ts-node -r tsconfig-paths/register src/microservices/booking/main.booking.ts",
     "start:reservation": "ts-node -r tsconfig-paths/register src/microservices/reservation/main.reservation.ts",
     "start:reservation:dev": "nodemon --exec ts-node -r tsconfig-paths/register src/microservices/reservation/main.reservation.ts",
+    "start:payment": "ts-node -r tsconfig-paths/register src/microservices/payment/main.payment.ts",
+    "start:payment:dev": "nodemon --exec ts-node -r tsconfig-paths/register src/microservices/payment/main.payment.ts",
     "seed:full": "ts-node -r tsconfig-paths/register src/scripts/seed-full-database.ts",
     "test:db": "node tools/test-db-connection.js",
     "start:debug": "nest start --debug --watch",
