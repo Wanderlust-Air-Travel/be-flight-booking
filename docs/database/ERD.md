@@ -303,6 +303,8 @@ erDiagram
   - BookingSegments: mỗi hành khách trên mỗi chặng (flight_instance), có thể có `flight_seat_id`, `fare_class_code`, giá (base/tax/fee), trạng thái.
   - Tickets: vé điện tử (ticket_number unique), gắn Booking + BookingPassenger.
   - Payments: thanh toán cho Booking (số tiền, tiền tệ, phương thức, trạng thái, transaction_ref).
+    - `idempotency_key`: Idempotency key để prevent duplicate payments.
+    - `expires_at`: Payment expiration date (15 minutes from creation).
 
 - **Ràng buộc chính**
   - Unique: Routes(origin,destination), FlightSchedules(flight_number,from,to), FlightInstances(flight_number,flight_date), FlightSeats(instance,seat_number), BookingPassengers(booking,passenger), Reservations.reservation_code, Bookings.pnr_code, Tickets.ticket_number.

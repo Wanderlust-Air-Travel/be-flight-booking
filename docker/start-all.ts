@@ -17,6 +17,7 @@ const services: Service[] = [
   { name: 'Routes MS', script: 'dist/microservices/routes/main.routes.js', port: 4003 },
   { name: 'Booking MS', script: 'dist/microservices/booking/main.booking.js', port: 4004 },
   { name: 'Reservation MS', script: 'dist/microservices/reservation/main.reservation.js', port: 4005 },
+  { name: 'Payment MS', script: 'dist/microservices/payment/main.payment.js', port: 4006 },
 ];
 
 const processes: ProcessInfo[] = [];

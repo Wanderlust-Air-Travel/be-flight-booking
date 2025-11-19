@@ -314,7 +314,8 @@ GO
 CREATE TABLE PaymentMethods (
     payment_method_code VARCHAR(20) NOT NULL
         CONSTRAINT PK_PaymentMethods PRIMARY KEY,
-    name NVARCHAR(50) NOT NULL                -- Card, BankTransfer, Momo...
+    name NVARCHAR(50) NOT NULL,               -- Card, BankTransfer, Momo...
+    is_active BIT NOT NULL DEFAULT 1          -- Payment method availability
 );
 GO
 
@@ -432,6 +433,8 @@ CREATE TABLE Payments (
     status VARCHAR(20) NOT NULL,            -- success/failed/pending
     paid_at DATETIME2 NULL,
     transaction_ref VARCHAR(100) NULL,      -- mã giao dịch gateway
+    idempotency_key VARCHAR(100) NULL,      -- idempotency key để prevent duplicate payments
+    expires_at DATETIME2 NULL,              -- payment expiration date (15 minutes from creation)
     created_at DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
 
     CONSTRAINT FK_Payments_Bookings
@@ -489,6 +492,14 @@ CREATE INDEX IX_BookingSegments_FlightInstance
 
 CREATE INDEX IX_Payments_BookingId
     ON Payments(booking_id);
+
+CREATE INDEX IX_Payments_IdempotencyKey
+    ON Payments(idempotency_key)
+    WHERE idempotency_key IS NOT NULL;
+
+CREATE INDEX IX_Payments_ExpiresAt
+    ON Payments(expires_at)
+    WHERE expires_at IS NOT NULL;
 
 CREATE INDEX IX_Reservations_UserId
     ON Reservations(user_id);

@@ -76,6 +76,8 @@ services:
       - BOOKING_MS_PORT=4004
       - RESERVATION_MS_HOST=0.0.0.0
       - RESERVATION_MS_PORT=4005
+      - PAYMENT_MS_HOST=0.0.0.0
+      - PAYMENT_MS_PORT=4006
       
       # Redis
       - REDIS_HOST=redis
@@ -91,6 +93,7 @@ services:
       - "4003:4003"  # Routes MS
       - "4004:4004"  # Booking MS
       - "4005:4005"  # Reservation MS
+      - "4006:4006"  # Payment MS
     volumes:
       # Persist uploaded images to host filesystem
       - ./public:/app/public
