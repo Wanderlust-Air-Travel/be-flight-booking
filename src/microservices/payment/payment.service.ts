@@ -13,11 +13,16 @@ import { Currency } from 'src/shared/entities/currency/currency.entity';
 import { CreatePaymentDto, PaymentMethodCode } from './dto/create-payment.dto';
 import { PaymentResponseDto } from './dto/payment-response.dto';
 import { UpdatePaymentStatusDto, PaymentStatus } from './dto/update-payment-status.dto';
+import { PaymentWebhookDto } from './dto/webhook.dto';
 import { BOOKING_MS } from '../booking/booking.messages';
+import { PaymentValidationService } from './services/payment-validation.service';
+import { PaymentNotificationService } from './services/payment-notification.service';
+import { PaymentGatewayFactory } from './gateways/payment-gateway.factory';
 
 @Injectable()
 export class PaymentService {
 	private readonly logger = new Logger(PaymentService.name);
+	private readonly PAYMENT_EXPIRATION_MINUTES = 15; // Payment expires after 15 minutes
 
 	constructor(
 		@InjectRepository(Payment) private readonly paymentRepo: Repository<Payment>,
@@ -26,10 +31,15 @@ export class PaymentService {
 		@InjectRepository(Currency) private readonly currencyRepo: Repository<Currency>,
 		@Inject('BOOKING_CLIENT') private readonly bookingClient: ClientProxy,
 		private readonly dataSource: DataSource,
+		private readonly validationService: PaymentValidationService,
+		private readonly notificationService: PaymentNotificationService,
+		private readonly gatewayFactory: PaymentGatewayFactory,
 	) {}
 
 	/**
 	 * Create a new payment for a booking
+	 * Phase 1: Idempotency, Amount Validation, Concurrency Control
+	 * Phase 2: Payment Expiration, Payment Method Availability
 	 */
 	async createPayment(userId: string, dto: CreatePaymentDto): Promise<PaymentResponseDto> {
 		const queryRunner = this.dataSource.createQueryRunner();
@@ -37,59 +47,75 @@ export class PaymentService {
 		await queryRunner.startTransaction();
 
 		try {
-			// Validate booking exists and belongs to user
-			const booking = await queryRunner.manager.findOne(Booking, {
-				where: { booking_id: dto.bookingId },
-				relations: ['currency', 'user'],
-			});
+			// PHASE 1: Concurrency Control - Lock booking row to prevent concurrent payments
+			const booking = await queryRunner.manager
+				.createQueryBuilder(Booking, 'booking')
+				.setLock('pessimistic_write') // SQL Server: WITH (UPDLOCK, ROWLOCK)
+				.where('booking.booking_id = :bookingId', { bookingId: dto.bookingId })
+				.leftJoinAndSelect('booking.currency', 'currency')
+				.leftJoinAndSelect('booking.user', 'user')
+				.getOne();
 
 			if (!booking) {
 				throw new NotFoundException(`Booking ${dto.bookingId} not found`);
 			}
 
-			// Check if booking belongs to user
-			if (booking.user?.user_id !== userId) {
-				throw new BadRequestException('Booking does not belong to the current user');
+			// PHASE 1: Check idempotency first (before validation)
+			if (dto.idempotencyKey) {
+				const existingPayment = await this.validationService.checkIdempotency(
+					dto.idempotencyKey,
+					dto.bookingId,
+					queryRunner.manager,
+				);
+				if (existingPayment) {
+					// Return existing payment (idempotent behavior)
+					await queryRunner.commitTransaction();
+					this.logger.log(
+						`Returning existing payment ${existingPayment.payment_id} for idempotency key ${dto.idempotencyKey}`,
+					);
+					return this.mapToPaymentResponseDto(
+						existingPayment,
+						booking.pnr_code,
+						existingPayment.payment_method.name,
+					);
+				}
 			}
 
-			// Check if booking is already paid
-			if (booking.status === 'paid') {
-				throw new BadRequestException('Booking is already paid');
-			}
+			// PHASE 1: Comprehensive validation using validation service
+			const validationResult = await this.validationService.validateCreatePayment(
+				userId,
+				dto,
+				queryRunner.manager,
+			);
 
-			// Check if booking is cancelled
-			if (booking.status === 'canceled') {
-				throw new BadRequestException('Cannot create payment for cancelled booking');
-			}
-
-			// Validate payment method exists
-			const paymentMethod = await queryRunner.manager.findOne(PaymentMethod, {
-				where: { payment_method_code: dto.paymentMethodCode },
-			});
-
-			if (!paymentMethod) {
-				throw new NotFoundException(`Payment method ${dto.paymentMethodCode} not found`);
-			}
+			// Get validated data
+			const { booking: validatedBooking, paymentMethod, amount } = validationResult;
 
 			// Validate currency exists
 			const currency = await queryRunner.manager.findOne(Currency, {
-				where: { currency_code: booking.currency.currency_code },
+				where: { currency_code: validatedBooking.currency.currency_code },
 			});
 
 			if (!currency) {
-				throw new NotFoundException(`Currency ${booking.currency.currency_code} not found`);
+				throw new NotFoundException(`Currency ${validatedBooking.currency.currency_code} not found`);
 			}
+
+			// PHASE 2: Set payment expiration (15 minutes from now)
+			const expiresAt = new Date();
+			expiresAt.setMinutes(expiresAt.getMinutes() + this.PAYMENT_EXPIRATION_MINUTES);
 
 			// Create payment record
 			const paymentId = uuidv7();
 			const payment = queryRunner.manager.create(Payment, {
 				payment_id: paymentId,
-				booking: booking,
-				amount: booking.total_amount,
+				booking: validatedBooking,
+				amount: amount,
 				currency: currency,
 				payment_method: paymentMethod,
 				status: 'pending',
 				transaction_ref: dto.transactionRef || null,
+				idempotency_key: dto.idempotencyKey || null,
+				expires_at: expiresAt,
 				paid_at: null,
 			});
 
@@ -98,10 +124,17 @@ export class PaymentService {
 			// Commit transaction
 			await queryRunner.commitTransaction();
 
-			this.logger.log(`Payment ${paymentId} created for booking ${dto.bookingId}`);
+			this.logger.log(
+				`Payment ${paymentId} created for booking ${dto.bookingId}, expires at ${expiresAt.toISOString()}`,
+			);
+
+			// PHASE 2: Send payment pending notification
+			await this.notificationService.sendPaymentPendingNotification(payment, validatedBooking).catch((err) => {
+				this.logger.error(`Failed to send payment pending notification: ${err.message}`);
+			});
 
 			// Return payment response
-			return this.mapToPaymentResponseDto(payment, booking.pnr_code, paymentMethod.name);
+			return this.mapToPaymentResponseDto(payment, validatedBooking.pnr_code, paymentMethod.name);
 		} catch (error) {
 			await queryRunner.rollbackTransaction();
 			this.logger.error(`Error creating payment: ${error.message}`, error.stack);
@@ -112,8 +145,8 @@ export class PaymentService {
 	}
 
 	/**
-	 * Process payment (simulate payment gateway processing)
-	 * In production, this would integrate with actual payment gateway
+	 * Process payment (integrate with payment gateway)
+	 * Phase 1: Payment Gateway Integration Structure
 	 */
 	async processPayment(userId: string, dto: CreatePaymentDto): Promise<PaymentResponseDto> {
 		const queryRunner = this.dataSource.createQueryRunner();
@@ -121,51 +154,101 @@ export class PaymentService {
 		await queryRunner.startTransaction();
 
 		try {
+			// PHASE 1: Concurrency Control - Lock booking row
+			const booking = await queryRunner.manager
+				.createQueryBuilder(Booking, 'booking')
+				.setLock('pessimistic_write')
+				.where('booking.booking_id = :bookingId', { bookingId: dto.bookingId })
+				.leftJoinAndSelect('booking.currency', 'currency')
+				.leftJoinAndSelect('booking.user', 'user')
+				.getOne();
+
+			if (!booking) {
+				throw new NotFoundException(`Booking ${dto.bookingId} not found`);
+			}
+
+			// Check if already paid (after lock)
+			if (booking.status === 'paid') {
+				throw new BadRequestException('Booking is already paid');
+			}
+
 			// Create payment first
-			const payment = await this.createPayment(userId, dto);
+			const paymentResponse = await this.createPayment(userId, dto);
 
-			// Simulate payment processing (in production, call payment gateway)
-			// For now, we'll auto-approve the payment
-			// In real scenario, this would be async and handled via webhook
-			const transactionRef = dto.transactionRef || `TXN${Date.now()}`;
+			// Get the created payment
+			const payment = await queryRunner.manager.findOne(Payment, {
+				where: { payment_id: paymentResponse.paymentId },
+				relations: ['payment_method', 'currency', 'booking'],
+			});
 
-			// Update payment status to success
-			await this.updatePaymentStatus(
-				userId,
-				{
-					paymentId: payment.paymentId,
-					status: PaymentStatus.SUCCESS,
-					transactionRef,
-				},
-				queryRunner,
-			);
+			if (!payment) {
+				throw new NotFoundException(`Payment ${paymentResponse.paymentId} not found`);
+			}
 
-			// Update booking status to paid
-			await queryRunner.manager.update(
-				Booking,
-				{ booking_id: payment.bookingId },
-				{ status: 'paid', updated_at: new Date() },
-			);
+			// PHASE 2: Validate payment expiration
+			this.validationService.validatePaymentExpiration(payment);
+
+			// PHASE 1: Call payment gateway
+			const gateway = this.gatewayFactory.create(dto.paymentMethodCode);
+			const gatewayResponse = await gateway.createPayment(payment, booking);
+
+			// Update payment with gateway transaction ID
+			payment.transaction_ref = gatewayResponse.transactionId;
+			await queryRunner.manager.save(Payment, payment);
+
+			// If gateway returns success immediately (synchronous payment), update status
+			if (gatewayResponse.status === 'success') {
+				await this.updatePaymentStatus(
+					userId,
+					{
+						paymentId: payment.payment_id,
+						status: PaymentStatus.SUCCESS,
+						transactionRef: gatewayResponse.transactionId,
+					},
+					queryRunner,
+				);
+
+				// Update booking status
+				await queryRunner.manager.update(
+					Booking,
+					{ booking_id: payment.booking.booking_id },
+					{ status: 'paid', updated_at: new Date() },
+				);
+
+				// PHASE 2: Send success notification
+				await this.notificationService.sendPaymentSuccessNotification(payment, booking).catch((err) => {
+					this.logger.error(`Failed to send payment success notification: ${err.message}`);
+				});
+			}
 
 			await queryRunner.commitTransaction();
 
-			this.logger.log(`Payment ${payment.paymentId} processed successfully for booking ${payment.bookingId}`);
+			this.logger.log(
+				`Payment ${payment.payment_id} processed for booking ${dto.bookingId}, gateway status: ${gatewayResponse.status}`,
+			);
 
-			// Return updated payment
+			// Return updated payment with payment URL
 			const updatedPayment = await this.paymentRepo.findOne({
-				where: { payment_id: payment.paymentId },
+				where: { payment_id: payment.payment_id },
 				relations: ['payment_method', 'currency', 'booking'],
 			});
 
 			if (!updatedPayment) {
-				throw new NotFoundException(`Payment ${payment.paymentId} not found`);
+				throw new NotFoundException(`Payment ${payment.payment_id} not found`);
 			}
 
-			return this.mapToPaymentResponseDto(
+			const response = this.mapToPaymentResponseDto(
 				updatedPayment,
 				updatedPayment.booking.pnr_code,
 				updatedPayment.payment_method.name,
 			);
+
+			// Add payment URL if gateway provides it
+			if (gatewayResponse.paymentUrl) {
+				response.paymentUrl = gatewayResponse.paymentUrl;
+			}
+
+			return response;
 		} catch (error) {
 			await queryRunner.rollbackTransaction();
 			this.logger.error(`Error processing payment: ${error.message}`, error.stack);
@@ -181,7 +264,7 @@ export class PaymentService {
 	async getPayment(userId: string, paymentId: string): Promise<PaymentResponseDto> {
 		const payment = await this.paymentRepo.findOne({
 			where: { payment_id: paymentId },
-			relations: ['payment_method', 'currency', 'booking'],
+			relations: ['payment_method', 'currency', 'booking', 'booking.user'],
 		});
 
 		if (!payment) {
@@ -237,17 +320,19 @@ export class PaymentService {
 
 		const payment = await manager.findOne(Payment, {
 			where: { payment_id: dto.paymentId },
-			relations: ['booking', 'payment_method', 'currency'],
+			relations: ['booking', 'payment_method', 'currency', 'booking.user'],
 		});
 
 		if (!payment) {
 			throw new NotFoundException(`Payment ${dto.paymentId} not found`);
 		}
 
-		// Check if payment belongs to user's booking
-		if (payment.booking.user?.user_id !== userId) {
+		// Check if payment belongs to user's booking (skip if called from webhook)
+		if (userId !== 'system' && payment.booking.user?.user_id !== userId) {
 			throw new BadRequestException('Payment does not belong to the current user');
 		}
+
+		const oldStatus = payment.status;
 
 		// Update payment status
 		payment.status = dto.status;
@@ -264,12 +349,82 @@ export class PaymentService {
 
 		// If payment is successful, update booking status
 		if (dto.status === PaymentStatus.SUCCESS && payment.booking.status !== 'paid') {
-			await manager.update(Booking, { booking_id: payment.booking.booking_id }, { status: 'paid', updated_at: new Date() });
+			await manager.update(
+				Booking,
+				{ booking_id: payment.booking.booking_id },
+				{ status: 'paid', updated_at: new Date() },
+			);
+
+			// PHASE 2: Send success notification
+			await this.notificationService.sendPaymentSuccessNotification(payment, payment.booking).catch((err) => {
+				this.logger.error(`Failed to send payment success notification: ${err.message}`);
+			});
+		} else if (dto.status === PaymentStatus.FAILED && oldStatus !== 'failed') {
+			// PHASE 2: Send failed notification
+			await this.notificationService
+				.sendPaymentFailedNotification(payment, payment.booking, dto.transactionRef || 'Payment failed')
+				.catch((err) => {
+					this.logger.error(`Failed to send payment failed notification: ${err.message}`);
+				});
 		}
 
-		this.logger.log(`Payment ${dto.paymentId} status updated to ${dto.status}`);
+		this.logger.log(`Payment ${dto.paymentId} status updated from ${oldStatus} to ${dto.status}`);
 
 		return this.mapToPaymentResponseDto(payment, payment.booking.pnr_code, payment.payment_method.name);
+	}
+
+	/**
+	 * Handle webhook from payment gateway
+	 * Phase 2: Webhook Handling
+	 */
+	async handleWebhook(gatewayName: string, signature: string, payload: any): Promise<void> {
+		this.logger.log(`Received webhook from ${gatewayName}: ${JSON.stringify(payload)}`);
+
+		try {
+			// Get payment method code from gateway name
+			// In production, you might have a mapping table
+			const methodCode = this.getMethodCodeFromGatewayName(gatewayName);
+
+			// Get gateway instance
+			const gateway = this.gatewayFactory.create(methodCode);
+
+			// Verify webhook signature
+			if (!gateway.verifyWebhook(signature, payload)) {
+				this.logger.error(`Invalid webhook signature from ${gatewayName}`);
+				throw new BadRequestException('Invalid webhook signature');
+			}
+
+			// Process webhook
+			const result = await gateway.processWebhook(payload);
+
+			// Find payment by transaction reference
+			const payment = await this.paymentRepo.findOne({
+				where: { transaction_ref: result.transactionId },
+				relations: ['booking', 'payment_method', 'currency', 'booking.user'],
+			});
+
+			if (!payment) {
+				this.logger.warn(`Payment not found for transaction: ${result.transactionId}`);
+				return;
+			}
+
+			// Update payment status (use 'system' as userId for webhook updates)
+			await this.updatePaymentStatus(
+				'system',
+				{
+					paymentId: payment.payment_id,
+					status: result.status === 'success' ? PaymentStatus.SUCCESS : PaymentStatus.FAILED,
+					transactionRef: result.transactionId,
+				},
+			);
+
+			this.logger.log(
+				`Webhook processed successfully for payment ${payment.payment_id}, status: ${result.status}`,
+			);
+		} catch (error) {
+			this.logger.error(`Error processing webhook: ${error.message}`, error.stack);
+			throw error;
+		}
 	}
 
 	/**
@@ -292,7 +447,24 @@ export class PaymentService {
 			transactionRef: payment.transaction_ref,
 			createdAt: payment.created_at,
 			paidAt: payment.paid_at,
+			expiresAt: payment.expires_at,
 		};
 	}
-}
 
+	/**
+	 * Get payment method code from gateway name
+	 * Helper method for webhook routing
+	 */
+	private getMethodCodeFromGatewayName(gatewayName: string): string {
+		const mapping: Record<string, string> = {
+			stripe: 'CREDIT_CARD',
+			momo: 'EWALLET',
+			vnpay: 'EWALLET',
+			bank: 'BANK_TRANSFER',
+			cash: 'CASH',
+			mock: 'CREDIT_CARD', // Default for mock gateway
+		};
+
+		return mapping[gatewayName.toLowerCase()] || 'CREDIT_CARD';
+	}
+}

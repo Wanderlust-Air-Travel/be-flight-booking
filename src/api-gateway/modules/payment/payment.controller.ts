@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Patch, Body, Param, Req, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Param, Req, UseGuards, Headers, HttpCode, HttpStatus } from '@nestjs/common';
 import {
 	ApiBadRequestResponse,
 	ApiOkResponse,
@@ -6,6 +6,7 @@ import {
 	ApiParam,
 	ApiTags,
 	ApiBearerAuth,
+	ApiHeader,
 } from '@nestjs/swagger';
 import { ClientProxy } from '@nestjs/microservices';
 import { Inject } from '@nestjs/common';
@@ -19,12 +20,12 @@ import { PAYMENT_MS } from 'src/microservices/payment/payment.messages';
 
 @ApiTags('payments')
 @Controller('payments')
-@UseGuards(JwtAuthGuard)
-@ApiBearerAuth('access-token')
 export class PaymentController {
 	constructor(@Inject('PAYMENT_CLIENT') private readonly client: ClientProxy) {}
 
 	@Post('bookings/:bookingId')
+	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth('access-token')
 	@ApiOperation({
 		summary: 'Create a new payment for a booking',
 		description:
@@ -80,6 +81,8 @@ export class PaymentController {
 	}
 
 	@Post('bookings/:bookingId/process')
+	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth('access-token')
 	@ApiOperation({
 		summary: 'Process payment for a booking',
 		description:
@@ -135,6 +138,8 @@ export class PaymentController {
 	}
 
 	@Get(':id')
+	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth('access-token')
 	@ApiOperation({
 		summary: 'Get payment by ID',
 		description: 'Get payment details by payment ID. Requires JWT authentication.',
@@ -180,6 +185,8 @@ export class PaymentController {
 	}
 
 	@Get('bookings/:bookingId')
+	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth('access-token')
 	@ApiOperation({
 		summary: 'Get all payments for a booking',
 		description: 'Get all payment records for a specific booking. Requires JWT authentication.',
@@ -225,6 +232,8 @@ export class PaymentController {
 	}
 
 	@Patch(':id/status')
+	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth('access-token')
 	@ApiOperation({
 		summary: 'Update payment status',
 		description:
@@ -271,6 +280,70 @@ export class PaymentController {
 			}
 
 			throw new Error(`Update payment status failed: ${error?.message || 'Unknown error'}`);
+		}
+	}
+
+	@Post('webhooks/:gateway')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'Handle payment gateway webhook',
+		description:
+			'Webhook endpoint for payment gateways to notify payment status updates. This endpoint does not require JWT authentication as it is called by payment gateways. The gateway name should match the payment gateway (e.g., "vnpay", "momo", "stripe").',
+	})
+	@ApiParam({
+		name: 'gateway',
+		description: 'Payment gateway name (e.g., vnpay, momo, stripe, mock)',
+		example: 'vnpay',
+	})
+	@ApiHeader({
+		name: 'x-signature',
+		description: 'Webhook signature for verification',
+		required: false,
+	})
+	@ApiOkResponse({
+		description: 'Webhook processed successfully',
+		schema: {
+			type: 'object',
+			properties: {
+				success: { type: 'boolean', example: true },
+				message: { type: 'string', example: 'Webhook processed successfully' },
+			},
+		},
+	})
+	@ApiBadRequestResponse({
+		description: 'Invalid webhook signature or payload',
+	})
+	async handleWebhook(
+		@Param('gateway') gateway: string,
+		@Headers('x-signature') signature: string,
+		@Body() payload: any,
+	): Promise<{ success: boolean; message: string }> {
+		try {
+			// Forward webhook to payment microservice
+			await firstValueFrom(
+				this.client.send(PAYMENT_MS.PATTERN.HANDLE_WEBHOOK, {
+					gateway,
+					signature: signature || '',
+					payload,
+				}),
+			);
+
+			return {
+				success: true,
+				message: 'Webhook processed successfully',
+			};
+		} catch (error: any) {
+			console.error('Webhook processing error:', error);
+
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+
+			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+				throw new Error('Payment microservice is not running. Please start it with: npm run start:payment:dev');
+			}
+
+			throw new Error(`Webhook processing failed: ${error?.message || 'Unknown error'}`);
 		}
 	}
 }

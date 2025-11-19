@@ -9,6 +9,9 @@ export class PaymentMethod {
 	@Column({ type: 'nvarchar', length: 50, nullable: false })
 	name: string;
 
+	@Column({ type: 'bit', default: true })
+	is_active: boolean;
+
 	@OneToMany(() => Payment, (p) => p.payment_method)
 	payments: Payment[];
 }

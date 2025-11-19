@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsEnum, IsOptional, IsUUID, Matches } from 'class-validator';
+import { IsNotEmpty, IsString, IsEnum, IsOptional, IsUUID, Matches, IsNumber, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export enum PaymentMethodCode {
@@ -39,5 +39,22 @@ export class CreatePaymentDto {
 	@IsOptional()
 	@IsString()
 	transactionRef?: string;
+
+	@ApiPropertyOptional({
+		description: 'Idempotency key to prevent duplicate payments (optional)',
+		example: 'idempotency-key-12345',
+	})
+	@IsOptional()
+	@IsString()
+	idempotencyKey?: string;
+
+	@ApiPropertyOptional({
+		description: 'Payment amount (optional, defaults to booking total amount)',
+		example: 1577000,
+	})
+	@IsOptional()
+	@IsNumber()
+	@Min(0.01, { message: 'Amount must be greater than 0' })
+	amount?: number;
 }
 

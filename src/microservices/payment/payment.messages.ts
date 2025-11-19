@@ -7,6 +7,7 @@ export const PAYMENT_MS = {
 		GET_PAYMENTS_BY_BOOKING: 'payment.get-by-booking',
 		UPDATE_PAYMENT_STATUS: 'payment.update-status',
 		PROCESS_PAYMENT: 'payment.process',
+		HANDLE_WEBHOOK: 'payment.webhook',
 	},
 } as const;
 

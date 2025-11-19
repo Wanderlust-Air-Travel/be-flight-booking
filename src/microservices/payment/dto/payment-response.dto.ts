@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class PaymentResponseDto {
 	@ApiProperty({
@@ -69,5 +69,19 @@ export class PaymentResponseDto {
 		nullable: true,
 	})
 	paidAt: Date | null;
+
+	@ApiProperty({
+		description: 'Payment expiration date',
+		example: '2025-01-20T10:30:00Z',
+		nullable: true,
+	})
+	expiresAt: Date | null;
+
+	@ApiPropertyOptional({
+		description: 'Payment URL for redirecting to payment gateway',
+		example: 'https://payment-gateway.com/pay/xxx',
+		nullable: true,
+	})
+	paymentUrl?: string | null;
 }
 

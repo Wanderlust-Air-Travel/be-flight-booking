@@ -9,6 +9,10 @@ import { Currency } from 'src/shared/entities/currency/currency.entity';
 import { PaymentService } from './payment.service';
 import { PaymentMsController } from './payment.controller';
 import { BOOKING_MS } from '../booking/booking.messages';
+import { PaymentValidationService } from './services/payment-validation.service';
+import { PaymentNotificationService } from './services/payment-notification.service';
+import { PaymentGatewayFactory } from './gateways/payment-gateway.factory';
+import { MockPaymentGateway } from './gateways/mock-payment.gateway';
 
 @Module({
 	imports: [
@@ -27,7 +31,13 @@ import { BOOKING_MS } from '../booking/booking.messages';
 			},
 		]),
 	],
-	providers: [PaymentService],
+	providers: [
+		PaymentService,
+		PaymentValidationService,
+		PaymentNotificationService,
+		MockPaymentGateway,
+		PaymentGatewayFactory,
+	],
 	controllers: [PaymentMsController],
 	exports: [PaymentService],
 })

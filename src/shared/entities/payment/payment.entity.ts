@@ -32,6 +32,12 @@ export class Payment {
 	@Column({ type: 'varchar', length: 100, nullable: true })
 	transaction_ref: string | null;
 
+	@Column({ type: 'varchar', length: 100, nullable: true })
+	idempotency_key: string | null;
+
+	@Column({ type: 'datetime2', nullable: true })
+	expires_at: Date | null;
+
 	@CreateDateColumn({ type: 'datetime2', nullable: false, default: () => 'SYSDATETIME()' })
 	created_at: Date;
 }

@@ -73,5 +73,17 @@ export class PaymentMsController {
 			throw error;
 		}
 	}
+
+	@MessagePattern(PAYMENT_MS.PATTERN.HANDLE_WEBHOOK)
+	async handleWebhook(@Payload() payload: { gateway: string; signature: string; payload: any }) {
+		try {
+			this.logger.log(`Processing webhook from ${payload.gateway}`);
+			await this.paymentService.handleWebhook(payload.gateway, payload.signature, payload.payload);
+			return { success: true };
+		} catch (error: any) {
+			this.logger.error('Webhook processing error:', error);
+			throw error;
+		}
+	}
 }
 
