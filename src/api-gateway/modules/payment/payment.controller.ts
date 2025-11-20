@@ -181,15 +181,33 @@ export class PaymentController {
 				const message = error.message.toLowerCase();
 				// Check if message indicates "not found"
 				if (message.includes('not found') || message.includes('notfound') || 
-				    message.includes('booking') && message.includes('not found') ||
+				    (message.includes('booking') && message.includes('not found')) ||
 				    message.includes('does not exist')) {
 					throw new NotFoundException(`Booking not found: ${error.message}`);
+				}
+				// If it's a generic "Internal server error", it might be a microservice issue
+				if (message.includes('internal server error')) {
+					// Check error details if available
+					if (error?.details) {
+						const details = String(error.details).toLowerCase();
+						if (details.includes('not found') || details.includes('booking')) {
+							throw new NotFoundException('Booking not found');
+						}
+					}
+					// Generic internal server error - likely microservice issue
+					throw new InternalServerErrorException('Payment microservice error. Please check if the service is running and try again.');
 				}
 				throw new BadRequestException(`Process payment failed: ${error.message}`);
 			}
 
+			// Generic error - provide more context
 			const errorMessage = error?.message || error?.toString() || 'Unknown error';
-			throw new BadRequestException(`Process payment failed: ${errorMessage}`);
+			// If it's a generic error without status, it might be a microservice connection issue
+			if (errorMessage.toLowerCase().includes('internal server error') || 
+			    (errorMessage.toLowerCase().includes('error') && !error?.statusCode)) {
+				throw new InternalServerErrorException('Payment microservice error. Please check if the service is running and try again.');
+			}
+			throw new BadRequestException(`Process payment failed: ${errorMessage}. Please check the booking ID and payment details.`);
 		}
 	}
 

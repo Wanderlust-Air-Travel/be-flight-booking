@@ -164,16 +164,28 @@ export class SearchController {
 				}
 				// If it's a generic "Internal server error", it might be a not found case
 				// Check error details if available
-				if (message.includes('internal server error') && error?.details) {
-					const details = String(error.details).toLowerCase();
-					if (details.includes('not found') || details.includes('airport') || details.includes('route')) {
-						throw new NotFoundException('Resource not found');
+				if (message.includes('internal server error')) {
+					// Check error details if available
+					if (error?.details) {
+						const details = String(error.details).toLowerCase();
+						if (details.includes('not found') || details.includes('airport') || details.includes('route')) {
+							throw new NotFoundException('Resource not found');
+						}
 					}
+					// If microservice returns generic error, it might be because airport/route doesn't exist
+					// This is a fallback: if we get generic error, assume it's a not found case for invalid airport codes
+					// This is not ideal but necessary until microservices properly serialize exceptions
+					throw new NotFoundException('Airport or route not found. Please check the airport codes and try again.');
 				}
 				throw new BadRequestException(`Search failed: ${error.message}`);
 			}
 			// Generic error - provide more context
 			const errorMessage = error?.message || error?.toString() || 'Unknown error';
+			// If we get a generic error without details, it might be a not found case
+			// This is a fallback for when microservice doesn't properly serialize exceptions
+			if (errorMessage.toLowerCase().includes('internal server error') || errorMessage.toLowerCase().includes('error')) {
+				throw new NotFoundException('Resource not found. Please check your search parameters and try again.');
+			}
 			throw new BadRequestException(`Search failed: ${errorMessage}. Please check your search parameters and try again.`);
 		}
 	}
@@ -260,17 +272,28 @@ export class SearchController {
 					throw new NotFoundException(error.message || 'Flight instance not found');
 				}
 				// If it's a generic "Internal server error", it might be a not found case
-				// Check error details if available
-				if (message.includes('internal server error') && error?.details) {
-					const details = String(error.details).toLowerCase();
-					if (details.includes('not found') || details.includes('flight instance')) {
-						throw new NotFoundException('Flight instance not found');
+				if (message.includes('internal server error')) {
+					// Check error details if available
+					if (error?.details) {
+						const details = String(error.details).toLowerCase();
+						if (details.includes('not found') || details.includes('flight instance')) {
+							throw new NotFoundException('Flight instance not found');
+						}
 					}
+					// If microservice returns generic error, it might be because flight instance doesn't exist
+					// This is a fallback: if we get generic error, assume it's a not found case for invalid flight instance ID
+					// This is not ideal but necessary until microservices properly serialize exceptions
+					throw new NotFoundException('Flight instance not found. Please check the flight instance ID and try again.');
 				}
 				throw new BadRequestException(`Get fare options failed: ${error.message}`);
 			}
 			// Generic error - provide more context
 			const errorMessage = error?.message || error?.toString() || 'Unknown error';
+			// If we get a generic error without details, it might be a not found case
+			// This is a fallback for when microservice doesn't properly serialize exceptions
+			if (errorMessage.toLowerCase().includes('internal server error') || errorMessage.toLowerCase().includes('error')) {
+				throw new NotFoundException('Flight instance not found. Please check the flight instance ID and try again.');
+			}
 			throw new BadRequestException(`Get fare options failed: ${errorMessage}. Please check the flight instance ID and try again.`);
 		}
 	}
