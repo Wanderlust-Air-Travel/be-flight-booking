@@ -4,9 +4,9 @@ import { ClientProxy } from '@nestjs/microservices';
 import { Inject } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
 import { SearchFlightsDto } from './dto/search-flights.dto';
-import { TripType } from 'src/shared/constants/enums';
+import { TripType, CabinType } from 'src/shared/constants/enums';
 import { SearchFlightsResponseDto } from './dto/search-flights-response.dto';
-import { GetFareOptionsDto, CabinType } from './dto/get-fare-options.dto';
+import { GetFareOptionsDto } from './dto/get-fare-options.dto';
 import { FareOptionsResponseDto } from './dto/fare-options-response.dto';
 import { FareOptionDto } from './dto/fare-option.dto';
 

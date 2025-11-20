@@ -9,9 +9,10 @@ import { FlightSchedule } from 'src/shared/entities/flight/flight-schedule.entit
 import { FareClass } from 'src/shared/entities/fare/fare-class.entity';
 import { CabinClass } from 'src/shared/entities/cabin/cabin-class.entity';
 import { SeatConfiguration } from 'src/shared/entities/seat/seat-configuration.entity';
-import { SearchFlightsDto, TripType } from './dto/search-flights.dto';
+import { SearchFlightsDto } from './dto/search-flights.dto';
 import { FlightResult } from './types/flight-result.type';
-import { GetFareOptionsDto, CabinType } from './dto/get-fare-options.dto';
+import { GetFareOptionsDto } from './dto/get-fare-options.dto';
+import { TripType, CabinType } from 'src/shared/constants/enums';
 import { FareOptionsResponseDto, FareOptionsGroupDto } from './dto/fare-options-response.dto';
 import { FareOptionDto, FareDescriptionItemDto } from './dto/fare-option.dto';
 
@@ -21,6 +22,7 @@ export class SearchService {
 	private readonly CABIN_TYPE_MAP: Record<CabinType, string[]> = {
 		[CabinType.ECONOMY]: ['Y'], // Economy cabin class codes
 		[CabinType.BUSINESS]: ['J'], // Business cabin class codes
+		[CabinType.FIRST]: ['F'], // First class cabin class codes
 	};
 
 	// Mapping fare class codes to display names (based on description or code)

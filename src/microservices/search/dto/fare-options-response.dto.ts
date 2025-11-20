@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { FareOptionDto } from './fare-option.dto';
-import { CabinType } from './get-fare-options.dto';
+import { CabinType } from 'src/shared/constants/enums';
 
 export class FareOptionsGroupDto {
 	@ApiProperty({
