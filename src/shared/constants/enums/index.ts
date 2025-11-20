@@ -10,4 +10,5 @@
 export * from './payment.enum';
 export * from './search.enum';
 export * from './email.enum';
+export * from './booking.enum';
 

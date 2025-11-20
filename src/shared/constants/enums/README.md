@@ -92,6 +92,13 @@ export class CreatePaymentDto {
   - `PAYMENT_FAILED`
   - `BOOKING_CONFIRMATION`
 
+### Booking Enums (`booking.enum.ts`)
+
+- **PassengerType**: Loại hành khách
+  - `ADT` - Adult (Người lớn)
+  - `CHD` - Child (Trẻ em)
+  - `INF` - Infant (Trẻ sơ sinh)
+
 ## Thêm enum mới
 
 1. Tạo file enum mới trong `src/shared/constants/enums/` (ví dụ: `booking.enum.ts`)
