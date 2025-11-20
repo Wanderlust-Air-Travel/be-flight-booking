@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, BadRequestException, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { ApiBadRequestResponse, ApiOkResponse, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ClientProxy } from '@nestjs/microservices';
 import { Inject } from '@nestjs/common';
@@ -102,6 +102,27 @@ export class SearchController {
 	})
 	async searchFlights(@Query() query: SearchFlightsDto): Promise<SearchFlightsResponseDto> {
 		try {
+			// Validate: origin and destination must be different
+			if (query.origin.toUpperCase() === query.destination.toUpperCase()) {
+				throw new BadRequestException('Origin and destination airports must be different');
+			}
+			
+			// Validate: departDate must not be in the past
+			const departDate = new Date(query.departDate);
+			const today = new Date();
+			today.setHours(0, 0, 0, 0);
+			if (departDate < today) {
+				throw new BadRequestException('Departure date cannot be in the past');
+			}
+			
+			// Validate: for round trip, returnDate must be after departDate
+			if (query.tripType === TripType.ROUND_TRIP && query.returnDate) {
+				const returnDate = new Date(query.returnDate);
+				if (returnDate <= departDate) {
+					throw new BadRequestException('Return date must be after departure date');
+				}
+			}
+			
 			const payload: SearchFlightsDto = {
 				origin: query.origin,
 				destination: query.destination,
@@ -114,20 +135,46 @@ export class SearchController {
 			return await firstValueFrom(this.client.send<SearchFlightsResponseDto>('search.flights', payload));
 		} catch (error: any) {
 			console.error('Search flights error:', error);
-			// Re-throw NestJS exceptions as-is
+			// Re-throw NestJS exceptions as-is (including NotFoundException)
 			if (error?.statusCode && error?.message) {
+				// Map NotFoundException from microservice to 404
+				if (error?.statusCode === 404) {
+					throw new NotFoundException(error.message);
+				}
 				throw error;
 			}
 			// Handle microservice connection errors
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new Error('Search microservice is not running. Please start it with: npm run start:search');
+				throw new InternalServerErrorException('Search microservice is not running. Please start it with: npm run start:search');
 			}
 			// Handle timeout errors
 			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new Error('Search microservice request timeout. Please check if the service is running.');
+				throw new InternalServerErrorException('Search microservice request timeout. Please check if the service is running.');
 			}
-			// Generic error
-			throw new Error(`Search failed: ${error?.message || 'Unknown error'}`);
+			// Handle microservice error format: { status: 'error', message: '...' }
+			if (error?.status === 'error' && error?.message) {
+				// Check if message indicates not found
+				const message = error.message.toLowerCase();
+				if (message.includes('not found') || message.includes('notfound') || 
+				    message.includes('not exist') || message.includes('does not exist') ||
+				    message.includes('airport not found') || message.includes('route not found') ||
+				    message.includes('origin airport not found') || message.includes('destination airport not found') ||
+				    message.includes('no domestic route')) {
+					throw new NotFoundException(error.message || 'Resource not found');
+				}
+				// If it's a generic "Internal server error", it might be a not found case
+				// Check error details if available
+				if (message.includes('internal server error') && error?.details) {
+					const details = String(error.details).toLowerCase();
+					if (details.includes('not found') || details.includes('airport') || details.includes('route')) {
+						throw new NotFoundException('Resource not found');
+					}
+				}
+				throw new BadRequestException(`Search failed: ${error.message}`);
+			}
+			// Generic error - provide more context
+			const errorMessage = error?.message || error?.toString() || 'Unknown error';
+			throw new BadRequestException(`Search failed: ${errorMessage}. Please check your search parameters and try again.`);
 		}
 	}
 
@@ -187,20 +234,44 @@ export class SearchController {
 			return result.fareOptions;
 		} catch (error: any) {
 			console.error('Get fare options error:', error);
-			// Re-throw NestJS exceptions as-is
+			// Re-throw NestJS exceptions as-is (including NotFoundException)
 			if (error?.statusCode && error?.message) {
+				// Map NotFoundException from microservice to 404
+				if (error?.statusCode === 404) {
+					throw new NotFoundException(error.message);
+				}
 				throw error;
 			}
 			// Handle microservice connection errors
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new Error('Search microservice is not running. Please start it with: npm run start:search');
+				throw new InternalServerErrorException('Search microservice is not running. Please start it with: npm run start:search');
 			}
 			// Handle timeout errors
 			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new Error('Search microservice request timeout. Please check if the service is running.');
+				throw new InternalServerErrorException('Search microservice request timeout. Please check if the service is running.');
 			}
-			// Generic error
-			throw new Error(`Get fare options failed: ${error?.message || 'Unknown error'}`);
+			// Handle microservice error format: { status: 'error', message: '...' }
+			if (error?.status === 'error' && error?.message) {
+				// Check if message indicates not found
+				const message = error.message.toLowerCase();
+				if (message.includes('not found') || message.includes('notfound') || 
+				    message.includes('not exist') || message.includes('does not exist') ||
+				    message.includes('flight instance not found') || message.includes('flight not found')) {
+					throw new NotFoundException(error.message || 'Flight instance not found');
+				}
+				// If it's a generic "Internal server error", it might be a not found case
+				// Check error details if available
+				if (message.includes('internal server error') && error?.details) {
+					const details = String(error.details).toLowerCase();
+					if (details.includes('not found') || details.includes('flight instance')) {
+						throw new NotFoundException('Flight instance not found');
+					}
+				}
+				throw new BadRequestException(`Get fare options failed: ${error.message}`);
+			}
+			// Generic error - provide more context
+			const errorMessage = error?.message || error?.toString() || 'Unknown error';
+			throw new BadRequestException(`Get fare options failed: ${errorMessage}. Please check the flight instance ID and try again.`);
 		}
 	}
 }

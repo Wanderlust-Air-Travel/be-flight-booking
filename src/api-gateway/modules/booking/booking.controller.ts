@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Patch, Body, Param, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Param, Query, Req, UseGuards, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import {
 	ApiBadRequestResponse,
 	ApiOkResponse,
@@ -69,12 +69,12 @@ export class BookingController {
 
 			// Validate reservationId is provided
 			if (!reservationId) {
-				throw new Error('reservationId query parameter is required. Booking must be created from a reservation.');
+				throw new BadRequestException('reservationId query parameter is required. Booking must be created from a reservation.');
 			}
 
 			// Validate request body
 			if (!dto) {
-				throw new Error('Request body is required when creating booking from reservation');
+				throw new BadRequestException('Request body is required when creating booking from reservation');
 			}
 
 			// Send userId to microservice (NOT JWT token) - Best Practice: Option 2
@@ -96,22 +96,22 @@ export class BookingController {
 			
 			// Handle microservice error format: { status: 'error', message: '...' }
 			if (error?.status === 'error' && error?.message) {
-				throw new Error(`Create booking failed: ${error.message}`);
+				throw new BadRequestException(`Create booking failed: ${error.message}`);
 			}
 			
 			// Handle connection errors
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new Error('Booking microservice is not running. Please start it with: npm run start:booking:dev');
+				throw new InternalServerErrorException('Booking microservice is not running. Please start it with: npm run start:booking:dev');
 			}
 			
 			// Handle timeout errors
 			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new Error('Booking microservice request timeout. Please check if the service is running.');
+				throw new InternalServerErrorException('Booking microservice request timeout. Please check if the service is running.');
 			}
 			
 			// Handle other errors
 			const errorMessage = error?.message || error?.toString() || 'Unknown error';
-			throw new Error(`Create booking failed: ${errorMessage}`);
+			throw new BadRequestException(`Create booking failed: ${errorMessage}`);
 		}
 	}
 
@@ -134,6 +134,12 @@ export class BookingController {
 	})
 	async getBookingFareDetails(@Param('id') bookingId: string): Promise<BookingFareDetailsResponseDto> {
 		try {
+			// Validate UUID v7 format
+			const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+			if (!uuidRegex.test(bookingId)) {
+				throw new BadRequestException('Invalid booking ID format. Expected UUID v7.');
+			}
+			
 			return await firstValueFrom(
 				this.client.send<BookingFareDetailsResponseDto>(BOOKING_MS.PATTERN.GET_FARE_DETAILS, bookingId),
 			);
@@ -143,12 +149,15 @@ export class BookingController {
 				throw error;
 			}
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new Error('Booking microservice is not running. Please start it with: npm run start:booking:dev');
+				throw new InternalServerErrorException('Booking microservice is not running. Please start it with: npm run start:booking:dev');
 			}
 			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new Error('Booking microservice request timeout. Please check if the service is running.');
+				throw new InternalServerErrorException('Booking microservice request timeout. Please check if the service is running.');
 			}
-			throw new Error(`Get booking fare details failed: ${error?.message || 'Unknown error'}`);
+			if (error?.status === 'error' && error?.message) {
+				throw new BadRequestException(`Get booking fare details failed: ${error.message}`);
+			}
+			throw new BadRequestException(`Get booking fare details failed: ${error?.message || 'Unknown error'}`);
 		}
 	}
 
@@ -181,6 +190,12 @@ export class BookingController {
 		@Body() dto: UpdateBookingPassengersDto,
 	): Promise<{ success: boolean; message: string; totalPassengers: number }> {
 		try {
+			// Validate UUID v7 format
+			const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+			if (!uuidRegex.test(bookingId)) {
+				throw new BadRequestException('Invalid booking ID format. Expected UUID v7.');
+			}
+			
 			return await firstValueFrom(
 				this.client.send<{ success: boolean; message: string; totalPassengers: number }>(
 					BOOKING_MS.PATTERN.UPDATE_PASSENGERS,
@@ -193,12 +208,15 @@ export class BookingController {
 				throw error;
 			}
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new Error('Booking microservice is not running. Please start it with: npm run start:booking:dev');
+				throw new InternalServerErrorException('Booking microservice is not running. Please start it with: npm run start:booking:dev');
 			}
 			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new Error('Booking microservice request timeout. Please check if the service is running.');
+				throw new InternalServerErrorException('Booking microservice request timeout. Please check if the service is running.');
 			}
-			throw new Error(`Update booking passengers failed: ${error?.message || 'Unknown error'}`);
+			if (error?.status === 'error' && error?.message) {
+				throw new BadRequestException(`Update booking passengers failed: ${error.message}`);
+			}
+			throw new BadRequestException(`Update booking passengers failed: ${error?.message || 'Unknown error'}`);
 		}
 	}
 
@@ -221,6 +239,12 @@ export class BookingController {
 	})
 	async getBookingPaymentInfo(@Param('id') bookingId: string): Promise<BookingPaymentInfoResponseDto> {
 		try {
+			// Validate UUID v7 format
+			const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+			if (!uuidRegex.test(bookingId)) {
+				throw new BadRequestException('Invalid booking ID format. Expected UUID v7.');
+			}
+			
 			return await firstValueFrom(
 				this.client.send<BookingPaymentInfoResponseDto>(BOOKING_MS.PATTERN.GET_PAYMENT_INFO, bookingId),
 			);
@@ -230,12 +254,15 @@ export class BookingController {
 				throw error;
 			}
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new Error('Booking microservice is not running. Please start it with: npm run start:booking:dev');
+				throw new InternalServerErrorException('Booking microservice is not running. Please start it with: npm run start:booking:dev');
 			}
 			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new Error('Booking microservice request timeout. Please check if the service is running.');
+				throw new InternalServerErrorException('Booking microservice request timeout. Please check if the service is running.');
 			}
-			throw new Error(`Get booking payment info failed: ${error?.message || 'Unknown error'}`);
+			if (error?.status === 'error' && error?.message) {
+				throw new BadRequestException(`Get booking payment info failed: ${error.message}`);
+			}
+			throw new BadRequestException(`Get booking payment info failed: ${error?.message || 'Unknown error'}`);
 		}
 	}
 }

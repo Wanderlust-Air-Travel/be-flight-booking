@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Patch, Body, Param, Req, UseGuards, Headers, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Param, Req, UseGuards, Headers, HttpCode, HttpStatus, BadRequestException, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import {
 	ApiBadRequestResponse,
 	ApiOkResponse,
@@ -49,6 +49,12 @@ export class PaymentController {
 		@Body() dto: CreatePaymentDto,
 	): Promise<PaymentResponseDto> {
 		try {
+			// Validate UUID v7 format
+			const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+			if (!uuidRegex.test(bookingId)) {
+				throw new BadRequestException('Invalid booking ID format. Expected UUID v7.');
+			}
+			
 			const userId = req.user.userId;
 
 			return await firstValueFrom(
@@ -63,20 +69,46 @@ export class PaymentController {
 		} catch (error: any) {
 			console.error('Create payment error:', error);
 
+			// Re-throw NestJS exceptions as-is (including NotFoundException)
 			if (error?.statusCode && error?.message) {
+				if (error?.statusCode === 404) {
+					throw new NotFoundException(error.message);
+				}
 				throw error;
 			}
 
+			// Handle microservice connection errors
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new Error('Payment microservice is not running. Please start it with: npm run start:payment:dev');
+				throw new InternalServerErrorException('Payment microservice is not running. Please start it with: npm run start:payment:dev');
 			}
 
+			// Handle timeout errors
 			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new Error('Payment microservice request timeout. Please check if the service is running.');
+				throw new InternalServerErrorException('Payment microservice request timeout. Please check if the service is running.');
 			}
 
+			// Handle microservice error format: { status: 'error', message: '...' }
+			if (error?.status === 'error' && error?.message) {
+				const message = error.message.toLowerCase();
+				// Check if message indicates "not found"
+				if (message.includes('not found') || message.includes('notfound') || 
+				    (message.includes('booking') && message.includes('not found')) ||
+				    message.includes('does not exist')) {
+					throw new NotFoundException(`Booking not found: ${error.message}`);
+				}
+				// If it's a generic "Internal server error", it might be a not found case
+				if (message.includes('internal server error') && error?.details) {
+					const details = String(error.details).toLowerCase();
+					if (details.includes('not found') || details.includes('booking')) {
+						throw new NotFoundException('Booking not found');
+					}
+				}
+				throw new BadRequestException(`Create payment failed: ${error.message}`);
+			}
+
+			// Generic error - provide more context
 			const errorMessage = error?.message || error?.toString() || 'Unknown error';
-			throw new Error(`Create payment failed: ${errorMessage}`);
+			throw new BadRequestException(`Create payment failed: ${errorMessage}. Please check the booking ID and payment details.`);
 		}
 	}
 
@@ -106,6 +138,12 @@ export class PaymentController {
 		@Body() dto: CreatePaymentDto,
 	): Promise<PaymentResponseDto> {
 		try {
+			// Validate UUID v7 format
+			const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+			if (!uuidRegex.test(bookingId)) {
+				throw new BadRequestException('Invalid booking ID format. Expected UUID v7.');
+			}
+			
 			const userId = req.user.userId;
 
 			return await firstValueFrom(
@@ -120,20 +158,38 @@ export class PaymentController {
 		} catch (error: any) {
 			console.error('Process payment error:', error);
 
+			// Re-throw NestJS exceptions as-is (including NotFoundException)
 			if (error?.statusCode && error?.message) {
+				if (error?.statusCode === 404) {
+					throw new NotFoundException(error.message);
+				}
 				throw error;
 			}
 
+			// Handle microservice connection errors
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new Error('Payment microservice is not running. Please start it with: npm run start:payment:dev');
+				throw new InternalServerErrorException('Payment microservice is not running. Please start it with: npm run start:payment:dev');
 			}
 
+			// Handle timeout errors
 			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new Error('Payment microservice request timeout. Please check if the service is running.');
+				throw new InternalServerErrorException('Payment microservice request timeout. Please check if the service is running.');
+			}
+
+			// Handle microservice error format: { status: 'error', message: '...' }
+			if (error?.status === 'error' && error?.message) {
+				const message = error.message.toLowerCase();
+				// Check if message indicates "not found"
+				if (message.includes('not found') || message.includes('notfound') || 
+				    message.includes('booking') && message.includes('not found') ||
+				    message.includes('does not exist')) {
+					throw new NotFoundException(`Booking not found: ${error.message}`);
+				}
+				throw new BadRequestException(`Process payment failed: ${error.message}`);
 			}
 
 			const errorMessage = error?.message || error?.toString() || 'Unknown error';
-			throw new Error(`Process payment failed: ${errorMessage}`);
+			throw new BadRequestException(`Process payment failed: ${errorMessage}`);
 		}
 	}
 
@@ -161,6 +217,12 @@ export class PaymentController {
 		@Param('id') paymentId: string,
 	): Promise<PaymentResponseDto> {
 		try {
+			// Validate UUID v7 format
+			const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+			if (!uuidRegex.test(paymentId)) {
+				throw new BadRequestException('Invalid payment ID format. Expected UUID v7.');
+			}
+			
 			const userId = req.user.userId;
 
 			return await firstValueFrom(
@@ -172,15 +234,46 @@ export class PaymentController {
 		} catch (error: any) {
 			console.error('Get payment error:', error);
 
+			// Re-throw NestJS exceptions as-is (including NotFoundException)
 			if (error?.statusCode && error?.message) {
+				if (error?.statusCode === 404) {
+					throw new NotFoundException(error.message);
+				}
 				throw error;
 			}
 
+			// Handle microservice connection errors
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new Error('Payment microservice is not running. Please start it with: npm run start:payment:dev');
+				throw new InternalServerErrorException('Payment microservice is not running. Please start it with: npm run start:payment:dev');
 			}
 
-			throw new Error(`Get payment failed: ${error?.message || 'Unknown error'}`);
+			// Handle timeout errors
+			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
+				throw new InternalServerErrorException('Payment microservice request timeout. Please check if the service is running.');
+			}
+
+			// Handle microservice error format: { status: 'error', message: '...' }
+			if (error?.status === 'error' && error?.message) {
+				const message = error.message.toLowerCase();
+				// Check if message indicates "not found"
+				if (message.includes('not found') || message.includes('notfound') || 
+				    (message.includes('payment') && message.includes('not found')) ||
+				    message.includes('does not exist')) {
+					throw new NotFoundException(`Payment not found: ${error.message}`);
+				}
+				// If it's a generic "Internal server error", it might be a not found case
+				if (message.includes('internal server error') && error?.details) {
+					const details = String(error.details).toLowerCase();
+					if (details.includes('not found') || details.includes('payment')) {
+						throw new NotFoundException('Payment not found');
+					}
+				}
+				throw new BadRequestException(`Get payment failed: ${error.message}`);
+			}
+
+			// Generic error - provide more context
+			const errorMessage = error?.message || error?.toString() || 'Unknown error';
+			throw new BadRequestException(`Get payment failed: ${errorMessage}. Please check the payment ID.`);
 		}
 	}
 
@@ -208,6 +301,12 @@ export class PaymentController {
 		@Param('bookingId') bookingId: string,
 	): Promise<PaymentResponseDto[]> {
 		try {
+			// Validate UUID v7 format
+			const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+			if (!uuidRegex.test(bookingId)) {
+				throw new BadRequestException('Invalid booking ID format. Expected UUID v7.');
+			}
+			
 			const userId = req.user.userId;
 
 			return await firstValueFrom(
@@ -219,15 +318,46 @@ export class PaymentController {
 		} catch (error: any) {
 			console.error('Get payments by booking error:', error);
 
+			// Re-throw NestJS exceptions as-is (including NotFoundException)
 			if (error?.statusCode && error?.message) {
+				if (error?.statusCode === 404) {
+					throw new NotFoundException(error.message);
+				}
 				throw error;
 			}
 
+			// Handle microservice connection errors
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new Error('Payment microservice is not running. Please start it with: npm run start:payment:dev');
+				throw new InternalServerErrorException('Payment microservice is not running. Please start it with: npm run start:payment:dev');
 			}
 
-			throw new Error(`Get payments by booking failed: ${error?.message || 'Unknown error'}`);
+			// Handle timeout errors
+			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
+				throw new InternalServerErrorException('Payment microservice request timeout. Please check if the service is running.');
+			}
+
+			// Handle microservice error format: { status: 'error', message: '...' }
+			if (error?.status === 'error' && error?.message) {
+				const message = error.message.toLowerCase();
+				// Check if message indicates "not found"
+				if (message.includes('not found') || message.includes('notfound') || 
+				    (message.includes('booking') && message.includes('not found')) ||
+				    message.includes('does not exist')) {
+					throw new NotFoundException(`Booking not found: ${error.message}`);
+				}
+				// If it's a generic "Internal server error", it might be a not found case
+				if (message.includes('internal server error') && error?.details) {
+					const details = String(error.details).toLowerCase();
+					if (details.includes('not found') || details.includes('booking')) {
+						throw new NotFoundException('Booking not found');
+					}
+				}
+				throw new BadRequestException(`Get payments by booking failed: ${error.message}`);
+			}
+
+			// Generic error - provide more context
+			const errorMessage = error?.message || error?.toString() || 'Unknown error';
+			throw new BadRequestException(`Get payments by booking failed: ${errorMessage}. Please check the booking ID.`);
 		}
 	}
 
@@ -257,6 +387,12 @@ export class PaymentController {
 		@Body() dto: UpdatePaymentStatusDto,
 	): Promise<PaymentResponseDto> {
 		try {
+			// Validate UUID v7 format
+			const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+			if (!uuidRegex.test(paymentId)) {
+				throw new BadRequestException('Invalid payment ID format. Expected UUID v7.');
+			}
+			
 			const userId = req.user.userId;
 
 			return await firstValueFrom(
@@ -271,15 +407,46 @@ export class PaymentController {
 		} catch (error: any) {
 			console.error('Update payment status error:', error);
 
+			// Re-throw NestJS exceptions as-is (including NotFoundException)
 			if (error?.statusCode && error?.message) {
+				if (error?.statusCode === 404) {
+					throw new NotFoundException(error.message);
+				}
 				throw error;
 			}
 
+			// Handle microservice connection errors
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new Error('Payment microservice is not running. Please start it with: npm run start:payment:dev');
+				throw new InternalServerErrorException('Payment microservice is not running. Please start it with: npm run start:payment:dev');
 			}
 
-			throw new Error(`Update payment status failed: ${error?.message || 'Unknown error'}`);
+			// Handle timeout errors
+			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
+				throw new InternalServerErrorException('Payment microservice request timeout. Please check if the service is running.');
+			}
+
+			// Handle microservice error format: { status: 'error', message: '...' }
+			if (error?.status === 'error' && error?.message) {
+				const message = error.message.toLowerCase();
+				// Check if message indicates "not found"
+				if (message.includes('not found') || message.includes('notfound') || 
+				    (message.includes('payment') && message.includes('not found')) ||
+				    message.includes('does not exist')) {
+					throw new NotFoundException(`Payment not found: ${error.message}`);
+				}
+				// If it's a generic "Internal server error", it might be a not found case
+				if (message.includes('internal server error') && error?.details) {
+					const details = String(error.details).toLowerCase();
+					if (details.includes('not found') || details.includes('payment')) {
+						throw new NotFoundException('Payment not found');
+					}
+				}
+				throw new BadRequestException(`Update payment status failed: ${error.message}`);
+			}
+
+			// Generic error - provide more context
+			const errorMessage = error?.message || error?.toString() || 'Unknown error';
+			throw new BadRequestException(`Update payment status failed: ${errorMessage}. Please check the payment ID and status.`);
 		}
 	}
 
@@ -319,6 +486,12 @@ export class PaymentController {
 		@Body() payload: any,
 	): Promise<{ success: boolean; message: string }> {
 		try {
+			// Validate gateway name
+			const validGateways = ['vnpay', 'momo', 'stripe', 'mock'];
+			if (!validGateways.includes(gateway.toLowerCase())) {
+				throw new BadRequestException(`Invalid gateway. Supported gateways: ${validGateways.join(', ')}`);
+			}
+			
 			// Forward webhook to payment microservice
 			await firstValueFrom(
 				this.client.send(PAYMENT_MS.PATTERN.HANDLE_WEBHOOK, {
@@ -340,10 +513,14 @@ export class PaymentController {
 			}
 
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new Error('Payment microservice is not running. Please start it with: npm run start:payment:dev');
+				throw new InternalServerErrorException('Payment microservice is not running. Please start it with: npm run start:payment:dev');
 			}
 
-			throw new Error(`Webhook processing failed: ${error?.message || 'Unknown error'}`);
+			if (error?.status === 'error' && error?.message) {
+				throw new BadRequestException(`Webhook processing failed: ${error.message}`);
+			}
+
+			throw new BadRequestException(`Webhook processing failed: ${error?.message || 'Unknown error'}`);
 		}
 	}
 }

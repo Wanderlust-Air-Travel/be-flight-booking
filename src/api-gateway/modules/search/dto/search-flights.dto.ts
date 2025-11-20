@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsDateString, IsEnum, IsInt, IsNotEmpty, IsOptional, IsPositive, IsString, Length, Min, ValidateIf } from 'class-validator';
+import { Type } from 'class-transformer';
 import { TripType } from 'src/shared/constants/enums';
 
 // Export enum values for Swagger documentation
@@ -34,11 +35,13 @@ export class SearchFlightsDto {
 	tripType!: TripType;
 
 	@ApiProperty({ description: 'Number of adult passengers', minimum: 1, example: 1 })
+	@Type(() => Number)
 	@IsInt()
 	@IsPositive()
 	adults!: number;
 
 	@ApiProperty({ description: 'Number of minor passengers', minimum: 0, example: 0 })
+	@Type(() => Number)
 	@IsInt()
 	@Min(0)
 	minors!: number;

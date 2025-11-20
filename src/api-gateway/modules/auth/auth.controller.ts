@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Post, Req, UseGuards, HttpCode, HttpStatus } from "@nestjs/common";
 import { AuthService } from "./auth.service";
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from "./dto/login.dto";
@@ -56,6 +56,7 @@ export class AuthController{
     }
 
     @Post('refresh')
+    @HttpCode(HttpStatus.OK)
     @ApiBody({ type: RefreshDto, examples: {
         default: {
             summary: 'Refresh tokens',
@@ -66,11 +67,12 @@ export class AuthController{
         }
     }})
     @ApiOkResponse({ type: TokensResponse, description: 'New tokens issued' })
-    refesh(@Body() body: RefreshDto) {
+    refresh(@Body() body: RefreshDto) {
         return this.auth.refresh(body.userId, body.refresh_token);
     }
 
     @Post('logout')
+    @HttpCode(HttpStatus.OK)
     @ApiBody({ type: LogoutDto, examples: {
         default: {
             summary: 'Logout by user id',

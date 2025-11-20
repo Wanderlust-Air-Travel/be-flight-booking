@@ -1,7 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsEmail, IsOptional, IsArray, ValidateNested, IsInt, Min, ValidateIf } from 'class-validator';
+import { IsNotEmpty, IsString, IsEmail, IsOptional, IsArray, ValidateNested, IsInt, Min, ValidateIf, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
 import { IsUUIDv7 } from 'src/shared/validators/is-uuid-v7.validator';
+import { PassengerType } from 'src/shared/constants/enums';
 
 export class CreateBookingPassengerDto {
 	@ApiProperty({
@@ -15,11 +16,12 @@ export class CreateBookingPassengerDto {
 
 	@ApiProperty({
 		description: 'Passenger type: ADT (adult), CHD (child), INF (infant)',
-		example: 'ADT',
+		enum: PassengerType,
+		example: PassengerType.ADT,
 	})
 	@IsNotEmpty()
-	@IsString()
-	passengerType!: string; // ADT, CHD, INF
+	@IsEnum(PassengerType, { message: 'passengerType must be one of: ADT, CHD, INF' })
+	passengerType!: PassengerType;
 
 	// Passenger info for creating new passenger (required if passengerId is not provided)
 	@ApiProperty({

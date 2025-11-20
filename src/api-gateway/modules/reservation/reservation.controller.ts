@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Req, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Req, UseGuards, HttpCode, HttpStatus, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import {
 	ApiBadRequestResponse,
 	ApiOkResponse,
@@ -24,6 +24,7 @@ export class ReservationController {
 	constructor(@Inject('RESERVATION_CLIENT') private readonly client: ClientProxy) {}
 
 	@Post()
+	@HttpCode(HttpStatus.OK)
 	@ApiOperation({
 		summary: 'Create a new reservation',
 		description:
@@ -58,14 +59,17 @@ export class ReservationController {
 				throw error;
 			}
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new Error(
+				throw new InternalServerErrorException(
 					'Reservation microservice is not running. Please start it with: npm run start:reservation:dev',
 				);
 			}
 			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new Error('Reservation microservice request timeout. Please check if the service is running.');
+				throw new InternalServerErrorException('Reservation microservice request timeout. Please check if the service is running.');
 			}
-			throw new Error(`Create reservation failed: ${error?.message || 'Unknown error'}`);
+			if (error?.status === 'error' && error?.message) {
+				throw new BadRequestException(`Create reservation failed: ${error.message}`);
+			}
+			throw new BadRequestException(`Create reservation failed: ${error?.message || 'Unknown error'}`);
 		}
 	}
 
@@ -97,11 +101,14 @@ export class ReservationController {
 				throw error;
 			}
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new Error(
+				throw new InternalServerErrorException(
 					'Reservation microservice is not running. Please start it with: npm run start:reservation:dev',
 				);
 			}
-			throw new Error(`Get reservation failed: ${error?.message || 'Unknown error'}`);
+			if (error?.status === 'error' && error?.message) {
+				throw new BadRequestException(`Get reservation failed: ${error.message}`);
+			}
+			throw new BadRequestException(`Get reservation failed: ${error?.message || 'Unknown error'}`);
 		}
 	}
 
@@ -134,15 +141,19 @@ export class ReservationController {
 				throw error;
 			}
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new Error(
+				throw new InternalServerErrorException(
 					'Reservation microservice is not running. Please start it with: npm run start:reservation:dev',
 				);
 			}
-			throw new Error(`Get reservation by code failed: ${error?.message || 'Unknown error'}`);
+			if (error?.status === 'error' && error?.message) {
+				throw new BadRequestException(`Get reservation by code failed: ${error.message}`);
+			}
+			throw new BadRequestException(`Get reservation by code failed: ${error?.message || 'Unknown error'}`);
 		}
 	}
 
 	@Post(':id/cancel')
+	@HttpCode(HttpStatus.OK)
 	@ApiOperation({
 		summary: 'Cancel reservation',
 		description: 'Cancel an active reservation. This will release the held seats.',
@@ -181,11 +192,14 @@ export class ReservationController {
 				throw error;
 			}
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new Error(
+				throw new InternalServerErrorException(
 					'Reservation microservice is not running. Please start it with: npm run start:reservation:dev',
 				);
 			}
-			throw new Error(`Cancel reservation failed: ${error?.message || 'Unknown error'}`);
+			if (error?.status === 'error' && error?.message) {
+				throw new BadRequestException(`Cancel reservation failed: ${error.message}`);
+			}
+			throw new BadRequestException(`Cancel reservation failed: ${error?.message || 'Unknown error'}`);
 		}
 	}
 
@@ -215,9 +229,12 @@ export class ReservationController {
 				throw error;
 			}
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new Error('Reservation microservice is not running. Please start it with: npm run start:reservation:dev');
+				throw new InternalServerErrorException('Reservation microservice is not running. Please start it with: npm run start:reservation:dev');
 			}
-			throw new Error(`List reservations failed: ${error?.message || 'Unknown error'}`);
+			if (error?.status === 'error' && error?.message) {
+				throw new BadRequestException(`List reservations failed: ${error.message}`);
+			}
+			throw new BadRequestException(`List reservations failed: ${error?.message || 'Unknown error'}`);
 		}
 	}
 
@@ -243,6 +260,11 @@ export class ReservationController {
 		@Body() body: { additionalSeconds: number },
 	): Promise<ReservationResponseDto> {
 		try {
+			// Validate additionalSeconds
+			if (!body.additionalSeconds || body.additionalSeconds <= 0) {
+				throw new BadRequestException('additionalSeconds must be a positive number');
+			}
+			
 			return await firstValueFrom(
 				this.client.send<ReservationResponseDto>(RESERVATION_MS.PATTERN.EXTEND_RESERVATION, {
 					reservationId,
@@ -255,9 +277,12 @@ export class ReservationController {
 				throw error;
 			}
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new Error('Reservation microservice is not running. Please start it with: npm run start:reservation:dev');
+				throw new InternalServerErrorException('Reservation microservice is not running. Please start it with: npm run start:reservation:dev');
 			}
-			throw new Error(`Extend reservation failed: ${error?.message || 'Unknown error'}`);
+			if (error?.status === 'error' && error?.message) {
+				throw new BadRequestException(`Extend reservation failed: ${error.message}`);
+			}
+			throw new BadRequestException(`Extend reservation failed: ${error?.message || 'Unknown error'}`);
 		}
 	}
 }
