@@ -1,6 +1,47 @@
 # Changelog - API Documentation Updates
 
-## Ngày cập nhật: 2025-01-20 (Latest - Interfaces Separation & Code Structure)
+## Ngày cập nhật: 2025-01-20 (Latest - Payment API DTO Fix & Test Setup Improvements)
+
+### Payment API DTO Fix
+
+- **Issue**: API Gateway `CreatePaymentDto` thiếu `amount` và `idempotencyKey` fields
+  - Khi tests gửi các fields này, validation pipe từ chối với 400 Bad Request
+  - API Gateway DTO không khớp với microservice DTO
+
+- **Fix**: 
+  - Thêm `amount` field (optional, với validation `@IsNumber()` và `@Min(0.01)`)
+  - Thêm `idempotencyKey` field (optional, với validation `@IsString()`)
+  - Cập nhật `src/api-gateway/modules/payment/dto/create-payment.dto.ts` để match với microservice DTO
+
+- **Impact**: 
+  - Payment API tests giờ có thể gửi `amount` và `idempotencyKey` mà không bị validation errors
+  - API Gateway DTO giờ khớp 100% với microservice DTO
+
+### E2E Test Setup Improvements
+
+- **Docker Support**: Cải thiện test setup để hỗ trợ chạy tests với Docker
+  - **Issue**: Khi chạy E2E tests, API Gateway chạy trên localhost nhưng microservices chạy trong Docker
+  - **Fix**: 
+    - Cập nhật `test/setup.ts` để tự động load `.env` và set default environment variables
+    - Đảm bảo API Gateway kết nối đúng đến microservices trong Docker qua `localhost:4006`
+  - **Documentation**: 
+    - Cập nhật `test/RUN_TESTS.md` với troubleshooting guide cho Docker setup
+    - Thêm hướng dẫn kiểm tra Payment microservice connection
+
+- **Test Helper Logging**: Thêm logging để dễ debug khi tests fail
+  - Thêm logging trong `processPayment` helper để hiển thị response body khi có lỗi
+  - Giúp dễ dàng debug khi tests fail
+
+**Files Modified:**
+- `src/api-gateway/modules/payment/dto/create-payment.dto.ts` - Added missing fields
+- `test/setup.ts` - Added environment variable setup for Docker
+- `test/helpers/test-helpers.ts` - Added error logging
+- `test/RUN_TESTS.md` - Added troubleshooting guide
+- `test/README.md` - Updated prerequisites section
+
+---
+
+## Ngày cập nhật: 2025-01-20 (Previous - Interfaces Separation & Code Structure)
 
 ### Code Structure Changes - Interfaces Separation
 

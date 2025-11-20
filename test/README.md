@@ -50,20 +50,47 @@ Trước khi chạy tests, đảm bảo:
    docker-compose -f docker-compose-full-services.yml up -d
    ```
 
-2. **Database đã được seed:**
+2. **Kiểm tra các microservices đang chạy trong Docker:**
    ```bash
-   npm run seed:full
+   docker ps
    ```
-
-3. **Tất cả microservices đang chạy:**
+   Đảm bảo container `backend` đang chạy và expose các ports:
    - API Gateway (port 3000)
    - Search Microservice (port 4001)
    - Services Microservice (port 4002)
    - Routes Microservice (port 4003)
    - Booking Microservice (port 4004)
    - Reservation Microservice (port 4005)
-   - Payment Microservice (port 4006)
+   - Payment Microservice (port 4006) ⚠️ **Quan trọng cho Payment API tests**
    - Email Microservice (port 4007)
+
+3. **Kiểm tra Payment microservice có thể kết nối được:**
+   ```bash
+   # Windows PowerShell
+   Test-NetConnection -ComputerName localhost -Port 4006
+   ```
+
+4. **Database đã được seed:**
+   ```bash
+   npm run seed:full
+   ```
+
+5. **File `.env` được cấu hình đúng:**
+   Đảm bảo file `.env` có các biến sau (hoặc sử dụng `env.example`):
+   ```env
+   PAYMENT_MS_HOST=127.0.0.1
+   PAYMENT_MS_PORT=4006
+   SEARCH_MS_HOST=127.0.0.1
+   SEARCH_MS_PORT=4001
+   BOOKING_MS_HOST=127.0.0.1
+   BOOKING_MS_PORT=4004
+   RESERVATION_MS_HOST=127.0.0.1
+   RESERVATION_MS_PORT=4005
+   EMAIL_MS_HOST=127.0.0.1
+   EMAIL_MS_PORT=4007
+   ```
+   
+   **Lưu ý:** Khi chạy tests, API Gateway chạy trên localhost và kết nối đến microservices qua các ports đã được Docker expose. File `test/setup.ts` sẽ tự động set các giá trị mặc định nếu không có trong `.env`.
 
 ## Test Coverage
 

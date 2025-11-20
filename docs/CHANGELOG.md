@@ -4,6 +4,34 @@ Tất cả các thay đổi quan trọng của project sẽ được ghi nhận 
 
 ## [Unreleased]
 
+### Fixed
+
+- **Payment API DTO Mismatch**: Fixed API Gateway `CreatePaymentDto` thiếu `amount` và `idempotencyKey` fields
+  - **Issue**: API Gateway DTO không khớp với microservice DTO, dẫn đến validation errors (400 Bad Request) khi tests gửi các fields này
+  - **Fix**: 
+    - Thêm `amount` field (optional, với validation `@IsNumber()` và `@Min(0.01)`)
+    - Thêm `idempotencyKey` field (optional, với validation `@IsString()`)
+    - Cập nhật `src/api-gateway/modules/payment/dto/create-payment.dto.ts` để match với microservice DTO
+  - **Impact**: Payment API tests giờ có thể gửi `amount` và `idempotencyKey` mà không bị validation errors
+
+- **E2E Test Setup for Docker**: Cải thiện test setup để hỗ trợ chạy tests với Docker
+  - **Issue**: Khi chạy E2E tests, API Gateway chạy trên localhost nhưng microservices chạy trong Docker, cần cấu hình environment variables đúng
+  - **Fix**: 
+    - Cập nhật `test/setup.ts` để tự động load `.env` và set default environment variables cho tất cả microservices
+    - Đảm bảo API Gateway kết nối đúng đến microservices trong Docker qua `localhost:4006` (vì Docker đã expose ports)
+  - **Files Modified**: 
+    - `test/setup.ts` - Added environment variable setup for Docker
+    - `test/RUN_TESTS.md` - Added troubleshooting guide for Docker setup
+  - **Impact**: Tests có thể chạy với Docker mà không cần manual configuration
+
+- **Test Helper Logging**: Thêm logging để dễ debug khi tests fail
+  - **Issue**: Khi tests fail, khó debug vì không thấy response body
+  - **Fix**: 
+    - Thêm logging trong `processPayment` helper để hiển thị response body khi có lỗi
+    - Giúp dễ dàng debug khi tests fail
+  - **Files Modified**: 
+    - `test/helpers/test-helpers.ts` - Added error logging
+
 ### Changed
 
 - **Code Structure - Interfaces Separation**: Tất cả interfaces được tách riêng ra khỏi logic code
