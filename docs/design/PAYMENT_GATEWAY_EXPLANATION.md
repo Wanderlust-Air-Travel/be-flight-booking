@@ -33,6 +33,8 @@ npm install vnpay
 
 2. **Tạo VNPayGateway class**
 ```typescript
+import { IPaymentGateway, PaymentGatewayResponse } from '../interfaces/payment-gateway.interface';
+
 @Injectable()
 export class VNPayGateway implements IPaymentGateway {
   async createPayment(payment: Payment, booking: Booking): Promise<PaymentGatewayResponse> {

@@ -10,13 +10,19 @@ Backend sử dụng **Microservices Architecture với Shared Database**:
 
 ## Cấu trúc thư mục
 
+**Lưu ý về Code Organization:**
+- **Interfaces**: Tất cả interfaces được tách riêng vào folder `interfaces/` của mỗi service
+- **DTOs**: Request/Response DTOs nằm trong folder `dto/`
+- **Services**: Business logic nằm trong folder `services/` hoặc file `*.service.ts`
+- **Controllers**: Message handlers nằm trong file `*.controller.ts`
+
 ```
 src/
 ├── shared/                    # Code dùng chung
 │   ├── entities/              # Database models (TypeORM)
-│   ├── types/                 # TypeScript types/interfaces
+│   ├── types/                 # TypeScript types (shared types only)
 │   ├── config/                # Configuration
-│   └── constants/             # Constants
+│   └── constants/             # Constants (enums, etc.)
 │
 ├── api-gateway/               # REST API (port 3000)
 │   ├── modules/               # Feature modules
@@ -37,7 +43,9 @@ src/
 │   │   ├── controllers/       # Message handlers
 │   │   ├── services/          # Business logic
 │   │   ├── dto/               # Request/Response DTOs
-│   │   ├── types/             # Internal types
+│   │   ├── interfaces/        # Service interfaces
+│   │   │   ├── flight-result.interface.ts
+│   │   │   └── index.ts
 │   │   └── main.search.ts     # Entry point
 │   ├── services/              # Services microservice (port 4002)
 │   │   ├── controllers/       # Message handlers
@@ -67,8 +75,10 @@ src/
 │       ├── controllers/       # Message handlers
 │       ├── services/          # Business logic
 │       ├── dto/               # Request/Response DTOs
-│       ├── gateways/          # Payment gateway implementations
+│       ├── interfaces/        # Service interfaces
 │       │   ├── payment-gateway.interface.ts
+│       │   └── index.ts
+│       ├── gateways/          # Payment gateway implementations
 │       │   ├── payment-gateway.factory.ts
 │       │   ├── mock-payment.gateway.ts
 │       │   └── vnpay.gateway.example.ts
@@ -80,6 +90,10 @@ src/
 │       │   ├── gmail-api.service.ts      # Gmail API integration
 │       │   ├── email-queue.service.ts    # Queue management
 │       │   └── email-template.service.ts # Email templates
+│       ├── interfaces/        # Service interfaces
+│       │   ├── email-queue.interface.ts
+│       │   ├── email-template.interface.ts
+│       │   └── index.ts
 │       ├── dto/               # Request/Response DTOs
 │       ├── email.messages.ts  # TCP config
 │       └── main.email.ts      # Entry point

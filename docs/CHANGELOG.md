@@ -4,6 +4,23 @@ Tất cả các thay đổi quan trọng của project sẽ được ghi nhận 
 
 ## [Unreleased]
 
+### Changed
+
+- **Code Structure - Interfaces Separation**: Tất cả interfaces được tách riêng ra khỏi logic code
+  - **Email Service**: Interfaces được tách vào `src/microservices/email/interfaces/`
+    - `email-queue.interface.ts` - `QueuedEmail` interface
+    - `email-template.interface.ts` - `TemplateResult` interface
+  - **Search Service**: Interfaces được tách vào `src/microservices/search/interfaces/`
+    - `flight-result.interface.ts` - `FlightResult` interface (di chuyển từ `types/`)
+  - **Payment Service**: Interfaces được tách vào `src/microservices/payment/interfaces/`
+    - `payment-gateway.interface.ts` - `IPaymentGateway`, `PaymentGatewayResponse`, `PaymentWebhookResult` interfaces (di chuyển từ `gateways/`)
+  - **Best Practice**: Mỗi service có folder `interfaces/` riêng với `index.ts` để export tất cả interfaces
+  - **Benefits**: 
+    - Separation of concerns - interfaces tách biệt khỏi implementation
+    - Dễ maintain và tìm kiếm
+    - Consistent structure across all services
+    - Better code organization
+
 ### Added
 
 - **Email Microservice** (port 4007): Microservice mới xử lý email logic với Gmail API integration
@@ -76,7 +93,7 @@ Tất cả các thay đổi quan trọng của project sẽ được ghi nhận 
     - Indexes: `IX_Payments_IdempotencyKey`, `IX_Payments_ExpiresAt`
   - **Migration**: `1734600000000-UpdatePaymentTables.ts` - Migration để add các fields mới
   - **Payment Gateway Architecture**:
-    - `IPaymentGateway` interface cho payment gateway abstraction
+    - `IPaymentGateway` interface cho payment gateway abstraction (trong `interfaces/payment-gateway.interface.ts`)
     - `PaymentGatewayFactory` để manage multiple gateways
     - `MockPaymentGateway` cho development/testing
     - Ready structure để tích hợp real payment gateways (VNPay, MoMo, Stripe)

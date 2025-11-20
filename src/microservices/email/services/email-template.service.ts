@@ -1,11 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EmailTemplate } from 'src/shared/constants/enums';
-
-interface TemplateResult {
-	subject: string;
-	htmlBody: string;
-	textBody?: string;
-}
+import { TemplateResult } from '../interfaces/email-template.interface';
 
 @Injectable()
 export class EmailTemplateService {

@@ -10,7 +10,7 @@ import { FareClass } from 'src/shared/entities/fare/fare-class.entity';
 import { CabinClass } from 'src/shared/entities/cabin/cabin-class.entity';
 import { SeatConfiguration } from 'src/shared/entities/seat/seat-configuration.entity';
 import { SearchFlightsDto } from './dto/search-flights.dto';
-import { FlightResult } from './types/flight-result.type';
+import { FlightResult } from './interfaces/flight-result.interface';
 import { GetFareOptionsDto } from './dto/get-fare-options.dto';
 import { TripType, CabinType } from 'src/shared/constants/enums';
 import { FareOptionsResponseDto, FareOptionsGroupDto } from './dto/fare-options-response.dto';

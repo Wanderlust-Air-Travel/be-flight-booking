@@ -1,5 +1,5 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
-import { IPaymentGateway } from './payment-gateway.interface';
+import { IPaymentGateway } from '../interfaces/payment-gateway.interface';
 import { MockPaymentGateway } from './mock-payment.gateway';
 // Import actual payment gateways here when implemented
 // import { VNPayGateway } from './vnpay.gateway';

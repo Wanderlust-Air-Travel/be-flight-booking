@@ -1,8 +1,7 @@
 /**
- * Internal types for Search Service
- * These types are used for internal data processing before mapping to DTOs
+ * Interface for flight search result
+ * Used for internal data processing before mapping to DTOs
  */
-
 export interface FlightResult {
 	flightInstanceId: string;
 	flightNumber: string;

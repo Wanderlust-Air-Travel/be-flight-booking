@@ -3,22 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { GmailApiService } from './gmail-api.service';
 import { EmailTemplateService } from './email-template.service';
 import { SendEmailDto } from '../dto/send-email.dto';
-import { EmailStatus, EmailResponseDto } from '../dto/email-response.dto';
+import { EmailResponseDto } from '../dto/email-response.dto';
+import { QueuedEmail } from '../interfaces/email-queue.interface';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - uuid package is ESM but works fine with CommonJS
 import { v7 as uuidv7 } from 'uuid';
-
-interface QueuedEmail {
-	id: string;
-	dto: SendEmailDto;
-	status: EmailStatus;
-	retryCount: number;
-	maxRetries: number;
-	queuedAt: Date;
-	sentAt?: Date;
-	error?: string;
-	nextRetryAt?: Date;
-}
 
 @Injectable()
 export class EmailQueueService implements OnModuleInit, OnModuleDestroy {

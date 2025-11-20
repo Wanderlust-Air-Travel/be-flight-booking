@@ -1,6 +1,27 @@
 # Changelog - API Documentation Updates
 
-## Ngày cập nhật: 2025-01-20 (Latest - Email Service & Centralized Enums)
+## Ngày cập nhật: 2025-01-20 (Latest - Interfaces Separation & Code Structure)
+
+### Code Structure Changes - Interfaces Separation
+
+- **Interfaces được tách riêng**: Tất cả interfaces được tách ra khỏi logic code vào folder `interfaces/` của mỗi service
+  - **Email Service**: `src/microservices/email/interfaces/`
+    - `email-queue.interface.ts` - `QueuedEmail` interface
+    - `email-template.interface.ts` - `TemplateResult` interface
+  - **Search Service**: `src/microservices/search/interfaces/`
+    - `flight-result.interface.ts` - `FlightResult` interface (di chuyển từ `types/`)
+  - **Payment Service**: `src/microservices/payment/interfaces/`
+    - `payment-gateway.interface.ts` - `IPaymentGateway`, `PaymentGatewayResponse`, `PaymentWebhookResult` interfaces (di chuyển từ `gateways/`)
+  - **Best Practice**: Mỗi service có folder `interfaces/` riêng với `index.ts` để export tất cả interfaces
+  - **Benefits**: 
+    - Separation of concerns - interfaces tách biệt khỏi implementation
+    - Dễ maintain và tìm kiếm
+    - Consistent structure across all services
+    - Better code organization
+
+---
+
+## Ngày cập nhật: 2025-01-20 (Previous - Email Service & Centralized Enums)
 
 ### Major Changes - Email Microservice & Centralized Enums
 
@@ -140,8 +161,10 @@
 - **Code Structure** (Best Practice):
   ```
   src/microservices/payment/
-  ├── gateways/
+  ├── interfaces/
   │   ├── payment-gateway.interface.ts
+  │   └── index.ts
+  ├── gateways/
   │   ├── payment-gateway.factory.ts
   │   ├── mock-payment.gateway.ts
   │   └── vnpay.gateway.example.ts

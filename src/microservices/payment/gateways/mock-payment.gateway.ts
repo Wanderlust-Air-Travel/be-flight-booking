@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { IPaymentGateway, PaymentGatewayResponse, PaymentWebhookResult } from './payment-gateway.interface';
+import { IPaymentGateway, PaymentGatewayResponse, PaymentWebhookResult } from '../interfaces/payment-gateway.interface';
 import { Payment } from 'src/shared/entities/payment/payment.entity';
 import { Booking } from 'src/shared/entities/booking/booking.entity';
 
