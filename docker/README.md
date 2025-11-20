@@ -90,6 +90,7 @@ docker-compose -f docker-compose-full-services.yml down -v     # Xóa tất cả
 - Booking MS: Port 4004
 - Reservation MS: Port 4005
 - Payment MS: Port 4006
+- Email MS: Port 4007
 
 ## Troubleshooting
 

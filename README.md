@@ -102,6 +102,8 @@ REDIS_PASSWORD=
 REDIS_DB=0
 REDIS_KEY_PREFIX=flight-booking:
 REDIS_RESERVATION_TTL=900
+REDIS_IDEMPOTENCY_TTL=7200  # 2 hours (in seconds) - for payment idempotency key caching
+REDIS_IDEMPOTENCY_ENABLED=true  # Enable/disable Redis caching for idempotency keys (default: true)
 ```
 
 ## Cấu trúc Project
@@ -143,7 +145,7 @@ Tất cả tài liệu trong thư mục [`docs/`](./docs/):
 
 ## Features
 
-- **Microservices Architecture**: Tách biệt Search, Services, Routes, Booking, Reservation, Payment
+- **Microservices Architecture**: Tách biệt Search, Services, Routes, Booking, Reservation, Payment, Email
 - **Backend-managed State**: Reservation Service quản lý state trong Redis (Hybrid: Database + Redis)
 - **Payment Service**: Production Ready với Phase 1 & 2 improvements
   - Idempotency & Duplicate Prevention
@@ -151,6 +153,11 @@ Tất cả tài liệu trong thư mục [`docs/`](./docs/):
   - Payment Gateway Integration Structure
   - Webhook Handling & Payment Expiration
   - Payment Method Availability & Notifications
+- **Email Service**: Gmail API integration với queue management
+  - Gmail API với OAuth 2.0
+  - Email queue với retry logic và rate limiting (100 emails/phút)
+  - 5 email templates (OTP payment, OTP password reset, payment success/failed, booking confirmation)
+  - Async processing và health check
 - **UUID v7**: Tất cả IDs sử dụng UUID v7 (time-ordered)
 - **JWT Authentication**: Tự động extract userId từ token tại Gateway
 - **Passenger Creation**: Tự động tạo passenger khi booking (với reuse logic)

@@ -27,7 +27,8 @@ src/
 │   │   ├── routes/            # Routes management
 │   │   ├── booking/           # Booking management (proxy to microservice)
 │   │   ├── reservation/       # Reservation management (proxy to microservice)
-│   │   └── payment/           # Payment management (proxy to microservice)
+│   │   ├── payment/           # Payment management (proxy to microservice)
+│   │   └── email/             # Email management (proxy to microservice)
 │   ├── app.module.ts          # Root module
 │   └── main.ts                # Entry point
 │
@@ -73,6 +74,15 @@ src/
 │       │   └── vnpay.gateway.example.ts
 │       ├── payment.messages.ts # TCP config
 │       └── main.payment.ts    # Entry point
+│   └── email/                 # Email microservice (port 4007)
+│       ├── controllers/       # Message handlers
+│       ├── services/          # Business logic
+│       │   ├── gmail-api.service.ts      # Gmail API integration
+│       │   ├── email-queue.service.ts    # Queue management
+│       │   └── email-template.service.ts # Email templates
+│       ├── dto/               # Request/Response DTOs
+│       ├── email.messages.ts  # TCP config
+│       └── main.email.ts      # Entry point
 │
 └── scripts/                   # Database scripts
     └── seed-domestic.ts       # Seed domestic flights data
@@ -297,6 +307,9 @@ npm run start:reservation:dev
 # Start Payment Microservice (port 4006) - Cần chạy nếu dùng payment APIs
 npm run start:payment:dev
 
+# Start Email Microservice (port 4007) - Cần chạy nếu dùng email APIs
+npm run start:email:dev
+
 # Start Redis (port 6379) - Required cho Reservation Service
 docker-compose up -d redis
 
@@ -350,6 +363,16 @@ RESERVATION_MS_PORT=4005
 PAYMENT_MS_HOST=127.0.0.1
 PAYMENT_MS_PORT=4006
 
+# Email Microservice
+EMAIL_MS_HOST=127.0.0.1
+EMAIL_MS_PORT=4007
+
+# Gmail API Configuration
+GMAIL_CREDENTIALS_PATH=./credentials_desktop_apps.json
+GMAIL_TOKEN_PATH=./token.json
+GMAIL_FROM_EMAIL=me
+EMAIL_MAX_RETRIES=3
+
 # Redis
 REDIS_HOST=localhost
 REDIS_PORT=6379
@@ -369,7 +392,12 @@ REDIS_RESERVATION_TTL=900  # 15 minutes (in seconds)
 6. **Error handling**: Check `statusCode` trong response để handle errors
 7. **UUID v7**: Tất cả IDs trong hệ thống (flightInstanceId, bookingId, userId...) sử dụng **UUID v7** (time-ordered UUID). Format: `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx`. UUID v7 có thể sắp xếp theo thời gian, tốt cho database indexing.
 8. **Payment Service Features (Phase 1 & 2 - Production Ready)**:
-   - Idempotency: Prevent duplicate payments với idempotency key
+   - Idempotency (Hybrid Approach): Prevent duplicate payments với idempotency key
+     - Redis Cache: Fast path (~1ms) - check Redis first với TTL 2 hours
+     - DB Fallback: Guarantee path (~20-50ms) - fallback to DB nếu Redis miss/fail
+     - Performance: ~95% latency reduction (1-2ms average vs 20-50ms DB-only)
+     - Safety: Redis failures không block payment creation, always fallback to DB
+     - Configuration: `REDIS_IDEMPOTENCY_TTL=7200`, `REDIS_IDEMPOTENCY_ENABLED=true`
    - Amount Validation: Payment amount phải bằng booking total amount
    - Concurrency Control: Database lock để prevent concurrent payments
    - Payment Gateway Integration: Ready structure để tích hợp VNPay, MoMo, Stripe
@@ -377,6 +405,14 @@ REDIS_RESERVATION_TTL=900  # 15 minutes (in seconds)
    - Payment Expiration: Payment tự động expire sau 15 phút
    - Payment Method Availability: Check payment method is active
    - Payment Notifications: Tự động gửi notification khi payment success/failed
+9. **Email Service Features**:
+   - Gmail API Integration: OAuth 2.0 authentication với Gmail API
+   - Email Queue Management: In-memory queue với async processing
+   - Retry Logic: Max 3 retries với exponential backoff
+   - Rate Limiting: 100 emails/phút (configurable)
+   - Email Templates: 5 templates sẵn có (OTP payment, OTP password reset, payment success/failed, booking confirmation)
+   - Health Check: Endpoint `/emails/health` để monitor service
+   - Configuration: `GMAIL_CREDENTIALS_PATH`, `GMAIL_TOKEN_PATH`, `GMAIL_FROM_EMAIL`, `EMAIL_MAX_RETRIES`
 9. **Booking API Features**:
    - Yêu cầu JWT authentication - `userId` tự động extract từ token
    - Contact info tự động lấy từ user nếu không có trong body

@@ -1,14 +1,105 @@
 # Changelog - API Documentation Updates
 
-## Ngày cập nhật: 2025-01-20 (Latest - Payment Service Phase 1 & 2: Production Ready Improvements)
+## Ngày cập nhật: 2025-01-20 (Latest - Email Service & Centralized Enums)
+
+### Major Changes - Email Microservice & Centralized Enums
+
+#### 1. **Email Microservice (Port 4007)**
+- **New Microservice**: Email Microservice được tạo để xử lý tất cả email operations
+- **Port**: 4007 (TCP)
+- **Architecture**: Microservice pattern với NestJS, Gmail API integration
+- **Gmail API Integration**: OAuth 2.0 authentication với Gmail API
+  - Support credentials file: `credentials_desktop_apps.json`
+  - Token file: `token.json` (auto-generated sau khi authenticate)
+  - OAuth 2.0 flow với auto token refresh
+
+**Implementation:**
+- `EmailService`: Main business logic
+- `EmailMsController`: Microservice controller xử lý message patterns
+- `EmailModule`: Module với Gmail API service, queue service, template service
+- `GmailApiService`: Gmail API integration với OAuth 2.0
+- `EmailQueueService`: Queue management với retry logic và rate limiting
+- `EmailTemplateService`: Email template rendering
+
+**Email Queue Management:**
+- In-memory queue với async processing
+- Retry logic: Max 3 retries với exponential backoff
+- Rate limiting: 100 emails/phút (configurable)
+- Queue statistics tracking
+
+**Email Templates:**
+- `otp_payment` - OTP cho xác thực thanh toán
+- `otp_password_reset` - OTP cho đặt lại mật khẩu
+- `payment_success` - Thông báo thanh toán thành công kèm thông tin vé
+- `payment_failed` - Thông báo thanh toán thất bại
+- `booking_confirmation` - Xác nhận đặt chỗ
+
+**Email APIs:**
+- `POST /emails/send` - Gửi email đơn lẻ (JWT required)
+- `GET /emails/:emailId/status` - Lấy trạng thái email (JWT required)
+- `GET /emails/health` - Health check (public, no auth)
+
+**Configuration:**
+- `GMAIL_CREDENTIALS_PATH` - Path to Gmail credentials file
+- `GMAIL_TOKEN_PATH` - Path to Gmail token file
+- `GMAIL_FROM_EMAIL` - From email address
+- `EMAIL_MAX_RETRIES` - Max retry attempts
+
+#### 2. **Centralized Enums (Shared Constants)**
+- **Tất cả enum được centralize** tại `src/shared/constants/enums/`
+- **Structure**:
+  - `payment.enum.ts` - PaymentMethodCode, PaymentStatus
+  - `search.enum.ts` - TripType, CabinType
+  - `email.enum.ts` - EmailStatus, EmailTemplate
+  - `index.ts` - Export tất cả enums
+- **Import pattern**: `import { EnumName } from 'src/shared/constants/enums'`
+- **Benefits**:
+  - Single source of truth
+  - Consistency giữa API Gateway và Microservices
+  - Easy maintenance
+  - Type safety
+
+**Updated Files:**
+- Tất cả DTO files (microservices và API Gateway) - removed enum definitions
+- Service files - updated imports
+- Controller files - updated imports
+- Response DTO files - updated imports
+
+#### 3. **API Gateway Integration**
+- Email Client Module: `EmailClientModule` registered trong `app.module.ts`
+- Email Controller: REST API endpoints cho email operations
+- DTOs: SendEmailDto, EmailResponseDto với Swagger documentation
+
+#### 4. **Docker & Environment**
+- Docker Compose: Email Service (port 4007) added
+- Start scripts: `start:email` và `start:email:dev` added
+- Environment variables: Email Service config và Gmail API config
+
+#### 5. **Updated Documentation**
+- `API_DOCS.md`: Added Email APIs section
+- `API_TESTING_FLOW.md`: Added Step 12-14 for Email testing
+- `API_SEQUENCE_DIAGRAMS.md`: Added Email Service to sequence diagrams
+- `CHANGELOG_API_DOCS.md`: Document Email Service changes
+- `CHANGELOG.md`: Added Email Service entry
+- `STRUCTURE.md`: Added Email Service to structure và endpoints
+- Postman Collection: Email requests sẽ được thêm
+
+---
+
+## Ngày cập nhật: 2025-01-20 (Previous - Payment Service Phase 1 & 2: Production Ready Improvements)
 
 ### Major Changes - Payment Service Production Ready Improvements (Phase 1 & 2)
 
 #### 1. **Payment Service Enhancements (Phase 1: Critical Fixes)**
-- **Idempotency & Duplicate Prevention**: 
+- **Idempotency & Duplicate Prevention (Hybrid Approach)**: 
   - Thêm `idempotency_key` field vào Payment entity
   - Thêm `idempotencyKey` vào CreatePaymentDto (optional)
+  - **Hybrid Storage**: Redis (fast cache, TTL: 2h) + DB (persistence & guarantee)
+  - **Performance**: ~95% latency reduction (1-2ms vs 20-50ms DB-only)
+  - **Flow**: Check Redis first → Fallback to DB → Cache result in Redis
   - System check và return existing payment nếu đã tồn tại (prevent duplicate payments)
+  - **Safety**: Redis failures không block payment creation, always fallback to DB
+  - **Configuration**: `REDIS_IDEMPOTENCY_TTL=7200`, `REDIS_IDEMPOTENCY_ENABLED=true`
   
 - **Amount Validation**: 
   - Thêm `amount` vào CreatePaymentDto (optional, defaults to booking total amount)

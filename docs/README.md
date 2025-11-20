@@ -33,6 +33,8 @@ Tài liệu dự án Flight Booking Backend được tổ chức theo các danh 
 - **[RESERVATION_EXPIRATION_VALIDATION.md](./design/RESERVATION_EXPIRATION_VALIDATION.md)** - Best Practice cho Reservation Expiration Validation
 - **[PAYMENT_SERVICE_ANALYSIS.md](./design/PAYMENT_SERVICE_ANALYSIS.md)** - Phân tích Payment Service và Phase 1 & 2 improvements (Production Ready)
 - **[PAYMENT_GATEWAY_EXPLANATION.md](./design/PAYMENT_GATEWAY_EXPLANATION.md)** - Giải thích Payment Gateway Architecture và cách implement real payment gateways
+- **[IDEMPOTENCY_KEY_STORAGE_ANALYSIS.md](./design/IDEMPOTENCY_KEY_STORAGE_ANALYSIS.md)** - Phân tích DB vs Redis vs Hybrid approach cho idempotency key storage
+- **[IDEMPOTENCY_IMPLEMENTATION.md](./design/IDEMPOTENCY_IMPLEMENTATION.md)** - Implementation details của Hybrid Approach cho idempotency key (Production Ready)
 
 ### [Project Documentation](./)
 - **[CHANGELOG.md](./CHANGELOG.md)** - Lịch sử thay đổi của dự án

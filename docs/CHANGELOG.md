@@ -6,12 +6,56 @@ Tất cả các thay đổi quan trọng của project sẽ được ghi nhận 
 
 ### Added
 
+- **Email Microservice** (port 4007): Microservice mới xử lý email logic với Gmail API integration
+  - Entry point: `src/microservices/email/main.email.ts`
+  - Chạy bằng: `npm run start:email` hoặc `npm run start:email:dev`
+  - Environment variables: `EMAIL_MS_HOST`, `EMAIL_MS_PORT`
+  - **Email Service Features**:
+    - **Gmail API Integration**: Tích hợp Gmail API với OAuth 2.0
+      - OAuth 2.0 authentication flow
+      - Token management và auto-refresh
+      - Support credentials file: `credentials_desktop_apps.json`
+      - Token file: `token.json` (auto-generated sau khi authenticate)
+    - **Email Queue Management**: In-memory queue với async processing
+      - Queue emails và xử lý background
+      - Retry logic: Max 3 retries với exponential backoff
+      - Rate limiting: 100 emails/phút (configurable)
+      - Queue statistics tracking
+    - **Email Templates**: 5 templates sẵn có
+      - `otp_payment` - OTP cho xác thực thanh toán
+      - `otp_password_reset` - OTP cho đặt lại mật khẩu
+      - `payment_success` - Thông báo thanh toán thành công kèm thông tin vé
+      - `payment_failed` - Thông báo thanh toán thất bại
+      - `booking_confirmation` - Xác nhận đặt chỗ
+    - **Async Processing**: Background queue processing không block requests
+    - **Health Check**: Endpoint để monitor service health và queue stats
+  - **Email APIs**:
+    - `POST /emails/send` - Gửi email đơn lẻ (JWT required)
+    - `GET /emails/:emailId/status` - Lấy trạng thái email (JWT required)
+    - `GET /emails/health` - Health check (public, no auth)
+  - **Configuration**:
+    - `GMAIL_CREDENTIALS_PATH` - Path to Gmail credentials file (default: `./credentials_desktop_apps.json`)
+    - `GMAIL_TOKEN_PATH` - Path to Gmail token file (default: `./token.json`)
+    - `GMAIL_FROM_EMAIL` - From email address (default: `me`)
+    - `EMAIL_MAX_RETRIES` - Max retry attempts (default: 3)
+  - **Docker**: Email Service (port 4007) đã được thêm vào docker-compose-full-services.yml và start-all.ts
+  - **Shared Enums**: Tất cả enum được centralize tại `src/shared/constants/enums/`
+    - `PaymentMethodCode`, `PaymentStatus` - Payment enums
+    - `TripType`, `CabinType` - Search enums
+    - `EmailStatus`, `EmailTemplate` - Email enums
+    - Import từ: `import { EnumName } from 'src/shared/constants/enums'`
+
 - **Payment Microservice** (port 4006): Microservice mới xử lý payment logic (Production Ready - Phase 1 & 2)
   - Entry point: `src/microservices/payment/main.payment.ts`
   - Chạy bằng: `npm run start:payment` hoặc `npm run start:payment:dev`
   - Environment variables: `PAYMENT_MS_HOST`, `PAYMENT_MS_PORT`
   - **Payment Service Features (Phase 1 & 2)**:
-    - **Idempotency**: Prevent duplicate payments với idempotency key
+    - **Idempotency (Hybrid Approach)**: Prevent duplicate payments với idempotency key
+      - **Redis Cache**: Fast path (~1ms) - check Redis first với TTL 2 hours
+      - **DB Fallback**: Guarantee path (~20-50ms) - fallback to DB nếu Redis miss/fail
+      - **Performance**: ~95% latency reduction (1-2ms average vs 20-50ms DB-only)
+      - **Safety**: Redis failures không block payment creation, always fallback to DB
+      - **Audit Trail**: DB lưu vĩnh viễn cho compliance và reconciliation
     - **Amount Validation**: Payment amount phải bằng booking total amount (strict validation)
     - **Concurrency Control**: Database lock (pessimistic) để prevent concurrent payments
     - **Payment Gateway Integration**: Ready structure để tích hợp VNPay, MoMo, Stripe, etc.
@@ -37,6 +81,16 @@ Tất cả các thay đổi quan trọng của project sẽ được ghi nhận 
     - `MockPaymentGateway` cho development/testing
     - Ready structure để tích hợp real payment gateways (VNPay, MoMo, Stripe)
   - **Docker**: Payment Service (port 4006) đã được thêm vào docker-compose-full-services.yml và start-all.ts
+  - **Idempotency Key Storage (Hybrid Approach)**:
+    - Implement Hybrid Approach: Redis (fast cache) + DB (persistence & guarantee)
+    - **Redis Service**: Sử dụng shared Redis service (đã có từ Reservation Service)
+    - **Configuration**: `REDIS_IDEMPOTENCY_TTL=7200` (2 hours), `REDIS_IDEMPOTENCY_ENABLED=true`
+    - **Flow**: Check Redis first → Fallback to DB → Cache result in Redis
+    - **Performance**: ~95% latency reduction (1-2ms vs 20-50ms)
+    - **Safety**: Graceful degradation - Redis failures không affect payment creation
+    - **Documentation**: 
+      - `docs/design/IDEMPOTENCY_KEY_STORAGE_ANALYSIS.md` - Analysis & comparison
+      - `docs/design/IDEMPOTENCY_IMPLEMENTATION.md` - Implementation details
 
 ### Added
 
@@ -141,6 +195,12 @@ Tất cả các thay đổi quan trọng của project sẽ được ghi nhận 
   - Payment sẽ tự động update booking status thành `paid` khi payment thành công (via webhook)
   - Payment tự động expire sau 15 phút nếu chưa thanh toán
   - System tự động gửi notification khi payment success/failed
+- **Idempotency Key Storage**: Chuyển từ DB-only sang **Hybrid Approach** (Redis + DB)
+  - **Performance Improvement**: ~95% latency reduction (1-2ms vs 20-50ms)
+  - **Redis Caching**: Idempotency keys cached trong Redis với TTL 2 hours
+  - **DB Persistence**: Vẫn lưu trong DB để audit trail và guarantee
+  - **Fallback Strategy**: Redis failures → DB fallback (không mất guarantee)
+  - **Feature Flag**: Có thể disable Redis qua `REDIS_IDEMPOTENCY_ENABLED=false`
 - **Services API**: `/services/deals` giờ hỗ trợ cả one-way và round-trip deals
   - Thêm field `tripType`: `"one_way"` hoặc `"round_trip"`
   - Round-trip: `endDate` có giá trị, `service` = "Dịch vụ bay khứ hồi", `price` = tổng giá 2 chuyến

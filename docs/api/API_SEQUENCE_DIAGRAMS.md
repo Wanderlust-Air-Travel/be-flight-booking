@@ -120,12 +120,37 @@ sequenceDiagram
     Payment MS->>Database: BEGIN TRANSACTION (WITH LOCK)
     Payment MS->>Database: Lock booking row (UPDLOCK, ROWLOCK)<br/>Validate booking exists & belongs to user<br/>Check booking status (not paid, not cancelled)
     Database-->>Payment MS: Booking data (locked)
-    Payment MS->>Payment MS: Check idempotency key (if provided)<br/>Prevent duplicate payments
-    Payment MS->>Database: Validate payment method exists & active<br/>Validate amount = booking total
+    alt Idempotency Key Provided (Hybrid Approach)
+        Payment MS->>Redis: Check idempotency key (fast path)<br/>GET idempotency:{key}
+        alt Redis Hit (99% cases, ~1ms)
+            Redis-->>Payment MS: Cached payment response
+            Payment MS->>Payment MS: Verify booking ID matches
+            Payment MS->>Database: Get payment by payment_id (for consistency)
+            Database-->>Payment MS: Payment data
+            Payment MS->>Database: COMMIT TRANSACTION
+            Payment MS-->>API Gateway: Return existing payment (idempotent)
+        else Redis Miss → DB Fallback
+            Payment MS->>Database: Check idempotency key (guarantee path)<br/>SELECT * FROM Payments WHERE idempotency_key = :key
+            alt DB Hit
+                Database-->>Payment MS: Existing payment
+                Payment MS->>Redis: Cache payment response (TTL: 2h)
+                Payment MS->>Database: COMMIT TRANSACTION
+                Payment MS-->>API Gateway: Return existing payment (idempotent)
+            else DB Miss → Create New Payment
+                Payment MS->>Database: Validate payment method exists & active<br/>Validate amount = booking total
+            end
+        end
+    else No Idempotency Key
+        Payment MS->>Database: Validate payment method exists & active<br/>Validate amount = booking total
+    end
     Database-->>Payment MS: PaymentMethod data
     Payment MS->>Payment MS: Create Payment record<br/>(status: pending, expires_at: now + 15min)
     Payment MS->>Database: INSERT INTO Payments<br/>(payment_id, booking_id, amount, status: 'pending', expires_at, idempotency_key, ...)
     Database-->>Payment MS: Payment created
+    alt Idempotency Key Provided
+        Payment MS->>Redis: Cache payment response (non-blocking)<br/>SET idempotency:{key} (TTL: 2h)
+        Note right of Redis: Redis failure does not block payment creation
+    end
     Payment MS->>Payment MS: Call Payment Gateway<br/>(VNPay, MoMo, Stripe, etc.)
     Payment MS->>Payment Gateway: Create payment request<br/>(In production: HTTP API call)
     Payment Gateway-->>Payment MS: {transactionId, paymentUrl, status: 'pending'}
@@ -156,8 +181,17 @@ sequenceDiagram
     end
     Payment MS->>Database: COMMIT TRANSACTION
     Database-->>Payment MS: Transaction committed
+    Payment MS->>Email MS: SEND_EMAIL message (TCP)<br/>{to, template: 'payment_success', templateData}
+    Email MS->>Email MS: Queue email
+    Email MS-->>Payment MS: {emailId, status: 'queued'}
     Payment MS-->>API Gateway: {success: true}
-    API Gateway-->>Payment Gateway: 200 OK<br/>{success: true}
+    API Gateway-->>Payment Gateway: 200 OK
+    
+    Note over Email MS: Email Processing (Async)
+    Email MS->>Email MS: Process queue (background)
+    Email MS->>Gmail API: Send email via Gmail API
+    Gmail API-->>Email MS: Email sent successfully
+    Email MS->>Email MS: Update status: 'sent'<br/>{success: true}
 ```
 
 ---
@@ -312,9 +346,30 @@ sequenceDiagram
         Payment MS->>Database: BEGIN TRANSACTION (WITH LOCK)
         Payment MS->>Database: Lock booking row (UPDLOCK, ROWLOCK)<br/>Validate booking exists & belongs to user<br/>Check payment method active & amount
         Database-->>Payment MS: Validation result (locked)
-        Payment MS->>Payment MS: Check idempotency key<br/>Prevent duplicate payments
-        Payment MS->>Database: INSERT INTO Payments<br/>(status: 'pending', expires_at: now + 15min, idempotency_key)
-        Database-->>Payment MS: Payment created
+        alt Idempotency Key Provided (Hybrid Approach)
+            Payment MS->>Redis: Check idempotency key (fast path, ~1ms)<br/>GET idempotency:{key}
+            alt Redis Hit (99% cases)
+                Redis-->>Payment MS: Cached payment response
+                Payment MS->>Database: COMMIT TRANSACTION
+                Payment MS-->>API Gateway: Return existing payment
+            else Redis Miss → DB Fallback
+                Payment MS->>Database: Check idempotency key (guarantee path)<br/>SELECT * FROM Payments WHERE idempotency_key = :key
+                alt DB Hit
+                    Database-->>Payment MS: Existing payment
+                    Payment MS->>Redis: Cache payment response (TTL: 2h)
+                    Payment MS->>Database: COMMIT TRANSACTION
+                    Payment MS-->>API Gateway: Return existing payment
+                else DB Miss → Create New Payment
+                    Payment MS->>Database: INSERT INTO Payments<br/>(status: 'pending', expires_at: now + 15min, idempotency_key)
+                    Database-->>Payment MS: Payment created
+                    Payment MS->>Redis: Cache payment response (non-blocking)<br/>SET idempotency:{key} (TTL: 2h)
+                    Note right of Redis: Redis failure does not block payment creation
+                end
+            end
+        else No Idempotency Key
+            Payment MS->>Database: INSERT INTO Payments<br/>(status: 'pending', expires_at: now + 15min)
+            Database-->>Payment MS: Payment created
+        end
         Payment MS->>Payment MS: Call Payment Gateway Factory<br/>Get gateway instance (VNPay, MoMo, Stripe, etc.)
         Payment MS->>Payment Gateway: createPayment()<br/>(In production: HTTP API call)
         Payment Gateway-->>Payment MS: {transactionId, paymentUrl, status: 'pending'}

@@ -1046,6 +1046,97 @@
 				}
 			],
 			"description": "Payment APIs - Process payments for bookings. Requires Payment Microservice running on port 4006.\n\n**Payment Flow:**\n1. Create payment (status: pending) - Optional, nếu muốn tạo payment record trước\n2. Process payment - Tạo và integrate với payment gateway (recommended)\n   - Response có thể chứa `paymentUrl` để redirect user đến payment gateway\n3. Payment Gateway Webhook (Async) - Payment gateway gọi webhook khi payment status thay đổi\n4. Verify payment - Get payment details để verify\n\n**Payment Methods:**\n- CREDIT_CARD\n- DEBIT_CARD\n- BANK_TRANSFER\n- EWALLET\n- CASH\n\n**Payment Status:**\n- `pending`: Payment được tạo nhưng chưa xử lý\n- `success`: Payment thành công, booking status = 'paid'\n- `failed`: Payment thất bại\n\n**Features (Phase 1 & 2 - Production Ready):**\n- **Idempotency**: Prevent duplicate payments với idempotency key\n- **Amount Validation**: Payment amount phải bằng booking total amount (strict validation)\n- **Concurrency Control**: Database lock để prevent concurrent payments\n- **Payment Gateway Integration**: Ready structure để tích hợp VNPay, MoMo, Stripe, etc.\n- **Webhook Handling**: Endpoint để nhận webhook từ payment gateway\n- **Payment Expiration**: Payment tự động expire sau 15 phút\n- **Payment Method Availability**: Check payment method is active\n- **Payment Notifications**: Tự động gửi notification khi payment success/failed\n\n**JWT Authentication:**\n- `userId` tự động extract từ JWT token tại Gateway (không cần gửi trong request body)\n- Gateway validate JWT một lần, extract `userId`, gửi `userId` đến microservices (NOT JWT token)\n- Microservices trust Gateway - không validate JWT\n- Webhook endpoint: NO authentication required (payment gateway calls directly)\n\n**Auto-Update Booking Status:**\n- Khi payment status = 'success' (via webhook), booking status tự động update thành 'paid'\n- `paidAt` timestamp được set khi payment thành công\n\n**Transaction Safety:**\n- Tất cả payment operations sử dụng database transactions\n- Webhook processing cũng sử dụng transactions\n- Đảm bảo data consistency khi tạo payment và update booking status"
+		},
+		{
+			"name": "Emails",
+			"item": [
+				{
+					"name": "Send Email",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 202) {",
+									"    const response = pm.response.json();",
+									"    pm.environment.set('emailId', response.emailId);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"to\": \"{{user_email}}\",\n  \"template\": \"payment_success\",\n  \"templateData\": {\n    \"pnrCode\": \"{{pnrCode}}\",\n    \"bookingId\": \"{{bookingId}}\",\n    \"totalAmount\": 1577000,\n    \"currency\": \"VND\",\n    \"passengerName\": \"Nguyen Van A\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/emails/send",
+							"host": ["{{base_url}}"],
+							"path": ["emails", "send"]
+						},
+						"description": "Send an email. Email will be queued and processed asynchronously. Supports both custom emails and template-based emails. Requires JWT authentication and Email Microservice running on port 4007.\n\n**Request Body:**\n- `to`: Required, recipient email address\n- `subject`: Optional, email subject (required if template not provided)\n- `htmlBody`: Optional, email body HTML (required if template not provided)\n- `textBody`: Optional, email body plain text\n- `template`: Optional, email template enum (`otp_payment`, `otp_password_reset`, `payment_success`, `payment_failed`, `booking_confirmation`)\n- `templateData`: Optional, template variables object\n- `replyTo`: Optional, reply-to email address\n\n**Response:**\n- `emailId`: Email job ID (UUID v7)\n- `to`, `subject`, `status`\n- `queuedAt`: Timestamp when email was queued\n- `retryCount`: Number of retry attempts\n\n**Email Status:**\n- `queued`: Email đã được thêm vào queue\n- `sending`: Đang gửi email\n- `sent`: Email đã được gửi thành công\n- `failed`: Email gửi thất bại (sau khi retry)\n\n**Features:**\n- **Async Processing**: Email được queue và xử lý bất đồng bộ (không block request)\n- **Rate Limiting**: 100 emails/phút\n- **Retry Logic**: Tối đa 3 lần với exponential backoff\n- **Email Templates**: 5 templates sẵn có (OTP payment, OTP password reset, payment success/failed, booking confirmation)\n- **Gmail API Integration**: OAuth 2.0 authentication với Gmail API\n\n**Lưu ý:**\n- Cần Email Microservice (port 4007) chạy\n- Cần Gmail API credentials file: `credentials_desktop_apps.json`\n- Cần Gmail token file: `token.json` (sẽ được tạo sau khi authenticate OAuth 2.0)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Email Status",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/emails/{{emailId}}/status",
+							"host": ["{{base_url}}"],
+							"path": ["emails", "{{emailId}}", "status"]
+						},
+						"description": "Get the status of an email by email ID. Requires JWT authentication and Email Microservice running on port 4007.\n\n**Path Parameters:**\n- `emailId`: Email job ID (UUID v7)\n\n**Response:**\n- `emailId`, `to`, `subject`, `status`\n- `queuedAt`: Timestamp when email was queued\n- `sentAt`: Timestamp when email was sent (if sent)\n- `retryCount`: Number of retry attempts\n- `error`: Error message (if failed)"
+					},
+					"response": []
+				},
+				{
+					"name": "Email Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/emails/health",
+							"host": ["{{base_url}}"],
+							"path": ["emails", "health"]
+						},
+						"description": "Check the health status of the Email Service. Public endpoint (no authentication required).\n\n**Response:**\n- `status`: Service status ('ok')\n- `gmailReady`: `true` nếu Gmail API client đã được khởi tạo và sẵn sàng\n- `queueStats`: Thống kê queue hiện tại\n  - `total`: Tổng số emails trong queue\n  - `queued`: Số emails đang chờ xử lý\n  - `sending`: Số emails đang được gửi\n  - `sent`: Số emails đã gửi thành công\n  - `failed`: Số emails gửi thất bại\n  - `rateLimitRemaining`: Số email còn lại có thể gửi trong window hiện tại (100 emails/phút)"
+					},
+					"response": []
+				}
+			],
+			"description": "Email APIs - Send emails via Gmail API. Requires Email Microservice running on port 4007.\n\n**Email Flow:**\n1. Send email - Queue email để gửi (async processing)\n2. Check email status - Get status của email đã gửi\n3. Health check - Monitor service health và queue stats\n\n**Email Templates:**\n- `otp_payment` - OTP cho xác thực thanh toán\n- `otp_password_reset` - OTP cho đặt lại mật khẩu\n- `payment_success` - Thông báo thanh toán thành công kèm thông tin vé\n- `payment_failed` - Thông báo thanh toán thất bại\n- `booking_confirmation` - Xác nhận đặt chỗ\n\n**Email Status:**\n- `queued`: Email đã được thêm vào queue\n- `sending`: Đang gửi email\n- `sent`: Email đã được gửi thành công\n- `failed`: Email gửi thất bại (sau khi retry)\n\n**Features:**\n- **Gmail API Integration**: OAuth 2.0 authentication với Gmail API\n- **Email Queue Management**: In-memory queue với async processing\n- **Retry Logic**: Tối đa 3 lần với exponential backoff\n- **Rate Limiting**: 100 emails/phút (configurable)\n- **Email Templates**: 5 templates sẵn có với HTML formatting\n- **Health Check**: Monitor service health và queue statistics\n\n**Configuration:**\n- `GMAIL_CREDENTIALS_PATH`: Path to Gmail credentials file (default: `./credentials_desktop_apps.json`)\n- `GMAIL_TOKEN_PATH`: Path to Gmail token file (default: `./token.json`)\n- `GMAIL_FROM_EMAIL`: From email address (default: `me`)\n- `EMAIL_MAX_RETRIES`: Max retry attempts (default: 3)\n\n**JWT Authentication:**\n- `POST /emails/send` và `GET /emails/:emailId/status` yêu cầu JWT authentication\n- `GET /emails/health` là public endpoint (no authentication required)\n\n**Setup Requirements:**\n- Cần Gmail API credentials file: `credentials_desktop_apps.json` (trong project root)\n- Cần Gmail token file: `token.json` (sẽ được tạo sau khi authenticate OAuth 2.0)\n- Cần Email Microservice (port 4007) chạy: `npm run start:email:dev`"
 		}
 	],
 	"variable": [
@@ -1140,6 +1231,18 @@
 			"value": "",
 			"type": "string",
 			"description": "Transaction reference from payment gateway (optional). Example: TXN123456789"
+		},
+		{
+			"key": "emailId",
+			"value": "",
+			"type": "string",
+			"description": "Email job ID (UUID v7 format). Get this from POST /emails/send API response. Example: 019a8f4a-bb0e-7402-a0c4-27647b89dc71"
+		},
+		{
+			"key": "user_email",
+			"value": "",
+			"type": "string",
+			"description": "User email address for sending emails. Example: user@example.com"
 		}
 	]
 }

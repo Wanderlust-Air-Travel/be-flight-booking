@@ -78,6 +78,8 @@ services:
       - RESERVATION_MS_PORT=4005
       - PAYMENT_MS_HOST=0.0.0.0
       - PAYMENT_MS_PORT=4006
+      - EMAIL_MS_HOST=0.0.0.0
+      - EMAIL_MS_PORT=4007
       
       # Redis
       - REDIS_HOST=redis
@@ -94,9 +96,13 @@ services:
       - "4004:4004"  # Booking MS
       - "4005:4005"  # Reservation MS
       - "4006:4006"  # Payment MS
+      - "4007:4007"  # Email MS
     volumes:
       # Persist uploaded images to host filesystem
       - ./public:/app/public
+      # Gmail API credentials and token
+      - ./credentials_desktop_apps.json:/app/credentials_desktop_apps.json:ro
+      - ./token.json:/app/token.json:rw
     depends_on:
       sqlserver:
         condition: service_healthy
