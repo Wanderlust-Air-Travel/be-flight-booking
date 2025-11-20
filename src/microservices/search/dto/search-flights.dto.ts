@@ -1,10 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsDateString, IsEnum, IsInt, IsNotEmpty, IsOptional, IsPositive, IsString, Length, Min, ValidateIf } from 'class-validator';
-
-export enum TripType {
-	ONE_WAY = 'one_way',
-	ROUND_TRIP = 'round_trip',
-}
+import { TripType } from 'src/shared/constants/enums';
 
 // Export enum values for Swagger documentation
 export const TripTypeEnum = TripType;

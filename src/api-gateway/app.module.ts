@@ -9,6 +9,7 @@ import { BookingClientModule } from './modules/booking/booking.client.module';
 import { ReservationClientModule } from './modules/reservation/reservation.client.module';
 import { PaymentClientModule } from './modules/payment/payment.client.module';
 import { PaymentModule } from './modules/payment/payment.module';
+import { EmailClientModule } from './modules/email/email.client.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { PaymentModule } from './modules/payment/payment.module';
     ReservationClientModule,
     PaymentClientModule,
     PaymentModule,
+    EmailClientModule,
   ],
   controllers: [],
   providers: [],

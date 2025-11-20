@@ -2,11 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsEnum, IsNotEmpty } from 'class-validator';
 import { IsUUIDv7 } from 'src/shared/validators/is-uuid-v7.validator';
-
-export enum CabinType {
-	ECONOMY = 'economy',
-	BUSINESS = 'business',
-}
+import { CabinType } from 'src/shared/constants/enums';
 
 export class GetFareOptionsDto {
 	@ApiProperty({

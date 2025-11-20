@@ -1,13 +1,6 @@
 import { IsNotEmpty, IsString, IsEnum, IsOptional, IsUUID, Matches, IsNumber, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-
-export enum PaymentMethodCode {
-	CREDIT_CARD = 'CREDIT_CARD',
-	DEBIT_CARD = 'DEBIT_CARD',
-	BANK_TRANSFER = 'BANK_TRANSFER',
-	EWALLET = 'EWALLET',
-	CASH = 'CASH',
-}
+import { PaymentMethodCode } from 'src/shared/constants/enums';
 
 export class CreatePaymentDto {
 	@ApiProperty({

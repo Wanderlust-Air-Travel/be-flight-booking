@@ -1,25 +1,53 @@
 import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
 import { Booking } from 'src/shared/entities/booking/booking.entity';
 import { PaymentMethod } from 'src/shared/entities/payment/payment-method.entity';
 import { Payment } from 'src/shared/entities/payment/payment.entity';
+import { RedisService } from 'src/shared/modules/redis/redis.service';
 import { CreatePaymentDto } from '../dto/create-payment.dto';
+import { PaymentResponseDto } from '../dto/payment-response.dto';
 
 /**
  * Payment Validation Service
  * Handles all payment-related validations
+ * Implements Hybrid Approach: Redis (fast) + DB (guarantee) for idempotency
  */
 @Injectable()
 export class PaymentValidationService {
 	private readonly logger = new Logger(PaymentValidationService.name);
+	private readonly idempotencyTtl: number;
+	private readonly idempotencyKeyPrefix = 'idempotency:';
+	private readonly redisEnabled: boolean;
 
 	constructor(
 		@InjectRepository(Booking) private readonly bookingRepo: Repository<Booking>,
 		@InjectRepository(PaymentMethod) private readonly paymentMethodRepo: Repository<PaymentMethod>,
 		@InjectRepository(Payment) private readonly paymentRepo: Repository<Payment>,
 		private readonly dataSource: DataSource,
-	) {}
+		private readonly redisService: RedisService,
+		private readonly configService: ConfigService,
+	) {
+		const redisConfig = this.configService.get('redis');
+		// TTL: 2 hours (7200 seconds) - covers payment expiration (15 min) + retry scenarios
+		this.idempotencyTtl = parseInt(
+			process.env.REDIS_IDEMPOTENCY_TTL || redisConfig?.ttl?.idempotency || '7200',
+			10,
+		);
+		// Feature flag to enable/disable Redis caching
+		this.redisEnabled = process.env.REDIS_IDEMPOTENCY_ENABLED !== 'false';
+		this.logger.log(
+			`Idempotency caching: ${this.redisEnabled ? 'ENABLED' : 'DISABLED'} (TTL: ${this.idempotencyTtl}s)`,
+		);
+	}
+
+	/**
+	 * Get Redis key for idempotency key
+	 */
+	private getIdempotencyKey(idempotencyKey: string): string {
+		return `${this.idempotencyKeyPrefix}${idempotencyKey}`;
+	}
 
 	/**
 	 * Validate booking for payment creation
@@ -99,7 +127,9 @@ export class PaymentValidationService {
 	}
 
 	/**
-	 * Check for duplicate payment using idempotency key
+	 * Check for duplicate payment using idempotency key (Hybrid Approach)
+	 * Step 1: Check Redis (fast path, ~1ms)
+	 * Step 2: Check DB (fallback/guarantee, ~20-50ms)
 	 * Returns existing payment if found, null otherwise
 	 */
 	async checkIdempotency(
@@ -111,6 +141,51 @@ export class PaymentValidationService {
 			return null;
 		}
 
+		// Step 1: Check Redis first (fast path)
+		if (this.redisEnabled) {
+			try {
+				const redisKey = this.getIdempotencyKey(idempotencyKey);
+				const cachedPaymentResponse = await this.redisService.get<PaymentResponseDto>(redisKey);
+
+				if (cachedPaymentResponse) {
+					// Verify booking ID matches
+					if (cachedPaymentResponse.bookingId === bookingId) {
+						this.logger.log(
+							`[Redis Hit] Found existing payment with idempotency key: ${idempotencyKey} for booking ${bookingId}`,
+						);
+
+						// Return Payment entity by fetching from DB (for consistency with return type)
+						// This is still faster than full DB query because we know the payment exists
+						const repo = manager || this.paymentRepo.manager;
+						const payment = await repo.findOne(Payment, {
+							where: { payment_id: cachedPaymentResponse.paymentId },
+							relations: ['payment_method', 'currency', 'booking'],
+						});
+
+						if (payment) {
+							return payment;
+						}
+						// If payment not found in DB (shouldn't happen), fall through to DB check
+						this.logger.warn(
+							`[Redis Hit] Payment ${cachedPaymentResponse.paymentId} not found in DB, falling back to DB check`,
+						);
+					} else {
+						this.logger.warn(
+							`[Redis Hit] Idempotency key ${idempotencyKey} found but booking ID mismatch. Redis: ${cachedPaymentResponse.bookingId}, Request: ${bookingId}`,
+						);
+						// Booking ID mismatch, invalidate cache and check DB
+						await this.redisService.del(this.getIdempotencyKey(idempotencyKey));
+					}
+				}
+			} catch (error) {
+				// Redis failure should not block payment creation, fall back to DB
+				this.logger.warn(
+					`[Redis Error] Failed to check idempotency key in Redis: ${error.message}, falling back to DB`,
+				);
+			}
+		}
+
+		// Step 2: Check DB (fallback/guarantee)
 		const repo = manager || this.paymentRepo.manager;
 
 		const existingPayment = await repo.findOne(Payment, {
@@ -120,12 +195,66 @@ export class PaymentValidationService {
 
 		if (existingPayment && existingPayment.booking.booking_id === bookingId) {
 			this.logger.log(
-				`Found existing payment with idempotency key: ${idempotencyKey} for booking ${bookingId}`,
+				`[DB Hit] Found existing payment with idempotency key: ${idempotencyKey} for booking ${bookingId}`,
 			);
+
+			// Cache in Redis for future requests (non-blocking)
+			if (this.redisEnabled) {
+				this.cachePaymentResponse(existingPayment, idempotencyKey).catch((err) => {
+					this.logger.warn(`Failed to cache idempotency key in Redis: ${err.message}`);
+				});
+			}
+
 			return existingPayment;
 		}
 
 		return null;
+	}
+
+	/**
+	 * Cache payment response in Redis (non-blocking)
+	 */
+	async cachePaymentResponse(payment: Payment, idempotencyKey: string): Promise<void> {
+		if (!this.redisEnabled) {
+			return;
+		}
+
+		try {
+			// We need to map Payment to PaymentResponseDto
+			// For now, we'll store minimal data and reconstruct in PaymentService
+			// Or we can pass the response DTO from PaymentService
+			const redisKey = this.getIdempotencyKey(idempotencyKey);
+			const cacheData = {
+				paymentId: payment.payment_id,
+				bookingId: payment.booking.booking_id,
+				status: payment.status,
+				createdAt: payment.created_at,
+			};
+
+			await this.redisService.set(redisKey, cacheData, this.idempotencyTtl);
+			this.logger.debug(`Cached idempotency key: ${idempotencyKey} in Redis (TTL: ${this.idempotencyTtl}s)`);
+		} catch (error) {
+			this.logger.warn(`Failed to cache idempotency key in Redis: ${error.message}`);
+			// Non-blocking: Redis failures should not affect payment creation
+		}
+	}
+
+	/**
+	 * Cache full payment response DTO in Redis (called from PaymentService after mapping)
+	 */
+	async cachePaymentResponseDto(paymentResponse: PaymentResponseDto, idempotencyKey: string): Promise<void> {
+		if (!this.redisEnabled || !idempotencyKey) {
+			return;
+		}
+
+		try {
+			const redisKey = this.getIdempotencyKey(idempotencyKey);
+			await this.redisService.set(redisKey, paymentResponse, this.idempotencyTtl);
+			this.logger.debug(`Cached full payment response for idempotency key: ${idempotencyKey} (TTL: ${this.idempotencyTtl}s)`);
+		} catch (error) {
+			this.logger.warn(`Failed to cache payment response in Redis: ${error.message}`);
+			// Non-blocking: Redis failures should not affect payment creation
+		}
 	}
 
 	/**

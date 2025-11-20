@@ -10,9 +10,10 @@ import { Payment } from 'src/shared/entities/payment/payment.entity';
 import { PaymentMethod } from 'src/shared/entities/payment/payment-method.entity';
 import { Booking } from 'src/shared/entities/booking/booking.entity';
 import { Currency } from 'src/shared/entities/currency/currency.entity';
-import { CreatePaymentDto, PaymentMethodCode } from './dto/create-payment.dto';
+import { CreatePaymentDto } from './dto/create-payment.dto';
 import { PaymentResponseDto } from './dto/payment-response.dto';
-import { UpdatePaymentStatusDto, PaymentStatus } from './dto/update-payment-status.dto';
+import { UpdatePaymentStatusDto } from './dto/update-payment-status.dto';
+import { PaymentMethodCode, PaymentStatus } from 'src/shared/constants/enums';
 import { PaymentWebhookDto } from './dto/webhook.dto';
 import { BOOKING_MS } from '../booking/booking.messages';
 import { PaymentValidationService } from './services/payment-validation.service';
@@ -60,7 +61,7 @@ export class PaymentService {
 				throw new NotFoundException(`Booking ${dto.bookingId} not found`);
 			}
 
-			// PHASE 1: Check idempotency first (before validation)
+			// PHASE 1: Check idempotency first (Hybrid: Redis → DB fallback)
 			if (dto.idempotencyKey) {
 				const existingPayment = await this.validationService.checkIdempotency(
 					dto.idempotencyKey,
@@ -73,11 +74,18 @@ export class PaymentService {
 					this.logger.log(
 						`Returning existing payment ${existingPayment.payment_id} for idempotency key ${dto.idempotencyKey}`,
 					);
-					return this.mapToPaymentResponseDto(
+					const response = this.mapToPaymentResponseDto(
 						existingPayment,
 						booking.pnr_code,
 						existingPayment.payment_method.name,
 					);
+					
+					// Cache full response DTO in Redis (if not already cached)
+					this.validationService.cachePaymentResponseDto(response, dto.idempotencyKey).catch((err) => {
+						this.logger.warn(`Failed to cache payment response: ${err.message}`);
+					});
+
+					return response;
 				}
 			}
 
@@ -128,13 +136,28 @@ export class PaymentService {
 				`Payment ${paymentId} created for booking ${dto.bookingId}, expires at ${expiresAt.toISOString()}`,
 			);
 
+			// Map to response DTO
+			const paymentResponse = this.mapToPaymentResponseDto(
+				payment,
+				validatedBooking.pnr_code,
+				paymentMethod.name,
+			);
+
+			// PHASE 1 (Hybrid): Cache payment response in Redis (non-blocking)
+			if (dto.idempotencyKey) {
+				this.validationService.cachePaymentResponseDto(paymentResponse, dto.idempotencyKey).catch((err) => {
+					this.logger.warn(`Failed to cache idempotency key in Redis: ${err.message}`);
+					// Non-blocking: Redis failure should not affect payment creation
+				});
+			}
+
 			// PHASE 2: Send payment pending notification
 			await this.notificationService.sendPaymentPendingNotification(payment, validatedBooking).catch((err) => {
 				this.logger.error(`Failed to send payment pending notification: ${err.message}`);
 			});
 
 			// Return payment response
-			return this.mapToPaymentResponseDto(payment, validatedBooking.pnr_code, paymentMethod.name);
+			return paymentResponse;
 		} catch (error) {
 			await queryRunner.rollbackTransaction();
 			this.logger.error(`Error creating payment: ${error.message}`, error.stack);
@@ -172,17 +195,55 @@ export class PaymentService {
 				throw new BadRequestException('Booking is already paid');
 			}
 
-			// Create payment first
-			const paymentResponse = await this.createPayment(userId, dto);
+			// PHASE 1: Check idempotency first (Hybrid: Redis → DB fallback)
+			let payment: Payment | null = null;
+			let paymentResponse: PaymentResponseDto;
 
-			// Get the created payment
-			const payment = await queryRunner.manager.findOne(Payment, {
-				where: { payment_id: paymentResponse.paymentId },
-				relations: ['payment_method', 'currency', 'booking'],
-			});
+			if (dto.idempotencyKey) {
+				const existingPayment = await this.validationService.checkIdempotency(
+					dto.idempotencyKey,
+					dto.bookingId,
+					queryRunner.manager,
+				);
+				if (existingPayment) {
+					// Return existing payment (idempotent behavior)
+					payment = existingPayment;
+					paymentResponse = this.mapToPaymentResponseDto(
+						existingPayment,
+						booking.pnr_code,
+						existingPayment.payment_method.name,
+					);
 
+					// Cache full response DTO in Redis (if not already cached)
+					this.validationService.cachePaymentResponseDto(paymentResponse, dto.idempotencyKey).catch((err) => {
+						this.logger.warn(`Failed to cache payment response: ${err.message}`);
+					});
+
+					// If payment already processed successfully, return it
+					if (payment.status === PaymentStatus.SUCCESS) {
+						await queryRunner.commitTransaction();
+						this.logger.log(
+							`Returning existing successful payment ${payment.payment_id} for idempotency key ${dto.idempotencyKey}`,
+						);
+						return paymentResponse;
+					}
+				}
+			}
+
+			// If no existing payment, create new one
 			if (!payment) {
-				throw new NotFoundException(`Payment ${paymentResponse.paymentId} not found`);
+				// Create payment first (will handle idempotency inside)
+				paymentResponse = await this.createPayment(userId, dto);
+
+				// Get the created payment
+				payment = await queryRunner.manager.findOne(Payment, {
+					where: { payment_id: paymentResponse.paymentId },
+					relations: ['payment_method', 'currency', 'booking'],
+				});
+
+				if (!payment) {
+					throw new NotFoundException(`Payment ${paymentResponse.paymentId} not found`);
+				}
 			}
 
 			// PHASE 2: Validate payment expiration
@@ -246,6 +307,14 @@ export class PaymentService {
 			// Add payment URL if gateway provides it
 			if (gatewayResponse.paymentUrl) {
 				response.paymentUrl = gatewayResponse.paymentUrl;
+			}
+
+			// PHASE 1 (Hybrid): Cache payment response in Redis (non-blocking)
+			if (dto.idempotencyKey) {
+				this.validationService.cachePaymentResponseDto(response, dto.idempotencyKey).catch((err) => {
+					this.logger.warn(`Failed to cache idempotency key in Redis: ${err.message}`);
+					// Non-blocking: Redis failure should not affect payment processing
+				});
 			}
 
 			return response;

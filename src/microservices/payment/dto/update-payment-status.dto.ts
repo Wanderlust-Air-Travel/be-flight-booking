@@ -1,11 +1,6 @@
 import { IsNotEmpty, IsEnum, IsOptional, IsString, IsUUID, Matches } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-
-export enum PaymentStatus {
-	PENDING = 'pending',
-	SUCCESS = 'success',
-	FAILED = 'failed',
-}
+import { PaymentStatus } from 'src/shared/constants/enums';
 
 export class UpdatePaymentStatusDto {
 	@ApiProperty({

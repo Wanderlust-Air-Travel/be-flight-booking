@@ -8,6 +8,7 @@ export default registerAs('redis', () => ({
 	keyPrefix: process.env.REDIS_KEY_PREFIX || 'flight-booking:',
 	ttl: {
 		reservation: parseInt(process.env.REDIS_RESERVATION_TTL || '900', 10), // 15 minutes default
+		idempotency: parseInt(process.env.REDIS_IDEMPOTENCY_TTL || '7200', 10), // 2 hours default
 	},
 }));
 

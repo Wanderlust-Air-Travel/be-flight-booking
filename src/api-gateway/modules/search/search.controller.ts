@@ -3,7 +3,8 @@ import { ApiBadRequestResponse, ApiOkResponse, ApiOperation, ApiQuery, ApiRespon
 import { ClientProxy } from '@nestjs/microservices';
 import { Inject } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
-import { SearchFlightsDto, TripType } from './dto/search-flights.dto';
+import { SearchFlightsDto } from './dto/search-flights.dto';
+import { TripType } from 'src/shared/constants/enums';
 import { SearchFlightsResponseDto } from './dto/search-flights-response.dto';
 import { GetFareOptionsDto, CabinType } from './dto/get-fare-options.dto';
 import { FareOptionsResponseDto } from './dto/fare-options-response.dto';

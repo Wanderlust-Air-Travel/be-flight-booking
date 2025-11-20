@@ -6,6 +6,7 @@ import { Payment } from 'src/shared/entities/payment/payment.entity';
 import { PaymentMethod } from 'src/shared/entities/payment/payment-method.entity';
 import { Booking } from 'src/shared/entities/booking/booking.entity';
 import { Currency } from 'src/shared/entities/currency/currency.entity';
+import { RedisModule } from 'src/shared/modules/redis/redis.module';
 import { PaymentService } from './payment.service';
 import { PaymentMsController } from './payment.controller';
 import { BOOKING_MS } from '../booking/booking.messages';
@@ -20,6 +21,7 @@ import { MockPaymentGateway } from './gateways/mock-payment.gateway';
 			isGlobal: true,
 		}),
 		TypeOrmModule.forFeature([Payment, PaymentMethod, Booking, Currency]),
+		RedisModule, // Add Redis module for idempotency key caching
 		ClientsModule.register([
 			{
 				name: 'BOOKING_CLIENT',

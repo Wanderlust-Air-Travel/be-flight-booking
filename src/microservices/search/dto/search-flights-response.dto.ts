@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TripType } from './search-flights.dto';
+import { TripType } from 'src/shared/constants/enums';
 
 export class AirportInfoDto {
 	@ApiProperty({ description: 'Airport IATA code', example: 'HAN' })

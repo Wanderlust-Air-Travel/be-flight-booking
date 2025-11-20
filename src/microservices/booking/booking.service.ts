@@ -20,7 +20,7 @@ import { UpdateBookingPassengersDto } from './dto/update-booking-passengers.dto'
 import { BookingFareDetailsResponseDto } from './dto/booking-fare-details-response.dto';
 import { BookingPaymentInfoResponseDto } from './dto/booking-payment-info-response.dto';
 import { FareDescriptionItemDto } from 'src/microservices/search/dto/fare-option.dto';
-import { CabinType } from 'src/microservices/search/dto/get-fare-options.dto';
+import { CabinType } from 'src/shared/constants/enums';
 import { ReservationResponseDto } from '../reservation/dto/reservation-response.dto';
 import { RESERVATION_MS } from '../reservation/reservation.messages';
 

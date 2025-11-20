@@ -11,7 +11,7 @@ import { RedisService } from 'src/shared/modules/redis/redis.service';
 import { ConfigService } from '@nestjs/config';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { ReservationResponseDto } from './dto/reservation-response.dto';
-import { CabinType } from 'src/microservices/search/dto/get-fare-options.dto';
+import { CabinType } from 'src/shared/constants/enums';
 
 @Injectable()
 export class ReservationService {
