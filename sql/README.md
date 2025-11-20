@@ -17,12 +17,13 @@ sql/
     │   └── validate-routes-image-link.sql
     │
     ├── testing/               # Scripts hỗ trợ testing API
-    │   ├── find-valid-flight-instance-ids.sql
-    │   ├── find-valid-flight-instance-ids-business.sql
-    │   ├── find-valid-dates-sgn-pqc.sql
-    │   ├── find-valid-round-trip-dates-han-sgn.sql
-    │   ├── find-valid-passenger-ids.sql  # Tìm passenger IDs hợp lệ (nhiều options)
-    │   └── find-valid-user-ids.sql  # Tìm user IDs hợp lệ (UUID v7 format)
+        │   ├── find-valid-flight-instance-ids.sql
+        │   ├── find-valid-flight-instance-ids-business.sql
+        │   ├── find-valid-dates-sgn-pqc.sql
+        │   ├── find-valid-round-trip-dates-han-sgn.sql
+        │   ├── find-valid-passenger-ids.sql  # Tìm passenger IDs hợp lệ (nhiều options)
+        │   ├── find-valid-user-ids.sql  # Tìm user IDs hợp lệ (UUID v7 format)
+        │   └── find-valid-booking-ids-for-payment.sql  # Tìm booking IDs hợp lệ để test payment processing
     │
     ├── get-route-id-for-test.sql  # Lấy route_id để test upload ảnh
     ├── get-single-route-id.sql    # Lấy 1 route_id nhanh để test upload ảnh

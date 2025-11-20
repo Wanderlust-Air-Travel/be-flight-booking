@@ -3,6 +3,8 @@ import 'reflect-metadata';
 import { config } from 'dotenv';
 import { resolve } from 'path';
 import * as bcrypt from 'bcrypt';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - uuid package is ESM but works fine with CommonJS
 import { v7 as uuidv7 } from 'uuid';
 
 // Load .env file from project root
@@ -145,6 +147,7 @@ async function run() {
 		passenger: ds.getRepository(Passenger),
 		currency: ds.getRepository(Currency),
 		paymentMethod: ds.getRepository(PaymentMethod),
+		reservation: ds.getRepository(Reservation),
 		booking: ds.getRepository(Booking),
 		bookingPassenger: ds.getRepository(BookingPassenger),
 		bookingSegment: ds.getRepository(BookingSegment),
@@ -185,16 +188,20 @@ async function run() {
 		vnd = await repos.currency.save(repos.currency.create({ currency_code: 'VND', name: 'Vietnamese Dong' }));
 	}
 
+	// Payment Methods - Match với enum PaymentMethodCode
 	const paymentMethods = [
-		{ payment_method_code: 'CARD', name: 'Credit/Debit Card', description: 'Visa, Mastercard, JCB' },
-		{ payment_method_code: 'BANK', name: 'Bank Transfer', description: 'Internet Banking' },
-		{ payment_method_code: 'MOMO', name: 'MoMo Wallet', description: 'MoMo e-wallet' },
-		{ payment_method_code: 'ZALO', name: 'ZaloPay', description: 'ZaloPay e-wallet' },
-		{ payment_method_code: 'VNPAY', name: 'VNPay', description: 'VNPay gateway' },
+		{ payment_method_code: 'CREDIT_CARD', name: 'Credit Card', is_active: true },
+		{ payment_method_code: 'DEBIT_CARD', name: 'Debit Card', is_active: true },
+		{ payment_method_code: 'BANK_TRANSFER', name: 'Bank Transfer', is_active: true },
+		{ payment_method_code: 'EWALLET', name: 'E-Wallet', is_active: true }, // VNPay, MoMo, ZaloPay, etc.
+		{ payment_method_code: 'CASH', name: 'Cash', is_active: true },
 	];
 	for (const pm of paymentMethods) {
 		const existing = await repos.paymentMethod.findOne({ where: { payment_method_code: pm.payment_method_code } });
-		if (!existing) await repos.paymentMethod.save(repos.paymentMethod.create(pm));
+		if (!existing) {
+			await repos.paymentMethod.save(repos.paymentMethod.create(pm));
+			console.log(`  Created payment method: ${pm.payment_method_code}`);
+		}
 	}
 
 	// ============================================================
@@ -747,7 +754,116 @@ async function run() {
 	console.log(`Created ${instanceCount} flight instances with seats`);
 
 	// ============================================================
-	// 10. BOOKINGS, BOOKING PASSENGERS, SEGMENTS, TICKETS, PAYMENTS
+	// 10. RESERVATIONS (Sample reservations)
+	// ============================================================
+	console.log('\nSeeding Reservations...');
+	
+	// Get all available flight instances first (needed for reservations)
+	const allInstancesForReservations = await repos.instance
+		.createQueryBuilder('fi')
+		.leftJoinAndSelect('fi.aircraft', 'aircraft')
+		.leftJoinAndSelect('aircraft.aircraft_type', 'aircraft_type')
+		.orderBy('fi.flight_date', 'ASC')
+		.take(500)
+		.getMany();
+	
+	let reservationCount = 0;
+	const reservationStatuses = ['pending', 'expired', 'converted', 'cancelled'];
+	
+	// Get flight instances for reservations
+	const reservationInstances = allInstancesForReservations;
+	
+	for (let i = 0; i < Math.min(200, users.length); i++) {
+		const user = users[i];
+		
+		// Create 1-2 reservations per user
+		const numReservations = randomInt(1, 2);
+		
+		for (let j = 0; j < numReservations; j++) {
+			const status = randomElement(reservationStatuses);
+			const now = new Date();
+			const expiresAt = new Date(now);
+			expiresAt.setMinutes(expiresAt.getMinutes() + 15); // 15 minutes TTL
+			
+			// Generate unique reservation code
+			let reservationCode = generatePNR();
+			let attempts = 0;
+			while (await repos.reservation.findOne({ where: { reservation_code: reservationCode } }) && attempts < 10) {
+				reservationCode = generatePNR();
+				attempts++;
+			}
+			
+			// Select random flight instance for segments
+			const instance = randomElement(reservationInstances);
+			if (!instance) continue;
+			
+			// Create segments JSON
+			const segments = [{
+				flightInstanceId: instance.flight_instance_id,
+				flightNumber: instance.flight_number,
+				departureDatetime: instance.departure_datetime_local,
+				arrivalDatetime: instance.arrival_datetime_local,
+				segmentType: 'outbound',
+				fareClassCode: randomElement(['Y', 'YS', 'YSM']),
+				baseFare: randomInt(1000000, 5000000),
+				taxAmount: randomInt(100000, 500000),
+				feeAmount: randomInt(50000, 250000),
+			}];
+			
+			// 30% chance of round-trip (2 segments)
+			if (Math.random() > 0.7) {
+				const returnInstance = randomElement(reservationInstances.filter(inst => 
+					inst.flight_instance_id !== instance.flight_instance_id &&
+					inst.flight_date > instance.flight_date
+				));
+				if (returnInstance) {
+					segments.push({
+						flightInstanceId: returnInstance.flight_instance_id,
+						flightNumber: returnInstance.flight_number,
+						departureDatetime: returnInstance.departure_datetime_local,
+						arrivalDatetime: returnInstance.arrival_datetime_local,
+						segmentType: 'inbound',
+						fareClassCode: randomElement(['Y', 'YS', 'YSM']),
+						baseFare: randomInt(1000000, 5000000),
+						taxAmount: randomInt(100000, 500000),
+						feeAmount: randomInt(50000, 250000),
+					});
+				}
+			}
+			
+			const totalAmount = segments.reduce((sum, seg) => sum + seg.baseFare + seg.taxAmount + seg.feeAmount, 0);
+			const numberOfPassengers = randomInt(1, 4);
+			
+			// Set status-specific dates
+			let convertedAt: Date | null = null;
+			if (status === 'expired') {
+				expiresAt.setMinutes(expiresAt.getMinutes() - 20); // Expired 20 minutes ago
+			} else if (status === 'converted') {
+				const converted = new Date(now);
+				converted.setMinutes(converted.getMinutes() - 5); // Converted 5 minutes ago
+				convertedAt = converted;
+			}
+			
+			await repos.reservation.save(repos.reservation.create({
+				reservation_id: uuidv7(),
+				reservation_code: reservationCode,
+				user,
+				segments_json: JSON.stringify(segments),
+				number_of_passengers: numberOfPassengers,
+				total_amount: totalAmount,
+				currency: vnd,
+				status,
+				expires_at: expiresAt,
+				converted_at: convertedAt,
+			}));
+			
+			reservationCount++;
+		}
+	}
+	console.log(`Created ${reservationCount} reservations`);
+
+	// ============================================================
+	// 11. BOOKINGS, BOOKING PASSENGERS, SEGMENTS, TICKETS, PAYMENTS
 	// ============================================================
 	console.log('\nSeeding Bookings and related data...');
 	
@@ -771,51 +887,59 @@ async function run() {
 		console.log(`  Creating up to ${maxBookings} bookings...`);
 		
 		for (let i = 0; i < maxBookings; i++) {
-		const user = randomElement(users);
-		const pnr = generatePNR();
-		
-		// Check PNR uniqueness
-		const existingPNR = await repos.booking.findOne({ where: { pnr_code: pnr } });
-		if (existingPNR) continue;
+			const user = randomElement(users);
+			const pnr = generatePNR();
+			
+			// Check PNR uniqueness
+			const existingPNR = await repos.booking.findOne({ where: { pnr_code: pnr } });
+			if (existingPNR) continue;
 
-		const contactName = generateVietnameseName();
-		const contactEmail = generateEmail(contactName);
-		const contactPhone = generatePhone();
-		const totalAmount = randomInt(1000000, 15000000);
-		const status = randomElement(['confirmed', 'pending', 'cancelled', 'completed']);
+			// Use realistic contact info (matching user or random)
+			const useUserContact = Math.random() > 0.3; // 70% use user's info
+			const contactName = useUserContact ? user.fullname : generateVietnameseName();
+			const contactEmail = useUserContact ? user.email : generateEmail(contactName);
+			const contactPhone = useUserContact ? user.phone : generatePhone();
+			const totalAmount = randomInt(1000000, 15000000);
+			
+			// Booking status: pending -> paid (if payment success), or cancelled
+			// Match với business logic: 'pending' (chưa thanh toán), 'paid' (đã thanh toán), 'cancelled'
+			const status = randomElement(['pending', 'paid', 'cancelled']);
 
-		const booking = await repos.booking.save(repos.booking.create({
-			booking_id: uuidv7(),
-			pnr_code: pnr,
-			user,
-			currency: vnd,
-			total_amount: totalAmount,
-			status,
-			channel: randomElement(['web', 'mobile', 'agent', 'call_center']),
-			contact_fullname: contactName,
-			contact_email: contactEmail,
-			contact_phone: contactPhone,
-		}));
+			const bookingData: any = {
+				booking_id: uuidv7(),
+				pnr_code: pnr,
+				user: user,
+				currency: vnd,
+				total_amount: totalAmount,
+				status,
+				channel: randomElement(['web', 'mobile', 'agent', 'call_center']),
+				contact_fullname: contactName,
+				contact_email: contactEmail,
+				contact_phone: contactPhone,
+			};
+			const newBooking = repos.booking.create(bookingData);
+			const savedBooking = await repos.booking.save(newBooking);
 
-		// Get passengers for this user
-		const passengers = await repos.passenger
-			.createQueryBuilder('p')
-			.where('p.user_id = :userId', { userId: user.user_id })
-			.getMany();
-		if (passengers.length === 0) continue;
+			// Get passengers for this user
+			const passengers = await repos.passenger
+				.createQueryBuilder('p')
+				.where('p.user_id = :userId', { userId: user.user_id })
+				.getMany();
+			if (passengers.length === 0) continue;
 
-		const numPassengers = randomInt(1, Math.min(4, passengers.length));
-		const selectedPassengers = passengers.slice(0, numPassengers);
+			const numPassengers = randomInt(1, Math.min(4, passengers.length));
+			const selectedPassengers = passengers.slice(0, numPassengers);
 
-		// Create booking passengers
-		const bookingPassengers: BookingPassenger[] = [];
-		for (const passenger of selectedPassengers) {
-			const bp = await repos.bookingPassenger.save(repos.bookingPassenger.create({
+			// Create booking passengers
+			const bookingPassengers: BookingPassenger[] = [];
+			for (const passenger of selectedPassengers) {
+			const newBookingPassenger = repos.bookingPassenger.create({
 				booking_passenger_id: uuidv7(),
-				booking,
+				booking: savedBooking as any,
 				passenger,
 				passenger_type: randomElement(['ADT', 'CHD', 'INF']), // ADT = Adult, CHD = Child, INF = Infant
-			}));
+			} as any);
+			const bp = (await repos.bookingPassenger.save(newBookingPassenger)) as unknown as BookingPassenger;
 			bookingPassengers.push(bp);
 		}
 
@@ -846,7 +970,7 @@ async function run() {
 			});
 
 			for (let j = 0; j < numPassengers; j++) {
-				const bookingPassenger = bookingPassengers[j];
+				const bookingPassengerItem = bookingPassengers[j];
 				const flightSeat = availableSeats[j];
 				const fareClass = randomElement(fareClasses);
 
@@ -861,58 +985,89 @@ async function run() {
 				const taxAmount = Math.floor(baseFare * 0.1);
 				const feeAmount = Math.floor(baseFare * 0.05);
 
-				const segment = await repos.bookingSegment.save(repos.bookingSegment.create({
+				const newSegment = repos.bookingSegment.create({
 					booking_segment_id: uuidv7(),
-					booking,
-					booking_passenger: bookingPassenger,
+					booking: savedBooking as any,
+					booking_passenger: bookingPassengerItem,
 					flight_instance: instance,
 					flight_seat: flightSeat,
 					fare_class: fareClass,
 					base_fare: baseFare,
 					tax_amount: taxAmount,
 					fee_amount: feeAmount,
-					status: status === 'cancelled' ? 'cancelled' : 'confirmed',
-				}));
+					status: status === 'cancelled' ? 'cancelled' : 'booked', // 'booked' là status default cho segment
+				} as any);
+				const segment = await repos.bookingSegment.save(newSegment);
 
 				// Mark seat as unavailable
 				flightSeat.is_available = false;
 				await repos.seat.save(flightSeat);
 
-				// Create ticket if booking is confirmed
-				if (status === 'confirmed' || status === 'completed') {
+				// Create ticket if booking is paid (tickets issued after payment)
+				if (status === 'paid') {
 					const ticketNumber = generateTicketNumber();
 					const existingTicket = await repos.ticket.findOne({ where: { ticket_number: ticketNumber } });
 					if (!existingTicket) {
-						await repos.ticket.save(repos.ticket.create({
+						const issuedAt = new Date();
+						issuedAt.setMinutes(issuedAt.getMinutes() - randomInt(1, 60)); // Issued 1-60 minutes ago
+						const newTicket: any = repos.ticket.create({
 							ticket_id: uuidv7(),
-							booking,
-							booking_passenger: bookingPassenger,
+							booking: savedBooking as any,
+							booking_passenger: bookingPassengerItem,
 							ticket_number: ticketNumber,
 							status: 'issued',
-						}));
+						} as any);
+						newTicket.issued_at = issuedAt;
+						await repos.ticket.save(newTicket);
 					}
 				}
 			}
 		}
 
-		// Create payment
+		// Create payment (match với booking status)
 		if (status !== 'cancelled') {
+			const paymentMethodCodes = ['CREDIT_CARD', 'DEBIT_CARD', 'BANK_TRANSFER', 'EWALLET', 'CASH'];
 			const paymentMethod = await repos.paymentMethod.findOne({
-				where: { payment_method_code: randomElement(['CARD', 'BANK', 'MOMO', 'ZALO', 'VNPAY']) },
+				where: { payment_method_code: randomElement(paymentMethodCodes) },
 			});
 
 			if (paymentMethod) {
-				const paymentStatus = status === 'confirmed' || status === 'completed' ? 'completed' : 'pending';
-				await repos.payment.save(repos.payment.create({
+				// Payment status: 'pending' (chưa thanh toán) -> 'success' (đã thanh toán), hoặc 'failed'
+				const paymentStatus = status === 'paid' ? 'success' : 'pending'; // Match với booking status
+				const now = new Date();
+				const expiresAt = new Date(now);
+				expiresAt.setMinutes(expiresAt.getMinutes() + 15); // 15 minutes expiration
+				
+				// Paid at time (if success, set to 1-60 minutes ago)
+				let paidAt: Date | null = null;
+				if (paymentStatus === 'success') {
+					paidAt = new Date(now);
+					paidAt.setMinutes(paidAt.getMinutes() - randomInt(1, 60)); // Paid 1-60 minutes ago
+				}
+				
+				const paymentData: any = {
 					payment_id: uuidv7(),
-					booking,
+					booking: savedBooking as any,
 					amount: totalAmount,
 					currency: vnd,
 					payment_method: paymentMethod,
 					status: paymentStatus,
-					paid_at: paymentStatus === 'completed' ? new Date() : null,
-					transaction_ref: `TXN${randomInt(100000000, 999999999)}`,
-				}));
+				};
+				
+				if (paidAt) {
+					paymentData.paid_at = paidAt;
+				}
+				
+				if (paymentStatus === 'success') {
+					paymentData.transaction_ref = `TXN${randomInt(100000000, 999999999)}`;
+				}
+				
+				if (paymentStatus === 'pending') {
+					paymentData.idempotency_key = `IDEMP-${uuidv7()}`;
+					paymentData.expires_at = expiresAt;
+				}
+				
+				await repos.payment.save(repos.payment.create(paymentData));
 			}
 		}
 
@@ -933,6 +1088,7 @@ async function run() {
 	console.log(`  - Flight Schedules: ${schedules.length}`);
 	console.log(`  - Flight Instances: ${instanceCount}`);
 	console.log(`  - Users: ${users.length}`);
+	console.log(`  - Reservations: ${reservationCount}`);
 	console.log(`  - Bookings: ${bookingCount}`);
 	
 	await ds.destroy();
