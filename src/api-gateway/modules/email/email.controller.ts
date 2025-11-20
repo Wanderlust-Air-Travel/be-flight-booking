@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, UseGuards, HttpCode, HttpStatus, BadRequestException } from '@nestjs/common';
 import {
 	ApiBadRequestResponse,
 	ApiOkResponse,
@@ -38,8 +38,20 @@ export class EmailController {
 	})
 	async sendEmail(@Body() dto: SendEmailDto): Promise<EmailResponseDto> {
 		try {
+			// Validate: if template is provided, templateData should also be provided
+			if (dto.template && !dto.templateData) {
+				throw new BadRequestException('templateData is required when template is provided');
+			}
+			// Validate: if template is not provided, subject and htmlBody/textBody should be provided
+			if (!dto.template && !dto.subject && !dto.htmlBody && !dto.textBody) {
+				throw new BadRequestException('Either template with templateData, or subject with htmlBody/textBody must be provided');
+			}
+			
 			return await firstValueFrom(this.client.send<EmailResponseDto>(EMAIL_MS.PATTERN.SEND_EMAIL, dto));
 		} catch (error: any) {
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
 			throw error;
 		}
 	}
@@ -65,10 +77,25 @@ export class EmailController {
 	})
 	async getEmailStatus(@Param('emailId') emailId: string): Promise<EmailResponseDto | null> {
 		try {
-			return await firstValueFrom(
+			// Validate emailId format (should be UUID v7)
+			const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+			if (!uuidRegex.test(emailId)) {
+				throw new BadRequestException('Invalid email ID format. Expected UUID v7.');
+			}
+			
+			const result = await firstValueFrom(
 				this.client.send<EmailResponseDto | null>(EMAIL_MS.PATTERN.GET_EMAIL_STATUS, { emailId }),
 			);
+			
+			if (!result) {
+				throw new BadRequestException('Email not found');
+			}
+			
+			return result;
 		} catch (error: any) {
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
 			throw error;
 		}
 	}

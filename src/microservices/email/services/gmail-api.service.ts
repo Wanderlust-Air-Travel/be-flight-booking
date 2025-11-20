@@ -35,12 +35,50 @@ export class GmailApiService implements OnModuleInit {
 		try {
 			// Load credentials
 			const credentials = JSON.parse(readFileSync(this.credentialsPath, 'utf8'));
-			const { client_secret, client_id, redirect_uris } = credentials.installed || credentials.web;
+			
+			// Handle different credential file formats
+			let client_id: string;
+			let client_secret: string;
+			let redirect_uris: string[];
+			
+			// Format 1: Standard Google Cloud Console format (installed or web)
+			if (credentials.installed) {
+				client_id = credentials.installed.client_id;
+				client_secret = credentials.installed.client_secret;
+				redirect_uris = credentials.installed.redirect_uris || ['http://localhost'];
+			} else if (credentials.web) {
+				client_id = credentials.web.client_id;
+				client_secret = credentials.web.client_secret;
+				redirect_uris = credentials.web.redirect_uris || ['http://localhost'];
+			} 
+			// Format 2: Token file format (has client_id and client_secret at root level)
+			// This format contains both credentials and tokens
+			else if (credentials.client_id && credentials.client_secret) {
+				client_id = credentials.client_id;
+				client_secret = credentials.client_secret;
+				redirect_uris = credentials.redirect_uris || ['http://localhost'];
+				
+				// If this file also contains tokens, use them directly
+				if (credentials.token || credentials.refresh_token) {
+					this.logger.log('Credentials file contains tokens, using them directly');
+					this.oauth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
+					this.oauth2Client.setCredentials({
+						access_token: credentials.token,
+						refresh_token: credentials.refresh_token,
+						expiry_date: credentials.expiry ? new Date(credentials.expiry).getTime() : undefined,
+					});
+					this.gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
+					this.logger.log('Gmail client initialized with tokens from credentials file');
+					return;
+				}
+			} else {
+				throw new Error('Invalid credentials file format. Expected format with installed/web or client_id/client_secret.');
+			}
 
 			// Create OAuth2 client
 			this.oauth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
 
-			// Load token if exists
+			// Load token if exists (separate token file)
 			try {
 				const token = JSON.parse(readFileSync(this.tokenPath, 'utf8'));
 				this.oauth2Client.setCredentials(token);
