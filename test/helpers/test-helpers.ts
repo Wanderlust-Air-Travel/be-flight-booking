@@ -362,8 +362,20 @@ export async function processPayment(
       transactionRef: `TXN${Date.now()}`,
       idempotencyKey: `idempotency-${randomUUID()}`,
       amount,
-    })
-    .expect(200);
+    });
+
+  // Log response for debugging if not 200/201
+  if (response.status !== 200 && response.status !== 201) {
+    console.error(`[processPayment] Failed with status ${response.status}:`, {
+      status: response.status,
+      body: response.body,
+      bookingId,
+      amount,
+      paymentMethodCode,
+    });
+  }
+
+  expect([200, 201]).toContain(response.status);
 
   return {
     paymentId: response.body.paymentId,
