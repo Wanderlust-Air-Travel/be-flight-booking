@@ -1,0 +1,180 @@
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { google } from 'googleapis';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+import { OAuth2Client } from 'google-auth-library';
+import { gmail_v1 } from 'googleapis';
+
+@Injectable()
+export class GmailApiService implements OnModuleInit {
+	private readonly logger = new Logger(GmailApiService.name);
+	private gmail: gmail_v1.Gmail | null = null;
+	private oauth2Client: OAuth2Client | null = null;
+	private readonly credentialsPath: string;
+	private readonly tokenPath: string;
+
+	constructor(private readonly configService: ConfigService) {
+		this.credentialsPath = this.configService.get<string>('GMAIL_CREDENTIALS_PATH') || 
+			resolve(process.cwd(), 'credentials_desktop_apps.json');
+		this.tokenPath = this.configService.get<string>('GMAIL_TOKEN_PATH') || 
+			resolve(process.cwd(), 'token.json');
+	}
+
+	async onModuleInit() {
+		try {
+			await this.initializeGmailClient();
+			this.logger.log('Gmail API client initialized successfully');
+		} catch (error: any) {
+			this.logger.error(`Failed to initialize Gmail API client: ${error.message}`);
+			// Don't throw - allow service to start but email sending will fail gracefully
+		}
+	}
+
+	private async initializeGmailClient(): Promise<void> {
+		try {
+			// Load credentials
+			const credentials = JSON.parse(readFileSync(this.credentialsPath, 'utf8'));
+			const { client_secret, client_id, redirect_uris } = credentials.installed || credentials.web;
+
+			// Create OAuth2 client
+			this.oauth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
+
+			// Load token if exists
+			try {
+				const token = JSON.parse(readFileSync(this.tokenPath, 'utf8'));
+				this.oauth2Client.setCredentials(token);
+				this.logger.log('Gmail token loaded successfully');
+			} catch (error: any) {
+				this.logger.warn(`Token file not found at ${this.tokenPath}. Please authenticate first.`);
+				// Token will be set later when user authenticates
+			}
+
+			// Create Gmail client
+			this.gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
+		} catch (error: any) {
+			this.logger.error(`Failed to initialize Gmail client: ${error.message}`);
+			throw error;
+		}
+	}
+
+	/**
+	 * Get authorization URL for OAuth2 flow
+	 */
+	getAuthUrl(): string {
+		if (!this.oauth2Client) {
+			throw new Error('OAuth2 client not initialized');
+		}
+
+		const SCOPES = ['https://www.googleapis.com/auth/gmail.send'];
+
+		return this.oauth2Client.generateAuthUrl({
+			access_type: 'offline',
+			scope: SCOPES,
+			prompt: 'consent',
+		});
+	}
+
+	/**
+	 * Exchange authorization code for tokens
+	 */
+	async setTokensFromCode(code: string): Promise<void> {
+		if (!this.oauth2Client) {
+			throw new Error('OAuth2 client not initialized');
+		}
+
+		const { tokens } = await this.oauth2Client.getToken(code);
+		this.oauth2Client.setCredentials(tokens);
+
+		// Save token to file
+		const { writeFileSync } = await import('fs');
+		writeFileSync(this.tokenPath, JSON.stringify(tokens, null, 2));
+		this.logger.log(`Tokens saved to ${this.tokenPath}`);
+
+		// Reinitialize Gmail client with new tokens
+		if (this.gmail) {
+			this.gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
+		}
+	}
+
+	/**
+	 * Send email using Gmail API
+	 */
+	async sendEmail(to: string, subject: string, htmlBody: string, textBody?: string, replyTo?: string): Promise<string> {
+		if (!this.gmail) {
+			throw new Error('Gmail client not initialized. Please authenticate first.');
+		}
+
+		try {
+			// Create email message
+			const message = this.createMessage(to, subject, htmlBody, textBody, replyTo);
+
+			// Send email
+			const response = await this.gmail.users.messages.send({
+				userId: 'me',
+				requestBody: {
+					raw: message,
+				},
+			});
+
+			this.logger.log(`Email sent successfully. Message ID: ${response.data.id}`);
+			return response.data.id || '';
+		} catch (error: any) {
+			this.logger.error(`Failed to send email: ${error.message}`);
+			throw error;
+		}
+	}
+
+	/**
+	 * Create base64 encoded email message
+	 */
+	private createMessage(to: string, subject: string, htmlBody: string, textBody?: string, replyTo?: string): string {
+		const fromEmail = this.configService.get<string>('GMAIL_FROM_EMAIL') || 'me';
+		
+		const headers = [
+			`To: ${to}`,
+			`From: ${fromEmail}`,
+			`Subject: ${subject}`,
+			'Content-Type: text/html; charset=utf-8',
+		];
+
+		if (replyTo) {
+			headers.push(`Reply-To: ${replyTo}`);
+		}
+
+		const email = [
+			headers.join('\r\n'),
+			'',
+			htmlBody,
+		].join('\r\n');
+
+		// Encode to base64url format
+		return Buffer.from(email).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+	}
+
+	/**
+	 * Check if Gmail client is ready
+	 */
+	isReady(): boolean {
+		return this.gmail !== null && this.oauth2Client !== null;
+	}
+
+	/**
+	 * Refresh access token if needed
+	 */
+	async refreshTokenIfNeeded(): Promise<void> {
+		if (!this.oauth2Client) {
+			throw new Error('OAuth2 client not initialized');
+		}
+
+		try {
+			const { credentials } = await this.oauth2Client.refreshAccessToken();
+			this.oauth2Client.setCredentials(credentials);
+			this.logger.log('Access token refreshed successfully');
+		} catch (error: any) {
+			this.logger.error(`Failed to refresh access token: ${error.message}`);
+			throw error;
+		}
+	}
+}
+
