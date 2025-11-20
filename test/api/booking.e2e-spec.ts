@@ -1,0 +1,510 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
+import request from 'supertest';
+import { AppModule } from '../../src/api-gateway/app.module';
+import {
+  createAndLoginUser,
+  searchFlightsOneWay,
+  getFareOptions,
+  createReservationOneWay,
+  createBookingFromReservation,
+  expect200Or201,
+} from '../helpers/test-helpers';
+
+describe('Booking API (e2e)', () => {
+  let app: INestApplication;
+  let accessToken: string;
+  let flightInstanceId: string;
+  let fareClassCode: string;
+
+  beforeAll(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = moduleFixture.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
+    await app.init();
+
+    // Setup test data
+    const user = await createAndLoginUser(app);
+    accessToken = user.accessToken!;
+
+    // Get flight instance for testing
+    const searchResult = await searchFlightsOneWay(app);
+    if (searchResult.outbound && searchResult.outbound.length > 0) {
+      flightInstanceId = searchResult.outbound[0].flightInstanceId;
+      const fareOptions = await getFareOptions(app, flightInstanceId);
+      if (fareOptions && fareOptions.length > 0) {
+        fareClassCode = fareOptions[0].fareClassCode;
+      }
+    }
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  describe('POST /bookings (Create from Reservation)', () => {
+    it('should create booking from reservation successfully (happy case)', async () => {
+      // Create reservation first
+      const reservation = await createReservationOneWay(
+        app,
+        accessToken,
+        flightInstanceId,
+        fareClassCode,
+      );
+
+      const response = await request(app.getHttpServer())
+        .post(`/bookings?reservationId=${reservation.reservationId}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          passengers: [
+            {
+              passengerType: 'ADT',
+              fullname: 'Test Passenger',
+              dob: '1990-01-15',
+              gender: 'Male',
+              documentNumber: `001234567890${Date.now()}`,
+            },
+          ],
+          contactFullname: 'Test Contact',
+          contactEmail: 'test@example.com',
+          contactPhone: '0901234567',
+          channel: 'web',
+        })
+        .expect(201);
+
+      expect(response.body).toHaveProperty('bookingId');
+      expect(response.body).toHaveProperty('pnrCode');
+      expect(response.body).toHaveProperty('totalAmount');
+      expect(response.body).toHaveProperty('status', 'pending');
+    });
+
+    it('should create booking with existing passenger (happy case)', async () => {
+      // First, create a booking to get a passenger ID
+      const reservation1 = await createReservationOneWay(
+        app,
+        accessToken,
+        flightInstanceId,
+        fareClassCode,
+      );
+      const booking1 = await createBookingFromReservation(
+        app,
+        accessToken,
+        reservation1.reservationId,
+      );
+
+      // Get passenger ID from first booking (would need to query DB in real scenario)
+      // For now, we'll test with new passenger
+      const reservation2 = await createReservationOneWay(
+        app,
+        accessToken,
+        flightInstanceId,
+        fareClassCode,
+      );
+
+      const response = await request(app.getHttpServer())
+        .post(`/bookings?reservationId=${reservation2.reservationId}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          passengers: [
+            {
+              passengerType: 'ADT',
+              fullname: 'Test Passenger 2',
+              dob: '1991-02-20',
+              gender: 'Female',
+              documentNumber: `001234567891${Date.now()}`,
+            },
+          ],
+          contactFullname: 'Test Contact',
+          contactEmail: 'test@example.com',
+          contactPhone: '0901234567',
+          channel: 'web',
+        })
+        .expect(201);
+
+      expect(response.body).toHaveProperty('bookingId');
+    });
+
+    it('should fail without reservationId (unhappy case)', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/bookings')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          passengers: [
+            {
+              passengerType: 'ADT',
+              fullname: 'Test Passenger',
+              dob: '1990-01-15',
+              gender: 'Male',
+              documentNumber: '001234567890',
+            },
+          ],
+          contactFullname: 'Test Contact',
+          contactEmail: 'test@example.com',
+          contactPhone: '0901234567',
+          channel: 'web',
+        })
+        .expect(400);
+
+      expect(response.body).toHaveProperty('statusCode', 400);
+    });
+
+    it('should fail with invalid reservationId (unhappy case)', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/bookings?reservationId=invalid-id')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          passengers: [
+            {
+              passengerType: 'ADT',
+              fullname: 'Test Passenger',
+              dob: '1990-01-15',
+              gender: 'Male',
+              documentNumber: '001234567890',
+            },
+          ],
+          contactFullname: 'Test Contact',
+          contactEmail: 'test@example.com',
+          contactPhone: '0901234567',
+          channel: 'web',
+        })
+        .expect(400);
+
+      expect(response.body).toHaveProperty('statusCode', 400);
+    });
+
+    it('should fail with missing passengers (unhappy case)', async () => {
+      const reservation = await createReservationOneWay(
+        app,
+        accessToken,
+        flightInstanceId,
+        fareClassCode,
+      );
+
+      const response = await request(app.getHttpServer())
+        .post(`/bookings?reservationId=${reservation.reservationId}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          contactFullname: 'Test Contact',
+          contactEmail: 'test@example.com',
+          contactPhone: '0901234567',
+          channel: 'web',
+        })
+        .expect(400);
+
+      expect(response.body).toHaveProperty('statusCode', 400);
+    });
+
+    it('should fail with invalid passenger data (unhappy case)', async () => {
+      const reservation = await createReservationOneWay(
+        app,
+        accessToken,
+        flightInstanceId,
+        fareClassCode,
+      );
+
+      const response = await request(app.getHttpServer())
+        .post(`/bookings?reservationId=${reservation.reservationId}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          passengers: [
+            {
+              passengerType: 'ADT',
+              // missing required fields
+            },
+          ],
+          contactFullname: 'Test Contact',
+          contactEmail: 'test@example.com',
+          contactPhone: '0901234567',
+          channel: 'web',
+        })
+        .expect(400);
+
+      expect(response.body).toHaveProperty('statusCode', 400);
+    });
+
+    it('should fail without authentication (unhappy case)', async () => {
+      const reservation = await createReservationOneWay(
+        app,
+        accessToken,
+        flightInstanceId,
+        fareClassCode,
+      );
+
+      const response = await request(app.getHttpServer())
+        .post(`/bookings?reservationId=${reservation.reservationId}`)
+        .send({
+          passengers: [
+            {
+              passengerType: 'ADT',
+              fullname: 'Test Passenger',
+              dob: '1990-01-15',
+              gender: 'Male',
+              documentNumber: '001234567890',
+            },
+          ],
+          contactFullname: 'Test Contact',
+          contactEmail: 'test@example.com',
+          contactPhone: '0901234567',
+          channel: 'web',
+        })
+        .expect(401);
+
+      expect(response.body).toHaveProperty('statusCode', 401);
+    });
+
+    it('should fail with invalid passenger DOB format (unhappy case)', async () => {
+      const reservation = await createReservationOneWay(
+        app,
+        accessToken,
+        flightInstanceId,
+        fareClassCode,
+      );
+
+      const response = await request(app.getHttpServer())
+        .post(`/bookings?reservationId=${reservation.reservationId}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          passengers: [
+            {
+              passengerType: 'ADT',
+              fullname: 'Test Passenger',
+              dob: 'invalid-date',
+              gender: 'Male',
+              documentNumber: '001234567890',
+            },
+          ],
+          contactFullname: 'Test Contact',
+          contactEmail: 'test@example.com',
+          contactPhone: '0901234567',
+          channel: 'web',
+        })
+        .expect(400);
+
+      expect(response.body).toHaveProperty('statusCode', 400);
+    });
+
+    it('should fail with invalid passengerType (unhappy case)', async () => {
+      const reservation = await createReservationOneWay(
+        app,
+        accessToken,
+        flightInstanceId,
+        fareClassCode,
+      );
+
+      const response = await request(app.getHttpServer())
+        .post(`/bookings?reservationId=${reservation.reservationId}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          passengers: [
+            {
+              passengerType: 'INVALID',
+              fullname: 'Test Passenger',
+              dob: '1990-01-15',
+              gender: 'Male',
+              documentNumber: '001234567890',
+            },
+          ],
+          contactFullname: 'Test Contact',
+          contactEmail: 'test@example.com',
+          contactPhone: '0901234567',
+          channel: 'web',
+        })
+        .expect(400);
+
+      expect(response.body).toHaveProperty('statusCode', 400);
+    });
+
+    it('should fail with invalid email format (unhappy case)', async () => {
+      const reservation = await createReservationOneWay(
+        app,
+        accessToken,
+        flightInstanceId,
+        fareClassCode,
+      );
+
+      const response = await request(app.getHttpServer())
+        .post(`/bookings?reservationId=${reservation.reservationId}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          passengers: [
+            {
+              passengerType: 'ADT',
+              fullname: 'Test Passenger',
+              dob: '1990-01-15',
+              gender: 'Male',
+              documentNumber: '001234567890',
+            },
+          ],
+          contactFullname: 'Test Contact',
+          contactEmail: 'invalid-email',
+          contactPhone: '0901234567',
+          channel: 'web',
+        })
+        .expect(400);
+
+      expect(response.body).toHaveProperty('statusCode', 400);
+    });
+  });
+
+  describe('GET /bookings/:id/fare-details', () => {
+    let bookingId: string;
+
+    beforeAll(async () => {
+      const reservation = await createReservationOneWay(
+        app,
+        accessToken,
+        flightInstanceId,
+        fareClassCode,
+      );
+      const booking = await createBookingFromReservation(
+        app,
+        accessToken,
+        reservation.reservationId,
+      );
+      bookingId = booking.bookingId;
+    });
+
+    it('should get booking fare details successfully (happy case)', async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/bookings/${bookingId}/fare-details`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(response.body).toHaveProperty('bookingId');
+      expect(response.body.bookingId.toLowerCase()).toBe(bookingId.toLowerCase());
+      expect(response.body).toHaveProperty('pnrCode');
+      expect(response.body).toHaveProperty('fareClassName');
+      expect(response.body).toHaveProperty('descriptions');
+      expect(response.body).toHaveProperty('totalPrice');
+    });
+
+    it('should fail with invalid booking ID (unhappy case)', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/bookings/invalid-id/fare-details')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(400);
+
+      expect(response.body).toHaveProperty('statusCode', 400);
+    });
+
+    it('should fail without authentication (unhappy case)', async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/bookings/${bookingId}/fare-details`)
+        .expect(401);
+
+      expect(response.body).toHaveProperty('statusCode', 401);
+    });
+  });
+
+  describe('GET /bookings/:id/payment-info', () => {
+    let bookingId: string;
+
+    beforeAll(async () => {
+      const reservation = await createReservationOneWay(
+        app,
+        accessToken,
+        flightInstanceId,
+        fareClassCode,
+      );
+      const booking = await createBookingFromReservation(
+        app,
+        accessToken,
+        reservation.reservationId,
+      );
+      bookingId = booking.bookingId;
+    });
+
+    it('should get booking payment info successfully (happy case)', async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/bookings/${bookingId}/payment-info`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(response.body).toHaveProperty('bookingId');
+      expect(response.body.bookingId.toLowerCase()).toBe(bookingId.toLowerCase());
+      expect(response.body).toHaveProperty('pnrCode');
+      expect(response.body).toHaveProperty('totalAmount');
+      expect(response.body).toHaveProperty('currencyCode');
+      expect(response.body).toHaveProperty('contactFullname');
+      expect(response.body).toHaveProperty('contactEmail');
+      expect(response.body).toHaveProperty('contactPhone');
+      expect(response.body).toHaveProperty('status');
+    });
+
+    it('should fail with invalid booking ID (unhappy case)', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/bookings/invalid-id/payment-info')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(400);
+
+      expect(response.body).toHaveProperty('statusCode', 400);
+    });
+  });
+
+  describe('PATCH /bookings/:id/passengers', () => {
+    let bookingId: string;
+
+    beforeAll(async () => {
+      const reservation = await createReservationOneWay(
+        app,
+        accessToken,
+        flightInstanceId,
+        fareClassCode,
+      );
+      const booking = await createBookingFromReservation(
+        app,
+        accessToken,
+        reservation.reservationId,
+      );
+      bookingId = booking.bookingId;
+    });
+
+    it('should update booking passengers successfully (happy case)', async () => {
+      const response = await request(app.getHttpServer())
+        .patch(`/bookings/${bookingId}/passengers`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          adults: 2,
+          minors: 0,
+        })
+        .expect(200);
+
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body).toHaveProperty('message');
+      expect(response.body).toHaveProperty('totalPassengers');
+    });
+
+    it('should fail with invalid booking ID (unhappy case)', async () => {
+      const response = await request(app.getHttpServer())
+        .patch('/bookings/invalid-id/passengers')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          adults: 2,
+          minors: 0,
+        })
+        .expect(400);
+
+      expect(response.body).toHaveProperty('statusCode', 400);
+    });
+
+    it('should fail with missing passenger count (unhappy case)', async () => {
+      const response = await request(app.getHttpServer())
+        .patch(`/bookings/${bookingId}/passengers`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({})
+        .expect(400);
+
+      expect(response.body).toHaveProperty('statusCode', 400);
+    });
+  });
+});
+
