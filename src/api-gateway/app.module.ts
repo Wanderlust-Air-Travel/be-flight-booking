@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import appConfig from 'src/shared/config/app.config';
 import { AuthModule } from './modules/auth/auth.module';
 import { SearchClientModule } from './modules/search/search.client.module';
 import { ServicesClientModule } from './modules/services/services.client.module';
@@ -10,10 +13,21 @@ import { ReservationClientModule } from './modules/reservation/reservation.clien
 import { PaymentClientModule } from './modules/payment/payment.client.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { EmailClientModule } from './modules/email/email.client.module';
+import { HealthModule } from './modules/health/health.module';
+import { CommonModule } from 'src/shared/modules/common/common.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }), // load .env
+    ConfigModule.forRoot({
+      isGlobal: true,
+      load: [appConfig],
+    }), // load .env and app config
+    ThrottlerModule.forRoot([
+      {
+        ttl: parseInt(process.env.RATE_LIMIT_TTL || '60', 10) * 1000, // Convert to milliseconds
+        limit: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
+      },
+    ]),
     TypeOrmModule.forRoot({
       type: 'mssql',
       host: process.env.DB_HOST ?? 'localhost',
@@ -37,8 +51,15 @@ import { EmailClientModule } from './modules/email/email.client.module';
     PaymentClientModule,
     PaymentModule,
     EmailClientModule,
+    HealthModule,
+    CommonModule,
   ],
   controllers: [],
-  providers: [],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}
