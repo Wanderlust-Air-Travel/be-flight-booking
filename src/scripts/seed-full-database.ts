@@ -326,8 +326,9 @@ async function run() {
 			row++;
 		}
 
-		// Batch insert
-		const batchSize = 100;
+		// Batch insert (reduced batch size to avoid SQL Server 2100 parameter limit)
+		// Each seat config has ~8 fields, so batch size 50 = ~400 parameters (safe)
+		const batchSize = 50;
 		for (let i = 0; i < seatConfigs.length; i += batchSize) {
 			const batch = seatConfigs.slice(i, i + batchSize);
 			await repos.seatConfig.save(batch.map(sc => repos.seatConfig.create({
@@ -464,49 +465,69 @@ async function run() {
 	
 	const passwordHash = await bcrypt.hash('Password123!', 10);
 	const users: User[] = [];
-	const batchSize = 100;
+	const totalUsers = 500;
+	let createdCount = 0;
+	let skippedCount = 0;
 
-	for (let i = 0; i < 500; i++) {
-		const fullname = generateVietnameseName();
-		const email = generateEmail(fullname);
-		const phone = generatePhone();
+	console.log(`  Creating up to ${totalUsers} users...`);
+	
+	for (let i = 0; i < totalUsers; i++) {
+		try {
+			const fullname = generateVietnameseName();
+			const email = generateEmail(fullname);
+			const phone = generatePhone();
 
-		const existing = await repos.user.findOne({ where: { email } });
-		if (!existing) {
-			const user = await repos.user.save(repos.user.create({
-				user_id: uuidv7(),
-				fullname,
-				email,
-				password_hash: passwordHash,
-				phone,
-				is_active: Math.random() > 0.05, // 95% active
-			}));
-			users.push(user);
-
-			// Create 1-3 passengers per user
-			const numPassengers = randomInt(1, 3);
-			for (let j = 0; j < numPassengers; j++) {
-				const passengerName = j === 0 ? fullname : generateVietnameseName();
-				const dob = randomDate(new Date(1950, 0, 1), new Date(2010, 11, 31));
-				const gender = randomElement(['Male', 'Female']);
-				const documentNumber = generateDocumentNumber();
-
-				await repos.passenger.save(repos.passenger.create({
-					passenger_id: uuidv7(),
-					user,
-					fullname: passengerName,
-					dob,
-					gender,
-					document_number: documentNumber,
-					loyalty_number: Math.random() > 0.7 ? `LOY${randomInt(100000, 999999)}` : null,
+			const existing = await repos.user.findOne({ where: { email } });
+			if (!existing) {
+				const user = await repos.user.save(repos.user.create({
+					user_id: uuidv7(),
+					fullname,
+					email,
+					password_hash: passwordHash,
+					phone,
+					is_active: Math.random() > 0.05, // 95% active
 				}));
-			}
+				users.push(user);
+				createdCount++;
 
-			if ((i + 1) % 100 === 0) {
-				console.log(`  Created ${i + 1} users...`);
+				// Create 1-3 passengers per user
+				const numPassengers = randomInt(1, 3);
+				for (let j = 0; j < numPassengers; j++) {
+					try {
+						const passengerName = j === 0 ? fullname : generateVietnameseName();
+						const dob = randomDate(new Date(1950, 0, 1), new Date(2010, 11, 31));
+						const gender = randomElement(['Male', 'Female']);
+						const documentNumber = generateDocumentNumber();
+
+						await repos.passenger.save(repos.passenger.create({
+							passenger_id: uuidv7(),
+							user,
+							fullname: passengerName,
+							dob,
+							gender,
+							document_number: documentNumber,
+							loyalty_number: Math.random() > 0.7 ? `LOY${randomInt(100000, 999999)}` : null,
+						}));
+					} catch (passengerError: any) {
+						console.error(`  Error creating passenger for user ${email}:`, passengerError.message);
+						// Continue with next passenger
+					}
+				}
+
+				// Progress logging every 50 users
+				if (createdCount % 50 === 0) {
+					console.log(`  Progress: Created ${createdCount} users, skipped ${skippedCount} duplicates...`);
+				}
+			} else {
+				skippedCount++;
 			}
+		} catch (userError: any) {
+			console.error(`  Error creating user ${i + 1}:`, userError.message);
+			// Continue with next user
 		}
 	}
+	
+	console.log(`  Completed: Created ${createdCount} users, skipped ${skippedCount} duplicates`);
 	console.log(`Created ${users.length} users with passengers`);
 
 	// ============================================================
@@ -764,9 +785,11 @@ async function run() {
 						});
 					}
 
-					// Batch insert seats
-					for (let i = 0; i < flightSeats.length; i += batchSize) {
-						const batch = flightSeats.slice(i, i + batchSize);
+					// Batch insert seats (reduced batch size to avoid SQL Server 2100 parameter limit)
+					// Each flight seat has ~5 fields, so batch size 50 = ~250 parameters (safe)
+					const batchSizeSeats = 50;
+					for (let i = 0; i < flightSeats.length; i += batchSizeSeats) {
+						const batch = flightSeats.slice(i, i + batchSizeSeats);
 						await repos.seat.save(batch.map(fs => repos.seat.create({
 							...fs,
 							flight_seat_id: uuidv7(),

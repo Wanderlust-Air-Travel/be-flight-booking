@@ -22,7 +22,7 @@ import { Module } from '@nestjs/common';
 			database: process.env.DB_NAME,
 			options: {
 				encrypt: process.env.DB_ENCRYPT === 'true',
-				trustServerCertificate: process.env.DB_TRUE_CERT === 'true',
+				trustServerCertificate: process.env.DB_TRUST_CERT === 'true',
 			},
 			synchronize: false,
 			entities: [__dirname + '/../../shared/entities/**/*.entity.{ts,js}'],
