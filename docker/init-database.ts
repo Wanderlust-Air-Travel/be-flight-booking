@@ -8,13 +8,21 @@ import * as path from 'path';
 async function createDatabase(): Promise<boolean> {
   console.log('Creating database...');
   try {
-    // Use SA password from environment (set in docker-compose.yml) or default
-    const saPassword = process.env.SA_PASSWORD || 'Passw0rd123!';
+    // Use DB credentials from environment (set in docker-compose.yml) or default
+    // For creating database, we may need SA user or user with sysadmin role
+    const dbUser = process.env.DB_USER || 'sa';
+    const dbPassword = process.env.DB_PASS || process.env.SA_PASSWORD || 'Passw0rd123!';
+    // When connecting from Docker container to another container, use container port (1433)
+    // When connecting from host to container, use host port (1434)
+    const dbHost = process.env.DB_HOST || 'sqlserver';
+    const isDockerNetwork = dbHost === 'sqlserver' || dbHost.includes('.docker');
+    const defaultPort = isDockerNetwork ? 1433 : 1434;
+    
     const config: sql.config = {
-      server: process.env.DB_HOST || 'sqlserver',
-      port: parseInt(process.env.DB_PORT || '1433', 10),
-      user: 'sa',
-      password: saPassword,
+      server: dbHost,
+      port: parseInt(process.env.DB_PORT || defaultPort.toString(), 10),
+      user: dbUser,
+      password: dbPassword,
       options: {
         encrypt: false,
         trustServerCertificate: true,
@@ -52,10 +60,16 @@ async function runMigrations(): Promise<boolean> {
 
     // Create DataSource directly from environment variables (not from .env file)
     // In Docker, environment variables are set from docker-compose.yml
+    // When connecting from Docker container to another container, use container port (1433)
+    // When connecting from host to container, use host port (1434)
+    const dbHost = process.env.DB_HOST || 'sqlserver';
+    const isDockerNetwork = dbHost === 'sqlserver' || dbHost.includes('.docker');
+    const defaultPort = isDockerNetwork ? 1433 : 1434;
+    
     const dataSource = new DataSource({
       type: 'mssql',
-      host: process.env.DB_HOST || 'sqlserver',
-      port: parseInt(process.env.DB_PORT || '1433', 10),
+      host: dbHost,
+      port: parseInt(process.env.DB_PORT || defaultPort.toString(), 10),
       username: process.env.DB_USER || 'sa',
       password: process.env.DB_PASS || 'Passw0rd123!',
       database: process.env.DB_NAME || 'flight_booking_db',

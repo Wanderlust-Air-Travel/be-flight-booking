@@ -58,54 +58,6 @@ npm install
 
 **Lưu ý:** Schema không dùng `DEFAULT NEWSEQUENTIALID()`. Tất cả IDs phải được generate từ application code (UUID v7).
 
-### 3. Setup Environment Variables
-
-Copy `env.example` thành `.env` và cấu hình:
-
-```env
-# Database
-DB_HOST=localhost
-DB_PORT=1434
-DB_USER=sa
-DB_PASS=12341234              # Default password cho local SQL Server
-DB_NAME=flight_booking_db
-DB_ENCRYPT=false
-DB_TRUST_CERT=true
-
-# API Gateway
-PORT=3000
-
-# JWT
-JWT_ACCESS_SECRET=c769850ee4f001088ba440c3211390099dbb7f9e2e0593be9233e395dce6e931
-JWT_ACCESS_EXPIRES=15m
-JWT_REFRESH_SECRET=1bbf355aefde63bd595ec266351544354991b215124ed1b88ab7c8ef92f876d8
-JWT_REFRESH_EXPIRES=7d
-
-# Microservices
-SEARCH_MS_HOST=127.0.0.1
-SEARCH_MS_PORT=4001
-SERVICES_MS_HOST=127.0.0.1
-SERVICES_MS_PORT=4002
-ROUTES_MS_HOST=127.0.0.1
-ROUTES_MS_PORT=4003
-BOOKING_MS_HOST=127.0.0.1
-BOOKING_MS_PORT=4004
-RESERVATION_MS_HOST=127.0.0.1
-RESERVATION_MS_PORT=4005
-PAYMENT_MS_HOST=127.0.0.1
-PAYMENT_MS_PORT=4006
-
-# Redis (Required for Reservation Service)
-REDIS_HOST=localhost
-REDIS_PORT=6379
-REDIS_PASSWORD=
-REDIS_DB=0
-REDIS_KEY_PREFIX=flight-booking:
-REDIS_RESERVATION_TTL=900
-REDIS_IDEMPOTENCY_TTL=7200  # 2 hours (in seconds) - for payment idempotency key caching
-REDIS_IDEMPOTENCY_ENABLED=true  # Enable/disable Redis caching for idempotency keys (default: true)
-```
-
 ## Cấu trúc Project
 
 ```

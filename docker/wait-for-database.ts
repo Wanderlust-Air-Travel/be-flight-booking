@@ -19,11 +19,17 @@ async function waitForDatabase(): Promise<boolean> {
   
   for (let i = 0; i < maxAttempts; i++) {
     try {
+      // When connecting from Docker container to another container, use container port (1433)
+      // When connecting from host to container, use host port (1434)
+      const dbHost = process.env.DB_HOST || 'sqlserver';
+      const isDockerNetwork = dbHost === 'sqlserver' || dbHost.includes('.docker');
+      const defaultPort = isDockerNetwork ? 1433 : 1434;
+      
       const config: SqlConfig = {
-        server: process.env.DB_HOST || 'sqlserver',
-        port: parseInt(process.env.DB_PORT || '1434', 10),
-        user: 'sa',
-        password: process.env.SA_PASSWORD || 'Passw0rd123!',
+        server: dbHost,
+        port: parseInt(process.env.DB_PORT || defaultPort.toString(), 10),
+        user: process.env.DB_USER || 'sa',
+        password: process.env.DB_PASS || process.env.SA_PASSWORD || 'Passw0rd123!',
         options: {
           encrypt: false,
           trustServerCertificate: true,

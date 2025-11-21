@@ -327,14 +327,18 @@ async function run() {
 		}
 
 		// Batch insert (reduced batch size to avoid SQL Server 2100 parameter limit)
-		// Each seat config has ~8 fields, so batch size 50 = ~400 parameters (safe)
-		const batchSize = 50;
+		// TypeORM save() with array can generate many parameters, so use very small batches
+		// Each seat config has ~6 fields, but TypeORM may generate more parameters for relations
+		// Using batch size 5 = ~30 parameters per batch (very safe, well below 2100 limit)
+		const batchSize = 5;
 		for (let i = 0; i < seatConfigs.length; i += batchSize) {
 			const batch = seatConfigs.slice(i, i + batchSize);
-			await repos.seatConfig.save(batch.map(sc => repos.seatConfig.create({
+			const entitiesToSave = batch.map(sc => repos.seatConfig.create({
 				...sc,
 				seat_config_id: uuidv7(),
-			})));
+			}));
+			// Use save() with very small batches to ensure proper relation handling
+			await repos.seatConfig.save(entitiesToSave);
 		}
 		console.log(`Created ${seatConfigs.length} seat configurations for ${aircraftType.code}`);
 	}
@@ -701,7 +705,7 @@ async function run() {
 	let instanceCount = 0;
 	const startDate = new Date(from);
 	const endDate = new Date(startDate);
-	endDate.setDate(endDate.getDate() + 60); // Generate instances for next 60 days (2 months)
+	endDate.setDate(endDate.getDate() + 30); // Generate instances for next 30 days (1 month) - reduced for faster seeding
 
 	// Process all schedules (or up to 50 for reasonable number of instances and seats)
 	const schedulesToProcess = schedules.slice(0, 50);
@@ -775,25 +779,32 @@ async function run() {
 						.where('sc.aircraft_type_id = :aircraftTypeId', { aircraftTypeId: aircraft.aircraft_type.aircraft_type_id })
 						.getMany();
 
-					const flightSeats: Partial<FlightSeat>[] = [];
+					// Batch insert seats (reduced batch size to avoid SQL Server 2100 parameter limit)
+					// TypeORM save() with array can generate many parameters, so use very small batches
+					// Each flight seat has 4 fields, but TypeORM may generate more parameters for relations
+					// Using batch size 5 = ~20 parameters per batch (very safe, well below 2100 limit)
+					const batchSizeSeats = 5;
+					const entitiesToSave: FlightSeat[] = [];
+					
 					for (const seatConfig of seatConfigs) {
-						flightSeats.push({
-							flight_instance: instance,
-							seat_config: seatConfig,
+						entitiesToSave.push(repos.seat.create({
+							flight_seat_id: uuidv7(),
+							flight_instance: instance, // Use relation object - TypeORM will extract flight_instance_id
+							seat_config: seatConfig, // Use relation object - TypeORM will extract seat_config_id
 							seat_number: seatConfig.seat_number,
 							is_available: Math.random() > 0.3, // 70% available
-						});
+						}));
+						
+						// Save in batches to avoid parameter limit
+						if (entitiesToSave.length >= batchSizeSeats) {
+							await repos.seat.save(entitiesToSave);
+							entitiesToSave.length = 0; // Clear array
+						}
 					}
-
-					// Batch insert seats (reduced batch size to avoid SQL Server 2100 parameter limit)
-					// Each flight seat has ~5 fields, so batch size 50 = ~250 parameters (safe)
-					const batchSizeSeats = 50;
-					for (let i = 0; i < flightSeats.length; i += batchSizeSeats) {
-						const batch = flightSeats.slice(i, i + batchSizeSeats);
-						await repos.seat.save(batch.map(fs => repos.seat.create({
-							...fs,
-							flight_seat_id: uuidv7(),
-						})));
+					
+					// Save remaining entities
+					if (entitiesToSave.length > 0) {
+						await repos.seat.save(entitiesToSave);
 					}
 
 					instanceCount++;
@@ -921,13 +932,14 @@ async function run() {
 	// ============================================================
 	console.log('\nSeeding Bookings and related data...');
 	
-	// Get all available flight instances (limit to 10000 for performance)
+	// Get all available flight instances (limit to 500 to avoid SQL Server 2100 parameter limit)
+	// Reduced from 10000 to prevent query with too many parameters in IN clause
 	const allInstances = await repos.instance
 		.createQueryBuilder('fi')
 		.leftJoinAndSelect('fi.aircraft', 'aircraft')
 		.leftJoinAndSelect('aircraft.aircraft_type', 'aircraft_type')
 		.orderBy('fi.flight_date', 'ASC')
-		.take(10000)
+		.take(500)
 		.getMany();
 	
 	console.log(`  Found ${allInstances.length} flight instances for bookings`);
