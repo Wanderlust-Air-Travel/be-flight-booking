@@ -147,6 +147,11 @@ Tất cả tài liệu trong thư mục [`docs/`](./docs/):
 
 - **Microservices Architecture**: Tách biệt Search, Services, Routes, Booking, Reservation, Payment, Email
 - **Backend-managed State**: Reservation Service quản lý state trong Redis (Hybrid: Database + Redis)
+- **Seat Selection**: Tích hợp tính năng chọn ghế ngồi vào reservation và booking flow
+  - Seat map API để hiển thị ghế available
+  - Seat hold/release khi tạo/cancel reservation
+  - Seat assignment vào booking khi tạo booking từ reservation
+  - Seat selection là optional - user có thể tạo reservation mà không chọn ghế
 - **Payment Service**: Production Ready với Phase 1 & 2 improvements
   - Idempotency & Duplicate Prevention
   - Amount Validation & Concurrency Control

@@ -61,7 +61,7 @@ Trước khi chạy tests, đảm bảo:
    - Routes Microservice (port 4003)
    - Booking Microservice (port 4004)
    - Reservation Microservice (port 4005)
-   - Payment Microservice (port 4006) ⚠️ **Quan trọng cho Payment API tests**
+   - Payment Microservice (port 4006) **Quan trọng cho Payment API tests**
    - Email Microservice (port 4007)
 
 3. **Kiểm tra Payment microservice có thể kết nối được:**
@@ -95,46 +95,57 @@ Trước khi chạy tests, đảm bảo:
 ## Test Coverage
 
 ### Auth API
-- ✅ Register user (happy & unhappy cases)
-- ✅ Login (happy & unhappy cases)
-- ✅ Refresh token (happy & unhappy cases)
-- ✅ Logout (happy & unhappy cases)
-- ✅ Get current user (happy & unhappy cases)
+- Register user (happy & unhappy cases)
+- Login (happy & unhappy cases)
+- Refresh token (happy & unhappy cases)
+- Logout (happy & unhappy cases)
+- Get current user (happy & unhappy cases)
 
 ### Search API
-- ✅ Search flights one-way (happy & unhappy cases)
-- ✅ Search flights round-trip (happy & unhappy cases)
-- ✅ Get fare options (happy & unhappy cases)
+- Search flights one-way (happy & unhappy cases)
+- Search flights round-trip (happy & unhappy cases)
+- Get fare options (happy & unhappy cases)
+- Get seat map (happy & unhappy cases)
+  - Get seat map for economy class
+  - Get seat map for business class
+  - Validation: missing/invalid parameters
+  - Seat structure validation
 
 ### Reservation API
-- ✅ Create reservation one-way (happy & unhappy cases)
-- ✅ Create reservation round-trip (happy & unhappy cases)
-- ✅ List reservations (happy & unhappy cases)
-- ✅ Get reservation by ID (happy & unhappy cases)
-- ✅ Get reservation by code (happy & unhappy cases)
-- ✅ Cancel reservation (happy & unhappy cases)
-- ✅ Extend reservation (happy & unhappy cases)
+- Create reservation one-way (happy & unhappy cases)
+- Create reservation round-trip (happy & unhappy cases)
+- Create reservation with seat selection (happy & unhappy cases)
+  - Create reservation with valid seat
+  - Validation: invalid seat, seat from different flight, unavailable seat
+  - Create reservation without seat (seat is optional)
+- List reservations (happy & unhappy cases)
+- Get reservation by ID (happy & unhappy cases)
+- Get reservation by code (happy & unhappy cases)
+- Cancel reservation (happy & unhappy cases)
+- Extend reservation (happy & unhappy cases)
 
 ### Booking API
-- ✅ Create booking from reservation (happy & unhappy cases)
-- ✅ Get booking fare details (happy & unhappy cases)
-- ✅ Get booking payment info (happy & unhappy cases)
-- ✅ Update booking passengers (happy & unhappy cases)
+- Create booking from reservation (happy & unhappy cases)
+  - Create booking with seat assignment from reservation
+  - Create booking without seat assignment (seat was not selected)
+- Get booking fare details (happy & unhappy cases)
+- Get booking payment info (happy & unhappy cases)
+- Update booking passengers (happy & unhappy cases)
 
 ### Payment API
-- ✅ Process payment (happy & unhappy cases)
-- ✅ Create payment (happy & unhappy cases)
-- ✅ Get payment by ID (happy & unhappy cases)
-- ✅ Get payments by booking (happy & unhappy cases)
-- ✅ Update payment status (happy & unhappy cases)
-- ✅ Handle webhook (happy & unhappy cases)
-- ✅ Idempotency key handling
+- Process payment (happy & unhappy cases)
+- Create payment (happy & unhappy cases)
+- Get payment by ID (happy & unhappy cases)
+- Get payments by booking (happy & unhappy cases)
+- Update payment status (happy & unhappy cases)
+- Handle webhook (happy & unhappy cases)
+- Idempotency key handling
 
 ### Email API
-- ✅ Send email with custom content (happy & unhappy cases)
-- ✅ Send email with template (happy & unhappy cases)
-- ✅ Get email status (happy & unhappy cases)
-- ✅ Health check (happy case)
+- Send email with custom content (happy & unhappy cases)
+- Send email with template (happy & unhappy cases)
+- Get email status (happy & unhappy cases)
+- Health check (happy case)
 
 ## Test Helpers
 
@@ -146,8 +157,9 @@ File `test/helpers/test-helpers.ts` cung cấp các helper functions:
 - `searchFlightsOneWay()` - Tìm chuyến bay một chiều
 - `searchFlightsRoundTrip()` - Tìm chuyến bay khứ hồi
 - `getFareOptions()` - Lấy fare options
-- `createReservationOneWay()` - Tạo reservation một chiều
-- `createReservationRoundTrip()` - Tạo reservation khứ hồi
+- `getSeatMap()` - Lấy bản đồ ghế ngồi (NEW)
+- `createReservationOneWay()` - Tạo reservation một chiều (hỗ trợ seat selection)
+- `createReservationRoundTrip()` - Tạo reservation khứ hồi (hỗ trợ seat selection)
 - `createBookingFromReservation()` - Tạo booking từ reservation
 - `processPayment()` - Xử lý payment
 

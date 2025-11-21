@@ -47,21 +47,35 @@ sequenceDiagram
     Search MS-->>API Gateway: [{fareClassCode, price, ...}]
     API Gateway-->>Client: 200 OK<br/>{fare options}
 
-    Note over Client,Redis: Phase 4: Create Reservation (Multi-Segment Support - Hybrid: Database + Redis)
-    Client->>API Gateway: POST /reservations<br/>Authorization: Bearer <token><br/>{segments: [{flightInstanceId, fareClassCode, segmentType}, ...], ...}
+    Note over Client,Redis: Phase 3.5: Get Seat Map (Optional - Seat Selection)
+    Client->>API Gateway: GET /search/seats<br/>?flightInstanceId=xxx&cabinType=economy
+    API Gateway->>Search MS: GET_SEAT_MAP message (TCP)
+    Search MS->>Database: Query FlightSeats, SeatConfigurations<br/>Filter by cabin class
+    Database-->>Search MS: Seat data with availability
+    Search MS-->>API Gateway: {flightInstanceId, cabinType, seats: [{flightSeatId, seatNumber, isAvailable, ...}]}
+    API Gateway-->>Client: 200 OK<br/>{seat map}
+
+    Note over Client,Redis: Phase 4: Create Reservation (Multi-Segment Support - Hybrid: Database + Redis - With Seat Selection)
+    Client->>API Gateway: POST /reservations<br/>Authorization: Bearer <token><br/>{segments: [{flightInstanceId, fareClassCode, segmentType, flightSeatId?}, ...], ...}
     API Gateway->>API Gateway: JwtAuthGuard: Validate JWT token<br/>JwtStrategy: Extract userId from payload
     API Gateway->>API Gateway: Extract userId from req.user.userId
     API Gateway->>Reservation MS: CREATE_RESERVATION message (TCP)<br/>{userId, dto} (NOT token)
     Reservation MS->>Database: Validate all segments (flight & fare class)
     Database-->>Reservation MS: Validation result for each segment
+    alt Seat selected (flightSeatId provided)
+        Reservation MS->>Database: Validate seat (exists, available, correct flight & cabin)
+        Database-->>Reservation MS: Seat validation result
+        Reservation MS->>Database: UPDATE FlightSeats<br/>SET is_available = false<br/>WHERE flight_seat_id = :seatId
+        Database-->>Reservation MS: Seat marked as unavailable (held)
+    end
     Reservation MS->>Reservation MS: Calculate price for each segment<br/>Validate round-trip (if has inbound, must have outbound)
     Reservation MS->>Reservation MS: Generate reservationId & code
-    Reservation MS->>Database: INSERT INTO Reservations<br/>(status: 'pending', segments_json, ...)
+    Reservation MS->>Database: INSERT INTO Reservations<br/>(status: 'pending', segments_json with flightSeatId, ...)
     Database-->>Reservation MS: Reservation saved
-    Reservation MS->>Redis: SET reservation:{id}<br/>TTL: 900 seconds<br/>{segments: [...], totalAmount, status: 'active', ...}
+    Reservation MS->>Redis: SET reservation:{id}<br/>TTL: 900 seconds<br/>{segments: [...with flightSeatId], totalAmount, status: 'active', ...}
     Redis-->>Reservation MS: OK
-    Reservation MS-->>API Gateway: {reservationId, reservationCode, segments: [...], totalAmount, ...}
-    API Gateway-->>Client: 201 Created<br/>{reservationId, segments: [...], ...}
+    Reservation MS-->>API Gateway: {reservationId, reservationCode, segments: [...with flightSeatId & seatNumber], totalAmount, ...}
+    API Gateway-->>Client: 201 Created<br/>{reservationId, segments: [...with seat info], ...}
 
     Note over Client,Redis: Phase 5: Create Booking (From Reservation - REQUIRED - Hybrid Approach)
     Client->>API Gateway: POST /bookings?reservationId=xxx<br/>Authorization: Bearer <token><br/>{passengers: [...], contactInfo}
@@ -84,7 +98,7 @@ sequenceDiagram
     Booking MS->>Database: Create/Find Passengers
     Booking MS->>Database: Create Booking record
     Booking MS->>Database: Create BookingPassengers
-    Booking MS->>Database: Create BookingSegments<br/>(from all reservation segments)
+    Booking MS->>Database: Create BookingSegments<br/>(from all reservation segments)<br/>Assign flight_seat if flightSeatId exists in reservation
     Booking MS->>Database: Calculate & update total_amount<br/>(from reservation.totalAmount)
     Booking MS->>Database: COMMIT TRANSACTION
     Database-->>Booking MS: Transaction committed

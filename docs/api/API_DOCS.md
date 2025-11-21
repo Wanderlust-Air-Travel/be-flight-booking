@@ -592,6 +592,120 @@ Hoặc:
 
 ---
 
+### Get Seat Map (Lấy bản đồ ghế ngồi)
+
+**GET** `/search/seats`
+
+Lấy danh sách ghế ngồi có sẵn cho một flight instance và cabin type cụ thể. API này được gọi sau khi user đã chọn fare option và trước khi tạo reservation để cho phép user chọn ghế ngồi.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description | Example |
+|-----------|------|----------|-------------|---------|
+| `flightInstanceId` | string (UUID v7) | Yes | ID của flight instance (UUID v7 - time-ordered) | `019a8f4a-bb0e-7402-a0c4-27647b89dc71` |
+| `cabinType` | string | Yes | Loại cabin: `economy` hoặc `business` | `economy` |
+
+**Example Request:**
+```
+GET /search/seats?flightInstanceId=019a8f4a-bb0e-7402-a0c4-27647b89dc71&cabinType=economy
+```
+
+**Response (200 OK):**
+```json
+{
+  "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "cabinType": "economy",
+  "seats": [
+    {
+      "id": "economy",
+      "list": [
+        {
+          "flightSeatId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
+          "seatNumber": "1A",
+          "seatType": "Window",
+          "position": "left",
+          "isAvailable": true,
+          "isExitRow": false,
+          "cabinClassCode": "Y",
+          "note": null
+        },
+        {
+          "flightSeatId": "019a8f4a-bb0e-7402-a0c4-27647b89dc73",
+          "seatNumber": "1B",
+          "seatType": "Middle",
+          "position": null,
+          "isAvailable": true,
+          "isExitRow": false,
+          "cabinClassCode": "Y",
+          "note": null
+        },
+        {
+          "flightSeatId": "019a8f4a-bb0e-7402-a0c4-27647b89dc74",
+          "seatNumber": "1C",
+          "seatType": "Aisle",
+          "position": "right",
+          "isAvailable": false,
+          "isExitRow": false,
+          "cabinClassCode": "Y",
+          "note": null
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Response Structure:**
+- `seats`: Array of seat groups, mỗi group đại diện cho một cabin class
+  - `id`: Cabin class identifier (`economy` hoặc `business`)
+  - `list`: Array of seats trong cabin class đó
+    - `flightSeatId`: Unique ID của ghế (UUID v7) - dùng để chọn ghế khi tạo reservation
+    - `seatNumber`: Số ghế (ví dụ: "1A", "10C")
+    - `seatType`: Loại ghế (`Window`, `Aisle`, `Middle`)
+    - `position`: Vị trí ghế (`left`, `right`, hoặc `null` cho middle seats)
+    - `isAvailable`: Ghế có sẵn không (`true`/`false`)
+    - `isExitRow`: Có phải ghế exit row không (`true`/`false`)
+    - `cabinClassCode`: Mã cabin class (ví dụ: "Y" cho Economy, "J" cho Business)
+    - `note`: Ghi chú về ghế (nếu có)
+
+**Error (400 Bad Request):**
+```json
+{
+  "statusCode": 400,
+  "message": ["flightInstanceId must be a valid UUID v7"],
+  "error": "Bad Request"
+}
+```
+
+Hoặc:
+```json
+{
+  "statusCode": 400,
+  "message": ["cabinType must be one of the following values: economy, business"],
+  "error": "Bad Request"
+}
+```
+
+**Error (404 Not Found):**
+```json
+{
+  "statusCode": 404,
+  "message": "Flight instance not found",
+  "error": "Not Found"
+}
+```
+
+**Lưu ý:**
+- API này được gọi sau khi user đã chọn fare option và trước khi tạo reservation
+- `flightInstanceId` lấy từ response của `/search/flights`
+- `cabinType` phải khớp với cabin type đã chọn khi gọi `/search/fare-options`
+- Response trả về tất cả ghế trong cabin class tương ứng, bao gồm cả ghế đã được đặt (`isAvailable: false`)
+- User có thể chọn ghế bằng cách lấy `flightSeatId` từ response và gửi trong request tạo reservation
+- Ghế sẽ được giữ (hold) khi tạo reservation và được assign vào booking khi tạo booking từ reservation
+- Nếu reservation bị cancel hoặc expire, ghế sẽ được giải phóng (release) tự động
+
+---
+
 ## Reservations (Giữ chỗ tạm thời)
 
 ### Create Reservation (Tạo reservation)
@@ -614,7 +728,8 @@ Authorization: Bearer <access_token>
     {
       "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
       "fareClassCode": "YS",
-      "segmentType": "outbound"
+      "segmentType": "outbound",
+      "flightSeatId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72"
     },
     {
       "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
@@ -632,8 +747,18 @@ Authorization: Bearer <access_token>
   - `flightInstanceId`: Required, UUID v7 (từ `/search/flights` response)
   - `fareClassCode`: Required, string (từ `/search/fare-options` response)
   - `segmentType`: Required, enum: `'outbound'` or `'inbound'`
+  - `flightSeatId`: Optional, UUID v7 (từ `/search/seats` response) - Nếu cung cấp, ghế sẽ được giữ (hold) khi tạo reservation
 - `numberOfPassengers`: Required, integer >= 1
 - `currencyCode`: Optional, default "VND"
+
+**Seat Selection:**
+- `flightSeatId` là optional - user có thể tạo reservation mà không chọn ghế
+- Nếu cung cấp `flightSeatId`, hệ thống sẽ:
+  - Validate ghế tồn tại và thuộc về flight instance đúng
+  - Validate ghế thuộc về cabin class đúng (khớp với fareClassCode)
+  - Validate ghế đang available
+  - Mark ghế là unavailable (hold) khi tạo reservation
+  - Giải phóng ghế tự động nếu reservation bị cancel hoặc expire
 
 **Round-Trip Validation:**
 - One-way: 1 segment với `segmentType: 'outbound'` (hợp lệ)
@@ -653,7 +778,9 @@ Authorization: Bearer <access_token>
       "segmentType": "outbound",
       "baseFare": 1577000,
       "taxAmount": 0,
-      "feeAmount": 0
+      "feeAmount": 0,
+      "flightSeatId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
+      "seatNumber": "1A"
     },
     {
       "segmentId": "019a8f4a-bb0e-7402-a0c4-27647b89dc74",
@@ -662,7 +789,9 @@ Authorization: Bearer <access_token>
       "segmentType": "inbound",
       "baseFare": 1577000,
       "taxAmount": 0,
-      "feeAmount": 0
+      "feeAmount": 0,
+      "flightSeatId": null,
+      "seatNumber": null
     }
   ],
   "numberOfPassengers": 1,
@@ -697,6 +826,12 @@ Authorization: Bearer <access_token>
 - **Multi-segment support**: 1 reservation có thể chứa nhiều segments (outbound + inbound cho round-trip)
 - **Format mới**: Response chỉ có `segments[]` array, không còn các fields cũ (đã xóa backward compatibility)
 - **Status tracking**: Database lưu status (`pending`, `expired`, `converted`, `cancelled`) để analytics và audit trail
+- **Seat Selection**:
+  - `flightSeatId` là optional trong request - user có thể tạo reservation mà không chọn ghế
+  - Nếu cung cấp `flightSeatId`, ghế sẽ được giữ (hold) khi tạo reservation
+  - Ghế được giải phóng tự động nếu reservation bị cancel hoặc expire
+  - Response bao gồm `flightSeatId` và `seatNumber` trong mỗi segment nếu ghế đã được chọn
+  - Ghế đã chọn sẽ được assign vào booking khi tạo booking từ reservation
 
 ---
 
@@ -1972,7 +2107,14 @@ const { data: fareOptions } = await api.get('/search/fare-options', {
    - Bước 3: Gọi `/search/fare-options` với `flightInstanceId` và `cabinType` (economy/business)
    - Bước 4: Response trả về array trực tiếp `[{ fareClassCode, name, typeTicket, price, desc, ... }]`
    - Bước 5: Hiển thị dropdown với các fare options (cabins) tương ứng
-7. **UUID v7**: Tất cả IDs trong hệ thống sử dụng UUID v7 (time-ordered). Format: `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx`. UUID v7 có thể sắp xếp theo thời gian, tốt cho database indexing.
+7. **Seat Selection Flow** (Optional):
+   - Bước 1: Sau khi chọn fare option, gọi `/search/seats` với `flightInstanceId` và `cabinType`
+   - Bước 2: Response trả về seat map với danh sách ghế available/unavailable
+   - Bước 3: User chọn ghế → lấy `flightSeatId` từ response
+   - Bước 4: Gửi `flightSeatId` trong request tạo reservation (optional)
+   - Bước 5: Ghế được giữ (hold) khi tạo reservation và assign vào booking khi tạo booking
+   - **Lưu ý**: Seat selection là optional - user có thể tạo reservation mà không chọn ghế
+8. **UUID v7**: Tất cả IDs trong hệ thống sử dụng UUID v7 (time-ordered). Format: `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx`. UUID v7 có thể sắp xếp theo thời gian, tốt cho database indexing.
 8. **Services Microservice**: API `/services/deals` cần Services Microservice chạy (port 4002). Chạy bằng: `npm run start:services` hoặc `npm run start:services:dev`
 9. **Booking Microservice**: Tất cả booking APIs cần Booking Microservice chạy (port 4004). Chạy bằng: `npm run start:booking` hoặc `npm run start:booking:dev`
 10. **Payment Microservice**: Tất cả payment APIs cần Payment Microservice chạy (port 4006). Chạy bằng: `npm run start:payment` hoặc `npm run start:payment:dev`
@@ -1987,20 +2129,27 @@ const { data: fareOptions } = await api.get('/search/fare-options', {
 12. **Booking Flow (Recommended - Backend-managed State)**:
     - Bước 1: Search flights → `GET /search/flights`
     - Bước 2: Chọn flight → Get fare options → `GET /search/fare-options`
-    - Bước 3: Chọn fare class → Create reservation → `POST /reservations` (lưu `reservationId`)
-    - Bước 4: Điền thông tin passenger → Create booking from reservation → `POST /bookings?reservationId=xxx`
-    - Bước 5: Xem fare details → `GET /bookings/:id/fare-details`
-    - Bước 6: Update passengers (nếu cần) → `PATCH /bookings/:id/passengers`
-    - Bước 7: Get payment info → `GET /bookings/:id/payment-info`
-    - Bước 8: Process payment → `POST /payments/bookings/:bookingId/process` (tạo và integrate với payment gateway)
+    - Bước 3: Chọn fare class → Get seat map (optional) → `GET /search/seats?flightInstanceId=xxx&cabinType=economy`
+    - Bước 4: Chọn ghế ngồi (optional) → Create reservation → `POST /reservations` với `flightSeatId` (nếu đã chọn ghế)
+      - Nếu chọn ghế: Gửi `flightSeatId` trong segment để giữ ghế
+      - Nếu không chọn ghế: Không gửi `flightSeatId`, ghế sẽ được assign sau
+    - Bước 5: Điền thông tin passenger → Create booking from reservation → `POST /bookings?reservationId=xxx`
+      - Ghế đã chọn trong reservation sẽ được assign vào booking
+    - Bước 6: Xem fare details → `GET /bookings/:id/fare-details`
+    - Bước 7: Update passengers (nếu cần) → `PATCH /bookings/:id/passengers`
+    - Bước 8: Get payment info → `GET /bookings/:id/payment-info`
+    - Bước 9: Process payment → `POST /payments/bookings/:bookingId/process` (tạo và integrate với payment gateway)
       - Response có thể chứa `paymentUrl` để redirect user đến payment gateway
       - Payment được tạo với status `pending`, expires sau 15 phút
-    - Bước 9: Payment Gateway Webhook (Async) → `POST /payments/webhooks/:gateway`
+    - Bước 10: Payment Gateway Webhook (Async) → `POST /payments/webhooks/:gateway`
       - Payment gateway gọi webhook khi payment status thay đổi
       - System verify signature và update payment status automatically
-    - Bước 10: Verify payment → `GET /payments/:id` hoặc `GET /payments/bookings/:bookingId`
+    - Bước 11: Verify payment → `GET /payments/:id` hoặc `GET /payments/bookings/:bookingId`
     
     **Lưu ý**: 
+    - **Seat Selection**: User có thể chọn ghế sau khi chọn fare option và trước khi tạo reservation
+    - Ghế được giữ (hold) khi tạo reservation và được assign vào booking khi tạo booking
+    - Nếu reservation bị cancel hoặc expire, ghế sẽ được giải phóng tự động
     - Reservation sẽ tự động được cancel sau khi tạo booking thành công
     - Payment sẽ tự động update booking status thành `paid` khi payment thành công (via webhook)
     - Payment status: `pending` → `success` (hoặc `failed`)

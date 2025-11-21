@@ -1,6 +1,60 @@
 # Changelog - API Documentation Updates
 
-## Ngày cập nhật: 2025-01-20 (Latest - Payment API DTO Fix & Test Setup Improvements)
+## Ngày cập nhật: 2025-11-21 (Latest - Seat Selection Feature)
+
+### Seat Selection Feature Integration
+
+- **New API Endpoint**: `GET /search/seats`
+  - **Purpose**: Lấy bản đồ ghế ngồi cho flight instance và cabin type
+  - **Flow Position**: Được gọi sau khi chọn fare option và trước khi tạo reservation
+  - **Query Parameters**: 
+    - `flightInstanceId` (required, UUID v7)
+    - `cabinType` (required, enum: economy/business)
+  - **Response**: 
+    - `flightInstanceId`, `cabinType`
+    - `seats`: Array of seat groups, mỗi group chứa `list` of seats
+    - Mỗi seat có: `flightSeatId`, `seatNumber`, `seatType`, `position`, `isAvailable`, `isExitRow`, `cabinClassCode`, `note`
+  - **Error Handling**: 
+    - 400 Bad Request: Invalid parameters
+    - 404 Not Found: Flight instance not found
+
+- **Reservation API Enhancement**:
+  - **Request**: Thêm `flightSeatId` (optional) vào mỗi segment trong `CreateReservationDto`
+  - **Response**: Thêm `flightSeatId` và `seatNumber` vào mỗi segment trong `ReservationResponseDto`
+  - **Behavior**:
+    - Nếu `flightSeatId` được cung cấp: Validate và hold ghế (mark `is_available = false`)
+    - Nếu reservation cancel/expire: Tự động giải phóng ghế (mark `is_available = true`)
+    - Seat selection là optional - user có thể tạo reservation mà không chọn ghế
+
+- **Booking API Enhancement**:
+  - **Behavior**: Ghế đã chọn trong reservation được tự động assign vào booking khi tạo booking từ reservation
+  - **Database**: `BookingSegment.flight_seat` được link với `FlightSeat` entity nếu có `flightSeatId` trong reservation
+
+- **Updated Booking Flow**:
+  - Bước 1: Search flights → `GET /search/flights`
+  - Bước 2: Get fare options → `GET /search/fare-options`
+  - **Bước 3 (NEW)**: Get seat map → `GET /search/seats` (optional)
+  - **Bước 4 (UPDATED)**: Create reservation → `POST /reservations` với `flightSeatId` (optional)
+  - Bước 5: Create booking from reservation → `POST /bookings?reservationId=xxx`
+  - ... (rest of flow)
+
+- **Updated Documentation**:
+  - `API_DOCS.md`: Added `GET /search/seats` API documentation
+  - `API_DOCS.md`: Updated Reservation API với seat selection
+  - `API_SEQUENCE_DIAGRAMS.md`: Updated sequence diagrams với seat selection flow
+  - `CHANGELOG.md`: Added seat selection feature entry
+  - `test/README.md`: Updated test coverage với seat selection tests
+
+**Files Modified:**
+- `docs/api/API_DOCS.md` - Added seat map API và updated reservation API
+- `docs/api/API_SEQUENCE_DIAGRAMS.md` - Updated sequence diagrams
+- `docs/CHANGELOG.md` - Added feature entry
+- `docs/api/CHANGELOG_API_DOCS.md` - Added API changelog entry
+- `test/README.md` - Updated test coverage
+
+---
+
+## Ngày cập nhật: 2025-01-20 (Previous - Payment API DTO Fix & Test Setup Improvements)
 
 ### Payment API DTO Fix
 

@@ -4,6 +4,43 @@ Tất cả các thay đổi quan trọng của project sẽ được ghi nhận 
 
 ## [Unreleased]
 
+### Added
+
+- **Seat Selection Feature**: Tích hợp tính năng chọn ghế ngồi vào reservation và booking flow
+  - **New API**: `GET /search/seats` - Lấy bản đồ ghế ngồi cho flight instance và cabin type
+    - Trả về danh sách ghế với thông tin: `flightSeatId`, `seatNumber`, `seatType`, `position`, `isAvailable`, `isExitRow`, `cabinClassCode`
+    - Hỗ trợ filter theo cabin type (economy/business)
+  - **Reservation API Enhancement**: 
+    - Thêm `flightSeatId` (optional) vào `CreateReservationSegmentDto`
+    - Response bao gồm `flightSeatId` và `seatNumber` trong mỗi segment
+    - Ghế được giữ (hold) khi tạo reservation và giải phóng tự động nếu reservation cancel/expire
+  - **Booking API Enhancement**:
+    - Ghế đã chọn trong reservation được tự động assign vào booking khi tạo booking từ reservation
+    - `BookingSegment` entity liên kết với `FlightSeat` entity
+  - **Seat Availability Management**:
+    - Ghế được mark là `is_available = false` khi được reserve
+    - Ghế được giải phóng (`is_available = true`) khi reservation cancel hoặc expire
+    - Validation: Kiểm tra ghế tồn tại, available, thuộc về flight instance và cabin class đúng
+  - **Test Coverage**: 
+    - 7 test cases cho Search API seat map (happy & unhappy cases)
+    - 5 test cases cho Reservation API với seat selection (happy & unhappy cases)
+    - 2 test cases cho Booking API với seat assignment
+  - **Files Modified**:
+    - `src/microservices/search/` - Added `getSeatMap` method và DTOs
+    - `src/api-gateway/modules/search/` - Added `GET /search/seats` endpoint
+    - `src/microservices/reservation/` - Enhanced reservation creation với seat validation và hold logic
+    - `src/microservices/booking/` - Enhanced booking creation với seat assignment
+    - `test/api/search.e2e-spec.ts` - Added seat map tests
+    - `test/api/reservation.e2e-spec.ts` - Added seat selection tests
+    - `test/api/booking.e2e-spec.ts` - Added seat assignment tests
+    - `test/helpers/test-helpers.ts` - Added `getSeatMap` helper function
+  - **Best Practices**:
+    - Sử dụng database field naming conventions (snake_case)
+    - Seat selection là optional - user có thể tạo reservation mà không chọn ghế
+    - Atomic seat hold/release operations
+    - Proper error handling và validation
+    - Consistent với existing microservice architecture
+
 ### Fixed
 
 - **Payment API DTO Mismatch**: Fixed API Gateway `CreatePaymentDto` thiếu `amount` và `idempotencyKey` fields
