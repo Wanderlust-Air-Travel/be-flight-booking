@@ -10,6 +10,8 @@ import {
   createReservationOneWay,
   createBookingFromReservation,
   expect200Or201,
+  verifyErrorResponseFormat,
+  verifyRequestIdHeaders,
 } from '../helpers/test-helpers';
 
 describe('Booking API (e2e)', () => {
@@ -86,6 +88,9 @@ describe('Booking API (e2e)', () => {
       expect(response.body).toHaveProperty('pnrCode');
       expect(response.body).toHaveProperty('totalAmount');
       expect(response.body).toHaveProperty('status', 'pending');
+      
+      // Verify request ID headers
+      verifyRequestIdHeaders(response);
     });
 
     it('should create booking with existing passenger (happy case)', async () => {
@@ -136,7 +141,7 @@ describe('Booking API (e2e)', () => {
 
     it('should fail without reservationId (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/bookings')
+        .post('/api/v1/bookings')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           passengers: [
@@ -155,12 +160,12 @@ describe('Booking API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with invalid reservationId (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/bookings?reservationId=invalid-id')
+        .post('/api/v1/bookings?reservationId=invalid-id')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           passengers: [
@@ -179,7 +184,7 @@ describe('Booking API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with missing passengers (unhappy case)', async () => {
@@ -201,7 +206,7 @@ describe('Booking API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with invalid passenger data (unhappy case)', async () => {
@@ -229,7 +234,7 @@ describe('Booking API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail without authentication (unhappy case)', async () => {
@@ -259,7 +264,7 @@ describe('Booking API (e2e)', () => {
         })
         .expect(401);
 
-      expect(response.body).toHaveProperty('statusCode', 401);
+      verifyErrorResponseFormat(response, 401);
     });
 
     it('should fail with invalid passenger DOB format (unhappy case)', async () => {
@@ -290,7 +295,7 @@ describe('Booking API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with invalid passengerType (unhappy case)', async () => {
@@ -321,7 +326,7 @@ describe('Booking API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with invalid email format (unhappy case)', async () => {
@@ -352,7 +357,7 @@ describe('Booking API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
   });
 
@@ -390,11 +395,11 @@ describe('Booking API (e2e)', () => {
 
     it('should fail with invalid booking ID (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/bookings/invalid-id/fare-details')
+        .get('/api/v1/bookings/invalid-id/fare-details')
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail without authentication (unhappy case)', async () => {
@@ -402,7 +407,7 @@ describe('Booking API (e2e)', () => {
         .get(`/bookings/${bookingId}/fare-details`)
         .expect(401);
 
-      expect(response.body).toHaveProperty('statusCode', 401);
+      verifyErrorResponseFormat(response, 401);
     });
   });
 
@@ -443,11 +448,11 @@ describe('Booking API (e2e)', () => {
 
     it('should fail with invalid booking ID (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/bookings/invalid-id/payment-info')
+        .get('/api/v1/bookings/invalid-id/payment-info')
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
   });
 
@@ -486,7 +491,7 @@ describe('Booking API (e2e)', () => {
 
     it('should fail with invalid booking ID (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .patch('/bookings/invalid-id/passengers')
+        .patch('/api/v1/bookings/invalid-id/passengers')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           adults: 2,
@@ -494,7 +499,7 @@ describe('Booking API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with missing passenger count (unhappy case)', async () => {
@@ -504,7 +509,7 @@ describe('Booking API (e2e)', () => {
         .send({})
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
   });
 
@@ -573,6 +578,9 @@ describe('Booking API (e2e)', () => {
       expect(response.body).toHaveProperty('pnrCode');
       expect(response.body).toHaveProperty('totalAmount');
       expect(response.body).toHaveProperty('status', 'pending');
+      
+      // Verify request ID headers
+      verifyRequestIdHeaders(response);
     });
 
     it('should create booking without seat assignment (seat was not selected in reservation)', async () => {

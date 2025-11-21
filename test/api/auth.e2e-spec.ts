@@ -9,6 +9,8 @@ import {
   generateTestPhone,
   createAndLoginUser,
   expect200Or201,
+  verifyErrorResponseFormat,
+  verifyRequestIdHeaders,
 } from '../helpers/test-helpers';
 
 describe('Auth API (e2e)', () => {
@@ -38,7 +40,7 @@ describe('Auth API (e2e)', () => {
     it('should register a new user successfully (happy case)', async () => {
       const email = generateTestEmail();
       const response = await request(app.getHttpServer())
-        .post('/auth/register')
+        .post('/api/v1/auth/register')
         .send({
           fullname: 'Test User',
           email,
@@ -58,7 +60,7 @@ describe('Auth API (e2e)', () => {
 
     it('should fail with invalid email (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/auth/register')
+        .post('/api/v1/auth/register')
         .send({
           fullname: 'Test User',
           email: 'invalid-email',
@@ -67,13 +69,12 @@ describe('Auth API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
-      expect(response.body.message).toBeDefined();
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with weak password (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/auth/register')
+        .post('/api/v1/auth/register')
         .send({
           fullname: 'Test User',
           email: generateTestEmail(),
@@ -82,19 +83,19 @@ describe('Auth API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with missing required fields (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/auth/register')
+        .post('/api/v1/auth/register')
         .send({
           email: generateTestEmail(),
           // missing fullname, password, phone
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with duplicate email (unhappy case)', async () => {
@@ -102,7 +103,7 @@ describe('Auth API (e2e)', () => {
       await registerTestUser(app, { email });
 
       const response = await request(app.getHttpServer())
-        .post('/auth/register')
+        .post('/api/v1/auth/register')
         .send({
           fullname: 'Another User',
           email,
@@ -111,11 +112,11 @@ describe('Auth API (e2e)', () => {
         })
         .expect(409);
 
-      expect(response.body).toHaveProperty('statusCode', 409);
+      verifyErrorResponseFormat(response, 409);
     });
   });
 
-  describe('POST /auth/login', () => {
+  describe('POST /api/v1/auth/login', () => {
     let testUser: { email: string; password: string };
 
     beforeAll(async () => {
@@ -124,7 +125,7 @@ describe('Auth API (e2e)', () => {
 
     it('should login successfully with valid credentials (happy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send({
           email: testUser.email,
           password: testUser.password,
@@ -141,52 +142,52 @@ describe('Auth API (e2e)', () => {
 
     it('should fail with wrong password (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send({
           email: testUser.email,
           password: 'WrongPassword123!',
         })
         .expect(401);
 
-      expect(response.body).toHaveProperty('statusCode', 401);
+      verifyErrorResponseFormat(response, 401);
     });
 
     it('should fail with non-existent email (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send({
           email: 'nonexistent@test.com',
           password: 'TestPassword123!',
         })
         .expect(401);
 
-      expect(response.body).toHaveProperty('statusCode', 401);
+      verifyErrorResponseFormat(response, 401);
     });
 
     it('should fail with missing email (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send({
           password: 'TestPassword123!',
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with missing password (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send({
           email: testUser.email,
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
   });
 
-  describe('POST /auth/refresh', () => {
+  describe('POST /api/v1/auth/refresh', () => {
     let testUser: { userId: string; refreshToken: string };
 
     beforeAll(async () => {
@@ -199,7 +200,7 @@ describe('Auth API (e2e)', () => {
 
     it('should refresh tokens successfully (happy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({
           userId: testUser.userId,
           refresh_token: testUser.refreshToken,
@@ -211,45 +212,48 @@ describe('Auth API (e2e)', () => {
       expect(response.body.access_token).not.toBe(testUser.refreshToken);
       expect(typeof response.body.access_token).toBe('string');
       expect(response.body.access_token.length).toBeGreaterThan(0);
+      
+      // Verify request ID headers
+      verifyRequestIdHeaders(response);
     });
 
     it('should fail with invalid refresh token (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({
           userId: testUser.userId,
           refresh_token: 'invalid-token',
         })
         .expect(401);
 
-      expect(response.body).toHaveProperty('statusCode', 401);
+      verifyErrorResponseFormat(response, 401);
     });
 
     it('should fail with missing userId (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({
           refresh_token: testUser.refreshToken,
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with invalid userId (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({
           userId: 'invalid-user-id',
           refresh_token: testUser.refreshToken,
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
   });
 
-  describe('POST /auth/logout', () => {
+  describe('POST /api/v1/auth/logout', () => {
     let testUser: { userId: string };
 
     beforeAll(async () => {
@@ -259,26 +263,29 @@ describe('Auth API (e2e)', () => {
 
     it('should logout successfully (happy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/auth/logout')
+        .post('/api/v1/auth/logout')
         .send({
           userId: testUser.userId,
         })
         .expect(200);
 
       expect(response.body).toHaveProperty('success', true);
+      
+      // Verify request ID headers
+      verifyRequestIdHeaders(response);
     });
 
     it('should fail with missing userId (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/auth/logout')
+        .post('/api/v1/auth/logout')
         .send({})
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
   });
 
-  describe('GET /auth/me', () => {
+  describe('GET /api/v1/auth/me', () => {
     let accessToken: string;
 
     beforeAll(async () => {
@@ -288,29 +295,32 @@ describe('Auth API (e2e)', () => {
 
     it('should return user info with valid token (happy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/auth/me')
+        .get('/api/v1/auth/me')
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(200);
 
       expect(response.body).toHaveProperty('userId');
       expect(response.body).toHaveProperty('email');
+      
+      // Verify request ID headers
+      verifyRequestIdHeaders(response);
     });
 
     it('should fail without token (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/auth/me')
+        .get('/api/v1/auth/me')
         .expect(401);
 
-      expect(response.body).toHaveProperty('statusCode', 401);
+      verifyErrorResponseFormat(response, 401);
     });
 
     it('should fail with invalid token (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/auth/me')
+        .get('/api/v1/auth/me')
         .set('Authorization', 'Bearer invalid-token')
         .expect(401);
 
-      expect(response.body).toHaveProperty('statusCode', 401);
+      verifyErrorResponseFormat(response, 401);
     });
   });
 });

@@ -75,7 +75,7 @@ export async function registerTestUser(
   };
 
   const response = await request(app.getHttpServer())
-    .post('/auth/register')
+    .post('/api/v1/auth/register')
     .send({
       email: user.email,
       password: user.password,
@@ -113,7 +113,7 @@ export async function loginTestUser(
   password: string,
 ): Promise<{ accessToken: string; refreshToken: string; userId: string }> {
   const response = await request(app.getHttpServer())
-    .post('/auth/login')
+    .post('/api/v1/auth/login')
     .send({ email, password })
     .expect(expect200Or201());
 
@@ -133,7 +133,7 @@ export async function createAndLoginUser(
 ): Promise<TestUser> {
   // Register user - this already returns tokens (201 status)
   const registerResponse = await request(app.getHttpServer())
-    .post('/auth/register')
+    .post('/api/v1/auth/register')
     .send({
       email: userData?.email || generateTestEmail(),
       password: userData?.password || 'TestPassword123!',
@@ -170,7 +170,7 @@ export async function searchFlightsOneWay(
   departDate?: string,
 ): Promise<any> {
   const response = await request(app.getHttpServer())
-    .get('/search/flights')
+    .get('/api/v1/search/flights')
     .query({
       origin,
       destination,
@@ -198,7 +198,7 @@ export async function searchFlightsRoundTrip(
   const retDate = returnDate || generateFutureDate(37);
 
   const response = await request(app.getHttpServer())
-    .get('/search/flights')
+    .get('/api/v1/search/flights')
     .query({
       origin,
       destination,
@@ -222,7 +222,7 @@ export async function getFareOptions(
   cabinType: string = 'economy',
 ): Promise<any[]> {
   const response = await request(app.getHttpServer())
-    .get('/search/fare-options')
+    .get('/api/v1/search/fare-options')
     .query({
       flightInstanceId,
       cabinType,
@@ -241,7 +241,7 @@ export async function getSeatMap(
   cabinType: string = 'economy',
 ): Promise<any> {
   const response = await request(app.getHttpServer())
-    .get('/search/seats')
+    .get('/api/v1/search/seats')
     .query({
       flightInstanceId,
       cabinType,
@@ -272,7 +272,7 @@ export async function createReservationOneWay(
   }
 
   const response = await request(app.getHttpServer())
-    .post('/reservations')
+    .post('/api/v1/reservations')
     .set('Authorization', `Bearer ${accessToken}`)
     .send({
       segments: [segment],
@@ -321,7 +321,7 @@ export async function createReservationRoundTrip(
   }
 
   const response = await request(app.getHttpServer())
-    .post('/reservations')
+    .post('/api/v1/reservations')
     .set('Authorization', `Bearer ${accessToken}`)
     .send({
       segments: [outboundSegment, inboundSegment],
@@ -353,7 +353,7 @@ export async function createBookingFromReservation(
   },
 ): Promise<TestBooking> {
   const response = await request(app.getHttpServer())
-    .post(`/bookings?reservationId=${reservationId}`)
+    .post(`/api/v1/bookings?reservationId=${reservationId}`)
     .set('Authorization', `Bearer ${accessToken}`)
     .send({
       passengers: [
@@ -390,7 +390,7 @@ export async function processPayment(
   paymentMethodCode: string = 'CREDIT_CARD',
 ): Promise<TestPayment> {
   const response = await request(app.getHttpServer())
-    .post(`/payments/bookings/${bookingId}/process`)
+    .post(`/api/v1/payments/bookings/${bookingId}/process`)
     .set('Authorization', `Bearer ${accessToken}`)
     .send({
       paymentMethodCode,
@@ -424,5 +424,33 @@ export async function processPayment(
  */
 export function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Verify error response format matches new standard
+ * All errors should have: statusCode, timestamp, path, method, requestId, message
+ */
+export function verifyErrorResponseFormat(response: any, expectedStatusCode: number) {
+  expect(response.body).toHaveProperty('statusCode', expectedStatusCode);
+  expect(response.body).toHaveProperty('timestamp');
+  expect(response.body).toHaveProperty('path');
+  expect(response.body).toHaveProperty('method');
+  expect(response.body).toHaveProperty('requestId');
+  expect(response.body).toHaveProperty('message');
+
+  // Verify timestamp is valid ISO string
+  expect(new Date(response.body.timestamp).toISOString()).toBe(response.body.timestamp);
+
+  // Verify request ID matches header
+  expect(response.headers['x-request-id']).toBe(response.body.requestId);
+}
+
+/**
+ * Verify response has request ID headers
+ */
+export function verifyRequestIdHeaders(response: any) {
+  expect(response.headers['x-request-id']).toBeDefined();
+  expect(response.headers['x-correlation-id']).toBeDefined();
+  expect(response.headers['x-request-id']).toBe(response.headers['x-correlation-id']);
 }
 

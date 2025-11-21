@@ -12,6 +12,8 @@ import {
   createReservationRoundTrip,
   generateFutureDate,
   expect200Or201,
+  verifyErrorResponseFormat,
+  verifyRequestIdHeaders,
 } from '../helpers/test-helpers';
 
 describe('Reservation API (e2e)', () => {
@@ -64,7 +66,7 @@ describe('Reservation API (e2e)', () => {
   describe('POST /reservations (One-Way)', () => {
     it('should create reservation one-way successfully (happy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/reservations')
+        .post('/api/v1/reservations')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           segments: [
@@ -87,11 +89,14 @@ describe('Reservation API (e2e)', () => {
       expect(response.body).toHaveProperty('segments');
       expect(Array.isArray(response.body.segments)).toBe(true);
       expect(response.body.segments.length).toBe(1);
+      
+      // Verify request ID headers
+      verifyRequestIdHeaders(response);
     });
 
     it('should fail without authentication (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/reservations')
+        .post('/api/v1/reservations')
         .send({
           segments: [
             {
@@ -105,12 +110,12 @@ describe('Reservation API (e2e)', () => {
         })
         .expect(401);
 
-      expect(response.body).toHaveProperty('statusCode', 401);
+      verifyErrorResponseFormat(response, 401);
     });
 
     it('should fail with missing segments (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/reservations')
+        .post('/api/v1/reservations')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           numberOfPassengers: 1,
@@ -118,12 +123,12 @@ describe('Reservation API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with invalid flightInstanceId (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/reservations')
+        .post('/api/v1/reservations')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           segments: [
@@ -138,12 +143,12 @@ describe('Reservation API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with zero passengers (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/reservations')
+        .post('/api/v1/reservations')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           segments: [
@@ -158,12 +163,12 @@ describe('Reservation API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with invalid fareClassCode (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/reservations')
+        .post('/api/v1/reservations')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           segments: [
@@ -178,12 +183,12 @@ describe('Reservation API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should create reservation without currencyCode (currencyCode is optional)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/reservations')
+        .post('/api/v1/reservations')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           segments: [
@@ -203,7 +208,7 @@ describe('Reservation API (e2e)', () => {
 
     it('should fail with empty segments array (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/reservations')
+        .post('/api/v1/reservations')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           segments: [],
@@ -212,12 +217,12 @@ describe('Reservation API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with invalid segmentType (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/reservations')
+        .post('/api/v1/reservations')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           segments: [
@@ -232,14 +237,14 @@ describe('Reservation API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
   });
 
   describe('POST /reservations (Round-Trip)', () => {
     it('should create reservation round-trip successfully (happy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/reservations')
+        .post('/api/v1/reservations')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           segments: [
@@ -269,7 +274,7 @@ describe('Reservation API (e2e)', () => {
 
     it('should fail with invalid return flightInstanceId (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/reservations')
+        .post('/api/v1/reservations')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           segments: [
@@ -289,7 +294,7 @@ describe('Reservation API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
   });
 
@@ -299,7 +304,7 @@ describe('Reservation API (e2e)', () => {
       await createReservationOneWay(app, accessToken, flightInstanceId, fareClassCode);
 
       const response = await request(app.getHttpServer())
-        .get('/reservations')
+        .get('/api/v1/reservations')
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(200);
 
@@ -308,10 +313,10 @@ describe('Reservation API (e2e)', () => {
 
     it('should fail without authentication (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/reservations')
+        .get('/api/v1/reservations')
         .expect(401);
 
-      expect(response.body).toHaveProperty('statusCode', 401);
+      verifyErrorResponseFormat(response, 401);
     });
   });
 
@@ -341,11 +346,11 @@ describe('Reservation API (e2e)', () => {
 
     it('should fail with invalid reservation ID (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/reservations/invalid-id')
+        .get('/api/v1/reservations/invalid-id')
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
   });
 
@@ -374,11 +379,11 @@ describe('Reservation API (e2e)', () => {
 
     it('should fail with invalid reservation code (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/reservations/code/INVALID')
+        .get('/api/v1/reservations/code/INVALID')
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
   });
 
@@ -407,11 +412,11 @@ describe('Reservation API (e2e)', () => {
 
     it('should fail with invalid reservation ID (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/reservations/invalid-id/cancel')
+        .post('/api/v1/reservations/invalid-id/cancel')
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail when canceling already cancelled reservation (unhappy case)', async () => {
@@ -427,7 +432,7 @@ describe('Reservation API (e2e)', () => {
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
   });
 
@@ -467,7 +472,7 @@ describe('Reservation API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with missing additionalSeconds (unhappy case)', async () => {
@@ -477,7 +482,7 @@ describe('Reservation API (e2e)', () => {
         .send({})
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
   });
 
@@ -504,7 +509,7 @@ describe('Reservation API (e2e)', () => {
       }
 
       const response = await request(app.getHttpServer())
-        .post('/reservations')
+        .post('/api/v1/reservations')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           segments: [
@@ -530,7 +535,7 @@ describe('Reservation API (e2e)', () => {
 
     it('should fail with invalid flightSeatId (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/reservations')
+        .post('/api/v1/reservations')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           segments: [
@@ -546,7 +551,7 @@ describe('Reservation API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with seat from different flight instance (unhappy case)', async () => {
@@ -568,7 +573,7 @@ describe('Reservation API (e2e)', () => {
 
         if (differentSeat) {
           const response = await request(app.getHttpServer())
-            .post('/reservations')
+            .post('/api/v1/reservations')
             .set('Authorization', `Bearer ${accessToken}`)
             .send({
               segments: [
@@ -612,7 +617,7 @@ describe('Reservation API (e2e)', () => {
 
       if (reservedSeat) {
         const response = await request(app.getHttpServer())
-          .post('/reservations')
+          .post('/api/v1/reservations')
           .set('Authorization', `Bearer ${accessToken}`)
           .send({
             segments: [
@@ -634,7 +639,7 @@ describe('Reservation API (e2e)', () => {
 
     it('should create reservation without seat selection (seat is optional)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/reservations')
+        .post('/api/v1/reservations')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           segments: [

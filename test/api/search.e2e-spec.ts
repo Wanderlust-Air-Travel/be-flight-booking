@@ -8,6 +8,8 @@ import {
   getFareOptions,
   getSeatMap,
   generateFutureDate,
+  verifyErrorResponseFormat,
+  verifyRequestIdHeaders,
 } from '../helpers/test-helpers';
 
 describe('Search API (e2e)', () => {
@@ -36,7 +38,7 @@ describe('Search API (e2e)', () => {
   describe('GET /search/flights (One-Way)', () => {
     it('should search flights one-way successfully (happy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/search/flights')
+        .get('/api/v1/search/flights')
         .query({
           origin: 'HAN',
           destination: 'SGN',
@@ -54,7 +56,7 @@ describe('Search API (e2e)', () => {
 
     it('should search flights with multiple passengers (happy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/search/flights')
+        .get('/api/v1/search/flights')
         .query({
           origin: 'HAN',
           destination: 'SGN',
@@ -71,7 +73,7 @@ describe('Search API (e2e)', () => {
 
     it('should fail with missing origin (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/search/flights')
+        .get('/api/v1/search/flights')
         .query({
           destination: 'SGN',
           departDate: generateFutureDate(30),
@@ -81,12 +83,12 @@ describe('Search API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with missing destination (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/search/flights')
+        .get('/api/v1/search/flights')
         .query({
           origin: 'HAN',
           departDate: generateFutureDate(30),
@@ -96,12 +98,12 @@ describe('Search API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with invalid date format (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/search/flights')
+        .get('/api/v1/search/flights')
         .query({
           origin: 'HAN',
           destination: 'SGN',
@@ -112,7 +114,7 @@ describe('Search API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with past date (unhappy case)', async () => {
@@ -121,7 +123,7 @@ describe('Search API (e2e)', () => {
       const pastDateStr = pastDate.toISOString().split('T')[0];
 
       const response = await request(app.getHttpServer())
-        .get('/search/flights')
+        .get('/api/v1/search/flights')
         .query({
           origin: 'HAN',
           destination: 'SGN',
@@ -132,12 +134,12 @@ describe('Search API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with invalid airport code (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/search/flights')
+        .get('/api/v1/search/flights')
         .query({
           origin: 'XXX', // Valid format (3 chars) but doesn't exist
           destination: 'SGN',
@@ -153,7 +155,7 @@ describe('Search API (e2e)', () => {
 
     it('should fail with zero adults (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/search/flights')
+        .get('/api/v1/search/flights')
         .query({
           origin: 'HAN',
           destination: 'SGN',
@@ -164,12 +166,12 @@ describe('Search API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with missing tripType (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/search/flights')
+        .get('/api/v1/search/flights')
         .query({
           origin: 'HAN',
           destination: 'SGN',
@@ -179,12 +181,12 @@ describe('Search API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with invalid tripType (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/search/flights')
+        .get('/api/v1/search/flights')
         .query({
           origin: 'HAN',
           destination: 'SGN',
@@ -195,12 +197,12 @@ describe('Search API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with negative adults (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/search/flights')
+        .get('/api/v1/search/flights')
         .query({
           origin: 'HAN',
           destination: 'SGN',
@@ -211,12 +213,12 @@ describe('Search API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with negative minors (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/search/flights')
+        .get('/api/v1/search/flights')
         .query({
           origin: 'HAN',
           destination: 'SGN',
@@ -227,7 +229,7 @@ describe('Search API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
   });
 
@@ -237,7 +239,7 @@ describe('Search API (e2e)', () => {
       const returnDate = generateFutureDate(37);
 
       const response = await request(app.getHttpServer())
-        .get('/search/flights')
+        .get('/api/v1/search/flights')
         .query({
           origin: 'HAN',
           destination: 'SGN',
@@ -258,7 +260,7 @@ describe('Search API (e2e)', () => {
 
     it('should fail with missing returnDate (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/search/flights')
+        .get('/api/v1/search/flights')
         .query({
           origin: 'HAN',
           destination: 'SGN',
@@ -269,7 +271,7 @@ describe('Search API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail when returnDate is before departDate (unhappy case)', async () => {
@@ -277,7 +279,7 @@ describe('Search API (e2e)', () => {
       const returnDate = generateFutureDate(25); // Before departDate
 
       const response = await request(app.getHttpServer())
-        .get('/search/flights')
+        .get('/api/v1/search/flights')
         .query({
           origin: 'HAN',
           destination: 'SGN',
@@ -289,12 +291,12 @@ describe('Search API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with same origin and destination (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/search/flights')
+        .get('/api/v1/search/flights')
         .query({
           origin: 'HAN',
           destination: 'HAN',
@@ -305,7 +307,7 @@ describe('Search API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
   });
 
@@ -324,7 +326,7 @@ describe('Search API (e2e)', () => {
 
     it('should get fare options successfully (happy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/search/fare-options')
+        .get('/api/v1/search/fare-options')
         .query({
           flightInstanceId,
           cabinType: 'economy',
@@ -342,7 +344,7 @@ describe('Search API (e2e)', () => {
 
     it('should get fare options for business class (happy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/search/fare-options')
+        .get('/api/v1/search/fare-options')
         .query({
           flightInstanceId,
           cabinType: 'business',
@@ -354,29 +356,29 @@ describe('Search API (e2e)', () => {
 
     it('should fail with missing flightInstanceId (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/search/fare-options')
+        .get('/api/v1/search/fare-options')
         .query({
           cabinType: 'economy',
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with missing cabinType (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/search/fare-options')
+        .get('/api/v1/search/fare-options')
         .query({
           flightInstanceId,
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with invalid flightInstanceId (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/search/fare-options')
+        .get('/api/v1/search/fare-options')
         .query({
           flightInstanceId: '01900000-0000-7000-8000-000000000000', // Valid UUID v7 format but doesn't exist
           cabinType: 'economy',
@@ -388,14 +390,14 @@ describe('Search API (e2e)', () => {
 
     it('should fail with invalid cabinType (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/search/fare-options')
+        .get('/api/v1/search/fare-options')
         .query({
           flightInstanceId,
           cabinType: 'invalid-cabin',
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
   });
 
@@ -414,7 +416,7 @@ describe('Search API (e2e)', () => {
 
     it('should get seat map successfully for economy class (happy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/search/seats')
+        .get('/api/v1/search/seats')
         .query({
           flightInstanceId,
           cabinType: 'economy',
@@ -447,7 +449,7 @@ describe('Search API (e2e)', () => {
 
     it('should get seat map successfully for business class (happy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/search/seats')
+        .get('/api/v1/search/seats')
         .query({
           flightInstanceId,
           cabinType: 'business',
@@ -462,29 +464,29 @@ describe('Search API (e2e)', () => {
 
     it('should fail with missing flightInstanceId (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/search/seats')
+        .get('/api/v1/search/seats')
         .query({
           cabinType: 'economy',
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with missing cabinType (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/search/seats')
+        .get('/api/v1/search/seats')
         .query({
           flightInstanceId,
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with invalid flightInstanceId (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/search/seats')
+        .get('/api/v1/search/seats')
         .query({
           flightInstanceId: '01900000-0000-7000-8000-000000000000', // Valid UUID v7 format but doesn't exist
           cabinType: 'economy',
@@ -496,14 +498,14 @@ describe('Search API (e2e)', () => {
 
     it('should fail with invalid cabinType (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/search/seats')
+        .get('/api/v1/search/seats')
         .query({
           flightInstanceId,
           cabinType: 'invalid-cabin',
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should return seats with correct structure (happy case)', async () => {

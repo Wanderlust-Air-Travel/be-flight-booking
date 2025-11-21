@@ -11,6 +11,8 @@ import {
   createBookingFromReservation,
   processPayment,
   expect200Or201,
+  verifyErrorResponseFormat,
+  verifyRequestIdHeaders,
 } from '../helpers/test-helpers';
 
 describe('Payment API (e2e)', () => {
@@ -100,6 +102,10 @@ describe('Payment API (e2e)', () => {
       expect(response.body).toHaveProperty('bookingId', booking.bookingId);
       expect(response.body).toHaveProperty('amount', booking.totalAmount);
       expect(response.body).toHaveProperty('status', 'success');
+      
+      // Verify request ID headers
+      verifyRequestIdHeaders(response);
+    });
       expect(response.body).toHaveProperty('paymentMethodCode', 'CREDIT_CARD');
       expect(response.body).toHaveProperty('transactionRef');
     });
@@ -180,12 +186,12 @@ describe('Payment API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with invalid booking ID (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/payments/bookings/invalid-id/process')
+        .post('/api/v1/payments/bookings/invalid-id/process')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           paymentMethodCode: 'CREDIT_CARD',
@@ -195,7 +201,7 @@ describe('Payment API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail without authentication (unhappy case)', async () => {
@@ -209,7 +215,7 @@ describe('Payment API (e2e)', () => {
         })
         .expect(401);
 
-      expect(response.body).toHaveProperty('statusCode', 401);
+      verifyErrorResponseFormat(response, 401);
     });
 
     it('should fail with missing required fields (unhappy case)', async () => {
@@ -221,7 +227,7 @@ describe('Payment API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with invalid payment method code (unhappy case)', async () => {
@@ -252,7 +258,7 @@ describe('Payment API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with zero amount (unhappy case)', async () => {
@@ -283,7 +289,7 @@ describe('Payment API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with negative amount (unhappy case)', async () => {
@@ -314,7 +320,7 @@ describe('Payment API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
   });
 
@@ -353,7 +359,7 @@ describe('Payment API (e2e)', () => {
 
     it('should fail with invalid booking ID (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/payments/bookings/invalid-id')
+        .post('/api/v1/payments/bookings/invalid-id')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           paymentMethodCode: 'CREDIT_CARD',
@@ -362,7 +368,7 @@ describe('Payment API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail without authentication (unhappy case)', async () => {
@@ -391,7 +397,7 @@ describe('Payment API (e2e)', () => {
         })
         .expect(401);
 
-      expect(response.body).toHaveProperty('statusCode', 401);
+      verifyErrorResponseFormat(response, 401);
     });
   });
 
@@ -417,11 +423,11 @@ describe('Payment API (e2e)', () => {
 
     it('should fail with invalid payment ID (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/payments/invalid-id')
+        .get('/api/v1/payments/invalid-id')
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
   });
 
@@ -471,7 +477,7 @@ describe('Payment API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail without authentication (unhappy case)', async () => {
@@ -483,12 +489,12 @@ describe('Payment API (e2e)', () => {
         })
         .expect(401);
 
-      expect(response.body).toHaveProperty('statusCode', 401);
+      verifyErrorResponseFormat(response, 401);
     });
 
     it('should fail with invalid payment ID (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .patch('/payments/invalid-id/status')
+        .patch('/api/v1/payments/invalid-id/status')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           status: 'failed',
@@ -496,14 +502,14 @@ describe('Payment API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
   });
 
   describe('POST /payments/webhooks/:gateway', () => {
     it('should handle webhook successfully (happy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/payments/webhooks/mock')
+        .post('/api/v1/payments/webhooks/mock')
         .set('x-signature', 'test-signature')
         .send({
           transactionId: `TXN${Date.now()}`,
@@ -520,7 +526,7 @@ describe('Payment API (e2e)', () => {
 
     it('should handle webhook without signature (happy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/payments/webhooks/mock')
+        .post('/api/v1/payments/webhooks/mock')
         .send({
           transactionId: `TXN${Date.now()}`,
           status: 'success',
@@ -534,19 +540,19 @@ describe('Payment API (e2e)', () => {
 
     it('should fail with invalid gateway (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/payments/webhooks/invalid-gateway')
+        .post('/api/v1/payments/webhooks/invalid-gateway')
         .send({
           transactionId: `TXN${Date.now()}`,
           status: 'success',
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should handle webhook with missing payload (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/payments/webhooks/mock')
+        .post('/api/v1/payments/webhooks/mock')
         .send({})
         .expect(200);
 

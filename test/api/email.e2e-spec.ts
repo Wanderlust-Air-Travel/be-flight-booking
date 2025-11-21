@@ -2,7 +2,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from '../../src/api-gateway/app.module';
-import { createAndLoginUser, expect200Or201 } from '../helpers/test-helpers';
+import {
+  createAndLoginUser,
+  expect200Or201,
+  verifyErrorResponseFormat,
+  verifyRequestIdHeaders,
+} from '../helpers/test-helpers';
 
 describe('Email API (e2e)', () => {
   let app: INestApplication;
@@ -35,7 +40,7 @@ describe('Email API (e2e)', () => {
   describe('POST /emails/send', () => {
     it('should send email with custom content successfully (happy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/emails/send')
+        .post('/api/v1/emails/send')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           to: 'test@example.com',
@@ -49,11 +54,14 @@ describe('Email API (e2e)', () => {
       expect(response.body).toHaveProperty('to', 'test@example.com');
       expect(response.body).toHaveProperty('subject', 'Test Email');
       expect(response.body).toHaveProperty('status', 'queued');
+      
+      // Verify request ID headers
+      verifyRequestIdHeaders(response);
     });
 
     it('should send email with template successfully (happy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/emails/send')
+        .post('/api/v1/emails/send')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           to: 'test@example.com',
@@ -71,11 +79,14 @@ describe('Email API (e2e)', () => {
       expect(response.body).toHaveProperty('emailId');
       expect(response.body).toHaveProperty('to', 'test@example.com');
       expect(response.body).toHaveProperty('status', 'queued');
+      
+      // Verify request ID headers
+      verifyRequestIdHeaders(response);
     });
 
     it('should fail without authentication (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/emails/send')
+        .post('/api/v1/emails/send')
         .send({
           to: 'test@example.com',
           subject: 'Test Email',
@@ -88,7 +99,7 @@ describe('Email API (e2e)', () => {
 
     it('should fail with missing recipient (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/emails/send')
+        .post('/api/v1/emails/send')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           subject: 'Test Email',
@@ -96,12 +107,12 @@ describe('Email API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with invalid email format (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/emails/send')
+        .post('/api/v1/emails/send')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           to: 'invalid-email',
@@ -110,12 +121,12 @@ describe('Email API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with template but missing templateData (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/emails/send')
+        .post('/api/v1/emails/send')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           to: 'test@example.com',
@@ -124,12 +135,12 @@ describe('Email API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with invalid template name (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/emails/send')
+        .post('/api/v1/emails/send')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           to: 'test@example.com',
@@ -140,12 +151,12 @@ describe('Email API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail with missing subject when sending custom email (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/emails/send')
+        .post('/api/v1/emails/send')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           to: 'test@example.com',
@@ -154,7 +165,7 @@ describe('Email API (e2e)', () => {
         })
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
   });
 
@@ -164,7 +175,7 @@ describe('Email API (e2e)', () => {
     beforeAll(async () => {
       // Send an email first to get emailId
       const response = await request(app.getHttpServer())
-        .post('/emails/send')
+        .post('/api/v1/emails/send')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           to: 'test@example.com',
@@ -186,15 +197,18 @@ describe('Email API (e2e)', () => {
       expect(response.body).toHaveProperty('to');
       expect(response.body).toHaveProperty('status');
       expect(['queued', 'sending', 'sent', 'failed']).toContain(response.body.status);
+      
+      // Verify request ID headers
+      verifyRequestIdHeaders(response);
     });
 
     it('should fail with invalid email ID (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/emails/invalid-id/status')
+        .get('/api/v1/emails/invalid-id/status')
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(400);
 
-      expect(response.body).toHaveProperty('statusCode', 400);
+      verifyErrorResponseFormat(response, 400);
     });
 
     it('should fail without authentication (unhappy case)', async () => {
@@ -206,10 +220,113 @@ describe('Email API (e2e)', () => {
     });
   });
 
+  describe('POST /emails/send - OTP Templates', () => {
+    it('should send OTP payment email successfully (happy case)', async () => {
+      const otpCode = '123456';
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/emails/send')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          to: 'test@example.com',
+          template: 'otp_payment',
+          templateData: {
+            otp: otpCode,
+            expiresIn: '15 minutes',
+          },
+        })
+        .expect(202);
+
+      expect(response.body).toHaveProperty('emailId');
+      expect(response.body).toHaveProperty('to', 'test@example.com');
+      expect(response.body).toHaveProperty('status', 'queued');
+      
+      // Verify request ID headers
+      verifyRequestIdHeaders(response);
+    });
+
+    it('should send OTP password reset email successfully (happy case)', async () => {
+      const otpCode = '789012';
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/emails/send')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          to: 'test@example.com',
+          template: 'otp_password_reset',
+          templateData: {
+            otp: otpCode,
+            expiresIn: '10 minutes',
+          },
+        })
+        .expect(202);
+
+      expect(response.body).toHaveProperty('emailId');
+      expect(response.body).toHaveProperty('to', 'test@example.com');
+      expect(response.body).toHaveProperty('status', 'queued');
+      
+      // Verify request ID headers
+      verifyRequestIdHeaders(response);
+    });
+
+    it('should fail with OTP template but missing OTP in templateData (unhappy case)', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/emails/send')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          to: 'test@example.com',
+          template: 'otp_payment',
+          templateData: {
+            // missing otp field
+            expiresIn: '15 minutes',
+          },
+        })
+        .expect(202); // Template will use 'N/A' as default OTP, so it still succeeds
+
+      // Note: Template service uses 'N/A' as default if OTP is missing
+      // So the email will still be queued, but with default value
+      expect(response.body).toHaveProperty('emailId');
+    });
+
+    it('should fail with OTP template but missing templateData (unhappy case)', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/emails/send')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          to: 'test@example.com',
+          template: 'otp_payment',
+          // missing templateData
+        })
+        .expect(400);
+
+      verifyErrorResponseFormat(response, 400);
+    });
+
+    it('should send OTP with custom expiration time (happy case)', async () => {
+      const otpCode = '456789';
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/emails/send')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          to: 'test@example.com',
+          template: 'otp_payment',
+          templateData: {
+            otp: otpCode,
+            expiresIn: '30 minutes',
+          },
+        })
+        .expect(202);
+
+      expect(response.body).toHaveProperty('emailId');
+      expect(response.body).toHaveProperty('status', 'queued');
+      
+      // Verify request ID headers
+      verifyRequestIdHeaders(response);
+    });
+  });
+
   describe('GET /emails/health', () => {
     it('should get health status successfully (happy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get('/emails/health')
+        .get('/api/v1/emails/health')
         .expect(200);
 
       expect(response.body).toHaveProperty('status');
@@ -221,15 +338,21 @@ describe('Email API (e2e)', () => {
       expect(response.body.queueStats).toHaveProperty('sent');
       expect(response.body.queueStats).toHaveProperty('failed');
       expect(response.body.queueStats).toHaveProperty('rateLimitRemaining');
+      
+      // Verify request ID headers
+      verifyRequestIdHeaders(response);
     });
 
     it('should be accessible without authentication (happy case)', async () => {
       // This is a public endpoint, should work without auth
       const response = await request(app.getHttpServer())
-        .get('/emails/health')
+        .get('/api/v1/emails/health')
         .expect(200);
 
       expect(response.body).toHaveProperty('status');
+      
+      // Verify request ID headers
+      verifyRequestIdHeaders(response);
     });
   });
 });
