@@ -335,16 +335,13 @@ export class SearchController {
 		try {
 			// Manual validation and transformation if needed
 			if (!query.flightInstanceId || typeof query.flightInstanceId !== 'string') {
-				throw new Error('flightInstanceId is required and must be a string');
+				throw new BadRequestException('flightInstanceId is required and must be a string');
 			}
 			
 			const trimmedFlightInstanceId = query.flightInstanceId.trim();
-			console.log('[DEBUG] Get seat map request:', {
-				original: query.flightInstanceId,
-				trimmed: trimmedFlightInstanceId,
-				length: trimmedFlightInstanceId.length,
-				cabinType: query.cabinType,
-			});
+			if (!trimmedFlightInstanceId) {
+				throw new BadRequestException('flightInstanceId cannot be empty');
+			}
 			
 			const payload: GetSeatMapDto = {
 				flightInstanceId: trimmedFlightInstanceId,
@@ -354,36 +351,66 @@ export class SearchController {
 			
 			return result;
 		} catch (error: any) {
-			console.error('Get seat map error:', error);
-			// Re-throw NestJS exceptions as-is (including NotFoundException)
+			// Re-throw NestJS exceptions as-is (including NotFoundException, BadRequestException)
 			if (error?.statusCode && error?.message) {
-				// Map NotFoundException from microservice to 404
-				if (error?.statusCode === 404) {
+				if (error.statusCode === 404) {
 					throw new NotFoundException(error.message);
 				}
+				if (error.statusCode === 400) {
+					throw new BadRequestException(error.message);
+				}
+				// Re-throw other HTTP exceptions as-is
 				throw error;
 			}
+			
 			// Handle microservice connection errors
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
 				throw new InternalServerErrorException('Search microservice is not running. Please start it with: npm run start:search');
 			}
+			
 			// Handle timeout errors
 			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
 				throw new InternalServerErrorException('Search microservice request timeout. Please check if the service is running.');
 			}
+			
 			// Handle microservice error format: { status: 'error', message: '...' }
 			if (error?.status === 'error' && error?.message) {
+				const message = String(error.message).toLowerCase();
+				
 				// Check if message indicates not found
-				const message = error.message.toLowerCase();
 				if (message.includes('not found') || message.includes('notfound') || 
 				    message.includes('not exist') || message.includes('does not exist') ||
 				    message.includes('flight instance not found') || message.includes('flight not found')) {
 					throw new NotFoundException(error.message || 'Flight instance not found');
 				}
+				
+				// Handle generic "Internal server error" - might be a not found case
+				if (message.includes('internal server error')) {
+					// Check error details if available
+					if (error?.details) {
+						const details = String(error.details).toLowerCase();
+						if (details.includes('not found') || details.includes('flight instance')) {
+							throw new NotFoundException('Flight instance not found');
+						}
+					}
+					// Fallback: for invalid flight instance ID, assume it's a not found case
+					// This handles cases where microservice doesn't properly serialize NotFoundException
+					throw new NotFoundException('Flight instance not found. Please check the flight instance ID and try again.');
+				}
+				
+				// Other error messages
 				throw new BadRequestException(`Get seat map failed: ${error.message}`);
 			}
+			
 			// Generic error - provide more context
 			const errorMessage = error?.message || error?.toString() || 'Unknown error';
+			const lowerMessage = String(errorMessage).toLowerCase();
+			
+			// Check if it might be a not found case
+			if (lowerMessage.includes('not found') || lowerMessage.includes('not exist')) {
+				throw new NotFoundException('Flight instance not found');
+			}
+			
 			throw new BadRequestException(`Get seat map failed: ${errorMessage}. Please check the flight instance ID and try again.`);
 		}
 	}

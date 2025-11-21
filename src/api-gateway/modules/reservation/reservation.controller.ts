@@ -54,22 +54,31 @@ export class ReservationController {
 				}),
 			);
 		} catch (error: any) {
-			console.error('Create reservation error:', error);
+			// Re-throw NestJS exceptions as-is (including BadRequestException, NotFoundException)
 			if (error?.statusCode && error?.message) {
 				throw error;
 			}
+			
+			// Log only unexpected errors (connection issues, timeouts)
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+				console.error('Create reservation error: Reservation microservice connection refused');
 				throw new InternalServerErrorException(
 					'Reservation microservice is not running. Please start it with: npm run start:reservation:dev',
 				);
 			}
 			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
+				console.error('Create reservation error: Reservation microservice request timeout');
 				throw new InternalServerErrorException('Reservation microservice request timeout. Please check if the service is running.');
 			}
+			
+			// Handle microservice error format: { status: 'error', message: '...' }
 			if (error?.status === 'error' && error?.message) {
 				throw new BadRequestException(`Create reservation failed: ${error.message}`);
 			}
-			throw new BadRequestException(`Create reservation failed: ${error?.message || 'Unknown error'}`);
+			
+			// Generic error - log unexpected errors only
+			const errorMessage = error?.message || error?.toString() || 'Unknown error';
+			throw new BadRequestException(`Create reservation failed: ${errorMessage}`);
 		}
 	}
 
