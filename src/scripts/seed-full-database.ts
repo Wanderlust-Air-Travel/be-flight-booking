@@ -344,28 +344,27 @@ async function run() {
 	console.log('\nSeeding Airports...');
 	
 	const airportsData = [
-		// Vietnam domestic
+		// Vietnam domestic airports only - All airports are in Vietnam for domestic flights only
 		{ iata_code: 'HAN', icao_code: 'VVNB', name: 'Noi Bai International', city: 'Hanoi', country: 'Vietnam', timezone: 'Asia/Ho_Chi_Minh' },
 		{ iata_code: 'SGN', icao_code: 'VVTS', name: 'Tan Son Nhat International', city: 'Ho Chi Minh City', country: 'Vietnam', timezone: 'Asia/Ho_Chi_Minh' },
 		{ iata_code: 'DAD', icao_code: 'VVDN', name: 'Da Nang International', city: 'Da Nang', country: 'Vietnam', timezone: 'Asia/Ho_Chi_Minh' },
-		{ iata_code: 'HPH', icao_code: 'VVCI', name: 'Cat Bi International', city: 'Hai Phong', country: 'Vietnam', timezone: 'Asia/Ho_Chi_Minh' },
-		{ iata_code: 'VCA', icao_code: 'VVCT', name: 'Can Tho International', city: 'Can Tho', country: 'Vietnam', timezone: 'Asia/Ho_Chi_Minh' },
+		{ iata_code: 'CXR', icao_code: 'VVCR', name: 'Cam Ranh International', city: 'Nha Trang', country: 'Vietnam', timezone: 'Asia/Ho_Chi_Minh' },
 		{ iata_code: 'PQC', icao_code: 'VVPQ', name: 'Phu Quoc International', city: 'Phu Quoc', country: 'Vietnam', timezone: 'Asia/Ho_Chi_Minh' },
-		{ iata_code: 'VCL', icao_code: 'VVCA', name: 'Cam Ranh International', city: 'Nha Trang', country: 'Vietnam', timezone: 'Asia/Ho_Chi_Minh' },
-		{ iata_code: 'DLI', icao_code: 'VVDL', name: 'Lien Khuong', city: 'Da Lat', country: 'Vietnam', timezone: 'Asia/Ho_Chi_Minh' },
+		{ iata_code: 'HUI', icao_code: 'VVPH', name: 'Phu Bai International', city: 'Hue', country: 'Vietnam', timezone: 'Asia/Ho_Chi_Minh' },
+		{ iata_code: 'VCA', icao_code: 'VVCT', name: 'Can Tho International', city: 'Can Tho', country: 'Vietnam', timezone: 'Asia/Ho_Chi_Minh' },
+		{ iata_code: 'HPH', icao_code: 'VVCI', name: 'Cat Bi International', city: 'Hai Phong', country: 'Vietnam', timezone: 'Asia/Ho_Chi_Minh' },
+		{ iata_code: 'VDO', icao_code: 'VVVD', name: 'Van Don International', city: 'Quang Ninh', country: 'Vietnam', timezone: 'Asia/Ho_Chi_Minh' },
+		{ iata_code: 'THD', icao_code: 'VVTX', name: 'Tho Xuan', city: 'Thanh Hoa', country: 'Vietnam', timezone: 'Asia/Ho_Chi_Minh' },
+		{ iata_code: 'VII', icao_code: 'VVVH', name: 'Vinh', city: 'Vinh', country: 'Vietnam', timezone: 'Asia/Ho_Chi_Minh' },
+		{ iata_code: 'DIN', icao_code: 'VVDB', name: 'Dien Bien Phu', city: 'Dien Bien', country: 'Vietnam', timezone: 'Asia/Ho_Chi_Minh' },
+		{ iata_code: 'VCL', icao_code: 'VVCA', name: 'Chu Lai', city: 'Chu Lai', country: 'Vietnam', timezone: 'Asia/Ho_Chi_Minh' },
 		{ iata_code: 'UIH', icao_code: 'VVPC', name: 'Phu Cat', city: 'Quy Nhon', country: 'Vietnam', timezone: 'Asia/Ho_Chi_Minh' },
 		{ iata_code: 'TBB', icao_code: 'VVTH', name: 'Dong Tac', city: 'Tuy Hoa', country: 'Vietnam', timezone: 'Asia/Ho_Chi_Minh' },
-		// International
-		{ iata_code: 'BKK', icao_code: 'VTBS', name: 'Suvarnabhumi', city: 'Bangkok', country: 'Thailand', timezone: 'Asia/Bangkok' },
-		{ iata_code: 'SIN', icao_code: 'WSSS', name: 'Changi', city: 'Singapore', country: 'Singapore', timezone: 'Asia/Singapore' },
-		{ iata_code: 'KUL', icao_code: 'WMKK', name: 'Kuala Lumpur International', city: 'Kuala Lumpur', country: 'Malaysia', timezone: 'Asia/Kuala_Lumpur' },
-		{ iata_code: 'NRT', icao_code: 'RJAA', name: 'Narita International', city: 'Tokyo', country: 'Japan', timezone: 'Asia/Tokyo' },
-		{ iata_code: 'ICN', icao_code: 'RKSI', name: 'Incheon International', city: 'Seoul', country: 'South Korea', timezone: 'Asia/Seoul' },
-		{ iata_code: 'PEK', icao_code: 'ZBAA', name: 'Beijing Capital International', city: 'Beijing', country: 'China', timezone: 'Asia/Shanghai' },
-		{ iata_code: 'PVG', icao_code: 'ZSPD', name: 'Shanghai Pudong International', city: 'Shanghai', country: 'China', timezone: 'Asia/Shanghai' },
-		{ iata_code: 'HKG', icao_code: 'VHHH', name: 'Hong Kong International', city: 'Hong Kong', country: 'Hong Kong', timezone: 'Asia/Hong_Kong' },
-		{ iata_code: 'TPE', icao_code: 'RCTP', name: 'Taiwan Taoyuan International', city: 'Taipei', country: 'Taiwan', timezone: 'Asia/Taipei' },
-		{ iata_code: 'SYD', icao_code: 'YSSY', name: 'Sydney Kingsford Smith', city: 'Sydney', country: 'Australia', timezone: 'Australia/Sydney' },
+		{ iata_code: 'PXU', icao_code: 'VVPK', name: 'Pleiku', city: 'Pleiku', country: 'Vietnam', timezone: 'Asia/Ho_Chi_Minh' },
+		{ iata_code: 'BMV', icao_code: 'VVBM', name: 'Buon Ma Thuot', city: 'Buon Ma Thuot', country: 'Vietnam', timezone: 'Asia/Ho_Chi_Minh' },
+		{ iata_code: 'DLI', icao_code: 'VVDL', name: 'Lien Khuong', city: 'Da Lat', country: 'Vietnam', timezone: 'Asia/Ho_Chi_Minh' },
+		{ iata_code: 'CAH', icao_code: 'VVCM', name: 'Ca Mau', city: 'Ca Mau', country: 'Vietnam', timezone: 'Asia/Ho_Chi_Minh' },
+		{ iata_code: 'VKG', icao_code: 'VVRG', name: 'Rach Gia', city: 'Rach Gia', country: 'Vietnam', timezone: 'Asia/Ho_Chi_Minh' },
 	];
 	
 	const savedAirports: Airport[] = [];
@@ -387,29 +386,52 @@ async function run() {
 	console.log('\nSeeding Routes...');
 	
 	const routes: Route[] = [];
+	// Distance map for domestic routes only (all airports are in Vietnam)
 	const distances: Record<string, number> = {
+		// Major routes
 		'HAN-SGN': 1150, 'SGN-HAN': 1150,
 		'HAN-DAD': 610, 'DAD-HAN': 610,
 		'SGN-DAD': 600, 'DAD-SGN': 600,
 		'HAN-HPH': 120, 'HPH-HAN': 120,
 		'SGN-VCA': 170, 'VCA-SGN': 170,
 		'SGN-PQC': 300, 'PQC-SGN': 300,
-		'SGN-VCL': 400, 'VCL-SGN': 400,
-		'HAN-BKK': 1000, 'BKK-HAN': 1000,
-		'SGN-SIN': 1100, 'SIN-SGN': 1100,
-		'HAN-NRT': 3300, 'NRT-HAN': 3300,
-		'SGN-ICN': 3200, 'ICN-SGN': 3200,
+		'SGN-CXR': 400, 'CXR-SGN': 400,
+		'HAN-VDO': 150, 'VDO-HAN': 150,
+		'HAN-HUI': 650, 'HUI-HAN': 650,
+		'HAN-VII': 300, 'VII-HAN': 300,
+		'HAN-THD': 150, 'THD-HAN': 150,
+		'SGN-DLI': 300, 'DLI-SGN': 300,
+		'SGN-UIH': 500, 'UIH-SGN': 500,
+		'SGN-TBB': 450, 'TBB-SGN': 450,
+		'SGN-BMV': 350, 'BMV-SGN': 350,
+		'SGN-PXU': 400, 'PXU-SGN': 400,
+		'SGN-VKG': 200, 'VKG-SGN': 200,
+		'SGN-CAH': 250, 'CAH-SGN': 250,
+		'DAD-HUI': 100, 'HUI-DAD': 100,
+		'DAD-CXR': 200, 'CXR-DAD': 200,
+		'DAD-UIH': 250, 'UIH-DAD': 250,
+		'DAD-VCL': 100, 'VCL-DAD': 100,
+		'CXR-DLI': 150, 'DLI-CXR': 150,
+		'DAD-DLI': 200, 'DLI-DAD': 200,
+		'HAN-DIN': 450, 'DIN-HAN': 450,
 	};
 
-	// Create routes between all airports (domestic and international)
+	// Create routes between all Vietnam airports (domestic only)
+	// All airports are in Vietnam, so all routes are domestic
 	let routesCreated = 0;
 	for (const origin of savedAirports) {
 		for (const dest of savedAirports) {
 			if (origin.airport_id === dest.airport_id) continue;
 			
+			// Only create routes between Vietnam airports (all airports are Vietnam)
+			if (origin.country !== 'Vietnam' || dest.country !== 'Vietnam') {
+				continue; // Skip if not Vietnam (should not happen, but safety check)
+			}
+			
 			const key = `${origin.iata_code}-${dest.iata_code}`;
-			const distance = distances[key] || randomInt(500, 5000);
-			const isDomestic = origin.country === 'Vietnam' && dest.country === 'Vietnam';
+			// Use predefined distance or calculate based on typical Vietnam domestic flight distances (200-1200 km)
+			const distance = distances[key] || randomInt(200, 1200);
+			const isDomestic = true; // All routes are domestic since all airports are in Vietnam
 
 			const existing = await repos.route
 				.createQueryBuilder('route')
@@ -513,11 +535,20 @@ async function run() {
 
 	const schedules: FlightSchedule[] = [];
 	// Create multiple schedules per route for more variety
-	// Focus on domestic routes first (better for testing)
-	const domesticRoutes = routes.filter(r => r.is_domestic);
+	// All routes are domestic (Vietnam only)
+	const domesticRoutes = routes; // All routes are domestic since all airports are in Vietnam
 	
-	// Prioritize popular routes (HAN-SGN, HAN-DAD, SGN-DAD, etc.) to ensure they have instances
-	const popularRouteCodes = ['HAN-SGN', 'SGN-HAN', 'HAN-DAD', 'DAD-HAN', 'SGN-DAD', 'DAD-SGN', 'HAN-HPH', 'HPH-HAN', 'SGN-PQC', 'PQC-SGN'];
+	// Prioritize popular domestic routes (HAN-SGN, HAN-DAD, SGN-DAD, etc.) to ensure they have instances
+	const popularRouteCodes = [
+		'HAN-SGN', 'SGN-HAN', 
+		'HAN-DAD', 'DAD-HAN', 
+		'SGN-DAD', 'DAD-SGN', 
+		'HAN-HPH', 'HPH-HAN', 
+		'SGN-PQC', 'PQC-SGN',
+		'SGN-CXR', 'CXR-SGN',
+		'HAN-VDO', 'VDO-HAN',
+		'SGN-VCA', 'VCA-SGN',
+	];
 	const popularRoutes: Route[] = [];
 	const otherRoutes: Route[] = [];
 	
