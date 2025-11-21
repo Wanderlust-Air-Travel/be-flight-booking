@@ -7,6 +7,7 @@ import {
   searchFlightsOneWay,
   searchFlightsRoundTrip,
   getFareOptions,
+  getSeatMap,
   createReservationOneWay,
   createReservationRoundTrip,
   generateFutureDate,
@@ -477,6 +478,183 @@ describe('Reservation API (e2e)', () => {
         .expect(400);
 
       expect(response.body).toHaveProperty('statusCode', 400);
+    });
+  });
+
+  describe('POST /reservations (With Seat Selection)', () => {
+    it('should create reservation with seat selection successfully (happy case)', async () => {
+      // Get seat map first
+      const seatMap = await getSeatMap(app, flightInstanceId, 'economy');
+      
+      // Find an available seat
+      let availableSeat: any = null;
+      if (seatMap.seats && seatMap.seats.length > 0) {
+        for (const group of seatMap.seats) {
+          if (group.list && group.list.length > 0) {
+            availableSeat = group.list.find((seat: any) => seat.isAvailable === true);
+            if (availableSeat) break;
+          }
+        }
+      }
+
+      if (!availableSeat) {
+        // Skip test if no available seats
+        console.warn('No available seats found for seat selection test');
+        return;
+      }
+
+      const response = await request(app.getHttpServer())
+        .post('/reservations')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          segments: [
+            {
+              flightInstanceId,
+              fareClassCode,
+              segmentType: 'outbound',
+              flightSeatId: availableSeat.flightSeatId,
+            },
+          ],
+          numberOfPassengers: 1,
+          currencyCode: 'VND',
+        })
+        .expect(expect200Or201());
+
+      expect(response.body).toHaveProperty('reservationId');
+      expect(response.body).toHaveProperty('reservationCode');
+      expect(response.body).toHaveProperty('segments');
+      expect(response.body.segments.length).toBe(1);
+      expect(response.body.segments[0]).toHaveProperty('flightSeatId', availableSeat.flightSeatId);
+      expect(response.body.segments[0]).toHaveProperty('seatNumber', availableSeat.seatNumber);
+    });
+
+    it('should fail with invalid flightSeatId (unhappy case)', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/reservations')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          segments: [
+            {
+              flightInstanceId,
+              fareClassCode,
+              segmentType: 'outbound',
+              flightSeatId: '01900000-0000-7000-8000-000000000000', // Valid UUID v7 format but doesn't exist
+            },
+          ],
+          numberOfPassengers: 1,
+          currencyCode: 'VND',
+        })
+        .expect(400);
+
+      expect(response.body).toHaveProperty('statusCode', 400);
+    });
+
+    it('should fail with seat from different flight instance (unhappy case)', async () => {
+      // Get seat map from a different flight (if available)
+      const searchResult = await searchFlightsOneWay(app);
+      if (searchResult.outbound && searchResult.outbound.length > 1) {
+        const differentFlightId = searchResult.outbound[1].flightInstanceId;
+        const differentSeatMap = await getSeatMap(app, differentFlightId, 'economy');
+        
+        let differentSeat: any = null;
+        if (differentSeatMap.seats && differentSeatMap.seats.length > 0) {
+          for (const group of differentSeatMap.seats) {
+            if (group.list && group.list.length > 0) {
+              differentSeat = group.list.find((seat: any) => seat.isAvailable === true);
+              if (differentSeat) break;
+            }
+          }
+        }
+
+        if (differentSeat) {
+          const response = await request(app.getHttpServer())
+            .post('/reservations')
+            .set('Authorization', `Bearer ${accessToken}`)
+            .send({
+              segments: [
+                {
+                  flightInstanceId, // Different flight instance
+                  fareClassCode,
+                  segmentType: 'outbound',
+                  flightSeatId: differentSeat.flightSeatId, // Seat from different flight
+                },
+              ],
+              numberOfPassengers: 1,
+              currencyCode: 'VND',
+            })
+            .expect(400);
+
+          expect(response.body).toHaveProperty('statusCode', 400);
+        }
+      }
+    });
+
+    it('should fail with unavailable seat (unhappy case)', async () => {
+      // First, create a reservation to make a seat unavailable
+      const reservation1 = await createReservationOneWay(
+        app,
+        accessToken,
+        flightInstanceId,
+        fareClassCode,
+      );
+
+      // Get seat map again to find the reserved seat
+      const seatMap = await getSeatMap(app, flightInstanceId, 'economy');
+      let reservedSeat: any = null;
+      if (seatMap.seats && seatMap.seats.length > 0) {
+        for (const group of seatMap.seats) {
+          if (group.list && group.list.length > 0) {
+            reservedSeat = group.list.find((seat: any) => seat.isAvailable === false);
+            if (reservedSeat) break;
+          }
+        }
+      }
+
+      if (reservedSeat) {
+        const response = await request(app.getHttpServer())
+          .post('/reservations')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .send({
+            segments: [
+              {
+                flightInstanceId,
+                fareClassCode,
+                segmentType: 'outbound',
+                flightSeatId: reservedSeat.flightSeatId,
+              },
+            ],
+            numberOfPassengers: 1,
+            currencyCode: 'VND',
+          })
+          .expect(400);
+
+        expect(response.body).toHaveProperty('statusCode', 400);
+      }
+    });
+
+    it('should create reservation without seat selection (seat is optional)', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/reservations')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          segments: [
+            {
+              flightInstanceId,
+              fareClassCode,
+              segmentType: 'outbound',
+              // No flightSeatId - seat selection is optional
+            },
+          ],
+          numberOfPassengers: 1,
+          currencyCode: 'VND',
+        })
+        .expect(expect200Or201());
+
+      expect(response.body).toHaveProperty('reservationId');
+      expect(response.body).toHaveProperty('segments');
+      expect(response.body.segments.length).toBe(1);
+      // Seat fields should be null or undefined when not selected
+      expect(response.body.segments[0].flightSeatId).toBeFalsy();
     });
   });
 });

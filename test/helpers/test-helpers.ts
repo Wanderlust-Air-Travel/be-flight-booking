@@ -233,6 +233,25 @@ export async function getFareOptions(
 }
 
 /**
+ * Get seat map for a flight instance
+ */
+export async function getSeatMap(
+  app: INestApplication,
+  flightInstanceId: string,
+  cabinType: string = 'economy',
+): Promise<any> {
+  const response = await request(app.getHttpServer())
+    .get('/search/seats')
+    .query({
+      flightInstanceId,
+      cabinType,
+    })
+    .expect(200);
+
+  return response.body;
+}
+
+/**
  * Create a reservation (one-way)
  */
 export async function createReservationOneWay(
@@ -240,18 +259,23 @@ export async function createReservationOneWay(
   accessToken: string,
   flightInstanceId: string,
   fareClassCode: string = 'YS',
+  flightSeatId?: string,
 ): Promise<TestReservation> {
+  const segment: any = {
+    flightInstanceId,
+    fareClassCode,
+    segmentType: 'outbound',
+  };
+
+  if (flightSeatId) {
+    segment.flightSeatId = flightSeatId;
+  }
+
   const response = await request(app.getHttpServer())
     .post('/reservations')
     .set('Authorization', `Bearer ${accessToken}`)
     .send({
-      segments: [
-        {
-          flightInstanceId,
-          fareClassCode,
-          segmentType: 'outbound',
-        },
-      ],
+      segments: [segment],
       numberOfPassengers: 1,
       currencyCode: 'VND',
     })
@@ -273,23 +297,34 @@ export async function createReservationRoundTrip(
   outboundFlightInstanceId: string,
   inboundFlightInstanceId: string,
   fareClassCode: string = 'YS',
+  outboundFlightSeatId?: string,
+  inboundFlightSeatId?: string,
 ): Promise<TestReservation> {
+  const outboundSegment: any = {
+    flightInstanceId: outboundFlightInstanceId,
+    fareClassCode,
+    segmentType: 'outbound',
+  };
+
+  const inboundSegment: any = {
+    flightInstanceId: inboundFlightInstanceId,
+    fareClassCode,
+    segmentType: 'inbound',
+  };
+
+  if (outboundFlightSeatId) {
+    outboundSegment.flightSeatId = outboundFlightSeatId;
+  }
+
+  if (inboundFlightSeatId) {
+    inboundSegment.flightSeatId = inboundFlightSeatId;
+  }
+
   const response = await request(app.getHttpServer())
     .post('/reservations')
     .set('Authorization', `Bearer ${accessToken}`)
     .send({
-      segments: [
-        {
-          flightInstanceId: outboundFlightInstanceId,
-          fareClassCode,
-          segmentType: 'outbound',
-        },
-        {
-          flightInstanceId: inboundFlightInstanceId,
-          fareClassCode,
-          segmentType: 'inbound',
-        },
-      ],
+      segments: [outboundSegment, inboundSegment],
       numberOfPassengers: 1,
       currencyCode: 'VND',
     })

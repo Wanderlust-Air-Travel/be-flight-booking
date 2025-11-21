@@ -1,8 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsEnum, IsUUIDv7 } from 'class-validator';
+import { IsNotEmpty, IsEnum } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { CabinType } from 'src/shared/constants/enums';
-import { IsUUIDv7 as IsUUIDv7Validator } from 'src/shared/validators/is-uuid-v7.validator';
+import { IsUUIDv7 } from 'src/shared/validators/is-uuid-v7.validator';
 
 export class GetSeatMapDto {
 	@ApiProperty({
@@ -16,7 +16,7 @@ export class GetSeatMapDto {
 		return value;
 	})
 	@IsNotEmpty()
-	@IsUUIDv7Validator({ message: 'flightInstanceId must be a valid UUID v7' })
+	@IsUUIDv7({ message: 'flightInstanceId must be a valid UUID v7' })
 	flightInstanceId!: string;
 
 	@ApiProperty({

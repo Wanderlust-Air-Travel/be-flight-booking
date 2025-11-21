@@ -11,6 +11,7 @@ import { FareOptionsResponseDto } from './dto/fare-options-response.dto';
 import { FareOptionDto } from './dto/fare-option.dto';
 import { GetSeatMapDto } from './dto/get-seat-map.dto';
 import { SeatMapResponseDto } from './dto/seat-map-response.dto';
+import { SEARCH_MS } from 'src/microservices/search/search.messages';
 
 @ApiTags('search')
 @Controller('search')
@@ -349,7 +350,7 @@ export class SearchController {
 				flightInstanceId: trimmedFlightInstanceId,
 				cabinType: query.cabinType,
 			};
-			const result = await firstValueFrom(this.client.send<SeatMapResponseDto>('search.seat-map', payload));
+			const result = await firstValueFrom(this.client.send<SeatMapResponseDto>(SEARCH_MS.PATTERN.GET_SEAT_MAP, payload));
 			
 			return result;
 		} catch (error: any) {

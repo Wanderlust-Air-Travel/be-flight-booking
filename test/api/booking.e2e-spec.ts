@@ -6,6 +6,7 @@ import {
   createAndLoginUser,
   searchFlightsOneWay,
   getFareOptions,
+  getSeatMap,
   createReservationOneWay,
   createBookingFromReservation,
   expect200Or201,
@@ -504,6 +505,109 @@ describe('Booking API (e2e)', () => {
         .expect(400);
 
       expect(response.body).toHaveProperty('statusCode', 400);
+    });
+  });
+
+  describe('POST /bookings (With Seat Assignment from Reservation)', () => {
+    it('should create booking with seat assignment from reservation (happy case)', async () => {
+      // Get seat map first
+      const seatMap = await getSeatMap(app, flightInstanceId, 'economy');
+      
+      // Find an available seat
+      let availableSeat: any = null;
+      if (seatMap.seats && seatMap.seats.length > 0) {
+        for (const group of seatMap.seats) {
+          if (group.list && group.list.length > 0) {
+            availableSeat = group.list.find((seat: any) => seat.isAvailable === true);
+            if (availableSeat) break;
+          }
+        }
+      }
+
+      if (!availableSeat) {
+        // Skip test if no available seats
+        console.warn('No available seats found for seat assignment test');
+        return;
+      }
+
+      // Create reservation with seat selection
+      const reservation = await createReservationOneWay(
+        app,
+        accessToken,
+        flightInstanceId,
+        fareClassCode,
+        availableSeat.flightSeatId,
+      );
+
+      // Verify reservation has seat information
+      const reservationResponse = await request(app.getHttpServer())
+        .get(`/reservations/${reservation.reservationId}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(reservationResponse.body.segments[0]).toHaveProperty('flightSeatId', availableSeat.flightSeatId);
+      expect(reservationResponse.body.segments[0]).toHaveProperty('seatNumber', availableSeat.seatNumber);
+
+      // Create booking from reservation
+      const response = await request(app.getHttpServer())
+        .post(`/bookings?reservationId=${reservation.reservationId}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          passengers: [
+            {
+              passengerType: 'ADT',
+              fullname: 'Test Passenger',
+              dob: '1990-01-15',
+              gender: 'Male',
+              documentNumber: `001234567890${Date.now()}`,
+            },
+          ],
+          contactFullname: 'Test Contact',
+          contactEmail: 'test@example.com',
+          contactPhone: '0901234567',
+          channel: 'web',
+        })
+        .expect(201);
+
+      expect(response.body).toHaveProperty('bookingId');
+      expect(response.body).toHaveProperty('pnrCode');
+      expect(response.body).toHaveProperty('totalAmount');
+      expect(response.body).toHaveProperty('status', 'pending');
+    });
+
+    it('should create booking without seat assignment (seat was not selected in reservation)', async () => {
+      // Create reservation without seat selection
+      const reservation = await createReservationOneWay(
+        app,
+        accessToken,
+        flightInstanceId,
+        fareClassCode,
+        // No flightSeatId - seat not selected
+      );
+
+      // Create booking from reservation
+      const response = await request(app.getHttpServer())
+        .post(`/bookings?reservationId=${reservation.reservationId}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          passengers: [
+            {
+              passengerType: 'ADT',
+              fullname: 'Test Passenger',
+              dob: '1990-01-15',
+              gender: 'Male',
+              documentNumber: `001234567890${Date.now()}`,
+            },
+          ],
+          contactFullname: 'Test Contact',
+          contactEmail: 'test@example.com',
+          contactPhone: '0901234567',
+          channel: 'web',
+        })
+        .expect(201);
+
+      expect(response.body).toHaveProperty('bookingId');
+      expect(response.body).toHaveProperty('pnrCode');
     });
   });
 });

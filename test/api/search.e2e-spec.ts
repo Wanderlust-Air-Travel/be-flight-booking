@@ -6,6 +6,7 @@ import {
   searchFlightsOneWay,
   searchFlightsRoundTrip,
   getFareOptions,
+  getSeatMap,
   generateFutureDate,
 } from '../helpers/test-helpers';
 
@@ -395,6 +396,142 @@ describe('Search API (e2e)', () => {
         .expect(400);
 
       expect(response.body).toHaveProperty('statusCode', 400);
+    });
+  });
+
+  describe('GET /search/seats', () => {
+    let flightInstanceId: string;
+
+    beforeAll(async () => {
+      // Get a flight instance ID from search
+      const searchResult = await searchFlightsOneWay(app);
+      if (searchResult.outbound && searchResult.outbound.length > 0) {
+        flightInstanceId = searchResult.outbound[0].flightInstanceId;
+      } else {
+        throw new Error('No flights found for testing');
+      }
+    });
+
+    it('should get seat map successfully for economy class (happy case)', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/search/seats')
+        .query({
+          flightInstanceId,
+          cabinType: 'economy',
+        })
+        .expect(200);
+
+      expect(response.body).toHaveProperty('flightInstanceId', flightInstanceId);
+      expect(response.body).toHaveProperty('flightNumber');
+      expect(response.body).toHaveProperty('cabinType', 'economy');
+      expect(response.body).toHaveProperty('seats');
+      expect(Array.isArray(response.body.seats)).toBe(true);
+      
+      if (response.body.seats.length > 0) {
+        const seatGroup = response.body.seats[0];
+        expect(seatGroup).toHaveProperty('id');
+        expect(seatGroup).toHaveProperty('list');
+        expect(Array.isArray(seatGroup.list)).toBe(true);
+        
+        if (seatGroup.list.length > 0) {
+          const seat = seatGroup.list[0];
+          expect(seat).toHaveProperty('flightSeatId');
+          expect(seat).toHaveProperty('seatNumber');
+          expect(seat).toHaveProperty('cabinClassCode');
+          expect(seat).toHaveProperty('position');
+          expect(seat).toHaveProperty('isAvailable');
+          expect(['left', 'right']).toContain(seat.position);
+        }
+      }
+    });
+
+    it('should get seat map successfully for business class (happy case)', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/search/seats')
+        .query({
+          flightInstanceId,
+          cabinType: 'business',
+        })
+        .expect(200);
+
+      expect(response.body).toHaveProperty('flightInstanceId', flightInstanceId);
+      expect(response.body).toHaveProperty('cabinType', 'business');
+      expect(response.body).toHaveProperty('seats');
+      expect(Array.isArray(response.body.seats)).toBe(true);
+    });
+
+    it('should fail with missing flightInstanceId (unhappy case)', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/search/seats')
+        .query({
+          cabinType: 'economy',
+        })
+        .expect(400);
+
+      expect(response.body).toHaveProperty('statusCode', 400);
+    });
+
+    it('should fail with missing cabinType (unhappy case)', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/search/seats')
+        .query({
+          flightInstanceId,
+        })
+        .expect(400);
+
+      expect(response.body).toHaveProperty('statusCode', 400);
+    });
+
+    it('should fail with invalid flightInstanceId (unhappy case)', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/search/seats')
+        .query({
+          flightInstanceId: '01900000-0000-7000-8000-000000000000', // Valid UUID v7 format but doesn't exist
+          cabinType: 'economy',
+        })
+        .expect(404);
+
+      expect(response.body).toHaveProperty('statusCode', 404);
+    });
+
+    it('should fail with invalid cabinType (unhappy case)', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/search/seats')
+        .query({
+          flightInstanceId,
+          cabinType: 'invalid-cabin',
+        })
+        .expect(400);
+
+      expect(response.body).toHaveProperty('statusCode', 400);
+    });
+
+    it('should return seats with correct structure (happy case)', async () => {
+      const seatMap = await getSeatMap(app, flightInstanceId, 'economy');
+      
+      expect(seatMap).toHaveProperty('seats');
+      expect(Array.isArray(seatMap.seats)).toBe(true);
+      
+      // Check if there are any seats
+      if (seatMap.seats.length > 0) {
+        const seatGroup = seatMap.seats[0];
+        expect(seatGroup).toHaveProperty('id');
+        expect(['business', 'economy']).toContain(seatGroup.id);
+        expect(seatGroup).toHaveProperty('list');
+        
+        // Check seat properties
+        if (seatGroup.list.length > 0) {
+          const seat = seatGroup.list[0];
+          expect(seat).toHaveProperty('flightSeatId');
+          expect(seat).toHaveProperty('seatNumber');
+          expect(seat).toHaveProperty('cabinClassCode');
+          expect(seat).toHaveProperty('seatType');
+          expect(seat).toHaveProperty('isExitRow');
+          expect(seat).toHaveProperty('position');
+          expect(seat).toHaveProperty('isAvailable');
+          expect(seat).toHaveProperty('note');
+        }
+      }
     });
   });
 });
