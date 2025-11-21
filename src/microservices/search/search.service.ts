@@ -12,9 +12,12 @@ import { SeatConfiguration } from 'src/shared/entities/seat/seat-configuration.e
 import { SearchFlightsDto } from './dto/search-flights.dto';
 import { FlightResult } from './interfaces/flight-result.interface';
 import { GetFareOptionsDto } from './dto/get-fare-options.dto';
+import { GetSeatMapDto } from './dto/get-seat-map.dto';
 import { TripType, CabinType } from 'src/shared/constants/enums';
 import { FareOptionsResponseDto, FareOptionsGroupDto } from './dto/fare-options-response.dto';
 import { FareOptionDto, FareDescriptionItemDto } from './dto/fare-option.dto';
+import { SeatMapResponseDto, SeatMapGroupDto } from './dto/seat-map-response.dto';
+import { SeatDto } from './dto/seat.dto';
 
 @Injectable()
 export class SearchService {
@@ -394,5 +397,159 @@ export class SearchService {
 		}
 
 		return 0;
+	}
+
+	/**
+	 * Get seat map for a flight instance filtered by cabin type
+	 */
+	async getSeatMap(dto: GetSeatMapDto): Promise<SeatMapResponseDto> {
+		// Get flight instance with aircraft and aircraft type
+		const flightInstance = await this.instanceRepo
+			.createQueryBuilder('fi')
+			.leftJoinAndSelect('fi.aircraft', 'aircraft')
+			.leftJoinAndSelect('aircraft.aircraft_type', 'aircraft_type')
+			.where('fi.flight_instance_id = :id', { id: dto.flightInstanceId })
+			.getOne();
+
+		if (!flightInstance) {
+			throw new NotFoundException('Flight instance not found');
+		}
+
+		if (!flightInstance.aircraft || !flightInstance.aircraft.aircraft_type) {
+			throw new BadRequestException('Flight instance does not have aircraft assigned');
+		}
+
+		// Get cabin class codes for the requested cabin type
+		const cabinClassCodes = this.CABIN_TYPE_MAP[dto.cabinType];
+		if (!cabinClassCodes || cabinClassCodes.length === 0) {
+			throw new BadRequestException(`Invalid cabin type: ${dto.cabinType}`);
+		}
+
+		// Get all seats for this flight instance filtered by cabin class
+		const aircraftTypeId = flightInstance.aircraft.aircraft_type.aircraft_type_id;
+		const seats = await this.seatRepo
+			.createQueryBuilder('seat')
+			.innerJoinAndSelect('seat.seat_config', 'config')
+			.innerJoinAndSelect('config.cabin_class', 'cabin')
+			.where('seat.flight_instance_id = :instanceId', { instanceId: dto.flightInstanceId })
+			.andWhere('cabin.cabin_class_code IN (:...codes)', { codes: cabinClassCodes })
+			.andWhere('config.aircraft_type_id = :aircraftTypeId', { aircraftTypeId })
+			.orderBy('seat.seat_number', 'ASC')
+			.getMany();
+
+		// Get all fare classes for this cabin type to map note codes
+		const fareClasses = await this.fareClassRepo
+			.createQueryBuilder('fare')
+			.innerJoinAndSelect('fare.cabin_class', 'cabin')
+			.where('cabin.cabin_class_code IN (:...codes)', { codes: cabinClassCodes })
+			.getMany();
+
+		// Create fare class code to note mapping
+		const fareClassNoteMap = new Map<string, string>();
+		fareClasses.forEach((fareClass) => {
+			const note = this.getFareClassNote(fareClass.fare_class_code, dto.cabinType);
+			fareClassNoteMap.set(fareClass.fare_class_code, note);
+		});
+
+		// Group seats by cabin class and convert to DTOs
+		const seatGroups = new Map<string, SeatDto[]>();
+		
+		for (const seat of seats) {
+			const cabinCode = seat.seat_config.cabin_class.cabin_class_code;
+			if (!seatGroups.has(cabinCode)) {
+				seatGroups.set(cabinCode, []);
+			}
+
+			// Determine position (left or right) based on seat number
+			const position = this.determineSeatPosition(seat.seat_number, dto.cabinType);
+
+			// Get note code from fare class (default to first fare class note for this cabin)
+			// In real scenario, we might need to map seat to specific fare class
+			// For now, we'll use a default note based on cabin type
+			const defaultNote = dto.cabinType === CabinType.BUSINESS ? 'bf' : 'ef';
+			const note = fareClassNoteMap.size > 0 
+				? Array.from(fareClassNoteMap.values())[0] 
+				: defaultNote;
+
+			const seatDto: SeatDto = {
+				flightSeatId: seat.flight_seat_id,
+				seatNumber: seat.seat_number,
+				cabinClassCode: cabinCode,
+				seatType: seat.seat_config.seat_type,
+				isExitRow: seat.seat_config.is_exit_row,
+				position,
+				isAvailable: seat.is_available,
+				note,
+			};
+
+			seatGroups.get(cabinCode)!.push(seatDto);
+		}
+
+		// Convert to response format
+		const seatMapGroups: SeatMapGroupDto[] = [];
+		for (const [cabinCode, seatList] of seatGroups.entries()) {
+			const groupId = cabinCode === 'J' ? 'business' : 'economy';
+			seatMapGroups.push({
+				id: groupId as 'business' | 'economy',
+				list: seatList,
+			});
+		}
+
+		return {
+			flightInstanceId: dto.flightInstanceId,
+			flightNumber: flightInstance.flight_number,
+			cabinType: dto.cabinType,
+			seats: seatMapGroups,
+		};
+	}
+
+	/**
+	 * Determine seat position (left or right) based on seat number and cabin type
+	 * Business: 2-2 config (A-B | C-D) -> A,B = left, C,D = right
+	 * Economy: 3-3 config (A-B-C | D-E-F) -> A,B,C = left, D,E,F = right
+	 */
+	private determineSeatPosition(seatNumber: string, cabinType: CabinType): 'left' | 'right' {
+		// Extract letter from seat number (e.g., "A1" -> "A", "10C" -> "C")
+		const letterMatch = seatNumber.match(/[A-Z]/i);
+		if (!letterMatch) {
+			// Default to left if can't parse
+			return 'left';
+		}
+
+		const letter = letterMatch[0].toUpperCase();
+
+		if (cabinType === CabinType.BUSINESS) {
+			// Business: A-B = left, C-D = right
+			return letter <= 'B' ? 'left' : 'right';
+		} else {
+			// Economy: A-B-C = left, D-E-F = right
+			return letter <= 'C' ? 'left' : 'right';
+		}
+	}
+
+	/**
+	 * Get fare class note code (bf, ef, es, em) based on fare class code and cabin type
+	 */
+	private getFareClassNote(fareClassCode: string, cabinType: CabinType): string {
+		const code = fareClassCode.toUpperCase();
+
+		if (cabinType === CabinType.BUSINESS) {
+			if (code.includes('FLX') || code.includes('FLEX') || code === 'JF') {
+				return 'bf'; // Business Flex
+			}
+			return 'bs'; // Business Smart (default)
+		} else {
+			// Economy
+			if (code.includes('FLX') || code.includes('FLEX') || code === 'YF') {
+				return 'ef'; // Economy Flex
+			}
+			if (code.includes('SM') || code === 'Y' || code === 'YS') {
+				return 'es'; // Economy Smart
+			}
+			if (code.includes('SMX') || code.includes('SAVER')) {
+				return 'em'; // Economy Saver Max
+			}
+			return 'ef'; // Default to Economy Flex
+		}
 	}
 }

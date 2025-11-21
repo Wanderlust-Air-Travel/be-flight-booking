@@ -43,6 +43,20 @@ export class ReservationSegmentDto {
 		example: 0,
 	})
 	feeAmount!: number;
+
+	@ApiProperty({
+		description: 'Flight seat ID (if seat was selected)',
+		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc72',
+		required: false,
+	})
+	flightSeatId?: string | null;
+
+	@ApiProperty({
+		description: 'Seat number (if seat was selected)',
+		example: 'A1',
+		required: false,
+	})
+	seatNumber?: string | null;
 }
 
 export class ReservationResponseDto {

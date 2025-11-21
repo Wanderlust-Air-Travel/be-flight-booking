@@ -4,6 +4,7 @@ export const SEARCH_MS = {
 	PATTERN: {
 		SEARCH_FLIGHTS: 'search.flights',
 		GET_FARE_OPTIONS: 'search.fare-options',
+		GET_SEAT_MAP: 'search.seat-map',
 	},
 } as const;
 

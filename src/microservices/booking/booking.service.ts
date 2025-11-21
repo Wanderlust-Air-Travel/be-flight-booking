@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - uuid package is ESM but works fine with CommonJS
 import { v7 as uuidv7 } from 'uuid';
 import { Booking } from 'src/shared/entities/booking/booking.entity';
 import { BookingPassenger } from 'src/shared/entities/booking/booking-passenger.entity';
@@ -870,8 +872,37 @@ export class BookingService {
 
 			// Step 14: Create booking segments from reservation (supports multiple segments)
 			// For each segment in reservation, create booking segments for all passengers
-			for (const validatedSegment of validatedSegments) {
-				for (const bookingPassenger of bookingPassengers) {
+			// Map reservation segments to validated segments by flightInstanceId
+			const reservationSegmentMap = new Map(
+				reservation.segments.map((seg) => [seg.flightInstanceId, seg]),
+			);
+
+			for (let i = 0; i < validatedSegments.length; i++) {
+				const validatedSegment = validatedSegments[i];
+				const reservationSegment = reservationSegmentMap.get(validatedSegment.flightInstance.flight_instance_id);
+
+				for (let passengerIndex = 0; passengerIndex < bookingPassengers.length; passengerIndex++) {
+					const bookingPassenger = bookingPassengers[passengerIndex];
+					
+					// Assign seat if available from reservation
+					// For multiple passengers, assign seat only to the first passenger if seat was selected
+					// (In real scenario, you might want to assign seats to all passengers)
+					let flightSeat: FlightSeat | null = null;
+					if (reservationSegment?.flightSeatId && passengerIndex === 0) {
+						flightSeat = await queryRunner.manager.findOne(FlightSeat, {
+							where: { flight_seat_id: reservationSegment.flightSeatId },
+						});
+						if (!flightSeat) {
+							console.warn(
+								`Flight seat ${reservationSegment.flightSeatId} from reservation not found. Creating segment without seat assignment.`,
+							);
+						} else {
+							// Ensure seat is still unavailable (should be from reservation)
+							flightSeat.is_available = false;
+							await queryRunner.manager.save(flightSeat);
+						}
+					}
+
 					const bookingSegment = this.bookingSegmentRepo.create({
 						booking_segment_id: uuidv7(),
 						booking: savedBooking,
@@ -882,7 +913,7 @@ export class BookingService {
 						tax_amount: validatedSegment.taxAmount,
 						fee_amount: validatedSegment.feeAmount,
 						status: 'booked',
-						flight_seat: null, // Seat can be assigned later
+						flight_seat: flightSeat, // Assign seat from reservation if available
 					});
 					await queryRunner.manager.save(bookingSegment);
 				}

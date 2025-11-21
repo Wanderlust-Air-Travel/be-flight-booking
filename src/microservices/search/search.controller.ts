@@ -4,6 +4,7 @@ import { SEARCH_MS } from './search.messages';
 import { SearchService } from './search.service';
 import { SearchFlightsDto } from './dto/search-flights.dto';
 import { GetFareOptionsDto } from './dto/get-fare-options.dto';
+import { GetSeatMapDto } from './dto/get-seat-map.dto';
 
 @Controller()
 export class SearchMsController {
@@ -34,6 +35,20 @@ export class SearchMsController {
 			return result;
 		} catch (error: any) {
 			this.logger.error('Get fare options error:', error);
+			// Re-throw để NestJS exception filter xử lý
+			throw error;
+		}
+	}
+
+	@MessagePattern(SEARCH_MS.PATTERN.GET_SEAT_MAP)
+	async handleGetSeatMap(dto: GetSeatMapDto) {
+		try {
+			this.logger.log(`Get seat map: ${dto.flightInstanceId} - ${dto.cabinType}`);
+			const result = await this.searchService.getSeatMap(dto);
+			this.logger.log(`Found ${result.seats.length} cabin groups with seats`);
+			return result;
+		} catch (error: any) {
+			this.logger.error('Get seat map error:', error);
 			// Re-throw để NestJS exception filter xử lý
 			throw error;
 		}

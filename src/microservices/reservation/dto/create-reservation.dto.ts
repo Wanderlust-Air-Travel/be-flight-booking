@@ -21,6 +21,15 @@ export class CreateReservationSegmentDto {
 	fareClassCode!: string;
 
 	@ApiProperty({
+		description: 'Flight seat ID (from search/seats API) - optional, can be selected later',
+		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc72',
+		required: false,
+	})
+	@IsOptional()
+	@IsUUIDv7()
+	flightSeatId?: string;
+
+	@ApiProperty({
 		description: 'Segment type: outbound or inbound (for round-trip bookings)',
 		enum: ['outbound', 'inbound'],
 		example: 'outbound',

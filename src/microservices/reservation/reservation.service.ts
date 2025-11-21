@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan } from 'typeorm';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - uuid package is ESM but works fine with CommonJS
 import { v7 as uuidv7 } from 'uuid';
 import { FlightInstance } from 'src/shared/entities/flight/flight-instance.entity';
 import { FlightSeat } from 'src/shared/entities/flight/flight-seat.entity';
@@ -154,6 +156,8 @@ export class ReservationService {
 			baseFare: number;
 			taxAmount: number;
 			feeAmount: number;
+			flightSeatId?: string | null;
+			seatNumber?: string | null;
 		}> = [];
 		let totalAmount = 0;
 
@@ -180,14 +184,60 @@ export class ReservationService {
 			const cabinType =
 				fareClass.cabin_class.cabin_class_code === 'Y' ? CabinType.ECONOMY : CabinType.BUSINESS;
 
+			// Validate and assign seat if provided
+			let flightSeatId: string | null = null;
+			let seatNumber: string | null = null;
+			
+			if (segmentDto.flightSeatId) {
+				const flightSeat = await this.flightSeatRepo.findOne({
+					where: { flight_seat_id: segmentDto.flightSeatId },
+					relations: ['seat_config', 'seat_config.cabin_class', 'flight_instance'],
+				});
+
+				if (!flightSeat) {
+					throw new NotFoundException(`Flight seat ${segmentDto.flightSeatId} not found`);
+				}
+
+				// Validate seat belongs to the correct flight instance
+				if (flightSeat.flight_instance_id !== segmentDto.flightInstanceId) {
+					throw new BadRequestException(
+						`Seat ${segmentDto.flightSeatId} does not belong to flight instance ${segmentDto.flightInstanceId}`,
+					);
+				}
+
+				// Validate seat belongs to the correct cabin class
+				if (flightSeat.seat_config.cabin_class.cabin_class_code !== fareClass.cabin_class.cabin_class_code) {
+					throw new BadRequestException(
+						`Seat ${segmentDto.flightSeatId} does not belong to cabin class ${fareClass.cabin_class.cabin_class_code}`,
+					);
+				}
+
+				// Validate seat is available
+				if (!flightSeat.is_available) {
+					throw new BadRequestException(`Seat ${flightSeat.seat_number} is not available`);
+				}
+
+				// Mark seat as unavailable (hold the seat)
+				flightSeat.is_available = false;
+				await this.flightSeatRepo.save(flightSeat);
+
+				flightSeatId = flightSeat.flight_seat_id;
+				seatNumber = flightSeat.seat_number;
+			}
+
 			// Calculate price
 			const baseFare = this.calculateFarePrice(fareClass.fare_class_code, cabinType);
 			const taxAmount = 0;
 			const feeAmount = 0;
 			const segmentTotal = (baseFare + taxAmount + feeAmount) * dto.numberOfPassengers;
 
-			// Validate availability
-			await this.validateAvailability(segmentDto.flightInstanceId, fareClass, dto.numberOfPassengers);
+			// Validate availability (only if no seat was selected, or for additional passengers)
+			if (!segmentDto.flightSeatId) {
+				await this.validateAvailability(segmentDto.flightInstanceId, fareClass, dto.numberOfPassengers);
+			} else if (dto.numberOfPassengers > 1) {
+				// If seat was selected but multiple passengers, validate remaining seats
+				await this.validateAvailability(segmentDto.flightInstanceId, fareClass, dto.numberOfPassengers - 1);
+			}
 
 			validatedSegments.push({
 				segmentId: uuidv7(),
@@ -197,6 +247,8 @@ export class ReservationService {
 				baseFare,
 				taxAmount,
 				feeAmount,
+				flightSeatId: flightSeatId || null,
+				seatNumber: seatNumber || null,
 			});
 
 			totalAmount += segmentTotal;
@@ -312,6 +364,15 @@ export class ReservationService {
 			const now = new Date();
 			const expiresAt = new Date(reservation.expiresAt);
 			if (expiresAt < now) {
+				// Release seats before marking as expired
+				for (const segment of reservation.segments) {
+					if (segment.flightSeatId) {
+						await this.flightSeatRepo.update(
+							{ flight_seat_id: segment.flightSeatId },
+							{ is_available: true },
+						);
+					}
+				}
 				// Update status to 'expired' for consistency (optimization)
 				reservation.status = 'expired';
 				await this.redisService.del(reservationKey);
@@ -348,6 +409,16 @@ export class ReservationService {
 		// Update status to 'expired' if expired and still marked as 'pending' (lazy update)
 		const now = new Date();
 		if (dbReservation.expires_at < now && dbReservation.status === 'pending') {
+			// Release seats before marking as expired
+			const segments = JSON.parse(dbReservation.segments_json);
+			for (const segment of segments) {
+				if (segment.flightSeatId) {
+					await this.flightSeatRepo.update(
+						{ flight_seat_id: segment.flightSeatId },
+						{ is_available: true },
+					);
+				}
+			}
 			dbReservation.status = 'expired';
 			await this.reservationRepo.save(dbReservation);
 		}
@@ -375,12 +446,23 @@ export class ReservationService {
 
 	/**
 	 * Cancel reservation (Hybrid: Update Database + Redis)
+	 * Also releases any reserved seats
 	 */
 	async cancelReservation(reservationId: string): Promise<{ success: boolean; message: string }> {
 		const reservation = await this.getReservation(reservationId);
 
 		if (reservation.status !== 'active' && reservation.status !== 'pending') {
 			throw new BadRequestException(`Cannot cancel reservation with status: ${reservation.status}`);
+		}
+
+		// Release seats if any were reserved
+		for (const segment of reservation.segments) {
+			if (segment.flightSeatId) {
+				await this.flightSeatRepo.update(
+					{ flight_seat_id: segment.flightSeatId },
+					{ is_available: true },
+				);
+			}
 		}
 
 		// 1. Update Database status
@@ -515,11 +597,33 @@ export class ReservationService {
 
 	/**
 	 * Cleanup expired reservations (update status to 'expired' in Database)
+	 * Also releases any reserved seats
 	 * Should be called periodically (e.g., via cron job or scheduled task)
 	 * Returns number of reservations updated
 	 */
 	async cleanupExpiredReservations(): Promise<number> {
 		const now = new Date();
+		const expiredReservations = await this.reservationRepo.find({
+			where: {
+				status: 'pending',
+				expires_at: LessThan(now),
+			},
+		});
+
+		// Release seats for expired reservations
+		for (const reservation of expiredReservations) {
+			const segments = JSON.parse(reservation.segments_json);
+			for (const segment of segments) {
+				if (segment.flightSeatId) {
+					await this.flightSeatRepo.update(
+						{ flight_seat_id: segment.flightSeatId },
+						{ is_available: true },
+					);
+				}
+			}
+		}
+
+		// Update status to expired
 		const result = await this.reservationRepo.update(
 			{
 				status: 'pending',

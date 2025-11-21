@@ -9,6 +9,8 @@ import { SearchFlightsResponseDto } from './dto/search-flights-response.dto';
 import { GetFareOptionsDto } from './dto/get-fare-options.dto';
 import { FareOptionsResponseDto } from './dto/fare-options-response.dto';
 import { FareOptionDto } from './dto/fare-option.dto';
+import { GetSeatMapDto } from './dto/get-seat-map.dto';
+import { SeatMapResponseDto } from './dto/seat-map-response.dto';
 
 @ApiTags('search')
 @Controller('search')
@@ -295,6 +297,93 @@ export class SearchController {
 				throw new NotFoundException('Flight instance not found. Please check the flight instance ID and try again.');
 			}
 			throw new BadRequestException(`Get fare options failed: ${errorMessage}. Please check the flight instance ID and try again.`);
+		}
+	}
+
+	@Get('seats')
+	@ApiOperation({
+		summary: 'Get seat map for a flight instance',
+		description: 'Get available seat map for a specific flight instance and cabin type. Returns seat map grouped by cabin class with seat availability and details.',
+	})
+	@ApiOkResponse({
+		description: 'Seat map for the flight instance',
+		type: SeatMapResponseDto,
+	})
+	@ApiBadRequestResponse({
+		description: 'Invalid request parameters',
+	})
+	@ApiResponse({
+		status: 404,
+		description: 'Flight instance not found',
+	})
+	@ApiQuery({
+		name: 'flightInstanceId',
+		required: true,
+		description: 'Flight instance ID',
+		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+		type: String,
+	})
+	@ApiQuery({
+		name: 'cabinType',
+		required: true,
+		enum: CabinType,
+		description: 'Cabin type: economy or business',
+		example: CabinType.ECONOMY,
+	})
+	async getSeatMap(@Query() query: GetSeatMapDto): Promise<SeatMapResponseDto> {
+		try {
+			// Manual validation and transformation if needed
+			if (!query.flightInstanceId || typeof query.flightInstanceId !== 'string') {
+				throw new Error('flightInstanceId is required and must be a string');
+			}
+			
+			const trimmedFlightInstanceId = query.flightInstanceId.trim();
+			console.log('[DEBUG] Get seat map request:', {
+				original: query.flightInstanceId,
+				trimmed: trimmedFlightInstanceId,
+				length: trimmedFlightInstanceId.length,
+				cabinType: query.cabinType,
+			});
+			
+			const payload: GetSeatMapDto = {
+				flightInstanceId: trimmedFlightInstanceId,
+				cabinType: query.cabinType,
+			};
+			const result = await firstValueFrom(this.client.send<SeatMapResponseDto>('search.seat-map', payload));
+			
+			return result;
+		} catch (error: any) {
+			console.error('Get seat map error:', error);
+			// Re-throw NestJS exceptions as-is (including NotFoundException)
+			if (error?.statusCode && error?.message) {
+				// Map NotFoundException from microservice to 404
+				if (error?.statusCode === 404) {
+					throw new NotFoundException(error.message);
+				}
+				throw error;
+			}
+			// Handle microservice connection errors
+			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+				throw new InternalServerErrorException('Search microservice is not running. Please start it with: npm run start:search');
+			}
+			// Handle timeout errors
+			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
+				throw new InternalServerErrorException('Search microservice request timeout. Please check if the service is running.');
+			}
+			// Handle microservice error format: { status: 'error', message: '...' }
+			if (error?.status === 'error' && error?.message) {
+				// Check if message indicates not found
+				const message = error.message.toLowerCase();
+				if (message.includes('not found') || message.includes('notfound') || 
+				    message.includes('not exist') || message.includes('does not exist') ||
+				    message.includes('flight instance not found') || message.includes('flight not found')) {
+					throw new NotFoundException(error.message || 'Flight instance not found');
+				}
+				throw new BadRequestException(`Get seat map failed: ${error.message}`);
+			}
+			// Generic error - provide more context
+			const errorMessage = error?.message || error?.toString() || 'Unknown error';
+			throw new BadRequestException(`Get seat map failed: ${errorMessage}. Please check the flight instance ID and try again.`);
 		}
 	}
 }
