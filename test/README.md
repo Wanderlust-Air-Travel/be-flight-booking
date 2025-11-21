@@ -2,6 +2,8 @@
 
 Test suite toàn diện cho tất cả các API endpoints của Flight Booking System.
 
+**Lưu ý:** Hệ thống chỉ hỗ trợ bay nội địa Việt Nam. Tất cả test cases sử dụng airports Việt Nam (HAN, SGN, DAD, etc.).
+
 ## Cấu trúc
 
 ```

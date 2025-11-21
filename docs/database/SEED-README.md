@@ -2,6 +2,8 @@
 
 Script seed database với hàng ngàn records cho mỗi table, data realistic và tuân thủ tất cả constraints.
 
+**Lưu ý quan trọng:** Hệ thống chỉ hỗ trợ bay nội địa Việt Nam. Tất cả airports đều là sân bay Việt Nam, tất cả routes đều là domestic routes.
+
 ## Cách chạy
 
 ```bash
@@ -48,15 +50,16 @@ Script SQL để xóa toàn bộ data trong database, cho phép chạy lại see
 - Seat types: Window, Aisle, Middle
 
 ### 5. Airports
-- 20 airports (10 domestic Vietnam + 10 international)
-- Bao gồm: HAN, SGN, DAD, HPH, VCA, PQC, VCL, DLI, UIH, TBB
-- International: BKK, SIN, KUL, NRT, ICN, PEK, PVG, HKG, TPE, SYD
+- 20 airports (tất cả đều là sân bay nội địa Việt Nam)
+- Bao gồm: HAN, SGN, DAD, CXR, PQC, HUI, VCA, HPH, VDO, THD, VII, DIN, VCL, UIH, TBB, PXU, BMV, DLI, CAH, VKG
+- Tất cả airports đều có country = 'Vietnam'
+- Hệ thống chỉ hỗ trợ bay nội địa giữa các tỉnh thành Việt Nam
 
 ### 6. Routes
-- Tạo routes giữa tất cả airports
-- Domestic routes: is_domestic = true
-- International routes: is_domestic = false
-- Distance được tính tự động
+- Tạo routes giữa tất cả airports Việt Nam
+- Tất cả routes đều là domestic (is_domestic = true)
+- Distance được tính tự động (200-1200 km cho routes nội địa)
+- Tổng cộng: 20 x 19 = 380 routes (mỗi airport đến 19 airports khác)
 
 ### 7. Users & Passengers
 - 500 users với:

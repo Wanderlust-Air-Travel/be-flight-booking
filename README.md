@@ -145,6 +145,10 @@ Tất cả tài liệu trong thư mục [`docs/`](./docs/):
 
 ## Features
 
+- **Domestic Flights Only**: Hệ thống chỉ hỗ trợ bay nội địa Việt Nam
+  - 20 sân bay nội địa Việt Nam (HAN, SGN, DAD, CXR, PQC, HUI, VCA, HPH, VDO, THD, VII, DIN, VCL, UIH, TBB, PXU, BMV, DLI, CAH, VKG)
+  - Tất cả routes đều là domestic routes (is_domestic = true)
+  - Không hỗ trợ bay quốc tế
 - **Microservices Architecture**: Tách biệt Search, Services, Routes, Booking, Reservation, Payment, Email
 - **Backend-managed State**: Reservation Service quản lý state trong Redis (Hybrid: Database + Redis)
 - **Seat Selection**: Tích hợp tính năng chọn ghế ngồi vào reservation và booking flow

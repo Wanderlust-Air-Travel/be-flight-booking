@@ -1,5 +1,7 @@
 # API Documentation - Flight Booking Backend
 
+**Lưu ý quan trọng:** Hệ thống chỉ hỗ trợ bay nội địa Việt Nam. Tất cả airports đều là sân bay Việt Nam, tất cả routes đều là domestic routes.
+
 ## Base URL
 
 ```
@@ -1975,9 +1977,28 @@ GET /services/deals
 
 ## Common IATA Codes (Sân bay nội địa Việt Nam)
 
+Hệ thống chỉ hỗ trợ bay nội địa giữa các tỉnh thành Việt Nam. Danh sách đầy đủ các sân bay:
+
 - **HAN**: Noi Bai International Airport (Hà Nội)
 - **SGN**: Tan Son Nhat International Airport (TP. Hồ Chí Minh)
 - **DAD**: Da Nang International Airport (Đà Nẵng)
+- **CXR**: Cam Ranh International Airport (Nha Trang)
+- **PQC**: Phu Quoc International Airport (Phú Quốc)
+- **HUI**: Phu Bai International Airport (Huế)
+- **VCA**: Can Tho International Airport (Cần Thơ)
+- **HPH**: Cat Bi International Airport (Hải Phòng)
+- **VDO**: Van Don International Airport (Quảng Ninh)
+- **THD**: Tho Xuan Airport (Thanh Hóa)
+- **VII**: Vinh Airport (Vinh)
+- **DIN**: Dien Bien Phu Airport (Điện Biên)
+- **VCL**: Chu Lai Airport (Chu Lai)
+- **UIH**: Phu Cat Airport (Quy Nhơn)
+- **TBB**: Dong Tac Airport (Tuy Hòa)
+- **PXU**: Pleiku Airport (Pleiku)
+- **BMV**: Buon Ma Thuot Airport (Buôn Ma Thuột)
+- **DLI**: Lien Khuong Airport (Đà Lạt)
+- **CAH**: Ca Mau Airport (Cà Mau)
+- **VKG**: Rach Gia Airport (Rạch Giá)
 
 ---
 
