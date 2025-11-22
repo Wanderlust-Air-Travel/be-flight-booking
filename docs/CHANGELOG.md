@@ -4,6 +4,41 @@ Tất cả các thay đổi quan trọng của project sẽ được ghi nhận 
 
 ## [Unreleased]
 
+### Fixed
+
+- **Error Handling Standardization - Infrastructure vs Business Logic Errors (2025-11-22)**:
+  - **Issue**: API Gateway trả về `400 Bad Request` cho connection errors (Connection closed, ECONNREFUSED), không phân biệt rõ giữa infrastructure errors và business logic errors
+  - **Fix**:
+    - **SearchController**: Cập nhật error handling để return `503 Service Unavailable` cho connection errors
+      - Methods: `searchFlights`, `getFareOptions`, `getSeatMap`
+      - Connection closed → `503 Service Unavailable`
+      - ECONNREFUSED → `503 Service Unavailable`
+      - ETIMEDOUT → `503 Service Unavailable`
+    - **PaymentController**: Cập nhật error handling để return `503 Service Unavailable` cho connection errors
+      - Methods: `createPayment`, `processPayment`, `getPayment`, `getPaymentsByBooking`, `updatePaymentStatus`, `handleWebhook`
+      - Connection closed → `503 Service Unavailable`
+      - ECONNREFUSED → `503 Service Unavailable`
+      - ETIMEDOUT → `503 Service Unavailable`
+  - **Best Practice**:
+    - **Infrastructure errors** (microservice down, connection errors) → **503 Service Unavailable**
+    - **Business logic errors** (validation errors, not found) → **400 Bad Request / 404 Not Found**
+    - **Unexpected server errors** → **500 Internal Server Error**
+  - **Error Response Format**: Tất cả error responses đều có format chuẩn với `statusCode`, `timestamp`, `path`, `method`, `requestId`, `message`, `error`
+  - **Impact**:
+    - API Gateway giờ trả về status codes đúng theo HTTP best practices
+    - Clients có thể phân biệt infrastructure errors (503) và business logic errors (400/404)
+    - Dễ dàng troubleshoot khi microservices không chạy
+    - Consistent error response format across all endpoints
+  - **Updated Documentation**:
+    - `docs/api/API_DOCS.md`: Cập nhật Error Handling section với 503 Service Unavailable và examples
+    - `docs/api/CHANGELOG_API_DOCS.md`: Log thay đổi về error handling
+    - `docs/CHANGELOG.md`: Log thay đổi về error handling
+    - `tools/Flight-Booking-API.postman_collection.json`: Cập nhật error examples với 503 responses
+  - **Files Modified**:
+    - `src/api-gateway/modules/search/search.controller.ts` - Updated error handling
+    - `src/api-gateway/modules/payment/payment.controller.ts` - Updated error handling
+    - `docs/api/API_DOCS.md` - Updated error handling documentation
+
 ### Added
 
 - **Seat Selection Feature**: Tích hợp tính năng chọn ghế ngồi vào reservation và booking flow
