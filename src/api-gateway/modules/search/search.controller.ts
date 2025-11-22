@@ -1,4 +1,4 @@
-import { Controller, Get, Query, BadRequestException, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Query, BadRequestException, InternalServerErrorException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ApiBadRequestResponse, ApiOkResponse, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ClientProxy } from '@nestjs/microservices';
 import { Inject } from '@nestjs/common';
@@ -146,13 +146,23 @@ export class SearchController {
 				}
 				throw error;
 			}
-			// Handle microservice connection errors
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException('Search microservice is not running. Please start it with: npm run start:search');
+			// Handle microservice connection errors - these are infrastructure issues (503)
+			const errorMessage = error?.message || error?.toString() || '';
+			const errorCode = error?.code || '';
+			
+			// Connection refused - microservice is not running
+			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
+				throw new ServiceUnavailableException('Search microservice is not available. Please ensure the service is running.');
 			}
-			// Handle timeout errors
-			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException('Search microservice request timeout. Please check if the service is running.');
+			
+			// Connection closed - microservice disconnected
+			if (errorMessage.includes('Connection closed') || errorMessage.includes('Connection closed')) {
+				throw new ServiceUnavailableException('Search microservice connection was closed. Please ensure the service is running.');
+			}
+			
+			// Timeout errors - microservice not responding
+			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+				throw new ServiceUnavailableException('Search microservice request timeout. The service may be unavailable or overloaded.');
 			}
 			// Handle microservice error format: { status: 'error', message: '...' }
 			if (error?.status === 'error' && error?.message) {
@@ -182,14 +192,16 @@ export class SearchController {
 				}
 				throw new BadRequestException(`Search failed: ${error.message}`);
 			}
-			// Generic error - provide more context
-			const errorMessage = error?.message || error?.toString() || 'Unknown error';
-			// If we get a generic error without details, it might be a not found case
-			// This is a fallback for when microservice doesn't properly serialize exceptions
-			if (errorMessage.toLowerCase().includes('internal server error') || errorMessage.toLowerCase().includes('error')) {
+			// If we get here, it's an unexpected error - log it and return appropriate status
+			// Check if it might be a "not found" case first
+			const lowerErrorMessage = errorMessage.toLowerCase();
+			if (lowerErrorMessage.includes('not found') || lowerErrorMessage.includes('not exist')) {
 				throw new NotFoundException('Resource not found. Please check your search parameters and try again.');
 			}
-			throw new BadRequestException(`Search failed: ${errorMessage}. Please check your search parameters and try again.`);
+			
+			// For any other unexpected errors, return 500 Internal Server Error
+			// (This should not happen if microservices are properly configured)
+			throw new InternalServerErrorException(`An unexpected error occurred while searching for flights. Please try again later.`);
 		}
 	}
 
@@ -257,13 +269,23 @@ export class SearchController {
 				}
 				throw error;
 			}
-			// Handle microservice connection errors
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException('Search microservice is not running. Please start it with: npm run start:search');
+			// Handle microservice connection errors - these are infrastructure issues (503)
+			const errorMessageForFare = error?.message || error?.toString() || '';
+			const errorCodeForFare = error?.code || '';
+			
+			// Connection refused - microservice is not running
+			if (errorCodeForFare === 'ECONNREFUSED' || errorMessageForFare.includes('ECONNREFUSED')) {
+				throw new ServiceUnavailableException('Search microservice is not available. Please ensure the service is running.');
 			}
-			// Handle timeout errors
-			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException('Search microservice request timeout. Please check if the service is running.');
+			
+			// Connection closed - microservice disconnected
+			if (errorMessageForFare.includes('Connection closed') || errorMessageForFare.includes('Connection closed')) {
+				throw new ServiceUnavailableException('Search microservice connection was closed. Please ensure the service is running.');
+			}
+			
+			// Timeout errors - microservice not responding
+			if (errorCodeForFare === 'ETIMEDOUT' || errorMessageForFare.includes('timeout') || errorMessageForFare.includes('ETIMEDOUT')) {
+				throw new ServiceUnavailableException('Search microservice request timeout. The service may be unavailable or overloaded.');
 			}
 			// Handle microservice error format: { status: 'error', message: '...' }
 			if (error?.status === 'error' && error?.message) {
@@ -290,14 +312,16 @@ export class SearchController {
 				}
 				throw new BadRequestException(`Get fare options failed: ${error.message}`);
 			}
-			// Generic error - provide more context
-			const errorMessage = error?.message || error?.toString() || 'Unknown error';
-			// If we get a generic error without details, it might be a not found case
-			// This is a fallback for when microservice doesn't properly serialize exceptions
-			if (errorMessage.toLowerCase().includes('internal server error') || errorMessage.toLowerCase().includes('error')) {
+			
+			// If we get here, it's an unexpected error - log it and return appropriate status
+			// Check if it might be a "not found" case first
+			const lowerErrorMessageForFare = errorMessageForFare.toLowerCase();
+			if (lowerErrorMessageForFare.includes('not found') || lowerErrorMessageForFare.includes('not exist')) {
 				throw new NotFoundException('Flight instance not found. Please check the flight instance ID and try again.');
 			}
-			throw new BadRequestException(`Get fare options failed: ${errorMessage}. Please check the flight instance ID and try again.`);
+			
+			// For any other unexpected errors, return 500 Internal Server Error
+			throw new InternalServerErrorException(`An unexpected error occurred while getting fare options. Please try again later.`);
 		}
 	}
 
@@ -363,14 +387,23 @@ export class SearchController {
 				throw error;
 			}
 			
-			// Handle microservice connection errors
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException('Search microservice is not running. Please start it with: npm run start:search');
+			// Handle microservice connection errors - these are infrastructure issues (503)
+			const errorMessageForSeat = error?.message || error?.toString() || '';
+			const errorCodeForSeat = error?.code || '';
+			
+			// Connection refused - microservice is not running
+			if (errorCodeForSeat === 'ECONNREFUSED' || errorMessageForSeat.includes('ECONNREFUSED')) {
+				throw new ServiceUnavailableException('Search microservice is not available. Please ensure the service is running.');
 			}
 			
-			// Handle timeout errors
-			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException('Search microservice request timeout. Please check if the service is running.');
+			// Connection closed - microservice disconnected
+			if (errorMessageForSeat.includes('Connection closed') || errorMessageForSeat.includes('Connection closed')) {
+				throw new ServiceUnavailableException('Search microservice connection was closed. Please ensure the service is running.');
+			}
+			
+			// Timeout errors - microservice not responding
+			if (errorCodeForSeat === 'ETIMEDOUT' || errorMessageForSeat.includes('timeout') || errorMessageForSeat.includes('ETIMEDOUT')) {
+				throw new ServiceUnavailableException('Search microservice request timeout. The service may be unavailable or overloaded.');
 			}
 			
 			// Handle microservice error format: { status: 'error', message: '...' }
@@ -402,16 +435,15 @@ export class SearchController {
 				throw new BadRequestException(`Get seat map failed: ${error.message}`);
 			}
 			
-			// Generic error - provide more context
-			const errorMessage = error?.message || error?.toString() || 'Unknown error';
-			const lowerMessage = String(errorMessage).toLowerCase();
-			
-			// Check if it might be a not found case
-			if (lowerMessage.includes('not found') || lowerMessage.includes('not exist')) {
-				throw new NotFoundException('Flight instance not found');
+			// If we get here, it's an unexpected error - log it and return appropriate status
+			// Check if it might be a "not found" case first
+			const lowerErrorMessageForSeat = errorMessageForSeat.toLowerCase();
+			if (lowerErrorMessageForSeat.includes('not found') || lowerErrorMessageForSeat.includes('not exist')) {
+				throw new NotFoundException('Flight instance not found. Please check the flight instance ID and try again.');
 			}
 			
-			throw new BadRequestException(`Get seat map failed: ${errorMessage}. Please check the flight instance ID and try again.`);
+			// For any other unexpected errors, return 500 Internal Server Error
+			throw new InternalServerErrorException(`An unexpected error occurred while getting seat map. Please try again later.`);
 		}
 	}
 }
