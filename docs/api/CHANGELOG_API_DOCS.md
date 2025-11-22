@@ -1,6 +1,80 @@
 # Changelog - API Documentation Updates
 
-## Ngày cập nhật: 2025-11-21 (Latest - Seat Selection Feature)
+## Ngày cập nhật: 2025-11-22 (Latest - Error Handling Improvements)
+
+### Error Handling Standardization - Infrastructure vs Business Logic Errors
+
+**Issue:** 
+- API Gateway trả về `400 Bad Request` cho connection errors (Connection closed, ECONNREFUSED) 
+- Không phân biệt rõ giữa infrastructure errors (microservice down) và business logic errors (validation errors)
+- Không tuân theo HTTP status code best practices
+
+**Fix:**
+- **SearchController**: Cập nhật error handling để return `503 Service Unavailable` cho connection errors
+  - Methods: `searchFlights`, `getFareOptions`, `getSeatMap`
+  - Connection closed → `503 Service Unavailable`
+  - ECONNREFUSED → `503 Service Unavailable`
+  - ETIMEDOUT → `503 Service Unavailable`
+  
+- **PaymentController**: Cập nhật error handling để return `503 Service Unavailable` cho connection errors
+  - Methods: `createPayment`, `processPayment`, `getPayment`, `getPaymentsByBooking`, `updatePaymentStatus`, `handleWebhook`
+  - Connection closed → `503 Service Unavailable`
+  - ECONNREFUSED → `503 Service Unavailable`
+  - ETIMEDOUT → `503 Service Unavailable`
+
+**Best Practice:**
+- **Infrastructure errors** (microservice down, connection errors) → **503 Service Unavailable**
+- **Business logic errors** (validation errors, not found) → **400 Bad Request / 404 Not Found**
+- **Unexpected server errors** → **500 Internal Server Error**
+
+**Error Response Format:**
+Tất cả error responses đều có format chuẩn với các fields:
+- `statusCode`: HTTP status code
+- `timestamp`: ISO 8601 format
+- `path`: Full request path với query parameters
+- `method`: HTTP method
+- `requestId`: Unique request ID cho tracing
+- `message`: Error message (string hoặc array)
+- `error`: Error type
+
+**Example - 503 Service Unavailable Response:**
+```json
+{
+  "statusCode": 503,
+  "timestamp": "2025-11-22T00:29:15.685Z",
+  "path": "/api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-12-22&tripType=one_way&adults=1&minors=0",
+  "method": "GET",
+  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
+  "message": "Search microservice connection was closed. Please ensure the service is running.",
+  "error": "Service Unavailable"
+}
+```
+
+**Updated Documentation:**
+- `API_DOCS.md`: 
+  - Cập nhật Error Handling section với 503 Service Unavailable
+  - Thêm examples cho connection errors (503)
+  - Thêm troubleshooting guide
+- `CHANGELOG_API_DOCS.md`: Log thay đổi về error handling
+- `CHANGELOG.md`: Log thay đổi về error handling
+- `Flight-Booking-API.postman_collection.json`: Cập nhật error examples với 503 responses
+
+**Files Modified:**
+- `src/api-gateway/modules/search/search.controller.ts` - Updated error handling
+- `src/api-gateway/modules/payment/payment.controller.ts` - Updated error handling
+- `docs/api/API_DOCS.md` - Updated error handling documentation
+- `docs/api/CHANGELOG_API_DOCS.md` - Added changelog entry
+- `docs/CHANGELOG.md` - Added changelog entry
+
+**Impact:**
+- API Gateway giờ trả về status codes đúng theo HTTP best practices
+- Clients có thể phân biệt infrastructure errors (503) và business logic errors (400/404)
+- Dễ dàng troubleshoot khi microservices không chạy
+- Consistent error response format across all endpoints
+
+---
+
+## Ngày cập nhật: 2025-11-21 (Previous - Seat Selection Feature)
 
 ### Seat Selection Feature Integration
 

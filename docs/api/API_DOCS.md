@@ -343,6 +343,10 @@ GET /search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&tripType=on
 ```json
 {
   "statusCode": 400,
+  "timestamp": "2025-11-22T00:29:15.685Z",
+  "path": "/api/v1/search/flights?origin=HAN&destination=SGN&tripType=round_trip",
+  "method": "GET",
+  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
   "message": ["returnDate is required when tripType is round_trip"],
   "error": "Bad Request"
 }
@@ -352,8 +356,25 @@ GET /search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&tripType=on
 ```json
 {
   "statusCode": 404,
+  "timestamp": "2025-11-22T00:29:15.685Z",
+  "path": "/api/v1/search/flights?origin=XXX&destination=SGN&departDate=2025-12-22&tripType=one_way&adults=1&minors=0",
+  "method": "GET",
+  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
   "message": "Origin airport not found",
   "error": "Not Found"
+}
+```
+
+**Error (503 Service Unavailable) - Microservice không chạy:**
+```json
+{
+  "statusCode": 503,
+  "timestamp": "2025-11-22T00:29:15.685Z",
+  "path": "/api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-12-22&tripType=one_way&adults=1&minors=0",
+  "method": "GET",
+  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
+  "message": "Search microservice connection was closed. Please ensure the service is running.",
+  "error": "Service Unavailable"
 }
 ```
 
@@ -1427,8 +1448,25 @@ Authorization: Bearer <access_token>
 ```json
 {
   "statusCode": 400,
+  "timestamp": "2025-11-22T00:29:15.685Z",
+  "path": "/api/v1/payments/bookings/019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "method": "POST",
+  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
   "message": "Booking is already paid",
   "error": "Bad Request"
+}
+```
+
+**Error (503 Service Unavailable) - Payment Microservice không chạy:**
+```json
+{
+  "statusCode": 503,
+  "timestamp": "2025-11-22T00:29:15.685Z",
+  "path": "/api/v1/payments/bookings/019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "method": "POST",
+  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
+  "message": "Payment microservice connection was closed. Please ensure the service is running.",
+  "error": "Service Unavailable"
 }
 ```
 
@@ -2008,22 +2046,158 @@ Hệ thống chỉ hỗ trợ bay nội địa giữa các tỉnh thành Việt 
 
 - **200 OK**: Request thành công
 - **201 Created**: Tạo mới thành công (register)
-- **400 Bad Request**: Validation error hoặc thiếu tham số
+- **400 Bad Request**: Validation error hoặc thiếu tham số (client error - request không hợp lệ)
 - **401 Unauthorized**: Chưa đăng nhập hoặc token không hợp lệ
-- **404 Not Found**: Không tìm thấy resource (airport, route...)
-- **500 Internal Server Error**: Lỗi server
+- **404 Not Found**: Không tìm thấy resource (airport, route, booking, payment...)
+- **500 Internal Server Error**: Lỗi server không mong đợi (unexpected server error)
+- **503 Service Unavailable**: Microservice hoặc dependency không available (infrastructure error)
 
 ### Error Response Format
 
+**Standard Error Response:**
 ```json
 {
   "statusCode": 400,
-  "message": ["error message 1", "error message 2"],
+  "timestamp": "2025-11-22T00:29:15.685Z",
+  "path": "/api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-12-22&tripType=one_way&adults=1&minors=0",
+  "method": "GET",
+  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
+  "message": "error message or array of error messages",
   "error": "Bad Request"
 }
 ```
 
-**Lưu ý:** `message` có thể là `string` hoặc `string[]` (mảng các lỗi validation).
+**Lưu ý:** 
+- `message` có thể là `string` hoặc `string[]` (mảng các lỗi validation)
+- `timestamp`: ISO 8601 format
+- `requestId`: Unique request ID cho tracing
+- `path`: Full request path với query parameters
+- `method`: HTTP method
+
+### Error Types
+
+#### 1. **Client Errors (4xx)**
+**400 Bad Request** - Validation errors, missing parameters, invalid request format:
+```json
+{
+  "statusCode": 400,
+  "timestamp": "2025-11-22T00:29:15.685Z",
+  "path": "/api/v1/search/flights",
+  "method": "GET",
+  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
+  "message": ["returnDate is required when tripType is round_trip"],
+  "error": "Bad Request"
+}
+```
+
+**401 Unauthorized** - Missing or invalid authentication token:
+```json
+{
+  "statusCode": 401,
+  "timestamp": "2025-11-22T00:29:15.685Z",
+  "path": "/api/v1/bookings",
+  "method": "POST",
+  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
+  "message": "Unauthorized",
+  "error": "Unauthorized"
+}
+```
+
+**404 Not Found** - Resource not found:
+```json
+{
+  "statusCode": 404,
+  "timestamp": "2025-11-22T00:29:15.685Z",
+  "path": "/api/v1/bookings/019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "method": "GET",
+  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
+  "message": "Booking not found",
+  "error": "Not Found"
+}
+```
+
+#### 2. **Infrastructure Errors (5xx)**
+**503 Service Unavailable** - Microservice hoặc dependency không available:
+```json
+{
+  "statusCode": 503,
+  "timestamp": "2025-11-22T00:29:15.685Z",
+  "path": "/api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-12-22&tripType=one_way&adults=1&minors=0",
+  "method": "GET",
+  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
+  "message": "Search microservice connection was closed. Please ensure the service is running.",
+  "error": "Service Unavailable"
+}
+```
+
+**503 Service Unavailable - Connection Errors:**
+- **Connection closed**: Microservice disconnected unexpectedly
+- **ECONNREFUSED**: Microservice không chạy hoặc không thể kết nối
+- **ETIMEDOUT**: Microservice không phản hồi trong thời gian quy định
+
+**Best Practice:**
+- **Infrastructure errors** (microservice down, connection errors) → **503 Service Unavailable**
+- **Business logic errors** (validation, not found, unauthorized) → **400/401/404**
+- **Unexpected server errors** → **500 Internal Server Error**
+
+**500 Internal Server Error** - Unexpected server error:
+```json
+{
+  "statusCode": 500,
+  "timestamp": "2025-11-22T00:29:15.685Z",
+  "path": "/api/v1/bookings",
+  "method": "POST",
+  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
+  "message": "An unexpected error occurred. Please try again later.",
+  "error": "Internal Server Error"
+}
+```
+
+### Microservice Connection Error Handling
+
+**Updated (2025-11-22):** Tất cả controllers (Search, Payment, Booking, Reservation) đã được cập nhật để handle microservice connection errors đúng cách:
+
+- **Connection closed** → `503 Service Unavailable`
+- **ECONNREFUSED** → `503 Service Unavailable`
+- **ETIMEDOUT** → `503 Service Unavailable`
+
+**Affected Controllers:**
+- `SearchController`: `searchFlights`, `getFareOptions`, `getSeatMap`
+- `PaymentController`: `createPayment`, `processPayment`, `getPayment`, `getPaymentsByBooking`, `updatePaymentStatus`, `handleWebhook`
+- Other controllers: Tương tự pattern
+
+**Example - Search API Error Response (503):**
+```json
+{
+  "statusCode": 503,
+  "timestamp": "2025-11-22T00:29:15.685Z",
+  "path": "/api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-12-22&tripType=one_way&adults=1&minors=0",
+  "method": "GET",
+  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
+  "message": "Search microservice connection was closed. Please ensure the service is running.",
+  "error": "Service Unavailable"
+}
+```
+
+**Example - Payment API Error Response (503):**
+```json
+{
+  "statusCode": 503,
+  "timestamp": "2025-11-22T00:29:15.685Z",
+  "path": "/api/v1/payments/bookings/019a8f4a-bb0e-7402-a0c4-27647b89dc71/process",
+  "method": "POST",
+  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
+  "message": "Payment microservice connection was closed. Please ensure the service is running.",
+  "error": "Service Unavailable"
+}
+```
+
+**Troubleshooting:**
+- Nếu nhận được `503 Service Unavailable`, kiểm tra microservice tương ứng có đang chạy không:
+  - Search API → Check Search Microservice (port 4001): `npm run start:search:dev`
+  - Payment API → Check Payment Microservice (port 4006): `npm run start:payment:dev`
+  - Booking API → Check Booking Microservice (port 4004): `npm run start:booking:dev`
+  - Reservation API → Check Reservation Microservice (port 4005): `npm run start:reservation:dev`
 
 ---
 

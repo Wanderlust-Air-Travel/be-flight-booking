@@ -508,11 +508,13 @@ sequenceDiagram
     else Validation Passed
         API Gateway->>Controller: Process request
         Controller->>Microservice: TCP Message
-        alt Microservice Not Running
-            Microservice-->>Controller: ECONNREFUSED
-            Controller->>Controller: Catch error
-            Controller-->>API Gateway: 500 Internal Server Error<br/>{message: "Service not running"}
-            API Gateway-->>Client: 500 Internal Server Error
+        alt Microservice Not Running / Connection Error
+            Microservice-->>Controller: ECONNREFUSED / Connection closed / ETIMEDOUT
+            Controller->>Controller: Catch error<br/>Detect connection error
+            Controller->>Controller: Throw ServiceUnavailableException
+            Controller-->>API Gateway: 503 Service Unavailable<br/>{message: "Microservice connection was closed. Please ensure the service is running."}
+            API Gateway->>API Gateway: AllExceptionsFilter<br/>Format error response
+            API Gateway-->>Client: 503 Service Unavailable<br/>{statusCode: 503, message: "...", requestId: "..."}
         else Microservice Running
             Microservice->>Database: SQL Query
             alt Database Error
