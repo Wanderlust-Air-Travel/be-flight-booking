@@ -38,7 +38,7 @@ export class SearchService {
 		'YF': 'Economy Flex',
 		'YFLX': 'Economy Flex',
 		// Business fare classes
-		'J': 'Business Smart',
+		'J': 'Business Standard',
 		'JS': 'Business Smart',
 		'JF': 'Business Flex',
 		'JFLX': 'Business Flex',
@@ -327,12 +327,23 @@ export class SearchService {
 				desc.push({ text: 'Đổi chuyến tại sân bay miễn phí', status: true });
 			}
 		} else if (cabinType === CabinType.BUSINESS) {
-			// Business Smart
-			if (code.includes('SM') || code === 'J' || code === 'JS') {
+			// Business Standard
+			if (code === 'J') {
 				desc.push({ text: '01 kiện hành lý ký gửi 30kg', status: true });
-				desc.push({ text: 'Hoàn/hủy trước giờ khởi hành: 500.000 VND (*)', status: true });
+				desc.push({ text: 'Hoàn/hủy trước giờ khởi hành: 400.000 VND (*)', status: true });
+				desc.push({ text: 'Hoàn/hủy sau giờ khởi hành: 400.000 VND (*)', status: true });
+				desc.push({ text: 'Thay đổi trước giờ khởi hành: 350.000 VND (*)', status: true });
+				desc.push({ text: 'Thay đổi sau giờ khởi hành: 350.000 VND (*)', status: true });
+				desc.push({ text: 'Hệ số cộng điểm Bamboo Club: 1.5', status: true });
+				desc.push({ text: 'Chọn ghế ngồi miễn phí', status: true });
+				desc.push({ text: 'Ưu tiên check-in và lên máy bay', status: true });
+			}
+			// Business Smart
+			else if (code.includes('SM') || code === 'JS') {
+				desc.push({ text: '01 kiện hành lý ký gửi 30kg', status: true });
+				desc.push({ text: 'Hoàn/hủy trước giờ khởi hành: 450.000 VND (*)', status: true });
 				desc.push({ text: 'Hoàn/hủy sau giờ khởi hành: 800.000 VND (*)', status: true });
-				desc.push({ text: 'Thay đổi trước giờ khởi hành: 500.000 VND (*)', status: true });
+				desc.push({ text: 'Thay đổi trước giờ khởi hành: 300.000 VND (*)', status: true });
 				desc.push({ text: 'Thay đổi sau giờ khởi hành: 800.000 VND (*)', status: true });
 				desc.push({ text: 'Hệ số cộng điểm Bamboo Club: 1.5', status: true });
 				desc.push({ text: 'Chọn ghế ngồi miễn phí', status: true });
@@ -370,7 +381,11 @@ export class SearchService {
 			// Check if description contains known patterns
 			if (description.toLowerCase().includes('saver max')) return 'Economy Saver Max';
 			if (description.toLowerCase().includes('smart')) return 'Economy Smart';
-			if (description.toLowerCase().includes('standard')) return 'Economy Standard';
+			if (description.toLowerCase().includes('standard')) {
+				// Check if it's Business or Economy Standard
+				if (description.toLowerCase().includes('business')) return 'Business Standard';
+				return 'Economy Standard';
+			}
 			if (description.toLowerCase().includes('flex')) return 'Economy Flex';
 			if (description.toLowerCase().includes('business smart')) return 'Business Smart';
 			if (description.toLowerCase().includes('business flex')) return 'Business Flex';
@@ -401,7 +416,10 @@ export class SearchService {
 			// Default economy price
 			return 1577000;
 		} else if (cabinType === CabinType.BUSINESS) {
-			if (code.includes('SM') || code === 'J' || code === 'JS') {
+			if (code === 'J') {
+				return 5022000; // Business Standard
+			}
+			if (code.includes('SM') || code === 'JS') {
 				return 5022000; // Business Smart
 			}
 			if (code.includes('FLX') || code.includes('FLEX') || code === 'JF') {
