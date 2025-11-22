@@ -68,6 +68,8 @@ src/
 │   ├── booking/               # Booking microservice (port 4004)
 │   │   ├── controllers/       # Message handlers
 │   │   ├── services/          # Business logic
+│   │   │   ├── booking-notification.service.ts  # Email confirmation notifications
+│   │   │   └── booking.service.ts
 │   │   ├── dto/               # Request/Response DTOs
 │   │   ├── booking.messages.ts # TCP config
 │   │   └── main.booking.ts    # Entry point
@@ -77,19 +79,22 @@ src/
 │   │   ├── dto/               # Request/Response DTOs
 │   │   ├── reservation.messages.ts # TCP config
 │   │   └── main.reservation.ts # Entry point
-│   └── payment/               # Payment microservice (port 4006)
-│       ├── controllers/       # Message handlers
-│       ├── services/          # Business logic
-│       ├── dto/               # Request/Response DTOs
-│       ├── interfaces/        # Service interfaces
-│       │   ├── payment-gateway.interface.ts
-│       │   └── index.ts
-│       ├── gateways/          # Payment gateway implementations
-│       │   ├── payment-gateway.factory.ts
-│       │   ├── mock-payment.gateway.ts
-│       │   └── vnpay.gateway.example.ts
-│       ├── payment.messages.ts # TCP config
-│       └── main.payment.ts    # Entry point
+│   ├── payment/               # Payment microservice (port 4006)
+│   │   ├── controllers/       # Message handlers
+│   │   ├── services/          # Business logic
+│   │   │   ├── payment-notification.service.ts  # Email notifications
+│   │   │   ├── payment-validation.service.ts
+│   │   │   └── payment.service.ts
+│   │   ├── dto/               # Request/Response DTOs
+│   │   ├── interfaces/        # Service interfaces
+│   │   │   ├── payment-gateway.interface.ts
+│   │   │   └── index.ts
+│   │   ├── gateways/          # Payment gateway implementations
+│   │   │   ├── payment-gateway.factory.ts
+│   │   │   ├── mock-payment.gateway.ts
+│   │   │   └── vnpay.gateway.example.ts
+│   │   ├── payment.messages.ts # TCP config
+│   │   └── main.payment.ts    # Entry point
 │   └── email/                 # Email microservice (port 4007)
 │       ├── controllers/       # Message handlers
 │       ├── services/          # Business logic
@@ -148,6 +153,13 @@ API Gateway → Response to FE
 - `POST /auth/login` - Đăng nhập
 - `POST /auth/refresh` - Refresh token
 - `POST /auth/logout` - Đăng xuất
+- `GET /auth/me` - Lấy thông tin user hiện tại (JWT required)
+- **OTP Payment**:
+  - `POST /auth/otp/payment/send` - Gửi OTP cho payment verification (OTP hết hạn sau 15 phút)
+  - `POST /auth/otp/payment/verify` - Verify OTP cho payment
+- **OTP Password Reset**:
+  - `POST /auth/otp/password-reset/send` - Gửi OTP cho password reset (OTP hết hạn sau 10 phút, security: luôn return success)
+  - `POST /auth/otp/password-reset/verify` - Verify OTP và reset password
 
 ### Search Flights
 - `GET /search/flights` - Tìm kiếm chuyến bay
@@ -450,8 +462,27 @@ REDIS_RESERVATION_TTL=900  # 15 minutes (in seconds)
    - Webhook Handling: Endpoint `/payments/webhooks/:gateway` để nhận webhook từ payment gateway
    - Payment Expiration: Payment tự động expire sau 15 phút
    - Payment Method Availability: Check payment method is active
-   - Payment Notifications: Tự động gửi notification khi payment success/failed
-9. **Email Service Features**:
+   - Payment Notifications: Tự động gửi email notification khi payment success/failed qua Email Microservice
+     - Email `payment_success` được gửi khi payment thành công
+     - Email `payment_failed` được gửi khi payment thất bại
+     - Email được gửi non-blocking, không block payment flow
+9. **Booking Service Features**:
+   - Booking Confirmations: Tự động gửi email `booking_confirmation` sau khi booking được tạo thành công
+     - Email được gửi non-blocking, không block booking creation
+     - Email được gửi qua Email Microservice
+10. **OTP Service Features**:
+   - OTP Storage: OTP codes được lưu trong Redis với TTL tự động expire
+     - Payment OTP: 15 phút expiry
+     - Password Reset OTP: 10 phút expiry
+   - OTP Endpoints: Tích hợp vào Auth Service
+     - `POST /auth/otp/payment/send` - Gửi OTP cho payment verification
+     - `POST /auth/otp/payment/verify` - Verify OTP cho payment
+     - `POST /auth/otp/password-reset/send` - Gửi OTP cho password reset
+     - `POST /auth/otp/password-reset/verify` - Verify OTP và reset password
+   - Security Features:
+     - One-time use: OTP tự động xóa sau khi verify thành công
+     - Email enumeration protection: Password reset luôn return success
+11. **Email Service Features**:
    - Gmail API Integration: OAuth 2.0 authentication với Gmail API
    - Email Queue Management: In-memory queue với async processing
    - Retry Logic: Max 3 retries với exponential backoff
@@ -459,12 +490,6 @@ REDIS_RESERVATION_TTL=900  # 15 minutes (in seconds)
    - Email Templates: 5 templates sẵn có (OTP payment, OTP password reset, payment success/failed, booking confirmation)
    - Health Check: Endpoint `/emails/health` để monitor service
    - Configuration: `GMAIL_CREDENTIALS_PATH`, `GMAIL_TOKEN_PATH`, `GMAIL_FROM_EMAIL`, `EMAIL_MAX_RETRIES`
-9. **Booking API Features**:
-   - Yêu cầu JWT authentication - `userId` tự động extract từ token
-   - Contact info tự động lấy từ user nếu không có trong body
-   - Hỗ trợ tạo passenger mới trong booking request (không cần tạo trước)
-   - Passenger tự động link với user để tái sử dụng sau này
-   - Tự động detect và reuse passenger nếu cùng `documentNumber` đã tồn tại
 9. **Pricing Strategy**: 
    - Services API sử dụng historical pricing (từ BookingSegments) - tính giá trung bình
    - Nếu không có booking data, route sẽ bị bỏ qua (không hiển thị trong deals)

@@ -1,6 +1,7 @@
 # Email Service - OTP Testing Guide
 
 **Ngày tạo:** 2025-11-25  
+**Cập nhật:** 2025-01-XX  
 **Mục đích:** Hướng dẫn test Email service và OTP functionality
 
 ---
@@ -9,8 +10,16 @@
 
 Email service hỗ trợ gửi OTP thông qua **template-based emails**. Có 2 loại OTP templates:
 
-1. **`otp_payment`** - OTP cho thanh toán
-2. **`otp_password_reset`** - OTP cho đặt lại mật khẩu
+1. **`otp_payment`** - OTP cho thanh toán (15 phút expiry)
+2. **`otp_password_reset`** - OTP cho đặt lại mật khẩu (10 phút expiry)
+
+**OTP Storage**: OTP codes được lưu trong Redis với TTL tự động expire. OTP chỉ dùng được một lần (auto-delete sau khi verify thành công).
+
+**OTP Endpoints**:
+- `POST /api/v1/auth/otp/payment/send` - Gửi OTP payment
+- `POST /api/v1/auth/otp/payment/verify` - Verify OTP payment
+- `POST /api/v1/auth/otp/password-reset/send` - Gửi OTP password reset
+- `POST /api/v1/auth/otp/password-reset/verify` - Verify OTP và reset password
 
 ---
 
@@ -95,6 +104,116 @@ Content-Type: application/json
   }
 }
 ```
+
+---
+
+## 🔐 OTP ENDPOINTS (AUTH SERVICE)
+
+### 1. Send OTP Payment
+
+**Endpoint:** `POST /api/v1/auth/otp/payment/send`
+
+**Request Body:**
+```json
+{
+  "userId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "OTP sent successfully",
+  "expiresIn": 900
+}
+```
+
+**Lưu ý:**
+- OTP được gửi đến email của user
+- OTP hết hạn sau 15 phút (900 giây)
+- OTP được lưu trong Redis với key: `otp:payment:{userId}`
+- OTP chỉ dùng được một lần (auto-delete sau khi verify)
+
+---
+
+### 2. Verify OTP Payment
+
+**Endpoint:** `POST /api/v1/auth/otp/payment/verify`
+
+**Request Body:**
+```json
+{
+  "userId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "otp": "123456"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "OTP verified successfully"
+}
+```
+
+**Error (401 Unauthorized):** OTP không hợp lệ hoặc đã hết hạn.
+
+---
+
+### 3. Send OTP Password Reset
+
+**Endpoint:** `POST /api/v1/auth/otp/password-reset/send`
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "If the email exists, an OTP has been sent",
+  "expiresIn": 600
+}
+```
+
+**Lưu ý:**
+- **Security Best Practice**: Luôn return success để tránh email enumeration
+- OTP được gửi đến email nếu user tồn tại
+- OTP hết hạn sau 10 phút (600 giây)
+- OTP được lưu trong Redis với key: `otp:password-reset:{email}`
+
+---
+
+### 4. Verify OTP Password Reset
+
+**Endpoint:** `POST /api/v1/auth/otp/password-reset/verify`
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com",
+  "otp": "123456",
+  "newPassword": "NewStrongP@ssw0rd"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Password reset successfully"
+}
+```
+
+**Lưu ý:**
+- Password được hash bằng bcrypt trước khi lưu
+- Sau khi reset thành công, user có thể login với password mới
+- OTP chỉ dùng được một lần (auto-delete sau khi verify)
 
 ---
 

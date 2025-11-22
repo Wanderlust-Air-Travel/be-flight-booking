@@ -17,6 +17,7 @@ sequenceDiagram
     participant Reservation MS
     participant Booking MS
     participant Payment MS
+    participant Email MS
     participant Database
     participant Redis
 
@@ -108,6 +109,9 @@ sequenceDiagram
     Reservation MS->>Redis: DEL reservation:{id}
     Redis-->>Reservation MS: OK
     Reservation MS-->>Booking MS: Reservation marked as converted
+    Booking MS->>Email MS: SEND_EMAIL message (TCP)<br/>{to, template: 'booking_confirmation', templateData}
+    Email MS->>Email MS: Queue email (non-blocking)
+    Email MS-->>Booking MS: {emailId, status: 'queued'}
     Booking MS-->>API Gateway: {bookingId, pnrCode, totalAmount}
     API Gateway-->>Client: 201 Created<br/>{bookingId, pnrCode, ...}
 
@@ -189,15 +193,17 @@ sequenceDiagram
     alt Payment Success
         Payment MS->>Database: UPDATE Bookings<br/>SET status = 'paid', updated_at = now
         Database-->>Payment MS: Booking updated
-        Payment MS->>Payment MS: Send payment success notification
+        Payment MS->>Email MS: SEND_EMAIL message (TCP)<br/>{to, template: 'payment_success', templateData}
+        Email MS->>Email MS: Queue email (non-blocking)
+        Email MS-->>Payment MS: {emailId, status: 'queued'}
     else Payment Failed
-        Payment MS->>Payment MS: Send payment failed notification
+        Payment MS->>Email MS: SEND_EMAIL message (TCP)<br/>{to, template: 'payment_failed', templateData}
+        Email MS->>Email MS: Queue email (non-blocking)
+        Email MS-->>Payment MS: {emailId, status: 'queued'}
     end
     Payment MS->>Database: COMMIT TRANSACTION
     Database-->>Payment MS: Transaction committed
-    Payment MS->>Email MS: SEND_EMAIL message (TCP)<br/>{to, template: 'payment_success', templateData}
-    Email MS->>Email MS: Queue email
-    Email MS-->>Payment MS: {emailId, status: 'queued'}
+    Note over Payment MS,Email MS: Email notifications are sent non-blocking<br/>Payment flow continues even if email fails
     Payment MS-->>API Gateway: {success: true}
     API Gateway-->>Payment Gateway: 200 OK
     

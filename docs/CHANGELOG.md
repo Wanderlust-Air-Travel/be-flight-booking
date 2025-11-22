@@ -6,6 +6,64 @@ Tất cả các thay đổi quan trọng của project sẽ được ghi nhận 
 
 ### Added
 
+- **Email Service Integration - Payment & Booking Notifications (2025-11-23)**:
+  - **Payment Notification Service**: Tích hợp Email Client vào Payment Notification Service
+    - Gửi email `payment_success` tự động khi payment thành công
+    - Gửi email `payment_failed` tự động khi payment thất bại
+    - Email được gửi non-blocking, không block payment flow
+    - Email được gửi qua Email Microservice (port 4007)
+  - **Booking Notification Service**: Tạo service mới để gửi email confirmations
+    - Gửi email `booking_confirmation` tự động sau khi booking được tạo thành công
+    - Tích hợp vào cả `createBooking` và `createBookingFromReservation`
+    - Email được gửi non-blocking, không block booking creation
+  - **Email Client Module for Microservices**: Tạo module chung cho microservices
+    - File: `src/shared/modules/email-client/email-client.module.ts`
+    - Cho phép microservices gửi email qua Email Microservice
+    - Export `ClientsModule` để các modules khác inject `EMAIL_CLIENT`
+  - **Files Created/Modified**:
+    - `src/shared/modules/email-client/email-client.module.ts` (NEW)
+    - `src/microservices/booking/services/booking-notification.service.ts` (NEW)
+    - `src/microservices/payment/services/payment-notification.service.ts` (UPDATED)
+    - `src/microservices/payment/payment.module.ts` (UPDATED)
+    - `src/microservices/booking/booking.service.ts` (UPDATED)
+    - `src/microservices/booking/booking.module.ts` (UPDATED)
+    - `docs/CHANGELOG.md` (UPDATED)
+
+- **OTP Storage Service & Auth OTP Endpoints (2025-01-XX)**:
+  - **OTP Storage Service**: Service mới để lưu và verify OTP codes trong Redis
+    - File: `src/shared/services/otp-storage.service.ts`
+    - Hỗ trợ OTP payment (15 phút expiry) và OTP password reset (10 phút expiry)
+    - Methods: `storePaymentOtp`, `verifyPaymentOtp`, `storePasswordResetOtp`, `verifyPasswordResetOtp`
+    - Auto-delete OTP sau khi verify thành công (one-time use)
+  - **OTP Module**: Module để export OTP Storage Service
+    - File: `src/shared/modules/otp/otp.module.ts`
+    - Export `OtpStorageService` để các modules khác sử dụng
+  - **Auth Service OTP Endpoints**: Thêm 4 endpoints mới
+    - `POST /api/v1/auth/otp/payment/send` - Gửi OTP cho payment verification
+    - `POST /api/v1/auth/otp/payment/verify` - Verify OTP cho payment
+    - `POST /api/v1/auth/otp/password-reset/send` - Gửi OTP cho password reset
+    - `POST /api/v1/auth/otp/password-reset/verify` - Verify OTP và reset password
+  - **Security Features**:
+    - Email enumeration protection: Password reset luôn return success (không reveal nếu email tồn tại)
+    - One-time use OTP: OTP tự động xóa sau khi verify thành công
+    - Expiry time: Payment OTP (15 phút), Password reset OTP (10 phút)
+  - **Files Created/Modified**:
+    - `src/shared/services/otp-storage.service.ts` (NEW)
+    - `src/shared/modules/otp/otp.module.ts` (NEW)
+    - `src/api-gateway/modules/auth/dto/send-otp-payment.dto.ts` (NEW)
+    - `src/api-gateway/modules/auth/dto/verify-otp-payment.dto.ts` (NEW)
+    - `src/api-gateway/modules/auth/dto/send-otp-password-reset.dto.ts` (NEW)
+    - `src/api-gateway/modules/auth/dto/verify-otp-password-reset.dto.ts` (NEW)
+    - `src/api-gateway/modules/auth/auth.service.ts` (UPDATED)
+    - `src/api-gateway/modules/auth/auth.controller.ts` (UPDATED)
+    - `src/api-gateway/modules/auth/auth.module.ts` (UPDATED)
+    - `src/api-gateway/modules/email/email.client.module.ts` (UPDATED - export ClientsModule)
+    - `test/api/auth.e2e-spec.ts` (UPDATED - added OTP test cases)
+    - `docs/CHANGELOG.md` (UPDATED)
+    - `docs/api/API_DOCS.md` (UPDATED)
+    - `docs/EMAIL_SERVICE_OTP_TESTING.md` (UPDATED)
+    - `tools/Flight-Booking-API.postman_collection.json` (UPDATED)
+
 - **Deals Images - Automatic Download Script (2025-01-XX)**:
   - **Feature**: Script tự động download ảnh phong cảnh cho deals API từ Lorem Picsum
   - **Script**: `scripts/download-deals-images.ts` - Tự động kết nối database, lấy tất cả route_id và download ảnh

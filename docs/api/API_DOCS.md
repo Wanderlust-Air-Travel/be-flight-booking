@@ -259,6 +259,139 @@ Authorization: Bearer <access_token>
 
 ---
 
+### Send OTP for Payment (Gửi OTP cho thanh toán)
+
+**POST** `/auth/otp/payment/send`
+
+**Request Body:**
+```json
+{
+  "userId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "OTP sent successfully",
+  "expiresIn": 900
+}
+```
+
+**Lưu ý:**
+- OTP được gửi đến email của user
+- OTP hết hạn sau 15 phút (900 giây)
+- OTP được lưu trong Redis với key: `otp:payment:{userId}`
+- OTP chỉ dùng được một lần (auto-delete sau khi verify thành công)
+
+**Error (404 Not Found):** User không tồn tại.
+
+**Error (400 Bad Request):** Validation error (missing userId, invalid format).
+
+---
+
+### Verify OTP for Payment (Xác thực OTP cho thanh toán)
+
+**POST** `/auth/otp/payment/verify`
+
+**Request Body:**
+```json
+{
+  "userId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "otp": "123456"
+}
+```
+
+**Validation:**
+- `userId`: UUID v7 format, required
+- `otp`: Exactly 6 digits, required
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "OTP verified successfully"
+}
+```
+
+**Error (401 Unauthorized):** OTP không hợp lệ hoặc đã hết hạn.
+
+**Error (404 Not Found):** User không tồn tại.
+
+**Error (400 Bad Request):** Validation error (missing fields, invalid OTP format).
+
+---
+
+### Send OTP for Password Reset (Gửi OTP cho đặt lại mật khẩu)
+
+**POST** `/auth/otp/password-reset/send`
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "If the email exists, an OTP has been sent",
+  "expiresIn": 600
+}
+```
+
+**Lưu ý:**
+- **Security Best Practice**: Luôn return success để tránh email enumeration
+- OTP được gửi đến email nếu user tồn tại
+- OTP hết hạn sau 10 phút (600 giây)
+- OTP được lưu trong Redis với key: `otp:password-reset:{email}`
+- OTP chỉ dùng được một lần (auto-delete sau khi verify thành công)
+
+**Error (400 Bad Request):** Validation error (invalid email format, missing email).
+
+---
+
+### Verify OTP and Reset Password (Xác thực OTP và đặt lại mật khẩu)
+
+**POST** `/auth/otp/password-reset/verify`
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com",
+  "otp": "123456",
+  "newPassword": "NewStrongP@ssw0rd"
+}
+```
+
+**Validation:**
+- `email`: Valid email format, required
+- `otp`: Exactly 6 digits, required
+- `newPassword`: Minimum 8 characters, required
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Password reset successfully"
+}
+```
+
+**Lưu ý:**
+- Password được hash bằng bcrypt trước khi lưu vào database
+- Sau khi reset thành công, user có thể login với password mới
+
+**Error (401 Unauthorized):** OTP không hợp lệ hoặc đã hết hạn.
+
+**Error (404 Not Found):** User không tồn tại.
+
+**Error (400 Bad Request):** Validation error (missing fields, invalid email format, weak password).
+
+---
+
 ## Search Flights (Tìm kiếm chuyến bay)
 
 ### GET `/search/flights`
