@@ -49,9 +49,20 @@ Script SQL để xóa toàn bộ data trong database, cho phép chạy lại see
 - **Tổng số ghế**: 180 ghế cho tất cả aircraft types
 - **Business seats**: 18 ghế (10%) = 3 hàng × 6 ghế
 - **Economy seats**: 162 ghế (90%) = 27 hàng × 6 ghế
-- Seat types: Window, Aisle, Middle
-- Business seats: Rows 1-3 (Window, Middle, Aisle positions)
-- Economy seats: Rows 4-30 (Window, Middle, Aisle positions)
+- **Seat Naming Convention** (được định nghĩa trong `src/shared/constants/seat.constants.ts`):
+  - Format: `{row}{column}` (ví dụ: `1A`, `2B`, `10F`)
+  - Columns: A, B, C, D, E, F (6 cột mỗi hàng)
+  - Seat Types:
+    - **Window**: A, F (ghế cửa sổ)
+    - **Middle**: B, E (ghế giữa)
+    - **Aisle**: C, D (ghế lối đi)
+- **Business seats**: Rows 1-3 (Window, Middle, Aisle positions)
+- **Economy seats**: Rows 4-30 (Window, Middle, Aisle positions)
+- **Constants**: Seed file sử dụng constants từ `src/shared/constants/seat.constants.ts` để đảm bảo tính nhất quán
+  - `SEAT_COLUMNS`: `['A', 'B', 'C', 'D', 'E', 'F']`
+  - `SEAT_TYPE_MAP`: Mapping cột → loại ghế
+  - `SEAT_DISTRIBUTION`: Cấu hình phân bổ (10% Business, 6 cột/hàng)
+  - Helper functions: `generateSeatNumber()`, `getSeatType()`
 
 ### 5. Airports
 - 20 airports (tất cả đều là sân bay nội địa Việt Nam)

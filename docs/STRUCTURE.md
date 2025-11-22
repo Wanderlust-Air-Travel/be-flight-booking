@@ -25,7 +25,10 @@ src/
 │   │   ├── database/          # Database-related types (sql-config.interface.ts)
 │   │   └── express/           # Express type extensions
 │   ├── config/                # Configuration
-│   └── constants/             # Constants (enums, etc.)
+│   └── constants/             # Constants (enums, seat constants, etc.)
+│       ├── enums/             # Enums (payment, search, email, booking)
+│       ├── seat.constants.ts  # Seat configuration constants (SEAT_COLUMNS, SEAT_TYPE_MAP, etc.)
+│       └── index.ts           # Export all constants
 │
 ├── api-gateway/               # REST API (port 3000)
 │   ├── modules/               # Feature modules

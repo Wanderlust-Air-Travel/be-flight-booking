@@ -33,6 +33,54 @@ Tất cả các thay đổi quan trọng của project sẽ được ghi nhận 
 
 ### Changed
 
+- **Seat Configuration Constants - Centralized Seat Naming Logic (2025-01-XX)**:
+  - **Feature**: Tên ghế ngồi giờ được định nghĩa cố định trong business logic thay vì hardcode trong seed file
+  - **Constants File**: `src/shared/constants/seat.constants.ts` - Centralized seat configuration constants
+    - `SEAT_COLUMNS`: Các cột ghế cố định `['A', 'B', 'C', 'D', 'E', 'F']`
+    - `SEAT_TYPE_MAP`: Mapping cột → loại ghế (Window/Middle/Aisle)
+    - `SEAT_DISTRIBUTION`: Cấu hình phân bổ ghế (10% Business, 6 cột/hàng)
+    - Helper functions: `generateSeatNumber()`, `getSeatType()`, `isWindowSeat()`, `isMiddleSeat()`, `isAisleSeat()`
+  - **Seed File Update**: `src/scripts/seed-full-database.ts` giờ sử dụng constants từ `seat.constants.ts`
+    - Thay thế hardcoded values (`['A', 'B', 'C', 'D', 'E', 'F']`) bằng `SEAT_COLUMNS`
+    - Sử dụng `generateSeatNumber()` và `getSeatType()` thay vì logic inline
+    - Sử dụng `SEAT_DISTRIBUTION.BUSINESS_PERCENTAGE` và `SEAT_DISTRIBUTION.COLUMNS_PER_ROW`
+  - **Benefits**:
+    - Single source of truth - tên ghế được định nghĩa tập trung trong business logic
+    - Dễ bảo trì - chỉ cần sửa constants khi cần thay đổi
+    - Reusable - có thể sử dụng constants ở bất kỳ service nào
+    - Type-safe - TypeScript constants với proper typing
+  - **Seat Naming Convention**:
+    - Format: `{row}{column}` (ví dụ: `1A`, `2B`, `10F`)
+    - Columns: A, B, C, D, E, F (6 cột mỗi hàng)
+    - Seat Types:
+      - Window: A, F
+      - Middle: B, E
+      - Aisle: C, D
+  - **Updated Files**:
+    - `src/shared/constants/seat.constants.ts` - New constants file
+    - `src/shared/constants/index.ts` - Export seat constants
+    - `src/scripts/seed-full-database.ts` - Updated to use constants
+    - `docs/CHANGELOG.md` - This changelog entry
+    - `docs/database/SEED-README.md` - Updated seat configuration documentation
+    - `docs/database/ERD.md` - Updated seat configuration explanation
+    - `docs/STRUCTURE.md` - Updated constants section
+    - `tools/Flight-Booking-API.postman_collection.json` - Updated collection description
+  - **Usage**:
+    ```typescript
+    import { SEAT_COLUMNS, generateSeatNumber, getSeatType } from 'src/shared/constants/seat.constants';
+    
+    // Generate seat number
+    const seatNumber = generateSeatNumber(1, 'A'); // '1A'
+    
+    // Get seat type
+    const seatType = getSeatType('A'); // 'Window'
+    
+    // Use constants
+    for (const col of SEAT_COLUMNS) {
+      // Process each column
+    }
+    ```
+
 - **Aircraft Configuration - Standardized to 180 Seats (2025-01-XX)**:
   - **Feature**: Tất cả aircraft types giờ đều có **180 ghế** (standardized configuration)
   - **Aircraft Types**: Tất cả 6 aircraft types (A320, A321, A350, B737, B787, ATR72) đều có `total_seats = 180`
