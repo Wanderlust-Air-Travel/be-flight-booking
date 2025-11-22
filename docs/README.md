@@ -1,65 +1,46 @@
-# Documentation
+# Tài liệu dự án
 
-Tài liệu dự án Flight Booking Backend được tổ chức theo các danh mục sau:
+Tài liệu dự án Flight Booking Backend được tổ chức theo các danh mục sau.
 
-## Mục lục
+## Tài liệu chính
 
-### [Getting Started](./README.md)
+### Bắt đầu
 - **[README.md](../README.md)** - Hướng dẫn cài đặt và chạy dự án (ở root)
 
-### [API Documentation](./api/)
-- **[API_DOCS.md](./api/API_DOCS.md)** - Tài liệu đầy đủ về tất cả API endpoints
-- **[API_SEQUENCE_DIAGRAMS.md](./api/API_SEQUENCE_DIAGRAMS.md)** - Sequence diagrams mô tả flow xử lý của toàn bộ hệ thống
-- **[API_TESTING_FLOW.md](./api/API_TESTING_FLOW.md)** - Hướng dẫn test API theo flow từng bước
-- **[CHANGELOG_API_DOCS.md](./api/CHANGELOG_API_DOCS.md)** - Lịch sử thay đổi API documentation
+### API
+- **[API_DOCS.md](./api/API_DOCS.md)** - Tài liệu về tất cả API endpoints
+- **[API_TESTING_FLOW.md](./api/API_TESTING_FLOW.md)** - Hướng dẫn test API theo từng bước
+- **[EMAIL_SERVICE_OTP_TESTING.md](./EMAIL_SERVICE_OTP_TESTING.md)** - Hướng dẫn test Email và OTP
 
-### [Database Documentation](./database/)
-- **[SQL-SCRIPTS-GUIDE.md](./database/SQL-SCRIPTS-GUIDE.md)** - Hướng dẫn sử dụng các SQL scripts
-- **[TRIGGERS.md](./database/TRIGGERS.md)** - Tài liệu về database triggers
-- **[ERD.md](./database/ERD.md)** - Entity Relationship Diagram
-- **[SEED-README.md](./database/SEED-README.md)** - Hướng dẫn seed database
-
-### [Setup Guides](./setup/)
-- **[REDIS_SETUP.md](./setup/REDIS_SETUP.md)** - Hướng dẫn setup Redis với Docker
-- **[WSL-SQL-SERVER-SETUP.md](./setup/WSL-SQL-SERVER-SETUP.md)** - Hướng dẫn kết nối SQL Server từ WSL
-- **[SSMS_CONNECT_DOCKER.md](./setup/SSMS_CONNECT_DOCKER.md)** - Hướng dẫn kết nối SQL Server từ SSMS (Docker)
-- **[DEALS_IMAGES_SETUP.md](./setup/DEALS_IMAGES_SETUP.md)** - Hướng dẫn setup và quản lý ảnh phong cảnh cho deals API
-
-### [Design Documents](./design/)
-- **[JWT_IMPLEMENTATION_SUMMARY.md](./design/JWT_IMPLEMENTATION_SUMMARY.md)** - Tóm tắt Implementation JWT Pattern
-- **[PASSENGER_REUSE_BEST_PRACTICE.md](./design/PASSENGER_REUSE_BEST_PRACTICE.md)** - Best Practice cho Passenger Reuse
-- **[RESERVATION_EXPIRATION_VALIDATION.md](./design/RESERVATION_EXPIRATION_VALIDATION.md)** - Best Practice cho Reservation Expiration Validation
-- **[PAYMENT_GATEWAY_EXPLANATION.md](./design/PAYMENT_GATEWAY_EXPLANATION.md)** - Giải thích Payment Gateway Architecture và cách implement real payment gateways
-- **[IDEMPOTENCY_KEY_STORAGE_ANALYSIS.md](./design/IDEMPOTENCY_KEY_STORAGE_ANALYSIS.md)** - Phân tích Hybrid approach cho idempotency key storage
-
-### [Project Documentation](./)
+### Dự án
 - **[CHANGELOG.md](./CHANGELOG.md)** - Lịch sử thay đổi của dự án
-- **[STRUCTURE.md](./STRUCTURE.md)** - Cấu trúc dự án và các module
+- **[STRUCTURE.md](./STRUCTURE.md)** - Cấu trúc dự án và cách hệ thống hoạt động
 
-## Tools
+### Database
+- **[ERD.md](./database/ERD.md)** - Sơ đồ cơ sở dữ liệu
+- **[SEED-README.md](./database/SEED-README.md)** - Hướng dẫn tạo dữ liệu mẫu
 
-Các công cụ và scripts hỗ trợ được đặt trong thư mục [`../tools/`](../tools/):
-- **Flight-Booking-API.postman_collection.json** - Postman collection để test API
-- **test-db-connection.ts** - Script test kết nối database (TypeScript)
-- **test-otp-email.ts** - Script test gửi OTP email (TypeScript)
-- **test-db-connection.sh** - Script test kết nối database (bash)
-- **open-firewall-port.ps1** - Script mở firewall port cho SQL Server
+### Cài đặt
+- **[REDIS_SETUP.md](./setup/REDIS_SETUP.md)** - Hướng dẫn cài đặt Redis
+- **[DEALS_IMAGES_SETUP.md](./setup/DEALS_IMAGES_SETUP.md)** - Hướng dẫn quản lý ảnh
 
-**Chạy tools scripts:**
+## Công cụ hỗ trợ
+
+Các công cụ và scripts hỗ trợ:
+
+**Postman Collection:**
+- `tools/Flight-Booking-API.postman_collection.json` - File Postman để test API
+
+**Scripts hữu ích:**
 ```bash
-# Test database connection
+# Kiểm tra kết nối database
 npm run test:db
 
-# Test email service
+# Kiểm tra dịch vụ email
 npm run test:email
 
-# Download ảnh phong cảnh cho deals API
+# Tải ảnh cho deals
 npm run download:deals-images
-
-# Hoặc chạy trực tiếp với ts-node
-ts-node -r tsconfig-paths/register tools/test-db-connection.ts
-ts-node -r tsconfig-paths/register tools/test-otp-email.ts
-ts-node -r tsconfig-paths/register scripts/download-deals-images.ts
 ```
 
 ## Cấu trúc thư mục

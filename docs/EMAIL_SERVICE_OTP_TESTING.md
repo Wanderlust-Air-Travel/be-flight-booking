@@ -1,40 +1,26 @@
-# Email Service - OTP Testing Guide
+# Hướng dẫn kiểm tra Email và OTP
 
-**Ngày tạo:** 2025-11-25  
-**Cập nhật:** 2025-01-XX  
-**Mục đích:** Hướng dẫn test Email service và OTP functionality
+Hướng dẫn kiểm tra tính năng gửi email và mã OTP.
 
----
+## Tổng quan
 
-## 📋 TỔNG QUAN
+Hệ thống hỗ trợ gửi email tự động với các loại:
 
-Email service hỗ trợ gửi OTP thông qua **template-based emails**. Có 2 loại OTP templates:
+1. **OTP thanh toán** - Mã xác thực khi thanh toán (hết hạn sau 15 phút)
+2. **OTP đặt lại mật khẩu** - Mã xác thực khi quên mật khẩu (hết hạn sau 10 phút)
+3. **Email xác nhận thanh toán** - Tự động gửi khi thanh toán thành công/thất bại
+4. **Email xác nhận đặt chỗ** - Tự động gửi sau khi đặt chỗ thành công
 
-1. **`otp_payment`** - OTP cho thanh toán (15 phút expiry)
-2. **`otp_password_reset`** - OTP cho đặt lại mật khẩu (10 phút expiry)
+## Kiểm tra Email Service có hoạt động không
 
-**OTP Storage**: OTP codes được lưu trong Redis với TTL tự động expire. OTP chỉ dùng được một lần (auto-delete sau khi verify thành công).
+### Kiểm tra trạng thái
 
-**OTP Endpoints**:
-- `POST /api/v1/auth/otp/payment/send` - Gửi OTP payment
-- `POST /api/v1/auth/otp/payment/verify` - Verify OTP payment
-- `POST /api/v1/auth/otp/password-reset/send` - Gửi OTP password reset
-- `POST /api/v1/auth/otp/password-reset/verify` - Verify OTP và reset password
-
----
-
-## 🔍 KIỂM TRA EMAIL SERVICE CÓ HOẠT ĐỘNG KHÔNG
-
-### 1. Health Check
-
-**Endpoint:** `GET /api/v1/emails/health`
-
-**Request:**
+**Yêu cầu:**
 ```bash
-curl -X GET http://localhost:3000/api/v1/emails/health
+GET http://localhost:3000/api/v1/emails/health
 ```
 
-**Response:**
+**Kết quả:**
 ```json
 {
   "status": "ok",
@@ -42,85 +28,31 @@ curl -X GET http://localhost:3000/api/v1/emails/health
   "queueStats": {
     "total": 10,
     "queued": 2,
-    "sending": 1,
     "sent": 6,
-    "failed": 1,
-    "rateLimitRemaining": 95
+    "failed": 0
   }
 }
 ```
 
 **Kiểm tra:**
-- ✅ `status: "ok"` - Service đang hoạt động
-- ✅ `gmailReady: true` - Gmail API đã sẵn sàng
-- ✅ `queueStats` - Thống kê queue
+- `status: "ok"` - Dịch vụ đang hoạt động
+- `gmailReady: true` - Email sẵn sàng gửi
 
----
+## API OTP
 
-### 2. Test Gửi OTP
+### 1. Gửi OTP thanh toán
 
-**Endpoint:** `POST /api/v1/emails/send`
-
-**Headers:**
-```
-Authorization: Bearer <access_token>
+**Yêu cầu:**
+```bash
+POST /api/v1/auth/otp/payment/send
 Content-Type: application/json
-```
 
-#### A. Gửi OTP Payment
-
-**Request:**
-```json
-{
-  "to": "user@example.com",
-  "template": "otp_payment",
-  "templateData": {
-    "otp": "123456",
-    "expiresIn": "15 minutes"
-  }
-}
-```
-
-**Response:**
-```json
-{
-  "emailId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-  "to": "user@example.com",
-  "status": "queued",
-  "createdAt": "2025-11-25T00:00:00.000Z"
-}
-```
-
-#### B. Gửi OTP Password Reset
-
-**Request:**
-```json
-{
-  "to": "user@example.com",
-  "template": "otp_password_reset",
-  "templateData": {
-    "otp": "789012",
-    "expiresIn": "10 minutes"
-  }
-}
-```
-
----
-
-## 🔐 OTP ENDPOINTS (AUTH SERVICE)
-
-### 1. Send OTP Payment
-
-**Endpoint:** `POST /api/v1/auth/otp/payment/send`
-
-**Request Body:**
-```json
 {
   "userId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71"
 }
 ```
 
-**Response:**
+**Kết quả:**
 ```json
 {
   "success": true,
@@ -132,24 +64,22 @@ Content-Type: application/json
 **Lưu ý:**
 - OTP được gửi đến email của user
 - OTP hết hạn sau 15 phút (900 giây)
-- OTP được lưu trong Redis với key: `otp:payment:{userId}`
-- OTP chỉ dùng được một lần (auto-delete sau khi verify)
+- Kiểm tra hộp thư để lấy mã OTP
 
----
+### 2. Xác thực OTP thanh toán
 
-### 2. Verify OTP Payment
+**Yêu cầu:**
+```bash
+POST /api/v1/auth/otp/payment/verify
+Content-Type: application/json
 
-**Endpoint:** `POST /api/v1/auth/otp/payment/verify`
-
-**Request Body:**
-```json
 {
   "userId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
   "otp": "123456"
 }
 ```
 
-**Response:**
+**Kết quả:**
 ```json
 {
   "success": true,
@@ -157,22 +87,22 @@ Content-Type: application/json
 }
 ```
 
-**Error (401 Unauthorized):** OTP không hợp lệ hoặc đã hết hạn.
+**Lỗi:**
+- `401 Unauthorized` - OTP không đúng hoặc đã hết hạn
 
----
+### 3. Gửi OTP đặt lại mật khẩu
 
-### 3. Send OTP Password Reset
+**Yêu cầu:**
+```bash
+POST /api/v1/auth/otp/password-reset/send
+Content-Type: application/json
 
-**Endpoint:** `POST /api/v1/auth/otp/password-reset/send`
-
-**Request Body:**
-```json
 {
   "email": "user@example.com"
 }
 ```
 
-**Response:**
+**Kết quả:**
 ```json
 {
   "success": true,
@@ -182,19 +112,17 @@ Content-Type: application/json
 ```
 
 **Lưu ý:**
-- **Security Best Practice**: Luôn return success để tránh email enumeration
-- OTP được gửi đến email nếu user tồn tại
+- Luôn trả về thành công để bảo mật (không tiết lộ email có tồn tại hay không)
 - OTP hết hạn sau 10 phút (600 giây)
-- OTP được lưu trong Redis với key: `otp:password-reset:{email}`
+- Kiểm tra hộp thư để lấy mã OTP
 
----
+### 4. Xác thực OTP và đặt lại mật khẩu
 
-### 4. Verify OTP Password Reset
+**Yêu cầu:**
+```bash
+POST /api/v1/auth/otp/password-reset/verify
+Content-Type: application/json
 
-**Endpoint:** `POST /api/v1/auth/otp/password-reset/verify`
-
-**Request Body:**
-```json
 {
   "email": "user@example.com",
   "otp": "123456",
@@ -202,7 +130,7 @@ Content-Type: application/json
 }
 ```
 
-**Response:**
+**Kết quả:**
 ```json
 {
   "success": true,
@@ -211,302 +139,69 @@ Content-Type: application/json
 ```
 
 **Lưu ý:**
-- Password được hash bằng bcrypt trước khi lưu
-- Sau khi reset thành công, user có thể login với password mới
-- OTP chỉ dùng được một lần (auto-delete sau khi verify)
+- Mật khẩu mới phải có ít nhất 6 ký tự
+- Sau khi reset thành công, đăng nhập với mật khẩu mới
+- OTP chỉ dùng được một lần
 
----
+## Email tự động
 
-## 🧪 CHẠY TESTS
+### Email xác nhận đặt chỗ
 
-### Chạy Email Tests
+Tự động gửi sau khi tạo booking thành công.
 
-```bash
-# Chạy tất cả email tests
-npm run test:e2e -- email.e2e-spec.ts
+**Nội dung email:**
+- Mã PNR (mã đặt chỗ)
+- Thông tin chuyến bay
+- Tổng tiền
+- Thông tin liên hệ
 
-# Chạy test OTP cụ thể
-npm run test:e2e -- email.e2e-spec.ts -t "OTP"
-```
+### Email xác nhận thanh toán
 
-### Test Cases Mới Đã Thêm
+Tự động gửi khi thanh toán thành công hoặc thất bại.
 
-1. ✅ **`should send OTP payment email successfully`**
-   - Test gửi OTP payment với template `otp_payment`
-   - Verify response có `emailId`, `status: 'queued'`
+**Email thanh toán thành công:**
+- Mã PNR
+- Tổng tiền đã thanh toán
+- Thông tin thanh toán
 
-2. ✅ **`should send OTP password reset email successfully`**
-   - Test gửi OTP password reset với template `otp_password_reset`
-   - Verify response có `emailId`, `status: 'queued'`
+**Email thanh toán thất bại:**
+- Thông báo lỗi
+- Hướng dẫn thử lại
 
-3. ✅ **`should fail with OTP template but missing templateData`**
-   - Test validation khi thiếu `templateData`
-   - Expect 400 error
+## Lưu ý quan trọng
 
-4. ✅ **`should send OTP with custom expiration time`**
-   - Test gửi OTP với thời gian hết hạn tùy chỉnh
-   - Verify email được queue thành công
+1. **Email được gửi ngầm**
+   - Không làm chậm quá trình xử lý
+   - Có thể kiểm tra sau trong hộp thư
 
----
+2. **Mã OTP chỉ dùng một lần**
+   - Sau khi xác thực thành công, mã sẽ bị xóa
+   - Nếu nhập sai, cần gửi lại mã mới
 
-## 🔧 TROUBLESHOOTING
+3. **Thời gian hết hạn**
+   - OTP thanh toán: 15 phút
+   - OTP đặt lại mật khẩu: 10 phút
 
-### Email Service Không Hoạt Động
+4. **Bảo mật**
+   - Không chia sẻ mã OTP với người khác
+   - Kiểm tra email chính xác trước khi gửi OTP
 
-#### 1. Kiểm tra Email Microservice có chạy không
+## Xử lý lỗi
 
-```bash
-# Kiểm tra trong docker-compose
-docker ps | grep email
+### Email Service không hoạt động
 
-# Hoặc check logs
-docker logs <email-service-container>
-```
-
-#### 2. Kiểm tra Gmail API Configuration
-
-**Environment Variables cần có:**
-```env
-GMAIL_CLIENT_ID=your-client-id
-GMAIL_CLIENT_SECRET=your-client-secret
-GMAIL_REFRESH_TOKEN=your-refresh-token
-GMAIL_USER=your-email@gmail.com
-```
+1. Kiểm tra dịch vụ email có chạy không
+2. Kiểm tra cấu hình Gmail API
+3. Xem logs để biết lỗi cụ thể
 
-**Kiểm tra trong code:**
-- File: `src/microservices/email/services/email-queue.service.ts`
-- Method: `isGmailReady()` - Should return `true`
+### OTP không đến
 
-#### 3. Kiểm tra Email Queue
+1. Kiểm tra hộp thư spam
+2. Đảm bảo email đúng
+3. Thử gửi lại OTP
+4. Kiểm tra email service có hoạt động không (health check)
 
-**Check queue stats:**
-```bash
-curl http://localhost:3000/api/v1/emails/health
-```
+## Test bằng Postman
 
-**Nếu `gmailReady: false`:**
-- Gmail API chưa được config đúng
-- Refresh token đã hết hạn
-- Client credentials không đúng
-
-#### 4. Kiểm tra Email Status
-
-**Endpoint:** `GET /api/v1/emails/:emailId/status`
-
-**Request:**
-```bash
-curl -X GET \
-  http://localhost:3000/api/v1/emails/{emailId}/status \
-  -H "Authorization: Bearer <token>"
-```
-
-**Response:**
-```json
-{
-  "emailId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-  "to": "user@example.com",
-  "status": "sent", // hoặc "queued", "sending", "failed"
-  "createdAt": "2025-11-25T00:00:00.000Z",
-  "sentAt": "2025-11-25T00:00:05.000Z"
-}
-```
-
-**Status values:**
-- `queued` - Email đang trong queue
-- `sending` - Đang gửi
-- `sent` - Đã gửi thành công
-- `failed` - Gửi thất bại
-
----
-
-## 📝 CÁCH SỬ DỤNG OTP TRONG CODE
-
-### 1. Gửi OTP Payment
-
-```typescript
-import { Inject } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
-import { firstValueFrom } from 'rxjs';
-import { EMAIL_MS } from 'src/microservices/email/email.messages';
-
-// Generate OTP
-const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-
-// Send OTP email
-const emailResult = await firstValueFrom(
-  this.emailClient.send(EMAIL_MS.PATTERN.SEND_EMAIL, {
-    to: user.email,
-    template: 'otp_payment',
-    templateData: {
-      otp: otpCode,
-      expiresIn: '15 minutes',
-    },
-  }),
-);
-
-// Store OTP in Redis/Database for verification
-await this.redisService.set(`otp:payment:${userId}`, otpCode, 900); // 15 minutes
-```
-
-### 2. Gửi OTP Password Reset
-
-```typescript
-const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-
-const emailResult = await firstValueFrom(
-  this.emailClient.send(EMAIL_MS.PATTERN.SEND_EMAIL, {
-    to: user.email,
-    template: 'otp_password_reset',
-    templateData: {
-      otp: otpCode,
-      expiresIn: '10 minutes',
-    },
-  }),
-);
-
-// Store OTP for verification
-await this.redisService.set(`otp:password-reset:${user.email}`, otpCode, 600); // 10 minutes
-```
-
----
-
-## 🎯 TEST SCENARIOS
-
-### Scenario 1: Gửi OTP Payment Thành Công
-
-```bash
-# 1. Login để lấy access token
-curl -X POST http://localhost:3000/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com",
-    "password": "password123"
-  }'
-
-# 2. Gửi OTP
-curl -X POST http://localhost:3000/api/v1/emails/send \
-  -H "Authorization: Bearer <access_token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "to": "user@example.com",
-    "template": "otp_payment",
-    "templateData": {
-      "otp": "123456",
-      "expiresIn": "15 minutes"
-    }
-  }'
-
-# 3. Check email status
-curl -X GET http://localhost:3000/api/v1/emails/{emailId}/status \
-  -H "Authorization: Bearer <access_token>"
-```
-
-### Scenario 2: Kiểm Tra Email Service Health
-
-```bash
-# Health check (không cần auth)
-curl -X GET http://localhost:3000/api/v1/emails/health
-
-# Expected: gmailReady should be true
-```
-
----
-
-## ⚠️ LƯU Ý QUAN TRỌNG
-
-### 1. Email Service là Async
-
-- Email được **queue** và gửi **asynchronously**
-- Response trả về ngay với `status: 'queued'`
-- Cần check status sau để biết email đã được gửi chưa
-
-### 2. Rate Limiting
-
-- Gmail API có rate limit
-- Check `rateLimitRemaining` trong health check
-- Nếu `rateLimitRemaining` thấp, cần đợi
-
-### 3. OTP Storage
-
-- **KHÔNG** lưu OTP trong email response
-- OTP chỉ được gửi qua email
-- Cần lưu OTP trong Redis/Database để verify
-
-### 4. Template Data
-
-- Template `otp_payment` và `otp_password_reset` cần:
-  - `otp` (required) - Mã OTP
-  - `expiresIn` (optional) - Thời gian hết hạn (default: "15 minutes")
-
----
-
-## 📊 MONITORING
-
-### Check Queue Stats
-
-```bash
-curl http://localhost:3000/api/v1/emails/health
-```
-
-**Monitor:**
-- `queueStats.queued` - Số email đang chờ
-- `queueStats.sending` - Số email đang gửi
-- `queueStats.failed` - Số email thất bại
-- `rateLimitRemaining` - Số email còn lại trong rate limit
-
-### Check Failed Emails
-
-Nếu `queueStats.failed > 0`:
-1. Check logs của Email microservice
-2. Verify Gmail API credentials
-3. Check network connectivity
-
----
-
-## 🔗 RELATED FILES
-
-- **Email Controller:** `src/api-gateway/modules/email/email.controller.ts`
-- **Email Service:** `src/microservices/email/email.service.ts`
-- **Email Template Service:** `src/microservices/email/services/email-template.service.ts`
-- **Email Queue Service:** `src/microservices/email/services/email-queue.service.ts`
-- **Test File:** `test/api/email.e2e-spec.ts`
-- **Email Templates Enum:** `src/shared/constants/enums/email.enum.ts`
-
----
-
-## ✅ CHECKLIST
-
-- [ ] Email microservice đang chạy
-- [ ] Gmail API credentials đã được config
-- [ ] Health check trả về `gmailReady: true`
-- [ ] Test gửi OTP thành công
-- [ ] Email được queue và gửi thành công
-- [ ] Test cases pass
-
----
-
-## 🚀 NEXT STEPS
-
-1. **Verify Email Service:**
-   ```bash
-   npm run test:e2e -- email.e2e-spec.ts
-   ```
-
-2. **Check Health:**
-   ```bash
-   curl http://localhost:3000/api/v1/emails/health
-   ```
-
-3. **Test OTP:**
-   - Gửi OTP payment
-   - Gửi OTP password reset
-   - Verify email được gửi thành công
-
----
-
-## 📚 REFERENCES
-
-- [Email Service Documentation](./IMPLEMENTATION_SUMMARY.md)
-- [Test Updates](./TEST_UPDATES_COMPLETED.md)
-- [Gmail API Documentation](https://developers.google.com/gmail/api)
-
+Có thể test các API OTP bằng file Postman collection trong thư mục `tools/`:
+- `Flight-Booking-API.postman_collection.json`

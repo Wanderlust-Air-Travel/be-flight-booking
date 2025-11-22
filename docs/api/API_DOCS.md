@@ -1,6 +1,6 @@
 # API Documentation - Flight Booking Backend
 
-**Lưu ý quan trọng:** Hệ thống chỉ hỗ trợ bay nội địa Việt Nam. Tất cả airports đều là sân bay Việt Nam, tất cả routes đều là domestic routes.
+**Lưu ý:** Hệ thống chỉ hỗ trợ bay nội địa Việt Nam.
 
 ## Base URL
 
@@ -8,104 +8,34 @@
 http://localhost:3000
 ```
 
-**Swagger UI**: `http://localhost:3000/api-docs` (Interactive API documentation)
+**Swagger UI**: `http://localhost:3000/api-docs`
 
-## Important Notes
+## Lưu ý quan trọng
 
-### Authentication
+### Xác thực
+- Một số API cần đăng nhập trước
+- Sau khi đăng nhập, gửi token trong header: `Authorization: Bearer <access_token>`
+- Token có hiệu lực 15 phút, dùng `refresh_token` để lấy token mới
 
-#### JWT Authentication Pattern (Best Practice: Option 2 - Extract userId từ Gateway)
+### Định dạng
+- ID: Tất cả ID là mã UUID dạng `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx`
+- Ngày: Format `YYYY-MM-DD` (ví dụ: `2025-11-17`)
 
-**Architecture:**
-- **API Gateway** là single point of authentication - validate JWT một lần
-- **Gateway** extract `userId` từ JWT token và gửi đến microservices
-- **Microservices** trust Gateway - không validate JWT, chỉ nhận `userId`
-- **Security**: JWT secret chỉ ở Gateway, microservices không cần biết về JWT
-
-**Flow:**
-```
-Client → Gateway (Validate JWT) → Extract userId → Send userId → Microservice (Trust Gateway)
-```
-
-**Implementation:**
-- **Booking APIs** (`POST /bookings`, `GET /bookings/:id/*`, `PATCH /bookings/:id/*`) yêu cầu JWT authentication
-- **Reservation APIs** (`POST /reservations`, `GET /reservations`, `GET /reservations/:id`, `POST /reservations/:id/cancel`, `POST /reservations/:id/extend`) yêu cầu JWT authentication
-- **Payment APIs** (`POST /payments/bookings/:bookingId`, `POST /payments/bookings/:bookingId/process`, `GET /payments/:id`, `GET /payments/bookings/:bookingId`, `PATCH /payments/:id/status`) yêu cầu JWT authentication
-- **Routes APIs** (`POST /routes/:routeId/upload-image`) yêu cầu JWT authentication
-- Gửi JWT token trong header: `Authorization: Bearer <access_token>`
-- `userId` **KHÔNG cần** truyền trong request body - tự động extract từ JWT token tại Gateway
-- Gateway tự động gửi `userId` đến microservices (không gửi JWT token)
-
-**Benefits:**
-- Performance: JWT validated một lần (Gateway) thay vì N lần (N microservices)
-- Security: JWT secret chỉ ở Gateway (single point of trust)
-- Simplicity: Microservices không cần JWT logic
-- Scalability: Dễ thêm microservices mới (không cần setup JWT)
-
-**Xem thêm:** `docs/design/JWT_MICROSERVICES_PATTERN.md` và `docs/design/JWT_IMPLEMENTATION_SUMMARY.md`
-
-### UUID v7
-- Tất cả IDs trong hệ thống sử dụng **UUID v7** (time-ordered UUID)
-- Format: `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx` (chữ số `7` ở vị trí version)
-- UUID v7 có thể sắp xếp theo thời gian, tốt cho database indexing
-- User IDs được tự động generate là UUID v7 khi đăng ký
-
-### Reservation Service (Backend-managed State - Hybrid Approach)
-
-**Storage: Database + Redis (Best Practice)**
-- **Database**: Persistent storage cho audit trail, analytics, recovery
-  - Table: `Reservations` với status tracking (`pending`, `expired`, `converted`, `cancelled`)
-  - Full history với timestamps (`created_at`, `converted_at`, `expires_at`)
-- **Redis**: Fast cache với TTL 15 phút (auto cleanup)
-  - Status: `active` (trong Redis) vs `pending` (trong Database)
-- **Get Flow**: Try Redis first (fast) → Fallback to Database → Re-cache if needed
-- **Recovery**: Nếu Redis down, vẫn có thể lấy reservation từ Database
-
-**Reservation Expiration Validation (Best Practice):**
-- **Primary**: Check `expiresAt` timestamp (source of truth)
-- **Secondary**: Check `status` field (optimization & business logic)
-- Real-time accuracy, không phụ thuộc vào background jobs
-
-**Multi-Segment Support:**
-- Hỗ trợ round-trip bookings với 1 reservation cho nhiều segments
-- `segments[]` array: `[{flightInstanceId, fareClassCode, segmentType: 'outbound'}, {..., segmentType: 'inbound'}]`
-- Atomic validation và price calculation cho tất cả segments
-
-**Backend-managed State:**
-- Reservation tự động expire sau 15 phút (configurable)
-- Backend quản lý state thay vì frontend - đảm bảo tính nhất quán
-- Flow: Search → Fare Options → **Create Reservation** → Create Booking from Reservation
-- Reservation giúp giữ chỗ tạm thời và lock giá trước khi tạo booking
-
-**Xem thêm:** `docs/design/RESERVATION_STORAGE_ANALYSIS.md`
-
-### Passenger Creation & Reuse (Best Practice)
-
-**Options:**
-- **Option 1 (Use existing passenger)**: `passengerId` + `passengerType`
-  - Dùng khi đã từng đặt vé cho passenger này
-  - Backend validate passenger thuộc về user hiện tại
-- **Option 2 (Create new passenger)**: `passengerType` + `fullname` + `dob` + `gender` + `documentNumber`
-  - Dùng khi lần đầu đặt vé cho passenger này
-  - Backend tự động kiểm tra và reuse nếu passenger với cùng `documentNumber` đã tồn tại
-
-**Automatic Reuse Logic:**
-- Backend tự động detect passenger với cùng `documentNumber` và `userId`
-- Validate thông tin khớp (`fullname`, `dob`, `gender`) - log warning nếu không khớp
-- Reuse existing passenger để tránh duplicates và cải thiện UX
-- Passenger mới tự động link với user (từ JWT) để tái sử dụng sau này
-
-**Xem thêm:** `docs/design/PASSENGER_REUSE_BEST_PRACTICE.md`
+### Luồng đặt vé
+1. Tìm kiếm chuyến bay
+2. Chọn loại vé
+3. Giữ chỗ 15 phút (reservation)
+4. Điền thông tin hành khách
+5. Tạo booking
+6. Thanh toán
 
 ---
 
-## Authentication
+## Authentication (Xác thực)
 
-### Register (Đăng ký)
+### Đăng ký
+**POST** `/api/v1/auth/register`
 
-**POST** `/auth/register`
-
-**Request Body:**
 ```json
 {
   "fullname": "Nguyen Van A",
@@ -115,48 +45,13 @@ Client → Gateway (Validate JWT) → Extract userId → Send userId → Microse
 }
 ```
 
-**Validation:**
-- `fullname`: 2-100 characters, required
-- `email`: Valid email format, required
-- `password`: 6-20 characters, required
-- `phone`: Valid Vietnamese phone number, required
-
-**Response (201 Created):**
-```json
-{
-  "user": {
-    "id": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-    "fullname": "Nguyen Van A",
-    "email": "user@example.com",
-    "phone": "0901234567"
-  },
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}
-```
-
-**Lưu ý về UUID v7:**
-- `user.id` (user_id) được tự động generate là **UUID v7** (time-ordered UUID)
-- UUID v7 format: `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx` (chữ số `7` ở vị trí version)
-- UUID v7 có thể sắp xếp theo thời gian, phù hợp cho database indexing
-- Tất cả user IDs trong hệ thống đều sử dụng UUID v7
-
-**Error (400 Bad Request):**
-```json
-{
-  "statusCode": 400,
-  "message": ["email must be an email", "password must be longer than or equal to 6 characters"],
-  "error": "Bad Request"
-}
-```
+**Trả về:** Thông tin user, `access_token`, `refresh_token`
 
 ---
 
-### Login (Đăng nhập)
+### Đăng nhập
+**POST** `/api/v1/auth/login`
 
-**POST** `/auth/login`
-
-**Request Body:**
 ```json
 {
   "email": "user@example.com",
@@ -164,138 +59,34 @@ Client → Gateway (Validate JWT) → Extract userId → Send userId → Microse
 }
 ```
 
-**Response (200 OK):**
-```json
-{
-  "user": {
-    "id": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-    "email": "user@example.com",
-    "fullname": "Nguyen Van A",
-    "phone": "0901234567"
-  },
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}
-```
-
-**Lưu ý:**
-- `user.id` (user_id) là **UUID v7** format
-
-**Error (401 Unauthorized):**
-```json
-{
-  "statusCode": 401,
-  "message": "Invalid credentials",
-  "error": "Unauthorized"
-}
-```
-
-**Lưu ý:** Lưu `access_token` và `refresh_token` (localStorage/sessionStorage) để dùng cho các request cần authentication.
+**Trả về:** Thông tin user, `access_token`, `refresh_token`
 
 ---
 
-### Refresh Token (Làm mới token)
+### Làm mới token
+**POST** `/api/v1/auth/refresh`
 
-**POST** `/auth/refresh`
-
-**Request Body:**
-```json
-{
-  "userId": "a3f1f8e6-5a6b-4b2d-9f1a-2c3d4e5f6a7b",
-  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}
-```
-
-**Response (200 OK):**
-```json
-{
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}
-```
-
-**Khi nào dùng:** Khi `access_token` hết hạn (thường sau 15 phút), gọi API này với `refresh_token` để lấy tokens mới.
+Khi `access_token` hết hạn, dùng `refresh_token` để lấy token mới.
 
 ---
 
-### Logout (Đăng xuất)
+### Gửi OTP thanh toán
+**POST** `/api/v1/auth/otp/payment/send`
 
-**POST** `/auth/logout`
-
-**Request Body:**
-```json
-{
-  "userId": "a3f1f8e6-5a6b-4b2d-9f1a-2c3d4e5f6a7b"
-}
-```
-
-**Response (200 OK):**
-```json
-{
-  "message": "Logout successful"
-}
-```
-
----
-
-### Get Current User (Lấy thông tin user hiện tại)
-
-**GET** `/auth/me`
-
-**Headers:**
-```
-Authorization: Bearer <access_token>
-```
-
-**Response (200 OK):**
-```json
-{
-  "userId": "a3f1f8e6-5a6b-4b2d-9f1a-2c3d4e5f6a7b",
-  "email": "user@example.com"
-}
-```
-
-**Error (401 Unauthorized):** Token không hợp lệ hoặc hết hạn.
-
----
-
-### Send OTP for Payment (Gửi OTP cho thanh toán)
-
-**POST** `/auth/otp/payment/send`
-
-**Request Body:**
 ```json
 {
   "userId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71"
 }
 ```
 
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "message": "OTP sent successfully",
-  "expiresIn": 900
-}
-```
-
-**Lưu ý:**
-- OTP được gửi đến email của user
-- OTP hết hạn sau 15 phút (900 giây)
-- OTP được lưu trong Redis với key: `otp:payment:{userId}`
-- OTP chỉ dùng được một lần (auto-delete sau khi verify thành công)
-
-**Error (404 Not Found):** User không tồn tại.
-
-**Error (400 Bad Request):** Validation error (missing userId, invalid format).
+- OTP được gửi đến email
+- Hết hạn sau 15 phút
 
 ---
 
-### Verify OTP for Payment (Xác thực OTP cho thanh toán)
+### Xác thực OTP thanh toán
+**POST** `/api/v1/auth/otp/payment/verify`
 
-**POST** `/auth/otp/payment/verify`
-
-**Request Body:**
 ```json
 {
   "userId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
@@ -303,62 +94,26 @@ Authorization: Bearer <access_token>
 }
 ```
 
-**Validation:**
-- `userId`: UUID v7 format, required
-- `otp`: Exactly 6 digits, required
-
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "message": "OTP verified successfully"
-}
-```
-
-**Error (401 Unauthorized):** OTP không hợp lệ hoặc đã hết hạn.
-
-**Error (404 Not Found):** User không tồn tại.
-
-**Error (400 Bad Request):** Validation error (missing fields, invalid OTP format).
-
 ---
 
-### Send OTP for Password Reset (Gửi OTP cho đặt lại mật khẩu)
+### Gửi OTP đặt lại mật khẩu
+**POST** `/api/v1/auth/otp/password-reset/send`
 
-**POST** `/auth/otp/password-reset/send`
-
-**Request Body:**
 ```json
 {
   "email": "user@example.com"
 }
 ```
 
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "message": "If the email exists, an OTP has been sent",
-  "expiresIn": 600
-}
-```
-
-**Lưu ý:**
-- **Security Best Practice**: Luôn return success để tránh email enumeration
-- OTP được gửi đến email nếu user tồn tại
-- OTP hết hạn sau 10 phút (600 giây)
-- OTP được lưu trong Redis với key: `otp:password-reset:{email}`
-- OTP chỉ dùng được một lần (auto-delete sau khi verify thành công)
-
-**Error (400 Bad Request):** Validation error (invalid email format, missing email).
+- OTP được gửi đến email (nếu email tồn tại)
+- Hết hạn sau 10 phút
+- Luôn trả về thành công (bảo mật)
 
 ---
 
-### Verify OTP and Reset Password (Xác thực OTP và đặt lại mật khẩu)
+### Xác thực OTP và đặt lại mật khẩu
+**POST** `/api/v1/auth/otp/password-reset/verify`
 
-**POST** `/auth/otp/password-reset/verify`
-
-**Request Body:**
 ```json
 {
   "email": "user@example.com",
@@ -367,674 +122,64 @@ Authorization: Bearer <access_token>
 }
 ```
 
-**Validation:**
-- `email`: Valid email format, required
-- `otp`: Exactly 6 digits, required
-- `newPassword`: Minimum 8 characters, required
-
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "message": "Password reset successfully"
-}
-```
-
-**Lưu ý:**
-- Password được hash bằng bcrypt trước khi lưu vào database
-- Sau khi reset thành công, user có thể login với password mới
-
-**Error (401 Unauthorized):** OTP không hợp lệ hoặc đã hết hạn.
-
-**Error (404 Not Found):** User không tồn tại.
-
-**Error (400 Bad Request):** Validation error (missing fields, invalid email format, weak password).
-
 ---
 
 ## Search Flights (Tìm kiếm chuyến bay)
 
-### GET `/search/flights`
+### Tìm kiếm chuyến bay
+**GET** `/api/v1/search/flights`
 
-**Query Parameters:**
+**Tham số:**
+- `origin` (bắt buộc): Mã sân bay đi (3 ký tự, ví dụ: `HAN`)
+- `destination` (bắt buộc): Mã sân bay đến (3 ký tự, ví dụ: `SGN`)
+- `departDate` (bắt buộc): Ngày đi (`YYYY-MM-DD`)
+- `returnDate` (tùy chọn): Ngày về (`YYYY-MM-DD`)
+- `tripType` (tùy chọn): `one_way` hoặc `round_trip`
+  - Nếu không truyền: Có `returnDate` → `round_trip`, không có → `one_way`
+- `adults` (bắt buộc): Số người lớn (≥1)
+- `minors` (bắt buộc): Số trẻ em (≥0)
 
-| Parameter | Type | Required | Description | Example |
-|-----------|------|----------|-------------|---------|
-| `origin` | string | Yes | IATA code sân bay đi (3 ký tự) | `HAN` |
-| `destination` | string | Yes | IATA code sân bay đến (3 ký tự) | `SGN` |
-| `departDate` | string | Yes | Ngày đi (YYYY-MM-DD) | `2025-11-17` |
-| `returnDate` | string | Optional* | Ngày về (YYYY-MM-DD) | `2025-11-24` |
-| `tripType` | string | Optional** | Loại chuyến: `one_way` hoặc `round_trip` | `one_way` |
-| `adults` | number | Yes | Số người lớn (≥1) | `1` |
-| `minors` | number | Yes | Số trẻ em (≥0) | `0` |
-
-*Note: `returnDate` bắt buộc nếu `tripType=round_trip`
-
-**Note: `tripType` sẽ tự động được set dựa trên `returnDate`:
-- Nếu không truyền `tripType` và không có `returnDate` → mặc định `tripType=one_way`
-- Nếu không truyền `tripType` nhưng có `returnDate` → mặc định `tripType=round_trip`
-- Nếu truyền `tripType` → sử dụng giá trị được truyền vào (có thể override)
-
-**Example Requests:**
-
-**One Way (không cần truyền tripType):**
+**Ví dụ:**
 ```
-GET /search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&adults=1&minors=0
+GET /api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&adults=1&minors=0
+GET /api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&returnDate=2025-11-24&adults=2&minors=1
 ```
 
-**One Way (truyền rõ tripType):**
-```
-GET /search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&tripType=one_way&adults=1&minors=0
-```
-
-**Round Trip (không cần truyền tripType, chỉ cần returnDate):**
-```
-GET /search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&returnDate=2025-11-24&adults=2&minors=1
-```
-
-**Round Trip (truyền rõ tripType):**
-```
-GET /search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&returnDate=2025-11-24&tripType=round_trip&adults=2&minors=1
-```
-
-**Response (200 OK) - One Way:**
-```json
-{
-  "tripType": "one_way",
-  "outbound": [
-    {
-      "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-      "flightNumber": "BB0100",
-      "departureLocal": "2025-11-17T08:00:00.000Z",
-      "arrivalLocal": "2025-11-17T10:10:00.000Z",
-      "availableSeats": 180,
-      "origin": {
-        "iata": "HAN",
-        "name": "Noi Bai International Airport",
-        "city": "Hanoi"
-      },
-      "destination": {
-        "iata": "SGN",
-        "name": "Tan Son Nhat International Airport",
-        "city": "Ho Chi Minh City"
-      }
-    }
-  ],
-  "totalPassengers": 1
-}
-```
-
-**Response (200 OK) - Round Trip:**
-```json
-{
-  "tripType": "round_trip",
-  "outbound": [
-    {
-      "flightInstanceId": "...",
-      "flightNumber": "BB0100",
-      "departureLocal": "2025-11-17T08:00:00.000Z",
-      "arrivalLocal": "2025-11-17T10:10:00.000Z",
-      "availableSeats": 180,
-      "origin": { "iata": "HAN", "name": "...", "city": "..." },
-      "destination": { "iata": "SGN", "name": "...", "city": "..." }
-    }
-  ],
-  "inbound": [
-    {
-      "flightInstanceId": "...",
-      "flightNumber": "BB0101",
-      "departureLocal": "2025-11-24T18:00:00.000Z",
-      "arrivalLocal": "2025-11-24T20:10:00.000Z",
-      "availableSeats": 180,
-      "origin": { "iata": "SGN", "name": "...", "city": "..." },
-      "destination": { "iata": "HAN", "name": "...", "city": "..." }
-    }
-  ],
-  "totalPassengers": 1
-}
-```
-
-**Error (400 Bad Request):**
-```json
-{
-  "statusCode": 400,
-  "timestamp": "2025-11-22T00:29:15.685Z",
-  "path": "/api/v1/search/flights?origin=HAN&destination=SGN&tripType=round_trip",
-  "method": "GET",
-  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
-  "message": ["returnDate is required when tripType is round_trip"],
-  "error": "Bad Request"
-}
-```
-
-**Error (404 Not Found):**
-```json
-{
-  "statusCode": 404,
-  "timestamp": "2025-11-22T00:29:15.685Z",
-  "path": "/api/v1/search/flights?origin=XXX&destination=SGN&departDate=2025-12-22&tripType=one_way&adults=1&minors=0",
-  "method": "GET",
-  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
-  "message": "Origin airport not found",
-  "error": "Not Found"
-}
-```
-
-**Error (503 Service Unavailable) - Microservice không chạy:**
-```json
-{
-  "statusCode": 503,
-  "timestamp": "2025-11-22T00:29:15.685Z",
-  "path": "/api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-12-22&tripType=one_way&adults=1&minors=0",
-  "method": "GET",
-  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
-  "message": "Search microservice connection was closed. Please ensure the service is running.",
-  "error": "Service Unavailable"
-}
-```
+**Trả về:** Danh sách chuyến bay với thông tin: `flightInstanceId`, `flightNumber`, giờ đi/đến, số ghế còn trống
 
 ---
 
-### Get Fare Options (Lấy danh sách các loại vé/cabin)
+### Lấy danh sách loại vé
+**GET** `/api/v1/search/fare-options`
 
-**GET** `/search/fare-options`
+**Tham số:**
+- `flightInstanceId` (bắt buộc): ID chuyến bay
+- `cabinType` (bắt buộc): `economy` hoặc `business`
 
-Lấy danh sách các fare options (cabins) có sẵn cho một flight instance cụ thể theo cabin type (economy hoặc business).
-
-**Query Parameters:**
-
-| Parameter | Type | Required | Description | Example |
-|-----------|------|----------|-------------|---------|
-| `flightInstanceId` | string (UUID v7) | Yes | ID của flight instance (UUID v7 - time-ordered) | `019a8f4a-bb0e-7402-a0c4-27647b89dc71` |
-| `cabinType` | string | Yes | Loại cabin: `economy` hoặc `business` | `economy` |
-
-**Example Request:**
-```
-GET /search/fare-options?flightInstanceId=019a8f4a-bb0e-7402-a0c4-27647b89dc71&cabinType=economy
-```
-
-**Lưu ý về UUID v7:**
-- `flightInstanceId` phải là **UUID v7** (time-ordered UUID)
-- UUID v7 có format: `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx` (chữ số `7` ở vị trí version)
-- UUID v7 có thể sắp xếp theo thời gian, phù hợp cho database indexing
-- Tất cả IDs trong hệ thống (flightInstanceId, bookingId, userId...) đều sử dụng UUID v7
-
-**Response (200 OK) - Economy:**
-```json
-[
-  {
-    "fareClassCode": "YSM",
-    "name": "Economy Saver Max",
-    "typeTicket": "Economy Saver Max",
-    "price": 1448000,
-    "availableSeats": 5,
-    "desc": [
-          {
-            "text": "Hành lý xách tay: 7kg",
-            "status": true
-          },
-          {
-            "text": "Không bao gồm hành lý ký gửi",
-            "status": false
-          },
-          {
-            "text": "Không được hoàn/hủy",
-            "status": false
-          },
-          {
-            "text": "Thay đổi trước giờ khởi hành: 600.000 VND (*)",
-            "status": true
-          },
-          {
-            "text": "Không thay đổi sau giờ khởi hành (*)",
-            "status": false
-          },
-          {
-            "text": "Hệ số cộng điểm Bamboo Club: 0.25",
-            "status": true
-          },
-          {
-            "text": "Chọn ghế ngồi mất phí",
-            "status": false
-          },
-          {
-            "text": "Không áp dụng cho go-show",
-            "status": false
-          }
-        ],
-        "description": "Economy Saver Max",
-        "changeRule": "Change before departure: 600,000 VND",
-        "refundRule": "Non-refundable"
-      },
-      {
-        "fareClassCode": "Y",
-        "name": "Economy Standard",
-        "typeTicket": "Economy Standard",
-        "price": 1577000,
-        "availableSeats": 12,
-        "desc": [
-          {
-            "text": "Hành lý xách tay: 7kg",
-            "status": true
-          },
-          {
-            "text": "Không bao gồm hành lý ký gửi",
-            "status": false
-          },
-          {
-            "text": "Hoàn/hủy trước giờ khởi hành: 400.000 VND (*)",
-            "status": true
-          },
-          {
-            "text": "Hoàn/hủy sau giờ khởi hành: 400.000 VND (*)",
-            "status": true
-          },
-          {
-            "text": "Thay đổi trước giờ khởi hành: 500.000 VND (*)",
-            "status": true
-          },
-          {
-            "text": "Thay đổi sau giờ khởi hành: 500.000 VND (*)",
-            "status": true
-          },
-          {
-            "text": "Hệ số cộng điểm Bamboo Club: 0.5",
-            "status": true
-          },
-          {
-            "text": "Chọn ghế ngồi mất phí",
-            "status": true
-          },
-          {
-            "text": "Không áp dụng cho go-show",
-            "status": false
-          }
-        ],
-        "description": "Economy Standard",
-        "changeRule": "Change before departure: 500,000 VND",
-        "refundRule": "Refund before departure: 400,000 VND"
-      },
-      {
-        "fareClassCode": "YS",
-        "name": "Economy Smart",
-        "typeTicket": "Economy Smart",
-        "price": 1577000,
-        "availableSeats": 10,
-        "desc": [
-          {
-            "text": "Hành lý xách tay: 7kg",
-            "status": true
-          },
-          {
-            "text": "Không bao gồm hành lý ký gửi",
-            "status": false
-          },
-          {
-            "text": "Hoàn/hủy trước giờ khởi hành: 450.000 VND (*)",
-            "status": true
-          },
-          {
-            "text": "Hoàn/hủy sau giờ khởi hành: 600.000 VND (*)",
-            "status": true
-          },
-          {
-            "text": "Thay đổi trước giờ khởi hành: 450.000 VND (*)",
-            "status": true
-          },
-          {
-            "text": "Thay đổi sau giờ khởi hành: 600.000 VND (*)",
-            "status": true
-          },
-          {
-            "text": "Hệ số cộng điểm Bamboo Club: 0.5",
-            "status": true
-          },
-          {
-            "text": "Chọn ghế ngồi mất phí",
-            "status": true
-          },
-          {
-            "text": "Không áp dụng cho go-show",
-            "status": false
-          }
-        ],
-        "description": "Economy Smart",
-        "changeRule": "Change before departure: 450,000 VND",
-        "refundRule": "Refund before departure: 450,000 VND"
-      },
-      {
-        "fareClassCode": "YF",
-        "name": "Economy Flex",
-        "typeTicket": "Economy Flex",
-        "price": 3068000,
-        "availableSeats": 3,
-        "desc": [
-          {
-            "text": "Hành lý xách tay: 7kg",
-            "status": true
-          },
-          {
-            "text": "01 kiện hành lý ký gửi 20kg",
-            "status": true
-          },
-          {
-            "text": "Hoàn/hủy trước giờ khởi hành: 300.000 VND (*)",
-            "status": true
-          },
-          {
-            "text": "Hoàn/hủy sau giờ khởi hành: 300.000 VND (*)",
-            "status": true
-          },
-          {
-            "text": "Thay đổi miễn phí",
-            "status": true
-          },
-          {
-            "text": "Hệ số cộng điểm Bamboo Club: 1.00",
-            "status": true
-          },
-          {
-            "text": "Chọn ghế ngồi miễn phí",
-            "status": true
-          },
-          {
-            "text": "Đổi chuyến tại sân bay miễn phí",
-            "status": true
-          }
-        ],
-    "description": "Economy Flex",
-    "changeRule": "Free changes",
-    "refundRule": "Refund before departure: 300,000 VND"
-  }
-]
-```
-
-**Response (200 OK) - Business:**
-```json
-{
-  "flightInstanceId": "a3f1f8e6-5a6b-4b2d-9f1a-2c3d4e5f6a7b",
-  "cabinType": "business",
-  "fareOptions": [
-    {
-      "fareClassCode": "J",
-      "name": "Business Standard",
-      "typeTicket": "Business Standard",
-      "price": 5022000,
-      "availableSeats": 6,
-      "desc": [
-        {
-          "text": "Hành lý xách tay: 7kg",
-          "status": true
-        },
-        {
-          "text": "01 kiện hành lý ký gửi 30kg",
-          "status": true
-        },
-        {
-          "text": "Hoàn/hủy trước giờ khởi hành: 400.000 VND (*)",
-          "status": true
-        },
-        {
-          "text": "Hoàn/hủy sau giờ khởi hành: 400.000 VND (*)",
-          "status": true
-        },
-        {
-          "text": "Thay đổi trước giờ khởi hành: 350.000 VND (*)",
-          "status": true
-        },
-        {
-          "text": "Thay đổi sau giờ khởi hành: 350.000 VND (*)",
-          "status": true
-        },
-        {
-          "text": "Hệ số cộng điểm Bamboo Club: 1.5",
-          "status": true
-        },
-        {
-          "text": "Chọn ghế ngồi miễn phí",
-          "status": true
-        },
-        {
-          "text": "Ưu tiên check-in và lên máy bay",
-          "status": true
-        }
-      ],
-      "description": "Business Standard",
-      "changeRule": "Change before departure: 350,000 VND",
-      "refundRule": "Refund before departure: 400,000 VND"
-    },
-    {
-      "fareClassCode": "JS",
-      "name": "Business Smart",
-      "typeTicket": "Business Smart",
-      "price": 5022000,
-      "availableSeats": 8,
-      "desc": [
-        {
-          "text": "Hành lý xách tay: 7kg",
-          "status": true
-        },
-        {
-          "text": "01 kiện hành lý ký gửi 30kg",
-          "status": true
-        },
-        {
-          "text": "Hoàn/hủy trước giờ khởi hành: 450.000 VND (*)",
-          "status": true
-        },
-        {
-          "text": "Hoàn/hủy sau giờ khởi hành: 800.000 VND (*)",
-          "status": true
-        },
-        {
-          "text": "Thay đổi trước giờ khởi hành: 300.000 VND (*)",
-          "status": true
-        },
-        {
-          "text": "Thay đổi sau giờ khởi hành: 800.000 VND (*)",
-          "status": true
-        },
-        {
-          "text": "Hệ số cộng điểm Bamboo Club: 1.5",
-          "status": true
-        },
-        {
-          "text": "Chọn ghế ngồi miễn phí",
-          "status": true
-        },
-        {
-          "text": "Ưu tiên check-in và lên máy bay",
-          "status": true
-        }
-      ],
-      "description": "Business Smart",
-      "changeRule": "Change before departure: 300,000 VND",
-      "refundRule": "Refund before departure: 450,000 VND"
-    },
-    {
-      "fareClassCode": "JF",
-      "name": "Business Flex",
-      "price": 7074000,
-      "availableSeats": 5,
-      "description": "Business Flex",
-      "changeRule": "Free changes",
-      "refundRule": "Refund before departure: 300,000 VND"
-    }
-  ]
-}
-```
-
-**Error (400 Bad Request):**
-```json
-{
-  "statusCode": 400,
-  "message": ["flightInstanceId must be a valid UUID v7"],
-  "error": "Bad Request"
-}
-```
-
-Hoặc:
-```json
-{
-  "statusCode": 400,
-  "message": ["cabinType must be one of the following values: economy, business"],
-  "error": "Bad Request"
-}
-```
-
-**Error (404 Not Found):**
-```json
-{
-  "statusCode": 404,
-  "message": "Flight instance not found",
-  "error": "Not Found"
-}
-```
-
-**Lưu ý:**
-- API này được gọi sau khi user đã chọn một flight từ kết quả search
-- `flightInstanceId` lấy từ response của `/search/flights`
-- `cabinType` là `economy` hoặc `business` (tương ứng với 2 nút trên UI)
-- **Response format**: Trả về array trực tiếp của fare options `[{ fareClassCode, name, typeTicket, price, availableSeats, desc, ... }]`
-- Response chỉ trả về các fare options có `availableSeats > 0`
-- Fare options được sắp xếp theo price (tăng dần)
-- Economy có 4 cabin types: Economy Saver Max, Economy Standard, Economy Smart, Economy Flex
-- Business có 3 cabin types: Business Standard, Business Smart, Business Flex
-- Mỗi fare option có `desc` array chứa các mô tả chi tiết với `text` và `status` (true/false)
-- `typeTicket` field chứa tên hiển thị của fare class (tương tự `name`)
+**Trả về:** Danh sách các loại vé (Economy: Saver Max, Standard, Smart, Flex | Business: Standard, Smart, Flex) với giá và mô tả điều kiện
 
 ---
 
-### Get Seat Map (Lấy bản đồ ghế ngồi)
+### Lấy bản đồ ghế ngồi
+**GET** `/api/v1/search/seats`
 
-**GET** `/search/seats`
+**Tham số:**
+- `flightInstanceId` (bắt buộc): ID chuyến bay
+- `cabinType` (bắt buộc): `economy` hoặc `business`
 
-Lấy danh sách ghế ngồi có sẵn cho một flight instance và cabin type cụ thể. API này được gọi sau khi user đã chọn fare option và trước khi tạo reservation để cho phép user chọn ghế ngồi.
+**Trả về:** Danh sách ghế với thông tin: `flightSeatId`, `seatNumber`, `seatType`, `isAvailable`
 
-**Query Parameters:**
-
-| Parameter | Type | Required | Description | Example |
-|-----------|------|----------|-------------|---------|
-| `flightInstanceId` | string (UUID v7) | Yes | ID của flight instance (UUID v7 - time-ordered) | `019a8f4a-bb0e-7402-a0c4-27647b89dc71` |
-| `cabinType` | string | Yes | Loại cabin: `economy` hoặc `business` | `economy` |
-
-**Example Request:**
-```
-GET /search/seats?flightInstanceId=019a8f4a-bb0e-7402-a0c4-27647b89dc71&cabinType=economy
-```
-
-**Response (200 OK):**
-```json
-{
-  "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-  "cabinType": "economy",
-  "seats": [
-    {
-      "id": "economy",
-      "list": [
-        {
-          "flightSeatId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
-          "seatNumber": "1A",
-          "seatType": "Window",
-          "position": "left",
-          "isAvailable": true,
-          "isExitRow": false,
-          "cabinClassCode": "Y",
-          "note": null
-        },
-        {
-          "flightSeatId": "019a8f4a-bb0e-7402-a0c4-27647b89dc73",
-          "seatNumber": "1B",
-          "seatType": "Middle",
-          "position": null,
-          "isAvailable": true,
-          "isExitRow": false,
-          "cabinClassCode": "Y",
-          "note": null
-        },
-        {
-          "flightSeatId": "019a8f4a-bb0e-7402-a0c4-27647b89dc74",
-          "seatNumber": "1C",
-          "seatType": "Aisle",
-          "position": "right",
-          "isAvailable": false,
-          "isExitRow": false,
-          "cabinClassCode": "Y",
-          "note": null
-        }
-      ]
-    }
-  ]
-}
-```
-
-**Response Structure:**
-- `seats`: Array of seat groups, mỗi group đại diện cho một cabin class
-  - `id`: Cabin class identifier (`economy` hoặc `business`)
-  - `list`: Array of seats trong cabin class đó
-    - `flightSeatId`: Unique ID của ghế (UUID v7) - dùng để chọn ghế khi tạo reservation
-    - `seatNumber`: Số ghế (ví dụ: "1A", "10C")
-    - `seatType`: Loại ghế (`Window`, `Aisle`, `Middle`)
-    - `position`: Vị trí ghế (`left`, `right`, hoặc `null` cho middle seats)
-    - `isAvailable`: Ghế có sẵn không (`true`/`false`)
-    - `isExitRow`: Có phải ghế exit row không (`true`/`false`)
-    - `cabinClassCode`: Mã cabin class (ví dụ: "Y" cho Economy, "J" cho Business)
-    - `note`: Ghi chú về ghế (nếu có)
-
-**Error (400 Bad Request):**
-```json
-{
-  "statusCode": 400,
-  "message": ["flightInstanceId must be a valid UUID v7"],
-  "error": "Bad Request"
-}
-```
-
-Hoặc:
-```json
-{
-  "statusCode": 400,
-  "message": ["cabinType must be one of the following values: economy, business"],
-  "error": "Bad Request"
-}
-```
-
-**Error (404 Not Found):**
-```json
-{
-  "statusCode": 404,
-  "message": "Flight instance not found",
-  "error": "Not Found"
-}
-```
-
-**Lưu ý:**
-- API này được gọi sau khi user đã chọn fare option và trước khi tạo reservation
-- `flightInstanceId` lấy từ response của `/search/flights`
-- `cabinType` phải khớp với cabin type đã chọn khi gọi `/search/fare-options`
-- Response trả về tất cả ghế trong cabin class tương ứng, bao gồm cả ghế đã được đặt (`isAvailable: false`)
-- User có thể chọn ghế bằng cách lấy `flightSeatId` từ response và gửi trong request tạo reservation
-- Ghế sẽ được giữ (hold) khi tạo reservation và được assign vào booking khi tạo booking từ reservation
-- Nếu reservation bị cancel hoặc expire, ghế sẽ được giải phóng (release) tự động
+**Lưu ý:** Chọn ghế là tùy chọn. Nếu chọn, lấy `flightSeatId` để gửi khi tạo reservation.
 
 ---
 
-## Reservations (Giữ chỗ tạm thời)
+## Reservations (Giữ chỗ)
 
-### Create Reservation (Tạo reservation)
+### Tạo reservation (giữ chỗ 15 phút)
+**POST** `/api/v1/reservations`
 
-**POST** `/reservations`
+**Cần đăng nhập:** Có
 
-Tạo reservation để giữ chỗ tạm thời trước khi tạo booking. Hỗ trợ multi-segment cho round-trip bookings. Backend lưu tất cả segments vào Redis với TTL 15 phút.
-
-**Authentication:** Required (JWT Bearer Token)
-
-**Request Headers:**
-```
-Authorization: Bearer <access_token>
-```
-
-**Request Body:**
 ```json
 {
   "segments": [
@@ -1043,11 +188,6 @@ Authorization: Bearer <access_token>
       "fareClassCode": "YS",
       "segmentType": "outbound",
       "flightSeatId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72"
-    },
-    {
-      "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
-      "fareClassCode": "YS",
-      "segmentType": "inbound"
     }
   ],
   "numberOfPassengers": 1,
@@ -1055,351 +195,39 @@ Authorization: Bearer <access_token>
 }
 ```
 
-**Validation:**
-- `segments`: Required, array of segments (minimum 1 segment)
-  - `flightInstanceId`: Required, UUID v7 (từ `/search/flights` response)
-  - `fareClassCode`: Required, string (từ `/search/fare-options` response)
-  - `segmentType`: Required, enum: `'outbound'` or `'inbound'`
-  - `flightSeatId`: Optional, UUID v7 (từ `/search/seats` response) - Nếu cung cấp, ghế sẽ được giữ (hold) khi tạo reservation
-- `numberOfPassengers`: Required, integer >= 1
-- `currencyCode`: Optional, default "VND"
-
-**Seat Selection:**
-- `flightSeatId` là optional - user có thể tạo reservation mà không chọn ghế
-- Nếu cung cấp `flightSeatId`, hệ thống sẽ:
-  - Validate ghế tồn tại và thuộc về flight instance đúng
-  - Validate ghế thuộc về cabin class đúng (khớp với fareClassCode)
-  - Validate ghế đang available
-  - Mark ghế là unavailable (hold) khi tạo reservation
-  - Giải phóng ghế tự động nếu reservation bị cancel hoặc expire
-
-**Round-Trip Validation:**
-- One-way: 1 segment với `segmentType: 'outbound'` (hợp lệ)
-- Round-trip: 2 segments với cả `outbound` và `inbound` (hợp lệ)
-- Invalid: có `inbound` mà không có `outbound` (sẽ throw error)
-
-**Response (201 Created):**
-```json
-{
-  "reservationId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-  "reservationCode": "ABC123",
-  "segments": [
-    {
-      "segmentId": "019a8f4a-bb0e-7402-a0c4-27647b89dc73",
-      "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-      "fareClassCode": "YS",
-      "segmentType": "outbound",
-      "baseFare": 1577000,
-      "taxAmount": 0,
-      "feeAmount": 0,
-      "flightSeatId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
-      "seatNumber": "1A"
-    },
-    {
-      "segmentId": "019a8f4a-bb0e-7402-a0c4-27647b89dc74",
-      "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
-      "fareClassCode": "YS",
-      "segmentType": "inbound",
-      "baseFare": 1577000,
-      "taxAmount": 0,
-      "feeAmount": 0,
-      "flightSeatId": null,
-      "seatNumber": null
-    }
-  ],
-  "numberOfPassengers": 1,
-  "totalAmount": 3154000,
-  "currencyCode": "VND",
-  "status": "active",
-  "expiresAt": "2025-01-20T10:30:00Z",
-  "ttl": 900,
-  "createdAt": "2025-01-20T10:15:00Z",
-  "userId": "019a8f4a-bb0e-7402-a0c4-27647b89dc75"
-}
-```
-
-**Error (400 Bad Request):**
-```json
-{
-  "statusCode": 400,
-  "message": "Not enough available seats. Available: 0, Required: 1",
-  "error": "Bad Request"
-}
-```
+**Trả về:** `reservationId`, `reservationCode`, `totalAmount`, `expiresAt`, `ttl`
 
 **Lưu ý:**
-- Reservation được lưu trong **Database + Redis (Hybrid Approach)**:
-  - **Database**: Persistent storage, audit trail, analytics (status: `pending`, `expired`, `converted`, `cancelled`)
-  - **Redis**: Fast cache với TTL 15 phút (900 seconds) - configurable qua `REDIS_RESERVATION_TTL`
-  - **Get Reservation**: Try Redis first (fast), fallback to Database nếu không tìm thấy
-  - **Recovery**: Nếu Redis down, vẫn có thể lấy reservation từ Database
-- `reservationCode` là 6 ký tự alphanumeric (unique, check cả Redis và Database)
-- Backend tự động validate availability và tính giá cho từng segment
-- `totalAmount` = sum of (baseFare + taxAmount + feeAmount) * numberOfPassengers for all segments
-- **Multi-segment support**: 1 reservation có thể chứa nhiều segments (outbound + inbound cho round-trip)
-- **Format mới**: Response chỉ có `segments[]` array, không còn các fields cũ (đã xóa backward compatibility)
-- **Status tracking**: Database lưu status (`pending`, `expired`, `converted`, `cancelled`) để analytics và audit trail
-- **Seat Selection**:
-  - `flightSeatId` là optional trong request - user có thể tạo reservation mà không chọn ghế
-  - Nếu cung cấp `flightSeatId`, ghế sẽ được giữ (hold) khi tạo reservation
-  - Ghế được giải phóng tự động nếu reservation bị cancel hoặc expire
-  - Response bao gồm `flightSeatId` và `seatNumber` trong mỗi segment nếu ghế đã được chọn
-  - Ghế đã chọn sẽ được assign vào booking khi tạo booking từ reservation
+- Reservation tự động hết hạn sau 15 phút
+- `flightSeatId` là tùy chọn (nếu đã chọn ghế)
+- Hỗ trợ round-trip: thêm segment với `segmentType: "inbound"`
 
 ---
 
-### Get Reservation (Lấy thông tin reservation)
+### Xem reservation
+**GET** `/api/v1/reservations/:id`
 
-**GET** `/reservations/:id`
+**Cần đăng nhập:** Có
 
-Lấy thông tin reservation theo ID hoặc code (tự động detect).
-
-**Authentication:** Required (JWT Bearer Token)
-
-**Path Parameters:**
-- `id`: Reservation ID (UUID v7) hoặc Reservation Code (6 alphanumeric characters)
-
-**Example Requests:**
-```
-GET /reservations/019a8f4a-bb0e-7402-a0c4-27647b89dc71
-GET /reservations/ABC123
-```
-
-**Response (200 OK):**
-```json
-{
-  "reservationId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-  "reservationCode": "ABC123",
-  "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-  "fareClassCode": "YS",
-  "numberOfPassengers": 1,
-  "baseFare": 1577000,
-  "taxAmount": 0,
-  "feeAmount": 0,
-  "totalAmount": 1577000,
-  "currencyCode": "VND",
-  "status": "active",
-  "expiresAt": "2025-01-20T10:30:00Z",
-  "ttl": 850,
-  "createdAt": "2025-01-20T10:15:00Z"
-}
-```
-
-**Error (404 Not Found):**
-```json
-{
-  "statusCode": 404,
-  "message": "Reservation ABC123 not found or expired",
-  "error": "Not Found"
-}
-```
-
-**Error (400 Bad Request):**
-```json
-{
-  "statusCode": 400,
-  "message": "Reservation has expired",
-  "error": "Bad Request"
-}
-```
-
-**Lưu ý:**
-- API tự động detect nếu input là UUID v7 (ID) hay 6 ký tự alphanumeric (code)
-- `ttl` là thời gian còn lại tính bằng giây
-- Nếu reservation đã expired, sẽ trả về error
+Có thể dùng `reservationId` (UUID) hoặc `reservationCode` (6 ký tự)
 
 ---
 
-### Get Reservation by Code (Lấy reservation theo code)
+### Hủy reservation
+**POST** `/api/v1/reservations/:id/cancel`
 
-**GET** `/reservations/code/:code`
-
-Lấy thông tin reservation theo reservation code (6 alphanumeric characters).
-
-**Authentication:** Required (JWT Bearer Token)
-
-**Path Parameters:**
-- `code`: Reservation code (6 alphanumeric characters, e.g., "ABC123")
-
-**Example Request:**
-```
-GET /reservations/code/ABC123
-```
-
-**Response:** Same as Get Reservation
-
----
-
-### List Reservations (Danh sách reservations của user)
-
-**GET** `/reservations`
-
-Lấy danh sách tất cả active reservations của user hiện tại (từ JWT token).
-
-**Authentication:** Required (JWT Bearer Token)
-
-**Example Request:**
-```
-GET /reservations
-Authorization: Bearer <access_token>
-```
-
-**Response (200 OK):**
-```json
-[
-  {
-    "reservationId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-    "reservationCode": "ABC123",
-    "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-    "fareClassCode": "YS",
-    "numberOfPassengers": 1,
-    "baseFare": 1577000,
-    "taxAmount": 0,
-    "feeAmount": 0,
-    "totalAmount": 1577000,
-    "currencyCode": "VND",
-    "status": "active",
-    "expiresAt": "2025-01-20T10:30:00Z",
-    "ttl": 850,
-    "createdAt": "2025-01-20T10:15:00Z"
-  }
-]
-```
-
-**Lưu ý:**
-- Chỉ trả về reservations với status `active` và chưa expired
-- TTL được tự động update khi list
-- User chỉ có thể xem reservations của chính mình
-
----
-
-### Cancel Reservation (Hủy reservation)
-
-**POST** `/reservations/:id/cancel`
-
-Hủy một reservation đang active, giải phóng chỗ đã giữ.
-
-**Authentication:** Required (JWT Bearer Token)
-
-**Path Parameters:**
-- `id`: Reservation ID (UUID v7)
-
-**Example Request:**
-```
-POST /reservations/019a8f4a-bb0e-7402-a0c4-27647b89dc71/cancel
-```
-
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "message": "Reservation cancelled successfully"
-}
-```
-
-**Error (400 Bad Request):**
-```json
-{
-  "statusCode": 400,
-  "message": "Cannot cancel reservation with status: expired",
-  "error": "Bad Request"
-}
-```
-
-**Lưu ý:**
-- Chỉ có thể cancel reservation với status `active`
-- Reservation đã expired hoặc cancelled không thể cancel lại
-- User chỉ có thể cancel reservations của chính mình
-
----
-
-### Extend Reservation (Gia hạn reservation)
-
-**POST** `/reservations/:id/extend`
-
-Gia hạn thời gian expiration của reservation thêm một số giây.
-
-**Authentication:** Required (JWT Bearer Token)
-
-**Path Parameters:**
-- `id`: Reservation ID (UUID v7)
-
-**Request Body:**
-```json
-{
-  "additionalSeconds": 600
-}
-```
-
-**Example Request:**
-```
-POST /reservations/019a8f4a-bb0e-7402-a0c4-27647b89dc71/extend
-Authorization: Bearer <access_token>
-Content-Type: application/json
-
-{
-  "additionalSeconds": 600
-}
-```
-
-**Response (200 OK):**
-```json
-{
-  "reservationId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-  "reservationCode": "ABC123",
-  "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-  "fareClassCode": "YS",
-  "numberOfPassengers": 1,
-  "baseFare": 1577000,
-  "taxAmount": 0,
-  "feeAmount": 0,
-  "totalAmount": 1577000,
-  "currencyCode": "VND",
-  "status": "active",
-  "expiresAt": "2025-01-20T10:40:00Z",
-  "ttl": 1500,
-  "createdAt": "2025-01-20T10:15:00Z"
-}
-```
-
-**Error (400 Bad Request):**
-```json
-{
-  "statusCode": 400,
-  "message": "Cannot extend reservation with status: expired",
-  "error": "Bad Request"
-}
-```
-
-**Lưu ý:**
-- Chỉ có thể extend reservation với status `active` và chưa expired
-- `additionalSeconds` phải là số dương
-- TTL và `expiresAt` sẽ được cập nhật trong Redis
-- User chỉ có thể extend reservations của chính mình
+**Cần đăng nhập:** Có
 
 ---
 
 ## Bookings (Đặt vé)
 
-### Create Booking (Tạo booking mới)
+### Tạo booking từ reservation
+**POST** `/api/v1/bookings?reservationId=xxx`
 
-**POST** `/bookings?reservationId=xxx`
+**Cần đăng nhập:** Có
 
-Tạo một booking mới từ reservation. **Reservation ID là REQUIRED**. Backend sẽ tự động lấy tất cả segments, pricing từ reservation để đảm bảo backend-managed state.
-
-**Authentication:** Required (JWT Bearer Token)
-
-**Request Headers:**
-```
-Authorization: Bearer <access_token>
-```
-
-**Query Parameters (Required):**
-- `reservationId` (string, **required**): Reservation ID (UUID v7) hoặc reservation code (6 alphanumeric). Backend sẽ tự động lấy tất cả segments, `fareClassCode`, và pricing từ reservation.
-
-**Request Body:**
 ```json
-POST /bookings?reservationId=019a8f4a-bb0e-7402-a0c4-27647b89dc71
 {
   "passengers": [
     {
@@ -1412,654 +240,115 @@ POST /bookings?reservationId=019a8f4a-bb0e-7402-a0c4-27647b89dc71
   ],
   "contactFullname": "Nguyen Van A",
   "contactEmail": "nguyenvana@example.com",
-  "contactPhone": "0912345678",
-  "channel": "web"
+  "contactPhone": "0912345678"
 }
 ```
 
-**Lưu ý quan trọng:**
-- **Direct booking (không có reservationId) đã deprecated và không còn được hỗ trợ**
-- Tất cả bookings phải được tạo từ reservation để đảm bảo backend-managed state
-- Backend tự động lấy tất cả segments từ reservation (hỗ trợ multi-segment cho round-trip)
-- Frontend chỉ cần gửi: `reservationId` + `passengers` + `contactInfo`
-
-**Hoặc sử dụng passenger đã có:**
+**Hoặc dùng hành khách đã lưu:**
 ```json
 {
-  "currencyCode": "VND",
   "passengers": [
     {
       "passengerId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
       "passengerType": "ADT"
     }
-  ],
-  "segments": [...]
+  ]
 }
 ```
 
-**Validation:**
-- **`userId`**: Không cần truyền - sẽ được tự động extract từ JWT token
-- `currencyCode`: Required, phải tồn tại trong database
-- **`contactFullname`, `contactEmail`, `contactPhone`**: Optional - logic tự động:
-  - Nếu có trong body → dùng (cho phép override)
-  - Nếu không có và chỉ có 1 passenger thuộc về user → dùng `fullname` từ passenger, `email/phone` từ user
-  - Nếu không → dùng thông tin từ user (booking contact person)
-- `passengers`: Array, mỗi passenger có 2 options:
-  - **Option 1**: Sử dụng passenger đã có → chỉ cần `passengerId` (UUID v7) và `passengerType`
-  - **Option 2**: Tạo passenger mới → không cần `passengerId`, nhưng cần `fullname`, `dob` (YYYY-MM-DD), `gender`, `documentNumber` và `passengerType`
-- `segments`: Array, mỗi segment cần `flightInstanceId`, `fareClassCode`, `baseFare`, `taxAmount`, `feeAmount`
-- `flightSeatId`: Optional, có thể gán sau
-
-**Lưu ý quan trọng:**
-- **User vs Passenger**: 
-  - **User**: Người đăng ký tài khoản và đặt vé (1 user có thể đặt nhiều vé)
-  - **Passenger**: Người thực sự đi máy bay (1 user có thể có nhiều passengers: bản thân, người thân, bạn bè)
-  - Một booking có thể có nhiều passengers (ví dụ: đặt vé cho cả gia đình)
-- **Contact Info Logic**:
-  - **Booking Contact Info**: Thông tin người đặt vé (để gửi email xác nhận, gọi điện về booking)
-  - Nếu user đặt cho chính mình (1 passenger thuộc về user) → dùng tên passenger, email/phone user
-  - Nếu user đặt cho người khác hoặc nhiều người → dùng thông tin user (booking contact person)
-- **Passenger Creation Logic**:
-  - Nếu có `passengerId` → sử dụng passenger đã có trong database
-  - Nếu không có `passengerId` → tự động tạo passenger mới từ thông tin `fullname`, `dob`, `gender`, `documentNumber`
-  - Passenger mới sẽ được link với user (từ JWT token) để có thể tái sử dụng sau này
-  - Nếu passenger với cùng `documentNumber` đã tồn tại cho user → sử dụng passenger đã có (tránh duplicate)
-
-**Response (201 Created):**
-```json
-{
-  "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-  "pnrCode": "ABC123",
-  "totalAmount": 1577000,
-  "currencyCode": "VND",
-  "status": "pending"
-}
-```
-
-**Error (400 Bad Request):**
-```json
-{
-  "statusCode": 400,
-  "message": "Currency VND not found",
-  "error": "Bad Request"
-}
-```
-
-**Error (404 Not Found):**
-```json
-{
-  "statusCode": 404,
-  "message": "Flight instance 019a8f4a-bb0e-7402-a0c4-27647b89dc71 not found",
-  "error": "Not Found"
-}
-```
+**Trả về:** `bookingId`, `pnrCode`, `totalAmount`, `currencyCode`, `status`
 
 **Lưu ý:**
-- **Recommended Flow**: Sử dụng `?reservationId=xxx` để tạo booking từ reservation (backend-managed state)
-  - Backend tự động lấy `flightInstanceId`, `fareClassCode`, và pricing từ reservation
-  - Không cần gửi lại `segments` trong request body
-  - Reservation sẽ tự động được cancel sau khi tạo booking thành công
-- **Legacy Flow**: Tạo booking trực tiếp (không dùng reservation)
-  - Cần gửi đầy đủ `segments` với `flightInstanceId`, `fareClassCode`, pricing
-- PNR code được tự động generate (6 ký tự alphanumeric, unique)
-- Total amount được tính từ tổng của tất cả segments (baseFare + taxAmount + feeAmount)
-- Booking được tạo với status `pending`
-- Transaction-safe: Tất cả operations được thực hiện trong một transaction
-- **Validation khi dùng reservationId**:
-  - Reservation phải còn active và chưa expired
-  - Reservation phải thuộc về user (từ JWT)
-  - Số lượng passengers phải khớp với reservation
+- Phải tạo từ reservation (bắt buộc có `reservationId`)
+- Reservation sẽ tự động hủy sau khi tạo booking thành công
+- Email xác nhận đặt chỗ được gửi tự động
 
 ---
 
-### Get Booking Fare Details (Lấy thông tin chi tiết fare đã chọn)
+### Xem chi tiết fare
+**GET** `/api/v1/bookings/:id/fare-details`
 
-**GET** `/bookings/:id/fare-details`
-
-Lấy thông tin chi tiết về fare class đã chọn trong booking, bao gồm descriptions và pricing.
-
-**Path Parameters:**
-- `id`: Booking ID (UUID v7)
-
-**Example Request:**
-```
-GET /bookings/019a8f4a-bb0e-7402-a0c4-27647b89dc71/fare-details
-```
-
-**Response (200 OK):**
-```json
-{
-  "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-  "pnrCode": "ABC123",
-  "fareClassName": "Economy Smart",
-  "descriptions": [
-    {
-      "text": "Hành lý xách tay: 7kg",
-      "status": true
-    },
-    {
-      "text": "Không bao gồm hành lý ký gửi",
-      "status": false
-    },
-    {
-      "text": "Hoàn/hủy trước giờ khởi hành: 450.000 VND (*)",
-      "status": true
-    },
-    {
-      "text": "Hoàn/hủy sau giờ khởi hành: 600.000 VND (*)",
-      "status": true
-    },
-    {
-      "text": "Thay đổi trước giờ khởi hành: 450.000 VND (*)",
-      "status": true
-    },
-    {
-      "text": "Thay đổi sau giờ khởi hành: 600.000 VND (*)",
-      "status": true
-    },
-    {
-      "text": "Hệ số cộng điểm Bamboo Club: 0.5",
-      "status": true
-    },
-    {
-      "text": "Chọn ghế ngồi mất phí",
-      "status": true
-    },
-    {
-      "text": "Không áp dụng cho go-show",
-      "status": false
-    }
-  ],
-  "priceOneWay": 1577000,
-  "totalPassengers": 1,
-  "totalPrice": 1577000
-}
-```
-
-**Error (404 Not Found):**
-```json
-{
-  "statusCode": 404,
-  "message": "Booking 019a8f4a-bb0e-7402-a0c4-27647b89dc71 not found",
-  "error": "Not Found"
-}
-```
-
-**Lưu ý:**
-- API này được gọi sau khi user đã chọn fare class và tạo booking
-- `descriptions` chứa danh sách các điều kiện/quyền lợi của fare class
-- `priceOneWay` là tổng giá của tất cả segments trong booking
-- `totalPassengers` là số lượng passengers trong booking
+**Trả về:** Thông tin loại vé đã chọn, điều kiện/quyền lợi, giá
 
 ---
 
-### Update Booking Passengers (Cập nhật số lượng người)
+### Xem thông tin thanh toán
+**GET** `/api/v1/bookings/:id/payment-info`
 
-**PATCH** `/bookings/:id/passengers`
-
-Cập nhật số lượng adult và minor passengers cho một booking.
-
-**Path Parameters:**
-- `id`: Booking ID (UUID v7)
-
-**Request Body:**
-```json
-{
-  "adults": 2,
-  "minors": 1
-}
-```
-
-**Validation:**
-- `adults`: Required, integer ≥ 1
-- `minors`: Required, integer ≥ 0
-
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "message": "Passenger count updated from 1 to 3",
-  "totalPassengers": 3
-}
-```
-
-**Error (404 Not Found):**
-```json
-{
-  "statusCode": 404,
-  "message": "Booking 019a8f4a-bb0e-7402-a0c4-27647b89dc71 not found",
-  "error": "Not Found"
-}
-```
-
-**Lưu ý:**
-- API này cho phép thay đổi số lượng người sau khi đã tạo booking
-- Có thể cần recalculate total amount dựa trên số lượng mới (tính năng này có thể được mở rộng)
-
----
-
-### Get Booking Payment Info (Lấy thông tin thanh toán)
-
-**GET** `/bookings/:id/payment-info`
-
-Lấy thông tin thanh toán cho một booking, bao gồm total amount, currency, và contact details.
-
-**Path Parameters:**
-- `id`: Booking ID (UUID v7)
-
-**Example Request:**
-```
-GET /bookings/019a8f4a-bb0e-7402-a0c4-27647b89dc71/payment-info
-```
-
-**Response (200 OK):**
-```json
-{
-  "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-  "pnrCode": "ABC123",
-  "totalAmount": 1577000,
-  "currencyCode": "VND",
-  "contactFullname": "Nguyen Van A",
-  "contactEmail": "nguyenvana@example.com",
-  "contactPhone": "0912345678",
-  "status": "pending"
-}
-```
-
-**Error (404 Not Found):**
-```json
-{
-  "statusCode": 404,
-  "message": "Booking 019a8f4a-bb0e-7402-a0c4-27647b89dc71 not found",
-  "error": "Not Found"
-}
-```
-
-**Lưu ý:**
-- API này được gọi khi user chuyển đến trang thanh toán
-- Thông tin này được dùng để hiển thị trên payment page
-- `status` có thể là: `pending`, `confirmed`, `cancelled`, `completed`
+**Trả về:** `bookingId`, `pnrCode`, `totalAmount`, thông tin liên hệ, `status`
 
 ---
 
 ## Payments (Thanh toán)
 
-### Create Payment (Tạo payment record)
+### Tạo thanh toán
+**POST** `/api/v1/payments/bookings/:bookingId`
 
-**POST** `/payments/bookings/:bookingId`
+**Cần đăng nhập:** Có
 
-Tạo một payment record mới cho booking. Payment sẽ có status `pending`. Để thanh toán ngay, sử dụng endpoint `/payments/bookings/:bookingId/process`.
-
-**Authentication:** Required (JWT Bearer Token)
-
-**Request Headers:**
-```
-Authorization: Bearer <access_token>
-```
-
-**Path Parameters:**
-- `bookingId`: Booking ID (UUID v7)
-
-**Request Body:**
 ```json
 {
   "paymentMethodCode": "CREDIT_CARD",
-  "transactionRef": "TXN123456789",
-  "idempotencyKey": "idempotency-key-12345",
   "amount": 1577000
 }
 ```
 
-**Validation:**
-- `paymentMethodCode`: Required, enum: `CREDIT_CARD`, `DEBIT_CARD`, `BANK_TRANSFER`, `EWALLET`, `CASH`
-- `transactionRef`: Optional, transaction reference from payment gateway
-- `idempotencyKey`: Optional, idempotency key để prevent duplicate payments
-- `amount`: Optional, payment amount (defaults to booking total amount, must equal booking total amount)
-
-**Response (201 Created):**
-```json
-{
-  "paymentId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-  "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
-  "pnrCode": "ABC123",
-  "amount": 1577000,
-  "currencyCode": "VND",
-  "paymentMethodCode": "CREDIT_CARD",
-  "paymentMethodName": "Credit Card",
-  "status": "pending",
-  "transactionRef": "TXN123456789",
-  "createdAt": "2025-01-20T10:15:00Z",
-  "paidAt": null,
-  "expiresAt": "2025-01-20T10:30:00Z"
-}
-```
-
-**Error (400 Bad Request):**
-```json
-{
-  "statusCode": 400,
-  "timestamp": "2025-11-22T00:29:15.685Z",
-  "path": "/api/v1/payments/bookings/019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-  "method": "POST",
-  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
-  "message": "Booking is already paid",
-  "error": "Bad Request"
-}
-```
-
-**Error (503 Service Unavailable) - Payment Microservice không chạy:**
-```json
-{
-  "statusCode": 503,
-  "timestamp": "2025-11-22T00:29:15.685Z",
-  "path": "/api/v1/payments/bookings/019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-  "method": "POST",
-  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
-  "message": "Payment microservice connection was closed. Please ensure the service is running.",
-  "error": "Service Unavailable"
-}
-```
+**Trả về:** `paymentId`, `status`, `expiresAt`
 
 **Lưu ý:**
-- Payment được tạo với status `pending`
-- Payment tự động expire sau **15 phút** (expiresAt = createdAt + 15 minutes)
-- **Idempotency (Hybrid Approach)**: Nếu có `idempotencyKey`, system sẽ:
-  - Check Redis first (fast path, ~1ms) - cached payment response với TTL 2 hours
-  - Nếu Redis miss → Check DB (guarantee path, ~20-50ms)
-  - Nếu tìm thấy → Return existing payment (prevent duplicate payments)
-  - Nếu không tìm thấy → Create new payment → Save both Redis + DB
-  - **Performance**: ~95% latency reduction (99% hit Redis cache)
-  - **Safety**: Redis failures → Fallback to DB (không mất guarantee)
-- **Amount Validation**: Nếu có `amount`, phải bằng booking total amount (strict validation, no partial payments)
-- **Payment Method Availability**: Payment method phải active (`is_active = true`)
-- **Concurrency Control**: Sử dụng database lock để prevent concurrent payments
-- Booking phải thuộc về user hiện tại (từ JWT token)
-- Booking không được đã paid hoặc cancelled
-- `userId` tự động extract từ JWT token (không cần gửi trong request body)
+- Payment tự động hết hạn sau 15 phút
+- Phương thức thanh toán: `CREDIT_CARD`, `DEBIT_CARD`, `BANK_TRANSFER`, `EWALLET`, `CASH`
 
 ---
 
-### Process Payment (Tạo và thanh toán ngay)
+### Xử lý thanh toán
+**POST** `/api/v1/payments/bookings/:bookingId/process`
 
-**POST** `/payments/bookings/:bookingId/process`
+**Cần đăng nhập:** Có
 
-Tạo payment record và xử lý thanh toán ngay lập tức. Payment sẽ được tạo và status được update thành `success`, booking status sẽ được update thành `paid`. Trong production, endpoint này sẽ tích hợp với payment gateway thực tế.
-
-**Authentication:** Required (JWT Bearer Token)
-
-**Request Headers:**
-```
-Authorization: Bearer <access_token>
-```
-
-**Path Parameters:**
-- `bookingId`: Booking ID (UUID v7)
-
-**Request Body:**
-```json
-{
-  "paymentMethodCode": "CREDIT_CARD",
-  "transactionRef": "TXN123456789",
-  "idempotencyKey": "idempotency-key-12345",
-  "amount": 1577000
-}
-```
-
-**Response (201 Created):**
-```json
-{
-  "paymentId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-  "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
-  "pnrCode": "ABC123",
-  "amount": 1577000,
-  "currencyCode": "VND",
-  "paymentMethodCode": "CREDIT_CARD",
-  "paymentMethodName": "Credit Card",
-  "status": "success",
-  "transactionRef": "TXN123456789",
-  "createdAt": "2025-01-20T10:15:00Z",
-  "paidAt": "2025-01-20T10:15:05Z",
-  "expiresAt": "2025-01-20T10:30:00Z",
-  "paymentUrl": "https://payment-gateway.com/pay/TXN123456789"
-}
-```
+Tạo payment và xử lý thanh toán ngay. Có thể trả về `paymentUrl` để redirect đến cổng thanh toán.
 
 **Lưu ý:**
-- Payment được tạo và xử lý trong một transaction với **concurrency control** (database lock)
-- **Payment Gateway Integration**: Endpoint này sẽ gọi payment gateway (VNPay, MoMo, Stripe, etc.) để tạo payment URL
-- **Payment URL**: Response có thể chứa `paymentUrl` để redirect user đến payment gateway page
-- **Async Processing**: Trong production, payment status thường được update qua **webhook** từ payment gateway
-- **Idempotency (Hybrid Approach)**: Nếu có `idempotencyKey`, system sẽ:
-  - Check Redis first (fast path, ~1ms) - cached payment response với TTL 2 hours
-  - Nếu Redis miss → Check DB (guarantee path, ~20-50ms)
-  - Nếu tìm thấy → Return existing payment (prevent duplicate payments)
-  - Nếu không tìm thấy → Create new payment → Save both Redis + DB
-  - **Performance**: ~95% latency reduction (99% hit Redis cache)
-  - **Safety**: Redis failures → Fallback to DB (không mất guarantee)
-- **Payment Expiration**: Payment tự động expire sau 15 phút nếu chưa thanh toán
-- Nếu payment thành công, booking status tự động update thành `paid`
-- `paidAt` được set khi payment status = `success`
+- Email xác nhận thanh toán được gửi tự động khi thành công/thất bại
+- Booking status tự động cập nhật thành `paid` khi thanh toán thành công
 
 ---
 
-### Get Payment (Lấy thông tin payment)
+### Xem thông tin payment
+**GET** `/api/v1/payments/:id`
 
-**GET** `/payments/:id`
-
-Lấy thông tin chi tiết của một payment theo payment ID.
-
-**Authentication:** Required (JWT Bearer Token)
-
-**Path Parameters:**
-- `id`: Payment ID (UUID v7)
-
-**Response (200 OK):**
-```json
-{
-  "paymentId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-  "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
-  "pnrCode": "ABC123",
-  "amount": 1577000,
-  "currencyCode": "VND",
-  "paymentMethodCode": "CREDIT_CARD",
-  "paymentMethodName": "Credit Card",
-  "status": "success",
-  "transactionRef": "TXN123456789",
-  "createdAt": "2025-01-20T10:15:00Z",
-  "paidAt": "2025-01-20T10:15:05Z",
-  "expiresAt": "2025-01-20T10:30:00Z",
-  "paymentUrl": null
-}
-```
-
-**Error (404 Not Found):**
-```json
-{
-  "statusCode": 404,
-  "message": "Payment 019a8f4a-bb0e-7402-a0c4-27647b89dc71 not found",
-  "error": "Not Found"
-}
-```
-
-**Lưu ý:**
-- User chỉ có thể xem payments của bookings thuộc về mình
-- Payment phải thuộc về booking của user hiện tại (từ JWT token)
+**Cần đăng nhập:** Có
 
 ---
 
-### Get Payments by Booking (Lấy tất cả payments của booking)
+### Xem tất cả payments của booking
+**GET** `/api/v1/payments/bookings/:bookingId`
 
-**GET** `/payments/bookings/:bookingId`
-
-Lấy danh sách tất cả payments của một booking cụ thể.
-
-**Authentication:** Required (JWT Bearer Token)
-
-**Path Parameters:**
-- `bookingId`: Booking ID (UUID v7)
-
-**Response (200 OK):**
-```json
-[
-  {
-    "paymentId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-    "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
-    "pnrCode": "ABC123",
-    "amount": 1577000,
-    "currencyCode": "VND",
-    "paymentMethodCode": "CREDIT_CARD",
-    "paymentMethodName": "Credit Card",
-    "status": "success",
-    "transactionRef": "TXN123456789",
-    "createdAt": "2025-01-20T10:15:00Z",
-    "paidAt": "2025-01-20T10:15:05Z",
-    "expiresAt": "2025-01-20T10:30:00Z",
-    "paymentUrl": null
-  }
-]
-```
-
-**Lưu ý:**
-- Payments được sắp xếp theo `createdAt` DESC (mới nhất trước)
-- User chỉ có thể xem payments của bookings thuộc về mình
-- Một booking có thể có nhiều payments (ví dụ: payment failed, retry payment)
+**Cần đăng nhập:** Có
 
 ---
 
-### Update Payment Status (Cập nhật payment status)
+## Services (Dịch vụ)
 
-**PATCH** `/payments/:id/status`
+### Lấy danh sách deals
+**GET** `/api/v1/services/deals`
 
-Cập nhật status của payment. Thường được sử dụng bởi payment gateway webhooks hoặc admin operations.
-
-**Authentication:** Required (JWT Bearer Token)
-
-**Path Parameters:**
-- `id`: Payment ID (UUID v7)
-
-**Request Body:**
-```json
-{
-  "status": "success",
-  "transactionRef": "TXN123456789"
-}
-```
-
-**Validation:**
-- `status`: Required, enum: `pending`, `success`, `failed`
-- `transactionRef`: Optional, transaction reference from payment gateway
-
-**Response (200 OK):**
-```json
-{
-  "paymentId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-  "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
-  "pnrCode": "ABC123",
-  "amount": 1577000,
-  "currencyCode": "VND",
-  "paymentMethodCode": "CREDIT_CARD",
-  "paymentMethodName": "Credit Card",
-  "status": "success",
-  "transactionRef": "TXN123456789",
-  "createdAt": "2025-01-20T10:15:00Z",
-  "paidAt": "2025-01-20T10:20:00Z",
-  "expiresAt": "2025-01-20T10:30:00Z",
-  "paymentUrl": null
-}
-```
+**Trả về:** Danh sách ưu đãi chuyến bay với hình ảnh, tên route, ngày bay, giá
 
 **Lưu ý:**
-- Nếu status = `success`, `paidAt` được tự động set
-- Nếu payment thành công, booking status tự động update thành `paid`
-- **Payment Notifications**: System tự động gửi notification khi payment success/failed
-- User chỉ có thể update payments của bookings thuộc về mình
-- Trong production, endpoint này thường được gọi bởi payment gateway webhook
-
----
-
-### Handle Payment Gateway Webhook (Xử lý webhook từ payment gateway)
-
-**POST** `/payments/webhooks/:gateway`
-
-Endpoint để nhận webhook từ payment gateway (VNPay, MoMo, Stripe, etc.) khi payment status được update.
-
-**Authentication:** NOT Required (Payment gateway calls this endpoint directly)
-
-**Path Parameters:**
-- `gateway`: Payment gateway name (e.g., `vnpay`, `momo`, `stripe`, `mock`)
-
-**Request Headers:**
-```
-x-signature: <webhook_signature>
-Content-Type: application/json
-```
-
-**Request Body:**
-```json
-{
-  "transactionId": "TXN123456789",
-  "status": "success",
-  "amount": 1577000,
-  "currency": "VND",
-  "message": "Payment processed successfully"
-}
-```
-
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "message": "Webhook processed successfully"
-}
-```
-
-**Error (400 Bad Request):**
-```json
-{
-  "statusCode": 400,
-  "message": "Invalid webhook signature",
-  "error": "Bad Request"
-}
-```
-
-**Lưu ý:**
-- **Webhook Verification**: System verify webhook signature để đảm bảo request đến từ payment gateway hợp lệ
-- **Async Payment Status Update**: Payment gateway gọi webhook khi payment status thay đổi (success/failed)
-- **Automatic Booking Update**: Khi webhook xác nhận payment success, booking status tự động update thành `paid`
-- **Transaction Safety**: Webhook processing sử dụng transactions để đảm bảo data consistency
-- **Payment Notification**: System tự động gửi notification khi payment status được update qua webhook
-- Gateway name phải match với payment method code (e.g., `vnpay` → EWALLET, `stripe` → CREDIT_CARD)
+- Bao gồm cả one-way và round-trip deals
+- Giá được tính từ dữ liệu booking có sẵn
 
 ---
 
 ## Emails (Gửi email)
 
-### Send Email (Gửi email đơn lẻ)
+### Gửi email
+**POST** `/api/v1/emails/send`
 
-**POST** `/emails/send`
+**Cần đăng nhập:** Có
 
-Gửi một email. Email sẽ được queue và xử lý bất đồng bộ. Hỗ trợ cả custom emails và template-based emails.
-
-**Authentication:** Required (JWT Bearer Token)
-
-**Request Headers:**
-```
-Authorization: Bearer <access_token>
-Content-Type: application/json
-```
-
-**Request Body (Custom Email):**
-```json
-{
-  "to": "user@example.com",
-  "subject": "Test Email",
-  "htmlBody": "<h1>Hello</h1><p>This is a test email.</p>",
-  "textBody": "Hello\nThis is a test email.",
-  "replyTo": "noreply@example.com"
-}
-```
-
-**Request Body (Template-based Email):**
+**Ví dụ gửi OTP:**
 ```json
 {
   "to": "user@example.com",
@@ -2071,458 +360,64 @@ Content-Type: application/json
 }
 ```
 
-**Validation:**
-- `to`: Required, valid email address
-- `subject`: Required nếu không dùng template
-- `htmlBody`: Required nếu không dùng template
-- `textBody`: Optional, plain text version
-- `template`: Optional, enum: `otp_payment`, `otp_password_reset`, `payment_success`, `payment_failed`, `booking_confirmation`
-- `templateData`: Optional, object chứa variables cho template
-- `replyTo`: Optional, valid email address
-
-**Response (202 Accepted):**
-```json
-{
-  "emailId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-  "to": "user@example.com",
-  "subject": "Test Email",
-  "status": "queued",
-  "queuedAt": "2025-01-20T10:15:00Z",
-  "retryCount": 0
-}
-```
-
-**Email Status:**
-- `queued`: Email đã được thêm vào queue
-- `sending`: Đang gửi email
-- `sent`: Email đã được gửi thành công
-- `failed`: Email gửi thất bại (sau khi retry)
-
-**Lưu ý:**
-- Email được queue và xử lý bất đồng bộ (không block request)
-- Rate limiting: 100 emails/phút
-- Retry logic: Tối đa 3 lần với exponential backoff
-- Template-based emails tự động render subject và body từ template
-- Cần Email Microservice (port 4007) chạy
-- Cần Gmail API credentials và token được cấu hình
+**Templates có sẵn:**
+- `otp_payment` - OTP thanh toán
+- `otp_password_reset` - OTP đặt lại mật khẩu
+- `payment_success` - Xác nhận thanh toán thành công
+- `payment_failed` - Thông báo thanh toán thất bại
+- `booking_confirmation` - Xác nhận đặt chỗ
 
 ---
 
-### Get Email Status (Lấy trạng thái email)
+### Kiểm tra trạng thái email service
+**GET** `/api/v1/emails/health`
 
-**GET** `/emails/:emailId/status`
-
-Lấy trạng thái của một email theo email ID.
-
-**Authentication:** Required (JWT Bearer Token)
-
-**Path Parameters:**
-- `emailId`: Email job ID (UUID v7)
-
-**Response (200 OK):**
-```json
-{
-  "emailId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-  "to": "user@example.com",
-  "subject": "Test Email",
-  "status": "sent",
-  "queuedAt": "2025-01-20T10:15:00Z",
-  "sentAt": "2025-01-20T10:15:05Z",
-  "retryCount": 0
-}
-```
-
-**Error (404 Not Found):**
-```json
-{
-  "statusCode": 404,
-  "message": "Email not found",
-  "error": "Not Found"
-}
-```
+**Không cần đăng nhập**
 
 ---
 
-### Health Check (Kiểm tra trạng thái Email Service)
+## Danh sách sân bay nội địa
 
-**GET** `/emails/health`
-
-Kiểm tra trạng thái của Email Service. Public endpoint (không cần authentication).
-
-**Response (200 OK):**
-```json
-{
-  "status": "ok",
-  "gmailReady": true,
-  "queueStats": {
-    "total": 10,
-    "queued": 2,
-    "sending": 1,
-    "sent": 6,
-    "failed": 1,
-    "rateLimitRemaining": 95
-  }
-}
-```
-
-**Lưu ý:**
-- `gmailReady`: `true` nếu Gmail API client đã được khởi tạo và sẵn sàng
-- `queueStats`: Thống kê queue hiện tại
-- `rateLimitRemaining`: Số email còn lại có thể gửi trong window hiện tại (100 emails/phút)
+- **HAN**: Hà Nội (Noi Bai)
+- **SGN**: TP. Hồ Chí Minh (Tan Son Nhat)
+- **DAD**: Đà Nẵng (Da Nang)
+- **CXR**: Nha Trang (Cam Ranh)
+- **PQC**: Phú Quốc
+- **UIH**: Quy Nhơn
+- Và các sân bay khác...
 
 ---
 
-### Email Templates
+## Xử lý lỗi
 
-Email Service hỗ trợ 5 templates sẵn có:
+### Mã lỗi phổ biến
 
-1. **`otp_payment`** - OTP cho xác thực thanh toán
-   - Template Data: `{ otp, expiresIn }`
-
-2. **`otp_password_reset`** - OTP cho đặt lại mật khẩu
-   - Template Data: `{ otp, expiresIn }`
-
-3. **`payment_success`** - Thông báo thanh toán thành công
-   - Template Data: `{ pnrCode, bookingId, totalAmount, currency, passengerName }`
-
-4. **`payment_failed`** - Thông báo thanh toán thất bại
-   - Template Data: `{ bookingId, reason }`
-
-5. **`booking_confirmation`** - Xác nhận đặt chỗ
-   - Template Data: `{ pnrCode, bookingId, flightDetails, passengerName }`
-
-**Example - Send OTP Payment Email:**
-```json
-{
-  "to": "user@example.com",
-  "template": "otp_payment",
-  "templateData": {
-    "otp": "123456",
-    "expiresIn": "15 minutes"
-  }
-}
-```
-
----
-
-## Services (Dịch vụ chuyến bay)
-
-### Get Flight Deals (Lấy danh sách deals chuyến bay)
-
-**GET** `/services/deals`
-
-Lấy danh sách các flight deals (ưu đãi chuyến bay) với thông tin route, ngày bay, và giá. API này được dùng để hiển thị các deals trên trang chủ hoặc trang deals.
-
-**Query Parameters:** Không có (API này không cần parameters)
-
-**Example Request:**
-```
-GET /services/deals
-```
-
-**Response (200 OK):**
-```json
-{
-  "deals": [
-    {
-      "image": "/images/routes/019a8f4a-bb0e-7402-a0c4-27647b89dc71.jpg",
-      "title": "Tp. Hồ Chí Minh (SGN) đến Hà Nội (HAN)",
-      "link": "/service/019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-      "startDate": "02/03/2026",
-      "endDate": "",
-      "tripType": "one_way",
-      "service": "Dịch vụ bay thẳng",
-      "price": "962,000 VND"
-    },
-    {
-      "image": "/images/routes/019a8f4a-bb0e-7402-a0c4-27647b89dc71.jpg",
-      "title": "Tp. Hồ Chí Minh (SGN) đến Hà Nội (HAN)",
-      "link": "/service/019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-      "startDate": "02/03/2026",
-      "endDate": "09/03/2026",
-      "tripType": "round_trip",
-      "service": "Dịch vụ bay khứ hồi",
-      "price": "1,924,000 VND"
-    },
-    {
-      "image": "/images/routes/019b1f5b-cc1f-8513-b1d5-38758c90ed82.jpg",
-      "title": "Tp. Hồ Chí Minh (SGN) đến Quy Nhơn (UIH)",
-      "link": "/service/019b1f5b-cc1f-8513-b1d5-38758c90ed82",
-      "startDate": "25/12/2026",
-      "endDate": "",
-      "tripType": "one_way",
-      "service": "Dịch vụ bay thẳng",
-      "price": "692,000 VND"
-    }
-  ]
-}
-```
-
-**Response Fields:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `deals` | array | Danh sách các flight deals (bao gồm cả one-way và round-trip) |
-| `deals[].image` | string | Đường dẫn đến hình ảnh deal, format: `/images/routes/{route_id}.jpg` (route_id là UUID v7 - 36 ký tự) |
-| `deals[].title` | string | Mô tả route bằng tiếng Việt (e.g., "Tp. Hồ Chí Minh (SGN) đến Hà Nội (HAN)") |
-| `deals[].link` | string | Link đến trang chi tiết service, format: `/service/{route_id}` (route_id là UUID v7 - 36 ký tự) |
-| `deals[].startDate` | string | Ngày đi theo format DD/MM/YYYY (e.g., "02/03/2026") |
-| `deals[].endDate` | string | Ngày về theo format DD/MM/YYYY (rỗng cho one-way flights, có giá trị cho round-trip) |
-| `deals[].tripType` | string | Loại chuyến bay: `"one_way"` hoặc `"round_trip"` |
-| `deals[].service` | string | Loại dịch vụ: "Dịch vụ bay thẳng" (one-way) hoặc "Dịch vụ bay khứ hồi" (round-trip) |
-| `deals[].price` | string | Giá đã format với dấu phẩy và "VND". Với round-trip, giá là tổng của cả 2 chuyến (e.g., "1,924,000 VND") |
-
-**Lưu ý:**
-- API trả về tất cả routes nội địa có flights available trong 30 ngày tới
-- Mỗi route có thể có cả **one-way** và **round-trip** deals (nếu có return route và return flights available)
-- Deals được sắp xếp theo giá tăng dần (từ rẻ nhất đến đắt nhất)
-- Round-trip deals chỉ được tạo nếu:
-  - Có return route (reverse route) tồn tại
-  - Có return flights available trong vòng 7-37 ngày sau ngày đi
-  - Có booking data để tính giá cho return route
-- Giá round-trip = giá đi + giá về (tổng của 2 chuyến)
-- `image` và `link` được lấy từ database (bảng Routes: `image_url`, `service_link`), format: 
-  - `image` = `/images/routes/{route_id}.jpg` (route_id là UUID v7 - 36 ký tự, length = 55)
-  - `link` = `/service/{route_id}` (route_id là UUID v7 - 36 ký tự, length = 45)
-
-**Error (500 Internal Server Error):**
-```json
-{
-  "statusCode": 500,
-  "message": "Services microservice is not running. Please start it with: npm run start:services",
-  "error": "Internal Server Error"
-}
-```
-
-**Lưu ý về Pricing:**
-- Giá được tính từ **historical pricing** (lấy từ BookingSegments của các booking đã có)
-- Tính **giá trung bình** (average price) từ tất cả booking segments của route
-- Nếu không có booking data cho route, route đó sẽ **bị bỏ qua** (không hiển thị trong deals)
-- Giá bao gồm: base_fare + tax_amount + fee_amount
-- Giá được format theo chuẩn Việt Nam với dấu phẩy ngăn cách hàng nghìn
-
-**Lưu ý về Images:**
-- Ảnh phong cảnh cho deals được lưu trong thư mục `public/images/routes/`
-- Format tên file: `{route_id}.jpg` (route_id là UUID v7 - 36 ký tự)
-- Kích thước: 1920x1080 (16:9) - landscape images
-- Ảnh được serve tự động qua static files middleware tại: `{{base_url}}/images/routes/{route_id}.jpg`
-- Nếu route chưa có `image_url` trong database, service sẽ tự động generate URL theo format trên
-- **Script tự động download ảnh**: Chạy `npm run download:deals-images` để tự động tải ảnh từ Lorem Picsum cho tất cả routes
-- **Xem thêm**: `docs/setup/DEALS_IMAGES_SETUP.md` - Hướng dẫn chi tiết về cách setup và quản lý ảnh deals
-
----
-
-## Common IATA Codes (Sân bay nội địa Việt Nam)
-
-Hệ thống chỉ hỗ trợ bay nội địa giữa các tỉnh thành Việt Nam. Danh sách đầy đủ các sân bay:
-
-- **HAN**: Noi Bai International Airport (Hà Nội)
-- **SGN**: Tan Son Nhat International Airport (TP. Hồ Chí Minh)
-- **DAD**: Da Nang International Airport (Đà Nẵng)
-- **CXR**: Cam Ranh International Airport (Nha Trang)
-- **PQC**: Phu Quoc International Airport (Phú Quốc)
-- **HUI**: Phu Bai International Airport (Huế)
-- **VCA**: Can Tho International Airport (Cần Thơ)
-- **HPH**: Cat Bi International Airport (Hải Phòng)
-- **VDO**: Van Don International Airport (Quảng Ninh)
-- **THD**: Tho Xuan Airport (Thanh Hóa)
-- **VII**: Vinh Airport (Vinh)
-- **DIN**: Dien Bien Phu Airport (Điện Biên)
-- **VCL**: Chu Lai Airport (Chu Lai)
-- **UIH**: Phu Cat Airport (Quy Nhơn)
-- **TBB**: Dong Tac Airport (Tuy Hòa)
-- **PXU**: Pleiku Airport (Pleiku)
-- **BMV**: Buon Ma Thuot Airport (Buôn Ma Thuột)
-- **DLI**: Lien Khuong Airport (Đà Lạt)
-- **CAH**: Ca Mau Airport (Cà Mau)
-- **VKG**: Rach Gia Airport (Rạch Giá)
-
----
-
-## Error Handling
-
-### Status Codes
-
-- **200 OK**: Request thành công
-- **201 Created**: Tạo mới thành công (register)
-- **400 Bad Request**: Validation error hoặc thiếu tham số (client error - request không hợp lệ)
+- **200 OK**: Thành công
+- **201 Created**: Tạo mới thành công
+- **400 Bad Request**: Dữ liệu không hợp lệ hoặc thiếu tham số
 - **401 Unauthorized**: Chưa đăng nhập hoặc token không hợp lệ
-- **404 Not Found**: Không tìm thấy resource (airport, route, booking, payment...)
-- **500 Internal Server Error**: Lỗi server không mong đợi (unexpected server error)
-- **503 Service Unavailable**: Microservice hoặc dependency không available (infrastructure error)
+- **404 Not Found**: Không tìm thấy (chuyến bay, booking, payment...)
+- **503 Service Unavailable**: Dịch vụ tạm thời không khả dụng
 
-### Error Response Format
+### Ví dụ lỗi
 
-**Standard Error Response:**
 ```json
 {
   "statusCode": 400,
-  "timestamp": "2025-11-22T00:29:15.685Z",
-  "path": "/api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-12-22&tripType=one_way&adults=1&minors=0",
-  "method": "GET",
-  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
-  "message": "error message or array of error messages",
+  "message": ["email must be an email", "password must be longer than or equal to 6 characters"],
   "error": "Bad Request"
 }
 ```
 
-**Lưu ý:** 
-- `message` có thể là `string` hoặc `string[]` (mảng các lỗi validation)
-- `timestamp`: ISO 8601 format
-- `requestId`: Unique request ID cho tracing
-- `path`: Full request path với query parameters
-- `method`: HTTP method
-
-### Error Types
-
-#### 1. **Client Errors (4xx)**
-**400 Bad Request** - Validation errors, missing parameters, invalid request format:
-```json
-{
-  "statusCode": 400,
-  "timestamp": "2025-11-22T00:29:15.685Z",
-  "path": "/api/v1/search/flights",
-  "method": "GET",
-  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
-  "message": ["returnDate is required when tripType is round_trip"],
-  "error": "Bad Request"
-}
-```
-
-**401 Unauthorized** - Missing or invalid authentication token:
-```json
-{
-  "statusCode": 401,
-  "timestamp": "2025-11-22T00:29:15.685Z",
-  "path": "/api/v1/bookings",
-  "method": "POST",
-  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
-  "message": "Unauthorized",
-  "error": "Unauthorized"
-}
-```
-
-**404 Not Found** - Resource not found:
-```json
-{
-  "statusCode": 404,
-  "timestamp": "2025-11-22T00:29:15.685Z",
-  "path": "/api/v1/bookings/019a8f4a-bb0e-7402-a0c4-27647b89dc71",
-  "method": "GET",
-  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
-  "message": "Booking not found",
-  "error": "Not Found"
-}
-```
-
-#### 2. **Infrastructure Errors (5xx)**
-**503 Service Unavailable** - Microservice hoặc dependency không available:
-```json
-{
-  "statusCode": 503,
-  "timestamp": "2025-11-22T00:29:15.685Z",
-  "path": "/api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-12-22&tripType=one_way&adults=1&minors=0",
-  "method": "GET",
-  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
-  "message": "Search microservice connection was closed. Please ensure the service is running.",
-  "error": "Service Unavailable"
-}
-```
-
-**503 Service Unavailable - Connection Errors:**
-- **Connection closed**: Microservice disconnected unexpectedly
-- **ECONNREFUSED**: Microservice không chạy hoặc không thể kết nối
-- **ETIMEDOUT**: Microservice không phản hồi trong thời gian quy định
-
-**Best Practice:**
-- **Infrastructure errors** (microservice down, connection errors) → **503 Service Unavailable**
-- **Business logic errors** (validation, not found, unauthorized) → **400/401/404**
-- **Unexpected server errors** → **500 Internal Server Error**
-
-**500 Internal Server Error** - Unexpected server error:
-```json
-{
-  "statusCode": 500,
-  "timestamp": "2025-11-22T00:29:15.685Z",
-  "path": "/api/v1/bookings",
-  "method": "POST",
-  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
-  "message": "An unexpected error occurred. Please try again later.",
-  "error": "Internal Server Error"
-}
-```
-
-### Microservice Connection Error Handling
-
-**Updated (2025-11-22):** Tất cả controllers (Search, Payment, Booking, Reservation) đã được cập nhật để handle microservice connection errors đúng cách:
-
-- **Connection closed** → `503 Service Unavailable`
-- **ECONNREFUSED** → `503 Service Unavailable`
-- **ETIMEDOUT** → `503 Service Unavailable`
-
-**Affected Controllers:**
-- `SearchController`: `searchFlights`, `getFareOptions`, `getSeatMap`
-- `PaymentController`: `createPayment`, `processPayment`, `getPayment`, `getPaymentsByBooking`, `updatePaymentStatus`, `handleWebhook`
-- Other controllers: Tương tự pattern
-
-**Example - Search API Error Response (503):**
-```json
-{
-  "statusCode": 503,
-  "timestamp": "2025-11-22T00:29:15.685Z",
-  "path": "/api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-12-22&tripType=one_way&adults=1&minors=0",
-  "method": "GET",
-  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
-  "message": "Search microservice connection was closed. Please ensure the service is running.",
-  "error": "Service Unavailable"
-}
-```
-
-**Example - Payment API Error Response (503):**
-```json
-{
-  "statusCode": 503,
-  "timestamp": "2025-11-22T00:29:15.685Z",
-  "path": "/api/v1/payments/bookings/019a8f4a-bb0e-7402-a0c4-27647b89dc71/process",
-  "method": "POST",
-  "requestId": "019aa8f7-1219-77ec-993e-13d461140dfe",
-  "message": "Payment microservice connection was closed. Please ensure the service is running.",
-  "error": "Service Unavailable"
-}
-```
-
-**Troubleshooting:**
-- Nếu nhận được `503 Service Unavailable`, kiểm tra microservice tương ứng có đang chạy không:
-  - Search API → Check Search Microservice (port 4001): `npm run start:search:dev`
-  - Payment API → Check Payment Microservice (port 4006): `npm run start:payment:dev`
-  - Booking API → Check Booking Microservice (port 4004): `npm run start:booking:dev`
-  - Reservation API → Check Reservation Microservice (port 4005): `npm run start:reservation:dev`
-
 ---
 
-## Authentication Flow
+## Ví dụ sử dụng
 
-1. **Register/Login** → Lấy `access_token` và `refresh_token`
-2. **Lưu tokens** vào localStorage/sessionStorage
-3. **Gửi `access_token`** trong header cho các request cần auth:
-   ```
-   Authorization: Bearer <access_token>
-   ```
-4. **Khi `access_token` hết hạn** (401 error):
-   - Gọi `/auth/refresh` với `refresh_token`
-   - Lấy tokens mới và update
-   - Retry request ban đầu
-5. **Logout** → Xóa tokens khỏi storage
-
----
-
-## Example Usage
-
-### JavaScript/TypeScript (Fetch API)
+### JavaScript (Fetch)
 
 ```javascript
-// Login
-const loginResponse = await fetch('http://localhost:3000/auth/login', {
+// Đăng nhập
+const loginResponse = await fetch('http://localhost:3000/api/v1/auth/login', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -2530,147 +425,58 @@ const loginResponse = await fetch('http://localhost:3000/auth/login', {
     password: 'StrongP@ssw0rd'
   })
 });
-const { access_token, refresh_token } = await loginResponse.json();
+const { access_token } = await loginResponse.json();
 
-// Search Flights
-const searchResponse = await fetch(
-  'http://localhost:3000/search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&tripType=one_way&adults=1&minors=0'
+// Tìm kiếm chuyến bay
+const flightsResponse = await fetch(
+  'http://localhost:3000/api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&adults=1&minors=0'
 );
-const flights = await searchResponse.json();
+const flights = await flightsResponse.json();
 
-// Authenticated Request
-const meResponse = await fetch('http://localhost:3000/auth/me', {
+// Tạo booking (cần token)
+const bookingResponse = await fetch('http://localhost:3000/api/v1/bookings?reservationId=xxx', {
+  method: 'POST',
   headers: {
-    'Authorization': `Bearer ${access_token}`
-  }
-});
-const userInfo = await meResponse.json();
-```
-
-### Axios
-
-```javascript
-import axios from 'axios';
-
-const api = axios.create({
-  baseURL: 'http://localhost:3000'
-});
-
-// Login
-const { data } = await api.post('/auth/login', {
-  email: 'user@example.com',
-  password: 'StrongP@ssw0rd'
-});
-
-// Set token for subsequent requests
-api.defaults.headers.common['Authorization'] = `Bearer ${data.access_token}`;
-
-// Search Flights - One Way (tripType is optional, auto-set to 'one_way' when returnDate is missing)
-const { data: flights } = await api.get('/search/flights', {
-  params: {
-    origin: 'HAN',
-    destination: 'SGN',
-    departDate: '2025-11-17',
-    // tripType: 'one_way', // Optional - auto-set to 'one_way' when returnDate is missing
-    adults: 1,
-    minors: 0
-  }
-});
-
-// Search Flights - Round Trip (tripType is optional, auto-set to 'round_trip' when returnDate is provided)
-const { data: roundTripFlights } = await api.get('/search/flights', {
-  params: {
-    origin: 'HAN',
-    destination: 'SGN',
-    departDate: '2025-11-17',
-    returnDate: '2025-11-24',
-    // tripType: 'round_trip', // Optional - auto-set to 'round_trip' when returnDate is provided
-    adults: 2,
-    minors: 1
-  }
-});
-
-// Get Fare Options for a flight instance
-const { data: fareOptions } = await api.get('/search/fare-options', {
-  params: {
-    flightInstanceId: flights.outbound[0].flightInstanceId,
-    cabinType: 'economy'
-  }
+    'Authorization': `Bearer ${access_token}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    passengers: [{
+      passengerType: 'ADT',
+      fullname: 'Nguyen Van A',
+      dob: '1990-01-15',
+      gender: 'Male',
+      documentNumber: '001234567890'
+    }]
+  })
 });
 ```
 
 ---
 
-## Notes
+## Luồng đặt vé hoàn chỉnh
 
-1. **Swagger UI**: Xem và test API trực tiếp tại `http://localhost:3000/api-docs`
-2. **Round Trip**: 
-   - Khi `tripType=round_trip`, bắt buộc phải có `returnDate`
-   - `tripType` là optional: Nếu không truyền, sẽ tự động set thành `round_trip` khi có `returnDate`
-3. **Dates**: Format date là `YYYY-MM-DD` (ví dụ: `2025-11-17`) cho search API, nhưng `DD/MM/YYYY` cho deals API
-4. **IATA Codes**: Phải đúng 3 ký tự, uppercase (HAN, SGN, DAD...)
-5. **Token Expiry**: `access_token` hết hạn sau 15 phút, `refresh_token` sau 7 ngày
-6. **Fare Options Flow**: 
-   - Bước 1: Gọi `/search/flights` để lấy danh sách flights
-   - Bước 2: User chọn một flight → lấy `flightInstanceId` (UUID v7)
-   - Bước 3: Gọi `/search/fare-options` với `flightInstanceId` và `cabinType` (economy/business)
-   - Bước 4: Response trả về array trực tiếp `[{ fareClassCode, name, typeTicket, price, desc, ... }]`
-   - Bước 5: Hiển thị dropdown với các fare options (cabins) tương ứng
-7. **Seat Selection Flow** (Optional):
-   - Bước 1: Sau khi chọn fare option, gọi `/search/seats` với `flightInstanceId` và `cabinType`
-   - Bước 2: Response trả về seat map với danh sách ghế available/unavailable
-   - Bước 3: User chọn ghế → lấy `flightSeatId` từ response
-   - Bước 4: Gửi `flightSeatId` trong request tạo reservation (optional)
-   - Bước 5: Ghế được giữ (hold) khi tạo reservation và assign vào booking khi tạo booking
-   - **Lưu ý**: Seat selection là optional - user có thể tạo reservation mà không chọn ghế
-8. **UUID v7**: Tất cả IDs trong hệ thống sử dụng UUID v7 (time-ordered). Format: `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx`. UUID v7 có thể sắp xếp theo thời gian, tốt cho database indexing.
-8. **Services Microservice**: API `/services/deals` cần Services Microservice chạy (port 4002). Chạy bằng: `npm run start:services` hoặc `npm run start:services:dev`
-9. **Booking Microservice**: Tất cả booking APIs cần Booking Microservice chạy (port 4004). Chạy bằng: `npm run start:booking` hoặc `npm run start:booking:dev`
-10. **Payment Microservice**: Tất cả payment APIs cần Payment Microservice chạy (port 4006). Chạy bằng: `npm run start:payment` hoặc `npm run start:payment:dev`
-11. **Email Microservice**: Tất cả email APIs cần Email Microservice chạy (port 4007). Chạy bằng: `npm run start:email` hoặc `npm run start:email:dev`
-    - Cần Gmail API credentials file: `credentials_desktop_apps.json` (trong project root)
-    - Cần Gmail token file: `token.json` (sẽ được tạo sau khi authenticate OAuth 2.0)
-    - Configuration: `GMAIL_CREDENTIALS_PATH`, `GMAIL_TOKEN_PATH`, `GMAIL_FROM_EMAIL`, `EMAIL_MAX_RETRIES`
-11. **Pricing Strategy**: 
-    - Giá trong deals được tính từ historical pricing (BookingSegments) nếu có
-    - Nếu chưa có booking, dùng fallback prices (giá mặc định)
-    - Giá được format theo chuẩn Việt Nam: "962,000 VND"
-12. **Static Files & Images**:
-    - **Public Folder**: Static files được serve từ thư mục `public/` tại root path `/`
-    - **Deals Images**: Ảnh phong cảnh cho deals API được lưu tại `public/images/routes/{route_id}.jpg`
-    - **Format**: Tên file theo format `{route_id}.jpg` (route_id là UUID v7 - 36 ký tự)
-    - **Kích thước**: 1920x1080 (16:9) - landscape images
-    - **URL Access**: `{{base_url}}/images/routes/{route_id}.jpg` (truy cập trực tiếp qua static files)
-    - **Auto Download**: Chạy `npm run download:deals-images` để tự động tải ảnh từ Lorem Picsum cho tất cả routes
-    - **Fallback**: Nếu route chưa có `image_url` trong database, service tự động generate URL theo format trên
-    - **Xem thêm**: `docs/setup/DEALS_IMAGES_SETUP.md` - Hướng dẫn chi tiết về setup và quản lý ảnh deals
-13. **Booking Flow (Recommended - Backend-managed State)**:
-    - Bước 1: Search flights → `GET /search/flights`
-    - Bước 2: Chọn flight → Get fare options → `GET /search/fare-options`
-    - Bước 3: Chọn fare class → Get seat map (optional) → `GET /search/seats?flightInstanceId=xxx&cabinType=economy`
-    - Bước 4: Chọn ghế ngồi (optional) → Create reservation → `POST /reservations` với `flightSeatId` (nếu đã chọn ghế)
-      - Nếu chọn ghế: Gửi `flightSeatId` trong segment để giữ ghế
-      - Nếu không chọn ghế: Không gửi `flightSeatId`, ghế sẽ được assign sau
-    - Bước 5: Điền thông tin passenger → Create booking from reservation → `POST /bookings?reservationId=xxx`
-      - Ghế đã chọn trong reservation sẽ được assign vào booking
-    - Bước 6: Xem fare details → `GET /bookings/:id/fare-details`
-    - Bước 7: Update passengers (nếu cần) → `PATCH /bookings/:id/passengers`
-    - Bước 8: Get payment info → `GET /bookings/:id/payment-info`
-    - Bước 9: Process payment → `POST /payments/bookings/:bookingId/process` (tạo và integrate với payment gateway)
-      - Response có thể chứa `paymentUrl` để redirect user đến payment gateway
-      - Payment được tạo với status `pending`, expires sau 15 phút
-    - Bước 10: Payment Gateway Webhook (Async) → `POST /payments/webhooks/:gateway`
-      - Payment gateway gọi webhook khi payment status thay đổi
-      - System verify signature và update payment status automatically
-    - Bước 11: Verify payment → `GET /payments/:id` hoặc `GET /payments/bookings/:bookingId`
-    
-    **Lưu ý**: 
-    - **Seat Selection**: User có thể chọn ghế sau khi chọn fare option và trước khi tạo reservation
-    - Ghế được giữ (hold) khi tạo reservation và được assign vào booking khi tạo booking
-    - Nếu reservation bị cancel hoặc expire, ghế sẽ được giải phóng tự động
-    - Reservation sẽ tự động được cancel sau khi tạo booking thành công
-    - Payment sẽ tự động update booking status thành `paid` khi payment thành công (via webhook)
-    - Payment status: `pending` → `success` (hoặc `failed`)
-    - Payment tự động expire sau 15 phút nếu chưa thanh toán
-    - System tự động gửi notification khi payment success/failed
+1. **Tìm kiếm** → `GET /api/v1/search/flights`
+2. **Chọn chuyến bay** → Lấy `flightInstanceId`
+3. **Xem loại vé** → `GET /api/v1/search/fare-options`
+4. **Xem ghế** (tùy chọn) → `GET /api/v1/search/seats`
+5. **Giữ chỗ 15 phút** → `POST /api/v1/reservations`
+6. **Điền thông tin** → Tạo booking → `POST /api/v1/bookings?reservationId=xxx`
+7. **Thanh toán** → `POST /api/v1/payments/bookings/:bookingId/process`
 
+**Lưu ý:**
+- Email xác nhận đặt chỗ được gửi tự động sau khi tạo booking
+- Email xác nhận thanh toán được gửi tự động khi thanh toán thành công/thất bại
+- Reservation tự động hủy sau khi tạo booking
+- Payment tự động hết hạn sau 15 phút
+
+---
+
+## Các dịch vụ cần chạy
+
+- **Search Microservice** (cổng 4001): `npm run start:search:dev`
+- **Booking Microservice** (cổng 4004): `npm run start:booking:dev`
+- **Reservation Microservice** (cổng 4005): `npm run start:reservation:dev` + Redis
+- **Payment Microservice** (cổng 4006): `npm run start:payment:dev`
+- **Email Microservice** (cổng 4007): `npm run start:email:dev`
+- **Services Microservice** (cổng 4002): `npm run start:services:dev` (nếu dùng deals API)
