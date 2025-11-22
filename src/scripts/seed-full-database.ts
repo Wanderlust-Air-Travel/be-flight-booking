@@ -31,6 +31,12 @@ import { BookingPassenger } from 'src/shared/entities/booking/booking-passenger.
 import { BookingSegment } from 'src/shared/entities/booking/booking-segment.entity';
 import { Ticket } from 'src/shared/entities/ticket/ticket.entity';
 import { Payment } from 'src/shared/entities/payment/payment.entity';
+import {
+	SEAT_COLUMNS,
+	SEAT_DISTRIBUTION,
+	generateSeatNumber,
+	getSeatType,
+} from 'src/shared/constants/seat.constants';
 
 const ds = new DataSource({
 	type: 'mssql',
@@ -291,35 +297,37 @@ async function run() {
 		if (existing > 0) continue; // Skip if already configured
 
 		const totalSeats = aircraftType.total_seats;
-		const businessSeats = Math.floor(totalSeats * 0.1); // 10% business
+		const businessSeats = Math.floor(totalSeats * SEAT_DISTRIBUTION.BUSINESS_PERCENTAGE);
 		const economySeats = totalSeats - businessSeats;
 
 		const seatConfigs: Partial<SeatConfiguration>[] = [];
 		
 		// Business seats (rows 1-3, typically)
-		for (let row = 1; row <= Math.ceil(businessSeats / 6); row++) {
-			for (const col of ['A', 'B', 'C', 'D', 'E', 'F']) {
+		// Sử dụng constants từ seat.constants.ts
+		for (let row = 1; row <= Math.ceil(businessSeats / SEAT_DISTRIBUTION.COLUMNS_PER_ROW); row++) {
+			for (const col of SEAT_COLUMNS) {
 				if (seatConfigs.length >= businessSeats) break;
 				seatConfigs.push({
 					aircraft_type: aircraftType,
-					seat_number: `${row}${col}`,
+					seat_number: generateSeatNumber(row, col),
 					cabin_class: businessCabin,
-					seat_type: ['A', 'F'].includes(col) ? 'Window' : ['B', 'E'].includes(col) ? 'Middle' : 'Aisle',
+					seat_type: getSeatType(col),
 					is_exit_row: false,
 				});
 			}
 		}
 
 		// Economy seats
-		let row = Math.ceil(businessSeats / 6) + 1;
+		// Sử dụng constants từ seat.constants.ts
+		let row = Math.ceil(businessSeats / SEAT_DISTRIBUTION.COLUMNS_PER_ROW) + 1;
 		while (seatConfigs.length < totalSeats) {
-			for (const col of ['A', 'B', 'C', 'D', 'E', 'F']) {
+			for (const col of SEAT_COLUMNS) {
 				if (seatConfigs.length >= totalSeats) break;
 				seatConfigs.push({
 					aircraft_type: aircraftType,
-					seat_number: `${row}${col}`,
+					seat_number: generateSeatNumber(row, col),
 					cabin_class: economyCabin,
-					seat_type: ['A', 'F'].includes(col) ? 'Window' : ['B', 'E'].includes(col) ? 'Middle' : 'Aisle',
+					seat_type: getSeatType(col),
 					is_exit_row: row % 10 === 0, // Every 10th row is exit row
 				});
 			}
