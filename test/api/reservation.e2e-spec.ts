@@ -352,7 +352,7 @@ describe('Reservation API (e2e)', () => {
 
     it('should get reservation by ID successfully (happy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get(`/reservations/${reservationId}`)
+        .get(`/api/v1/reservations/${reservationId}`)
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(200);
 
@@ -386,7 +386,7 @@ describe('Reservation API (e2e)', () => {
 
     it('should get reservation by code successfully (happy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get(`/reservations/code/${reservationCode}`)
+        .get(`/api/v1/reservations/code/${reservationCode}`)
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(200);
 
@@ -419,7 +419,7 @@ describe('Reservation API (e2e)', () => {
 
     it('should cancel reservation successfully (happy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post(`/reservations/${reservationId}/cancel`)
+        .post(`/api/v1/reservations/${reservationId}/cancel`)
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(200);
 
@@ -439,13 +439,13 @@ describe('Reservation API (e2e)', () => {
     it('should fail when canceling already cancelled reservation (unhappy case)', async () => {
       // Cancel first time
       await request(app.getHttpServer())
-        .post(`/reservations/${reservationId}/cancel`)
+        .post(`/api/v1/reservations/${reservationId}/cancel`)
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(200);
 
       // Try to cancel again
       const response = await request(app.getHttpServer())
-        .post(`/reservations/${reservationId}/cancel`)
+        .post(`/api/v1/reservations/${reservationId}/cancel`)
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(400);
 
@@ -468,7 +468,7 @@ describe('Reservation API (e2e)', () => {
 
     it('should extend reservation successfully (happy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post(`/reservations/${reservationId}/extend`)
+        .post(`/api/v1/reservations/${reservationId}/extend`)
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           additionalSeconds: 600,
@@ -482,7 +482,7 @@ describe('Reservation API (e2e)', () => {
 
     it('should fail with invalid additionalSeconds (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post(`/reservations/${reservationId}/extend`)
+        .post(`/api/v1/reservations/${reservationId}/extend`)
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           additionalSeconds: -100,
@@ -494,7 +494,7 @@ describe('Reservation API (e2e)', () => {
 
     it('should fail with missing additionalSeconds (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .post(`/reservations/${reservationId}/extend`)
+        .post(`/api/v1/reservations/${reservationId}/extend`)
         .set('Authorization', `Bearer ${accessToken}`)
         .send({})
         .expect(400);

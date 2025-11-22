@@ -187,7 +187,7 @@ describe('Search API (e2e)', () => {
       verifyErrorResponseFormat(response, 400);
     });
 
-    it('should fail with missing tripType (unhappy case)', async () => {
+    it('should auto-set tripType to one_way when returnDate is missing (happy case)', async () => {
       const response = await request(app.getHttpServer())
         .get('/api/v1/search/flights')
         .query({
@@ -196,10 +196,14 @@ describe('Search API (e2e)', () => {
           departDate: generateFutureDate(30),
           adults: 1,
           minors: 0,
+          // tripType is not provided - should auto-set to one_way
         })
-        .expect(400);
+        .expect(200);
 
-      verifyErrorResponseFormat(response, 400);
+      expect(response.body).toHaveProperty('tripType', 'one_way');
+      expect(response.body).toHaveProperty('outbound');
+      expect(Array.isArray(response.body.outbound)).toBe(true);
+      verifyRequestIdHeaders(response);
     });
 
     it('should fail with invalid tripType (unhappy case)', async () => {
@@ -274,6 +278,32 @@ describe('Search API (e2e)', () => {
       expect(response.body).toHaveProperty('inbound');
       expect(Array.isArray(response.body.outbound)).toBe(true);
       expect(Array.isArray(response.body.inbound)).toBe(true);
+      verifyRequestIdHeaders(response);
+    });
+
+    it('should auto-set tripType to round_trip when returnDate is provided (happy case)', async () => {
+      const departDate = generateFutureDate(30);
+      const returnDate = generateFutureDate(37);
+
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/search/flights')
+        .query({
+          origin: 'HAN',
+          destination: 'SGN',
+          departDate,
+          returnDate,
+          // tripType is not provided - should auto-set to round_trip
+          adults: 1,
+          minors: 0,
+        })
+        .expect(200);
+
+      expect(response.body).toHaveProperty('tripType', 'round_trip');
+      expect(response.body).toHaveProperty('outbound');
+      expect(response.body).toHaveProperty('inbound');
+      expect(Array.isArray(response.body.outbound)).toBe(true);
+      expect(Array.isArray(response.body.inbound)).toBe(true);
+      verifyRequestIdHeaders(response);
     });
 
     it('should fail with missing returnDate (unhappy case)', async () => {

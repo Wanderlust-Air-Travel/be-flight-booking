@@ -84,7 +84,7 @@ describe('Booking API (e2e)', () => {
       );
 
       const response = await request(app.getHttpServer())
-        .post(`/bookings?reservationId=${reservation.reservationId}`)
+        .post(`/api/v1/bookings?reservationId=${reservation.reservationId}`)
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           passengers: [
@@ -136,7 +136,7 @@ describe('Booking API (e2e)', () => {
       );
 
       const response = await request(app.getHttpServer())
-        .post(`/bookings?reservationId=${reservation2.reservationId}`)
+        .post(`/api/v1/bookings?reservationId=${reservation2.reservationId}`)
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           passengers: [
@@ -215,7 +215,7 @@ describe('Booking API (e2e)', () => {
       );
 
       const response = await request(app.getHttpServer())
-        .post(`/bookings?reservationId=${reservation.reservationId}`)
+        .post(`/api/v1/bookings?reservationId=${reservation.reservationId}`)
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           contactFullname: 'Test Contact',
@@ -237,7 +237,7 @@ describe('Booking API (e2e)', () => {
       );
 
       const response = await request(app.getHttpServer())
-        .post(`/bookings?reservationId=${reservation.reservationId}`)
+        .post(`/api/v1/bookings?reservationId=${reservation.reservationId}`)
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           passengers: [
@@ -265,7 +265,7 @@ describe('Booking API (e2e)', () => {
       );
 
       const response = await request(app.getHttpServer())
-        .post(`/bookings?reservationId=${reservation.reservationId}`)
+        .post(`/api/v1/bookings?reservationId=${reservation.reservationId}`)
         .send({
           passengers: [
             {
@@ -295,7 +295,7 @@ describe('Booking API (e2e)', () => {
       );
 
       const response = await request(app.getHttpServer())
-        .post(`/bookings?reservationId=${reservation.reservationId}`)
+        .post(`/api/v1/bookings?reservationId=${reservation.reservationId}`)
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           passengers: [
@@ -326,7 +326,7 @@ describe('Booking API (e2e)', () => {
       );
 
       const response = await request(app.getHttpServer())
-        .post(`/bookings?reservationId=${reservation.reservationId}`)
+        .post(`/api/v1/bookings?reservationId=${reservation.reservationId}`)
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           passengers: [
@@ -357,7 +357,7 @@ describe('Booking API (e2e)', () => {
       );
 
       const response = await request(app.getHttpServer())
-        .post(`/bookings?reservationId=${reservation.reservationId}`)
+        .post(`/api/v1/bookings?reservationId=${reservation.reservationId}`)
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           passengers: [
@@ -400,7 +400,7 @@ describe('Booking API (e2e)', () => {
 
     it('should get booking fare details successfully (happy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get(`/bookings/${bookingId}/fare-details`)
+        .get(`/api/v1/bookings/${bookingId}/fare-details`)
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(200);
 
@@ -423,7 +423,7 @@ describe('Booking API (e2e)', () => {
 
     it('should fail without authentication (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get(`/bookings/${bookingId}/fare-details`)
+        .get(`/api/v1/bookings/${bookingId}/fare-details`)
         .expect(401);
 
       verifyErrorResponseFormat(response, 401);
@@ -450,7 +450,7 @@ describe('Booking API (e2e)', () => {
 
     it('should get booking payment info successfully (happy case)', async () => {
       const response = await request(app.getHttpServer())
-        .get(`/bookings/${bookingId}/payment-info`)
+        .get(`/api/v1/bookings/${bookingId}/payment-info`)
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(200);
 
@@ -495,7 +495,7 @@ describe('Booking API (e2e)', () => {
 
     it('should update booking passengers successfully (happy case)', async () => {
       const response = await request(app.getHttpServer())
-        .patch(`/bookings/${bookingId}/passengers`)
+        .patch(`/api/v1/bookings/${bookingId}/passengers`)
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           adults: 2,
@@ -523,7 +523,7 @@ describe('Booking API (e2e)', () => {
 
     it('should fail with missing passenger count (unhappy case)', async () => {
       const response = await request(app.getHttpServer())
-        .patch(`/bookings/${bookingId}/passengers`)
+        .patch(`/api/v1/bookings/${bookingId}/passengers`)
         .set('Authorization', `Bearer ${accessToken}`)
         .send({})
         .expect(400);
@@ -574,7 +574,7 @@ describe('Booking API (e2e)', () => {
 
       // Create booking from reservation
       const response = await request(app.getHttpServer())
-        .post(`/bookings?reservationId=${reservation.reservationId}`)
+        .post(`/api/v1/bookings?reservationId=${reservation.reservationId}`)
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           passengers: [
@@ -614,7 +614,7 @@ describe('Booking API (e2e)', () => {
 
       // Create booking from reservation
       const response = await request(app.getHttpServer())
-        .post(`/bookings?reservationId=${reservation.reservationId}`)
+        .post(`/api/v1/bookings?reservationId=${reservation.reservationId}`)
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
           passengers: [
