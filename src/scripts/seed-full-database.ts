@@ -245,11 +245,11 @@ async function run() {
 	
 	const aircraftTypes = [
 		{ code: 'A320', manufacturer: 'Airbus', model: 'A320-200', total_seats: 180 },
-		{ code: 'A321', manufacturer: 'Airbus', model: 'A321-200', total_seats: 220 },
-		{ code: 'A350', manufacturer: 'Airbus', model: 'A350-900', total_seats: 325 },
-		{ code: 'B737', manufacturer: 'Boeing', model: '737-800', total_seats: 189 },
-		{ code: 'B787', manufacturer: 'Boeing', model: '787-9 Dreamliner', total_seats: 290 },
-		{ code: 'ATR72', manufacturer: 'ATR', model: 'ATR 72-600', total_seats: 72 },
+		{ code: 'A321', manufacturer: 'Airbus', model: 'A321-200', total_seats: 180 },
+		{ code: 'A350', manufacturer: 'Airbus', model: 'A350-900', total_seats: 180 },
+		{ code: 'B737', manufacturer: 'Boeing', model: '737-800', total_seats: 180 },
+		{ code: 'B787', manufacturer: 'Boeing', model: '787-9 Dreamliner', total_seats: 180 },
+		{ code: 'ATR72', manufacturer: 'ATR', model: 'ATR 72-600', total_seats: 180 },
 	];
 	const savedAircraftTypes: AircraftType[] = [];
 	for (const at of aircraftTypes) {

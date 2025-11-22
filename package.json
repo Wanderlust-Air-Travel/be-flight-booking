@@ -26,6 +26,7 @@
     "start:email:dev": "nodemon --exec ts-node -r tsconfig-paths/register src/microservices/email/main.email.ts",
     "seed:full": "ts-node -r tsconfig-paths/register src/scripts/seed-full-database.ts",
     "gmail:auth": "ts-node -r tsconfig-paths/register scripts/gmail-auth.ts",
+    "download:deals-images": "ts-node -r tsconfig-paths/register scripts/download-deals-images.ts",
     "test:db": "ts-node -r tsconfig-paths/register tools/test-db-connection.ts",
     "test:email": "ts-node -r tsconfig-paths/register tools/test-otp-email.ts",
     "env:setup": "node -e \"const fs = require('fs'); if (!fs.existsSync('.env')) { fs.copyFileSync('env.example', '.env'); console.log('✅ Created .env file from env.example'); } else { console.log('⚠️  .env file already exists. Skipping...'); }\"",
