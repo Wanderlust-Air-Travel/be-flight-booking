@@ -143,7 +143,7 @@ export class BookingService {
 		const FARE_CLASS_NAMES: Record<string, string> = {
 			YSM: 'Economy Saver Max',
 			YSMX: 'Economy Saver Max',
-			Y: 'Economy Smart',
+			Y: 'Economy Standard',
 			YS: 'Economy Smart',
 			YF: 'Economy Flex',
 			YFLX: 'Economy Flex',
@@ -160,6 +160,7 @@ export class BookingService {
 		if (description) {
 			if (description.toLowerCase().includes('saver max')) return 'Economy Saver Max';
 			if (description.toLowerCase().includes('smart')) return 'Economy Smart';
+			if (description.toLowerCase().includes('standard')) return 'Economy Standard';
 			if (description.toLowerCase().includes('flex')) return 'Economy Flex';
 			if (description.toLowerCase().includes('business smart')) return 'Business Smart';
 			if (description.toLowerCase().includes('business flex')) return 'Business Flex';

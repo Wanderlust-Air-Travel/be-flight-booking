@@ -33,7 +33,7 @@ export class SearchService {
 		// Economy fare classes
 		'YSM': 'Economy Saver Max',
 		'YSMX': 'Economy Saver Max',
-		'Y': 'Economy Smart',
+		'Y': 'Economy Standard',
 		'YS': 'Economy Smart',
 		'YF': 'Economy Flex',
 		'YFLX': 'Economy Flex',
@@ -294,8 +294,19 @@ export class SearchService {
 				desc.push({ text: 'Chọn ghế ngồi mất phí', status: false });
 				desc.push({ text: 'Không áp dụng cho go-show', status: false });
 			}
+			// Economy Standard
+			else if (code === 'Y') {
+				desc.push({ text: 'Không bao gồm hành lý ký gửi', status: false });
+				desc.push({ text: 'Hoàn/hủy trước giờ khởi hành: 400.000 VND (*)', status: true });
+				desc.push({ text: 'Hoàn/hủy sau giờ khởi hành: 400.000 VND (*)', status: true });
+				desc.push({ text: 'Thay đổi trước giờ khởi hành: 500.000 VND (*)', status: true });
+				desc.push({ text: 'Thay đổi sau giờ khởi hành: 500.000 VND (*)', status: true });
+				desc.push({ text: 'Hệ số cộng điểm Bamboo Club: 0.5', status: true });
+				desc.push({ text: 'Chọn ghế ngồi mất phí', status: true });
+				desc.push({ text: 'Không áp dụng cho go-show', status: false });
+			}
 			// Economy Smart
-			else if (code.includes('SM') || code === 'Y' || code === 'YS') {
+			else if (code.includes('SM') || code === 'YS') {
 				desc.push({ text: 'Không bao gồm hành lý ký gửi', status: false });
 				desc.push({ text: 'Hoàn/hủy trước giờ khởi hành: 450.000 VND (*)', status: true });
 				desc.push({ text: 'Hoàn/hủy sau giờ khởi hành: 600.000 VND (*)', status: true });
@@ -359,6 +370,7 @@ export class SearchService {
 			// Check if description contains known patterns
 			if (description.toLowerCase().includes('saver max')) return 'Economy Saver Max';
 			if (description.toLowerCase().includes('smart')) return 'Economy Smart';
+			if (description.toLowerCase().includes('standard')) return 'Economy Standard';
 			if (description.toLowerCase().includes('flex')) return 'Economy Flex';
 			if (description.toLowerCase().includes('business smart')) return 'Business Smart';
 			if (description.toLowerCase().includes('business flex')) return 'Business Flex';
@@ -377,7 +389,10 @@ export class SearchService {
 			if (code.includes('SMX') || code.includes('SAVER')) {
 				return 1448000; // Economy Saver Max
 			}
-			if (code.includes('SM') || code === 'Y' || code === 'YS') {
+			if (code === 'Y') {
+				return 1577000; // Economy Standard
+			}
+			if (code.includes('SM') || code === 'YS') {
 				return 1577000; // Economy Smart
 			}
 			if (code.includes('FLX') || code.includes('FLEX') || code === 'YF') {
@@ -543,7 +558,10 @@ export class SearchService {
 			if (code.includes('FLX') || code.includes('FLEX') || code === 'YF') {
 				return 'ef'; // Economy Flex
 			}
-			if (code.includes('SM') || code === 'Y' || code === 'YS') {
+			if (code === 'Y') {
+				return 'es'; // Economy Standard (use same note as Smart)
+			}
+			if (code.includes('SM') || code === 'YS') {
 				return 'es'; // Economy Smart
 			}
 			if (code.includes('SMX') || code.includes('SAVER')) {
