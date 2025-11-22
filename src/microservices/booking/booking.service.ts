@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, Inject } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Inject, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { ClientProxy } from '@nestjs/microservices';
@@ -25,9 +25,12 @@ import { FareDescriptionItemDto } from 'src/microservices/search/dto/fare-option
 import { CabinType } from 'src/shared/constants/enums';
 import { ReservationResponseDto } from '../reservation/dto/reservation-response.dto';
 import { RESERVATION_MS } from '../reservation/reservation.messages';
+import { BookingNotificationService } from './services/booking-notification.service';
 
 @Injectable()
 export class BookingService {
+	private readonly logger = new Logger(BookingService.name);
+
 	constructor(
 		@InjectRepository(Booking) private readonly bookingRepo: Repository<Booking>,
 		@InjectRepository(BookingPassenger) private readonly bookingPassengerRepo: Repository<BookingPassenger>,
@@ -40,6 +43,7 @@ export class BookingService {
 		@InjectRepository(User) private readonly userRepo: Repository<User>,
 		@Inject('RESERVATION_CLIENT') private readonly reservationClient: ClientProxy,
 		private readonly dataSource: DataSource,
+		private readonly notificationService: BookingNotificationService,
 	) {}
 
 	/**
@@ -431,6 +435,18 @@ export class BookingService {
 			}
 
 			await queryRunner.commitTransaction();
+
+			// Send booking confirmation email (non-blocking)
+			const savedBookingWithRelations = await this.bookingRepo.findOne({
+				where: { booking_id: savedBooking.booking_id },
+				relations: ['currency', 'user'],
+			});
+			
+			if (savedBookingWithRelations) {
+				this.notificationService.sendBookingConfirmation(savedBookingWithRelations).catch((err) => {
+					this.logger.error(`Failed to send booking confirmation: ${err.message}`);
+				});
+			}
 
 			return {
 				bookingId: savedBooking.booking_id,
@@ -968,6 +984,18 @@ export class BookingService {
 			// Commit transaction
 			await queryRunner.commitTransaction();
 
+			// Send booking confirmation email (non-blocking)
+			const savedBookingWithRelations = await this.bookingRepo.findOne({
+				where: { booking_id: savedBooking.booking_id },
+				relations: ['currency', 'user'],
+			});
+			
+			if (savedBookingWithRelations) {
+				this.notificationService.sendBookingConfirmation(savedBookingWithRelations).catch((err) => {
+					this.logger.error(`Failed to send booking confirmation: ${err.message}`);
+				});
+			}
+
 			return {
 				bookingId: savedBooking.booking_id,
 				pnrCode: savedBooking.pnr_code,
@@ -977,7 +1005,7 @@ export class BookingService {
 			};
 		} catch (error: any) {
 			await queryRunner.rollbackTransaction();
-			console.error('Create booking from reservation error:', {
+			this.logger.error('Create booking from reservation error:', {
 				error: error?.message || error,
 				stack: error?.stack,
 				reservationId,

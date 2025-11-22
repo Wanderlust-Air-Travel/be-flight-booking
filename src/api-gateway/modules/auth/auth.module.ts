@@ -7,6 +7,8 @@ import { AuthService } from "./auth.service";
 import type { StringValue } from 'ms';
 import { JwtStrategy } from "./strategies/jwt.strategyt";
 import { ConfigModule, ConfigService } from "@nestjs/config";
+import { EmailClientModule } from "../email/email.client.module";
+import { OtpModule } from "src/shared/modules/otp/otp.module";
 
 @Module({
     imports: [
@@ -22,6 +24,8 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
                 }
             })
         }),
+        EmailClientModule, // Add Email Client module for sending OTP emails
+        OtpModule, // Add OTP module for OTP storage and verification
     ],
     controllers: [AuthController],
     providers: [AuthService, JwtStrategy]

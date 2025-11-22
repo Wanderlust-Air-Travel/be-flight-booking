@@ -11,9 +11,12 @@ import { FareClass } from 'src/shared/entities/fare/fare-class.entity';
 import { Currency } from 'src/shared/entities/currency/currency.entity';
 import { Passenger } from 'src/shared/entities/passenger/passenger.entity';
 import { User } from 'src/shared/entities/user/user.entity';
+import { EmailClientModule } from 'src/shared/modules/email-client/email-client.module';
 import { BookingService } from './booking.service';
 import { BookingMsController } from './booking.controller';
+import { BookingNotificationService } from './services/booking-notification.service';
 import { RESERVATION_MS } from '../reservation/reservation.messages';
+import { EMAIL_MS } from '../email/email.messages';
 
 @Module({
 	imports: [
@@ -31,6 +34,7 @@ import { RESERVATION_MS } from '../reservation/reservation.messages';
 			Passenger,
 			User,
 		]),
+		EmailClientModule, // Add Email Client module for sending email notifications
 		ClientsModule.register([
 			{
 				name: 'RESERVATION_CLIENT',
@@ -40,9 +44,17 @@ import { RESERVATION_MS } from '../reservation/reservation.messages';
 					port: RESERVATION_MS.TCP_PORT,
 				},
 			},
+			{
+				name: 'EMAIL_CLIENT',
+				transport: Transport.TCP,
+				options: {
+					host: EMAIL_MS.TCP_HOST,
+					port: EMAIL_MS.TCP_PORT,
+				},
+			},
 		]),
 	],
-	providers: [BookingService],
+	providers: [BookingService, BookingNotificationService],
 	controllers: [BookingMsController],
 	exports: [BookingService],
 })

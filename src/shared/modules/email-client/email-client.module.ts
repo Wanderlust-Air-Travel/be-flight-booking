@@ -1,8 +1,11 @@
 import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { EMAIL_MS } from 'src/microservices/email/email.messages';
-import { EmailController } from './email.controller';
 
+/**
+ * Email Client Module for Microservices
+ * Provides email client injection for microservices to send emails
+ */
 @Module({
 	imports: [
 		ClientsModule.register([
@@ -16,8 +19,7 @@ import { EmailController } from './email.controller';
 			},
 		]),
 	],
-	controllers: [EmailController],
-	exports: [ClientsModule], // Export ClientsModule so other modules can inject EMAIL_CLIENT
+	exports: [ClientsModule],
 })
 export class EmailClientModule {}
 

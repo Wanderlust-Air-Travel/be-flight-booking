@@ -5,6 +5,10 @@ import { LoginDto } from "./dto/login.dto";
 import { JwtAuthGuard } from "./guard/jwt-auth.guard";
 import { RefreshDto } from "./dto/refresh.dto";
 import { LogoutDto } from "./dto/logout.dto";
+import { SendOtpPaymentDto } from "./dto/send-otp-payment.dto";
+import { VerifyOtpPaymentDto } from "./dto/verify-otp-payment.dto";
+import { SendOtpPasswordResetDto } from "./dto/send-otp-password-reset.dto";
+import { VerifyOtpPasswordResetDto } from "./dto/verify-otp-password-reset.dto";
 import type { Request } from 'express';
 import { ApiBearerAuth, ApiBody, ApiCreatedResponse, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import { CreateUserResponse } from "src/shared/types/auth/create-user-response";
@@ -91,5 +95,118 @@ export class AuthController{
     @Get('me')
     me(@Req() req: Request & { user: Express.User }) {
         return req.user;
+    }
+
+    @Post('otp/payment/send')
+    @HttpCode(HttpStatus.OK)
+    @ApiBody({
+        type: SendOtpPaymentDto,
+        examples: {
+            default: {
+                summary: 'Send OTP for payment',
+                value: {
+                    userId: '019a8f4a-bb0e-7402-a0c4-27647b89dc71'
+                }
+            }
+        }
+    })
+    @ApiOkResponse({
+        description: 'OTP sent successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                success: { type: 'boolean', example: true },
+                message: { type: 'string', example: 'OTP sent successfully' },
+                expiresIn: { type: 'number', example: 900 }
+            }
+        }
+    })
+    sendOtpPayment(@Body() dto: SendOtpPaymentDto) {
+        return this.auth.sendOtpPayment(dto);
+    }
+
+    @Post('otp/payment/verify')
+    @HttpCode(HttpStatus.OK)
+    @ApiBody({
+        type: VerifyOtpPaymentDto,
+        examples: {
+            default: {
+                summary: 'Verify OTP for payment',
+                value: {
+                    userId: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+                    otp: '123456'
+                }
+            }
+        }
+    })
+    @ApiOkResponse({
+        description: 'OTP verified successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                success: { type: 'boolean', example: true },
+                message: { type: 'string', example: 'OTP verified successfully' }
+            }
+        }
+    })
+    verifyOtpPayment(@Body() dto: VerifyOtpPaymentDto) {
+        return this.auth.verifyOtpPayment(dto);
+    }
+
+    @Post('otp/password-reset/send')
+    @HttpCode(HttpStatus.OK)
+    @ApiBody({
+        type: SendOtpPasswordResetDto,
+        examples: {
+            default: {
+                summary: 'Send OTP for password reset',
+                value: {
+                    email: 'user@example.com'
+                }
+            }
+        }
+    })
+    @ApiOkResponse({
+        description: 'OTP sent successfully (always returns success for security)',
+        schema: {
+            type: 'object',
+            properties: {
+                success: { type: 'boolean', example: true },
+                message: { type: 'string', example: 'If the email exists, an OTP has been sent' },
+                expiresIn: { type: 'number', example: 600 }
+            }
+        }
+    })
+    sendOtpPasswordReset(@Body() dto: SendOtpPasswordResetDto) {
+        return this.auth.sendOtpPasswordReset(dto);
+    }
+
+    @Post('otp/password-reset/verify')
+    @HttpCode(HttpStatus.OK)
+    @ApiBody({
+        type: VerifyOtpPasswordResetDto,
+        examples: {
+            default: {
+                summary: 'Verify OTP and reset password',
+                value: {
+                    email: 'user@example.com',
+                    otp: '123456',
+                    newPassword: 'NewStrongP@ssw0rd'
+                }
+            }
+        }
+    })
+    @ApiOkResponse({
+        description: 'Password reset successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                success: { type: 'boolean', example: true },
+                message: { type: 'string', example: 'Password reset successfully' }
+            }
+        }
+    })
+    verifyOtpPasswordReset(@Body() dto: VerifyOtpPasswordResetDto) {
+        return this.auth.verifyOtpPasswordReset(dto);
     }
 }
