@@ -6,23 +6,9 @@
 
 import * as dotenv from 'dotenv';
 import * as sql from 'mssql';
+import { SqlConfig } from 'src/shared/types/database/sql-config.interface';
 
 dotenv.config();
-
-interface DatabaseConfig {
-	server: string;
-	port: number;
-	user: string | undefined;
-	password: string | undefined;
-	database: string | undefined;
-	options: {
-		encrypt: boolean;
-		trustServerCertificate: boolean;
-		enableArithAbort: boolean;
-	};
-	connectionTimeout: number;
-	requestTimeout: number;
-}
 
 interface DatabaseInfo {
 	Version: string;
@@ -30,11 +16,11 @@ interface DatabaseInfo {
 	CurrentUser: string;
 }
 
-const config: DatabaseConfig = {
+const config: SqlConfig = {
 	server: process.env.DB_HOST || 'localhost',
 	port: parseInt(process.env.DB_PORT || '1434', 10),
-	user: process.env.DB_USER,
-	password: process.env.DB_PASS,
+	user: process.env.DB_USER || '',
+	password: process.env.DB_PASS || '',
 	database: process.env.DB_NAME,
 	options: {
 		encrypt: process.env.DB_ENCRYPT === 'true',

@@ -1,18 +1,5 @@
 import * as sql from 'mssql';
-
-interface SqlConfig {
-  server: string;
-  port: number;
-  user: string;
-  password: string;
-  database?: string;
-  options: {
-    encrypt: boolean;
-    trustServerCertificate: boolean;
-    enableArithAbort: boolean;
-  };
-  connectionTimeout: number;
-}
+import { SqlConfig } from 'src/shared/types/database/sql-config.interface';
 
 async function waitForDatabase(): Promise<boolean> {
   console.log('Waiting for SQL Server to be ready...');

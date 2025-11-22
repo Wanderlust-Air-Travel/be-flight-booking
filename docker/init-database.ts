@@ -1,6 +1,7 @@
 import { DataSource } from 'typeorm';
 import * as sql from 'mssql';
 import * as path from 'path';
+import { SqlConfig } from 'src/shared/types/database/sql-config.interface';
 
 /**
  * Create database if it doesn't exist
@@ -18,19 +19,22 @@ async function createDatabase(): Promise<boolean> {
     const isDockerNetwork = dbHost === 'sqlserver' || dbHost.includes('.docker');
     const defaultPort = isDockerNetwork ? 1433 : 1434;
     
-    const config: sql.config = {
+    const config: SqlConfig = {
       server: dbHost,
       port: parseInt(process.env.DB_PORT || defaultPort.toString(), 10),
       user: dbUser,
       password: dbPassword,
+      database: 'master',
       options: {
         encrypt: false,
         trustServerCertificate: true,
         enableArithAbort: true,
       },
+      connectionTimeout: 5000,
     };
 
-    const pool = await sql.connect(config);
+    const pool = new sql.ConnectionPool(config as sql.config);
+    await pool.connect();
 
     // Create database
     await pool.request().query(`
