@@ -41,13 +41,17 @@ Script SQL để xóa toàn bộ data trong database, cho phép chạy lại see
 
 ### 3. Aircraft Types & Aircrafts
 - 6 aircraft types: A320, A321, A350, B737, B787, ATR72
+- **Tất cả aircraft types đều có 180 ghế** (standardized configuration)
 - 100+ aircrafts với registration numbers
 
 ### 4. Seat Configurations
 - Tự động tạo seat configurations cho mỗi aircraft type
-- Business seats: ~10% tổng số ghế
-- Economy seats: ~90% tổng số ghế
+- **Tổng số ghế**: 180 ghế cho tất cả aircraft types
+- **Business seats**: 18 ghế (10%) = 3 hàng × 6 ghế
+- **Economy seats**: 162 ghế (90%) = 27 hàng × 6 ghế
 - Seat types: Window, Aisle, Middle
+- Business seats: Rows 1-3 (Window, Middle, Aisle positions)
+- Economy seats: Rows 4-30 (Window, Middle, Aisle positions)
 
 ### 5. Airports
 - 20 airports (tất cả đều là sân bay nội địa Việt Nam)
@@ -102,12 +106,14 @@ Script SQL để xóa toàn bộ data trong database, cho phép chạy lại see
 Sau khi chạy seed, bạn sẽ có:
 - **Airports**: ~20
 - **Routes**: ~380 (20 x 19)
-- **Aircraft Types**: 6
+- **Aircraft Types**: 6 (tất cả đều có 180 ghế)
 - **Aircrafts**: 100+
-- **Seat Configurations**: ~1,000+ (tổng tất cả aircraft types)
+- **Seat Configurations**: ~1,080 (6 aircraft types × 180 seats = 1,080 total seats)
+  - Business seats: ~108 (6 types × 18 business seats)
+  - Economy seats: ~972 (6 types × 162 economy seats)
 - **Flight Schedules**: 300-450 (150 routes × 2-3 schedules)
 - **Flight Instances**: Hàng ngàn (50 schedules × 60 ngày × operating days)
-- **Flight Seats**: Hàng chục ngàn (instances x seats per aircraft)
+- **Flight Seats**: Hàng chục ngàn (instances × 180 seats per aircraft)
 - **Users**: 500
 - **Passengers**: 500-1,500 (1-3 per user)
 - **Bookings**: 500-1,000

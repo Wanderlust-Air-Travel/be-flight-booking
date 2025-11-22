@@ -4,6 +4,58 @@ Tất cả các thay đổi quan trọng của project sẽ được ghi nhận 
 
 ## [Unreleased]
 
+### Added
+
+- **Deals Images - Automatic Download Script (2025-01-XX)**:
+  - **Feature**: Script tự động download ảnh phong cảnh cho deals API từ Lorem Picsum
+  - **Script**: `scripts/download-deals-images.ts` - Tự động kết nối database, lấy tất cả route_id và download ảnh
+  - **Format**: Ảnh được lưu tại `public/images/routes/{route_id}.jpg` với kích thước 1920x1080 (16:9)
+  - **Nguồn ảnh**: Lorem Picsum (random landscape images, không cần API key)
+  - **Usage**: Chạy `npm run download:deals-images` để download ảnh cho tất cả routes
+  - **Static Files**: Ảnh được serve tự động qua NestJS static assets middleware tại `/images/routes/{route_id}.jpg`
+  - **Fallback Logic**: Nếu route chưa có `image_url` trong database, service tự động generate URL theo format chuẩn
+  - **Helper Scripts**:
+    - `scripts/verify-deals-images.ts` - Verify và generate SQL script để update image_url
+    - `scripts/download-deals-images-test.ts` - Test script với 10 routes đầu tiên
+    - `sql/utils/get-all-route-ids-for-images.sql` - SQL script để lấy danh sách route IDs
+  - **Documentation**: 
+    - `docs/setup/DEALS_IMAGES_SETUP.md` - Hướng dẫn chi tiết về setup và quản lý ảnh deals
+  - **Updated Files**:
+    - `scripts/download-deals-images.ts` - Script chính để download ảnh
+    - `scripts/verify-deals-images.ts` - Script verify và generate SQL
+    - `scripts/download-deals-images-test.ts` - Script test
+    - `sql/utils/get-all-route-ids-for-images.sql` - SQL helper script
+    - `docs/setup/DEALS_IMAGES_SETUP.md` - Setup guide
+    - `package.json` - Thêm script `download:deals-images`
+    - `docs/api/API_DOCS.md` - Cập nhật thông tin về images trong deals API
+    - `docs/CHANGELOG.md` - Cập nhật changelog
+    - `docs/STRUCTURE.md` - Cập nhật thông tin về public folder và static files
+
+### Changed
+
+- **Aircraft Configuration - Standardized to 180 Seats (2025-01-XX)**:
+  - **Feature**: Tất cả aircraft types giờ đều có **180 ghế** (standardized configuration)
+  - **Aircraft Types**: Tất cả 6 aircraft types (A320, A321, A350, B737, B787, ATR72) đều có `total_seats = 180`
+  - **Seat Distribution**: 
+    - **Business**: 18 ghế (10%) = 3 hàng × 6 ghế
+    - **Economy**: 162 ghế (90%) = 27 hàng × 6 ghế
+  - **Benefits**:
+    - Đơn giản hóa logic business - tất cả máy bay có cùng số ghế
+    - Dễ dàng quản lý và tính toán seat availability
+    - Consistent với business requirements
+  - **Database Update Script**: 
+    - File `sql/utils/data-management/update-aircraft-types-to-180-seats.sql` để cập nhật existing data
+    - Script sẽ update tất cả aircraft types về 180 ghế và xóa seat configurations cũ (cần re-seed)
+  - **Updated Files**:
+    - `src/scripts/seed-full-database.ts` - Tất cả aircraft types set `total_seats: 180`
+    - `sql/utils/data-management/update-aircraft-types-to-180-seats.sql` - SQL script để update existing data
+    - `docs/CHANGELOG.md` - Cập nhật changelog
+    - `docs/database/SEED-README.md` - Cập nhật thông tin aircraft types
+  - **Migration Path**:
+    - Chạy SQL script `update-aircraft-types-to-180-seats.sql` để update existing aircraft types
+    - Sau đó re-run seed script để tạo lại seat configurations theo 180 ghế
+    - Hoặc xóa toàn bộ data và seed lại từ đầu với `clear-all-seed-data.sql` rồi `npm run seed:full`
+
 ### Changed
 
 - **Search Flights API - Auto-set tripType based on returnDate (2025-01-XX)**:

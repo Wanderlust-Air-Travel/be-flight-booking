@@ -23,6 +23,7 @@ Tài liệu dự án Flight Booking Backend được tổ chức theo các danh 
 - **[REDIS_SETUP.md](./setup/REDIS_SETUP.md)** - Hướng dẫn setup Redis với Docker
 - **[WSL-SQL-SERVER-SETUP.md](./setup/WSL-SQL-SERVER-SETUP.md)** - Hướng dẫn kết nối SQL Server từ WSL
 - **[SSMS_CONNECT_DOCKER.md](./setup/SSMS_CONNECT_DOCKER.md)** - Hướng dẫn kết nối SQL Server từ SSMS (Docker)
+- **[DEALS_IMAGES_SETUP.md](./setup/DEALS_IMAGES_SETUP.md)** - Hướng dẫn setup và quản lý ảnh phong cảnh cho deals API
 
 ### [Design Documents](./design/)
 - **[JWT_IMPLEMENTATION_SUMMARY.md](./design/JWT_IMPLEMENTATION_SUMMARY.md)** - Tóm tắt Implementation JWT Pattern
@@ -52,9 +53,13 @@ npm run test:db
 # Test email service
 npm run test:email
 
+# Download ảnh phong cảnh cho deals API
+npm run download:deals-images
+
 # Hoặc chạy trực tiếp với ts-node
 ts-node -r tsconfig-paths/register tools/test-db-connection.ts
 ts-node -r tsconfig-paths/register tools/test-otp-email.ts
+ts-node -r tsconfig-paths/register scripts/download-deals-images.ts
 ```
 
 ## Cấu trúc thư mục

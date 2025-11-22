@@ -268,8 +268,13 @@ API Gateway → Response to FE
     - `service`: "Dịch vụ bay thẳng" (one-way) hoặc "Dịch vụ bay khứ hồi" (round-trip)
     - `price`: Với round-trip, giá là tổng của cả 2 chuyến
     - `image`: Format `/images/routes/{route_id}.jpg` (route_id là UUID v7 - 36 ký tự)
+      - Ảnh được lưu tại `public/images/routes/{route_id}.jpg`
+      - Được serve tự động qua static files middleware
+      - Nếu chưa có trong database, service tự động generate URL theo format trên
+      - **Script download**: `npm run download:deals-images` để tự động tải ảnh từ Lorem Picsum
     - `link`: Format `/service/{route_id}` (route_id là UUID v7 - 36 ký tự)
     - Dữ liệu được lấy từ database (bảng Routes: `image_url`, `service_link`)
+    - **Xem thêm**: `docs/setup/DEALS_IMAGES_SETUP.md` - Hướng dẫn setup và quản lý ảnh deals
 
 ### User
 - `GET /users` - Lấy thông tin user (cần JWT token)
@@ -467,3 +472,12 @@ REDIS_RESERVATION_TTL=900  # 15 minutes (in seconds)
      - `image_url`: `/images/routes/{route_id}.jpg` (route_id là UUID v7, length = 55)
      - `service_link`: `/service/{route_id}` (route_id là UUID v7, length = 45)
    - Có CHECK constraints và trigger tự động generate nếu NULL hoặc không đúng format
+11. **Static Files & Images**:
+   - **Public Folder**: `public/` - Thư mục chứa static files được serve tự động
+   - **Images Folder**: `public/images/routes/` - Chứa ảnh phong cảnh cho deals API
+   - **Format**: `{route_id}.jpg` (route_id là UUID v7 - 36 ký tự)
+   - **Kích thước**: 1920x1080 (16:9) - landscape images
+   - **Static Files Middleware**: NestJS serve static files từ `public/` folder tại root path `/`
+   - **URL Access**: `{{base_url}}/images/routes/{route_id}.jpg`
+   - **Auto Download Script**: `npm run download:deals-images` - Tự động download ảnh từ Lorem Picsum cho tất cả routes
+   - **Xem thêm**: `docs/setup/DEALS_IMAGES_SETUP.md` - Hướng dẫn chi tiết

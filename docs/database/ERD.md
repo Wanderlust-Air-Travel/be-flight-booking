@@ -276,8 +276,12 @@ erDiagram
 
 - **Fleet & Seating**
   - AircraftTypes/Aircrafts: loại tàu bay vs máy bay thực tế (registration unique).
+    - **Standardized Configuration**: Tất cả aircraft types đều có **180 ghế** (`total_seats = 180`)
+    - **Seat Distribution**: 18 ghế Business (10%) + 162 ghế Economy (90%)
   - CabinClasses/FareClasses: phân lớp khoang vs booking class (Y/M/B/K…).
   - SeatConfigurations: layout ghế theo loại máy bay; template sinh ghế cho chuyến thực tế.
+    - Business seats: Rows 1-3 (18 ghế)
+    - Economy seats: Rows 4-30 (162 ghế)
 
 - **Operation**
   - FlightSchedules: lịch định nghĩa (route, loại máy bay, dải hiệu lực, ngày hoạt động).

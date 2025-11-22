@@ -2168,6 +2168,15 @@ GET /services/deals
 - Giá bao gồm: base_fare + tax_amount + fee_amount
 - Giá được format theo chuẩn Việt Nam với dấu phẩy ngăn cách hàng nghìn
 
+**Lưu ý về Images:**
+- Ảnh phong cảnh cho deals được lưu trong thư mục `public/images/routes/`
+- Format tên file: `{route_id}.jpg` (route_id là UUID v7 - 36 ký tự)
+- Kích thước: 1920x1080 (16:9) - landscape images
+- Ảnh được serve tự động qua static files middleware tại: `{{base_url}}/images/routes/{route_id}.jpg`
+- Nếu route chưa có `image_url` trong database, service sẽ tự động generate URL theo format trên
+- **Script tự động download ảnh**: Chạy `npm run download:deals-images` để tự động tải ảnh từ Lorem Picsum cho tất cả routes
+- **Xem thêm**: `docs/setup/DEALS_IMAGES_SETUP.md` - Hướng dẫn chi tiết về cách setup và quản lý ảnh deals
+
 ---
 
 ## Common IATA Codes (Sân bay nội địa Việt Nam)
@@ -2493,7 +2502,16 @@ const { data: fareOptions } = await api.get('/search/fare-options', {
     - Giá trong deals được tính từ historical pricing (BookingSegments) nếu có
     - Nếu chưa có booking, dùng fallback prices (giá mặc định)
     - Giá được format theo chuẩn Việt Nam: "962,000 VND"
-12. **Booking Flow (Recommended - Backend-managed State)**:
+12. **Static Files & Images**:
+    - **Public Folder**: Static files được serve từ thư mục `public/` tại root path `/`
+    - **Deals Images**: Ảnh phong cảnh cho deals API được lưu tại `public/images/routes/{route_id}.jpg`
+    - **Format**: Tên file theo format `{route_id}.jpg` (route_id là UUID v7 - 36 ký tự)
+    - **Kích thước**: 1920x1080 (16:9) - landscape images
+    - **URL Access**: `{{base_url}}/images/routes/{route_id}.jpg` (truy cập trực tiếp qua static files)
+    - **Auto Download**: Chạy `npm run download:deals-images` để tự động tải ảnh từ Lorem Picsum cho tất cả routes
+    - **Fallback**: Nếu route chưa có `image_url` trong database, service tự động generate URL theo format trên
+    - **Xem thêm**: `docs/setup/DEALS_IMAGES_SETUP.md` - Hướng dẫn chi tiết về setup và quản lý ảnh deals
+13. **Booking Flow (Recommended - Backend-managed State)**:
     - Bước 1: Search flights → `GET /search/flights`
     - Bước 2: Chọn flight → Get fare options → `GET /search/fare-options`
     - Bước 3: Chọn fare class → Get seat map (optional) → `GET /search/seats?flightInstanceId=xxx&cabinType=economy`
