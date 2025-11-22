@@ -15,11 +15,13 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/search/flights?origin=HAN&destination=SGN&departDate={{departDate}}&tripType=one_way&adults=1&minors=0",
+							"raw": "{{base_url}}/api/v1/search/flights?origin=HAN&destination=SGN&departDate={{departDate}}&tripType=one_way&adults=1&minors=0",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
+								"v1",
 								"search",
 								"flights"
 							],
@@ -66,11 +68,13 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/search/flights?origin=HAN&destination=SGN&departDate={{departDate}}&returnDate={{returnDate}}&tripType=round_trip&adults=2&minors=1",
+							"raw": "{{base_url}}/api/v1/search/flights?origin=HAN&destination=SGN&departDate={{departDate}}&returnDate={{returnDate}}&tripType=round_trip&adults=2&minors=1",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
+								"v1",
 								"search",
 								"flights"
 							],
@@ -116,11 +120,13 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/search/flights?origin=HAN&destination=DAD&departDate={{departDate}}&tripType=one_way&adults=1&minors=0",
+							"raw": "{{base_url}}/api/v1/search/flights?origin=HAN&destination=DAD&departDate={{departDate}}&tripType=one_way&adults=1&minors=0",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
+								"v1",
 								"search",
 								"flights"
 							],
@@ -160,11 +166,13 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/search/flights?origin=SGN&destination=PQC&departDate={{departDate}}&tripType=one_way&adults=1&minors=0",
+							"raw": "{{base_url}}/api/v1/search/flights?origin=SGN&destination=PQC&departDate={{departDate}}&tripType=one_way&adults=1&minors=0",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
+								"v1",
 								"search",
 								"flights"
 							],
@@ -204,11 +212,13 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/search/fare-options?flightInstanceId={{flightInstanceId}}&cabinType=economy",
+							"raw": "{{base_url}}/api/v1/search/fare-options?flightInstanceId={{flightInstanceId}}&cabinType=economy",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
+								"v1",
 								"search",
 								"fare-options"
 							],
@@ -235,11 +245,13 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/search/fare-options?flightInstanceId={{flightInstanceId}}&cabinType=business",
+							"raw": "{{base_url}}/api/v1/search/fare-options?flightInstanceId={{flightInstanceId}}&cabinType=business",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
+								"v1",
 								"search",
 								"fare-options"
 							],
@@ -288,11 +300,13 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/search/seats?flightInstanceId={{flightInstanceId}}&cabinType=economy",
+							"raw": "{{base_url}}/api/v1/search/seats?flightInstanceId={{flightInstanceId}}&cabinType=economy",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
+								"v1",
 								"search",
 								"seats"
 							],
@@ -343,11 +357,13 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/search/seats?flightInstanceId={{flightInstanceId}}&cabinType=business",
+							"raw": "{{base_url}}/api/v1/search/seats?flightInstanceId={{flightInstanceId}}&cabinType=business",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
+								"v1",
 								"search",
 								"seats"
 							],
@@ -380,11 +396,13 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/services/deals",
+							"raw": "{{base_url}}/api/v1/services/deals",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
+								"v1",
 								"services",
 								"deals"
 							]
@@ -398,7 +416,7 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "{{base_url}}/services/deals",
+									"raw": "{{base_url}}/api/v1/services/deals",
 									"host": [
 										"{{base_url}}"
 									],
@@ -451,11 +469,13 @@
 							]
 						},
 						"url": {
-							"raw": "{{base_url}}/routes/{{routeId}}/upload-image",
+							"raw": "{{base_url}}/api/v1/routes/{{routeId}}/upload-image",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
+								"v1",
 								"routes",
 								"{{routeId}}",
 								"upload-image"
@@ -486,11 +506,13 @@
 							"raw": "{\n  \"fullname\": \"Nguyen Van A\",\n  \"email\": \"user@example.com\",\n  \"password\": \"Password123!\",\n  \"phone\": \"0901234567\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/auth/register",
+							"raw": "{{base_url}}/api/v1/auth/register",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
+								"v1",
 								"auth",
 								"register"
 							]
@@ -514,11 +536,13 @@
 							"raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"Password123!\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/auth/login",
+							"raw": "{{base_url}}/api/v1/auth/login",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
+								"v1",
 								"auth",
 								"login"
 							]
@@ -542,11 +566,13 @@
 							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/auth/refresh",
+							"raw": "{{base_url}}/api/v1/auth/refresh",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
+								"v1",
 								"auth",
 								"refresh"
 							]
@@ -600,9 +626,9 @@
 								"raw": "{\n  \"segments\": [\n    {\n      \"flightInstanceId\": \"{{flightInstanceId}}\",\n      \"fareClassCode\": \"YS\",\n      \"segmentType\": \"outbound\",\n      \"flightSeatId\": \"{{flightSeatId}}\"\n    }\n  ],\n  \"numberOfPassengers\": 1,\n  \"currencyCode\": \"VND\"\n}"
 							},
 							"url": {
-								"raw": "{{base_url}}/reservations",
+								"raw": "{{base_url}}/api/v1/reservations",
 								"host": ["{{base_url}}"],
-								"path": ["reservations"]
+								"path": ["api", "v1", "reservations"]
 							},
 							"description": "Tạo reservation cho one-way booking. Backend lưu segments vào Database (persistent) và Redis (cache) với TTL 15 phút (Hybrid Approach).\n\n**Request body:**\n- `segments`: Array of segments (minimum 1 segment, REQUIRED)\n  - `flightInstanceId`: Flight instance ID (UUID v7)\n  - `fareClassCode`: Fare class code (e.g., \"YS\")\n  - `segmentType`: \"outbound\" for one-way\n  - `flightSeatId`: Optional, UUID v7 (from `/search/seats` response) - If provided, seat will be held when creating reservation\n- `numberOfPassengers`: Number of passengers (≥1)\n- `currencyCode`: Optional (default: \"VND\")\n\n**Seat Selection:**\n- `flightSeatId` is optional - user can create reservation without selecting a seat\n- If `flightSeatId` is provided, system will:\n  - Validate seat exists and belongs to correct flight instance\n  - Validate seat belongs to correct cabin class (matches fareClassCode)\n  - Validate seat is available\n  - Mark seat as unavailable (hold) when creating reservation\n  - Automatically release seat if reservation is cancelled or expires\n\n**Response format:**\n- `reservationId`, `reservationCode`\n- `segments[]`: Array of segments với đầy đủ thông tin (segmentId, flightInstanceId, fareClassCode, segmentType, baseFare, taxAmount, feeAmount, flightSeatId, seatNumber)\n- `totalAmount`, `currencyCode`, `status`, `expiresAt`, `ttl`, `createdAt`\n- **Note**: Response chỉ có `segments[]` array, không còn backward compatibility fields (đã xóa)\n- **Seat Info**: Response includes `flightSeatId` and `seatNumber` in each segment if seat was selected\n\n**Storage (Hybrid Approach):**\n- **Database**: Saved với status `pending` (persistent, audit trail, analytics)\n- **Redis**: Cached với status `active` và TTL 15 phút (fast lookup)\n- **Get Flow**: Try Redis first → Fallback to Database → Re-cache if needed\n\n**Lưu ý:**\n- Yêu cầu JWT authentication\n- Reservation tự động expire sau 15 phút (Redis TTL)\n- Backend tự động validate availability và tính giá cho từng segment\n- Reservation phải có ít nhất 1 segment (validation sẽ throw error nếu không có)\n- Nếu Redis down, vẫn có thể lấy reservation từ Database\n- **Seat Flow**: Get seat map → Select seat → Create reservation with `flightSeatId` → Seat is held → Create booking → Seat is assigned to booking"
 						},
@@ -648,9 +674,9 @@
 								"raw": "{\n  \"segments\": [\n    {\n      \"flightInstanceId\": \"{{flightInstanceId}}\",\n      \"fareClassCode\": \"YS\",\n      \"segmentType\": \"outbound\",\n      \"flightSeatId\": \"{{flightSeatId}}\"\n    },\n    {\n      \"flightInstanceId\": \"{{returnFlightInstanceId}}\",\n      \"fareClassCode\": \"YS\",\n      \"segmentType\": \"inbound\",\n      \"flightSeatId\": \"{{returnFlightSeatId}}\"\n    }\n  ],\n  \"numberOfPassengers\": 1,\n  \"currencyCode\": \"VND\"\n}"
 							},
 							"url": {
-								"raw": "{{base_url}}/reservations",
+								"raw": "{{base_url}}/api/v1/reservations",
 								"host": ["{{base_url}}"],
-								"path": ["reservations"]
+								"path": ["api", "v1", "reservations"]
 							},
 							"description": "Tạo reservation cho round-trip booking với 2 segments (outbound + inbound). Backend lưu tất cả segments vào Database (persistent) và Redis (cache) với TTL 15 phút (Hybrid Approach).\n\n**Request body:**\n- `segments`: Array với 2 segments (REQUIRED)\n  - Segment 1: `segmentType: \"outbound\"` (chuyến đi)\n  - Segment 2: `segmentType: \"inbound\"` (chuyến về)\n  - Mỗi segment cần: `flightInstanceId`, `fareClassCode`, `segmentType`\n  - `flightSeatId`: Optional, UUID v7 (from `/search/seats` response) - If provided, seat will be held when creating reservation\n- `numberOfPassengers`: Number of passengers (≥1)\n- `currencyCode`: Optional (default: \"VND\")\n\n**Seat Selection:**\n- `flightSeatId` is optional for each segment - user can create reservation without selecting seats\n- If `flightSeatId` is provided for a segment, system will:\n  - Validate seat exists and belongs to correct flight instance\n  - Validate seat belongs to correct cabin class (matches fareClassCode)\n  - Validate seat is available\n  - Mark seat as unavailable (hold) when creating reservation\n  - Automatically release seat if reservation is cancelled or expires\n- Each segment can have its own seat selection (outbound and inbound can have different seats)\n\n**Response format:**\n- `reservationId`, `reservationCode`\n- `segments[]`: Array với 2 segments, mỗi segment có đầy đủ thông tin (segmentId, flightInstanceId, fareClassCode, segmentType, baseFare, taxAmount, feeAmount, flightSeatId, seatNumber)\n- `totalAmount`: Tổng của cả 2 segments\n- `currencyCode`, `status`, `expiresAt`, `ttl`, `createdAt`\n- **Note**: Response chỉ có `segments[]` array, không còn backward compatibility fields (đã xóa)\n- **Seat Info**: Response includes `flightSeatId` and `seatNumber` in each segment if seat was selected\n\n**Storage (Hybrid Approach):**\n- **Database**: Saved với status `pending` (persistent, audit trail, analytics)\n- **Redis**: Cached với status `active` và TTL 15 phút (fast lookup)\n- **Get Flow**: Try Redis first → Fallback to Database → Re-cache if needed\n\n**Lưu ý:**\n- Yêu cầu JWT authentication\n- Round-trip validation: Phải có cả outbound và inbound segments (nếu có inbound thì phải có outbound)\n- Reservation tự động expire sau 15 phút (Redis TTL)\n- Frontend chỉ cần lưu 1 `reservationId` cho cả round-trip\n- Backend tự động validate availability và tính giá cho từng segment\n- Nếu Redis down, vẫn có thể lấy reservation từ Database\n- **Seat Flow**: Get seat map for each flight → Select seats → Create reservation with `flightSeatId` for each segment → Seats are held → Create booking → Seats are assigned to booking\n\n**Variables cần set:**\n- `flightInstanceId`: Flight instance ID cho chuyến đi (outbound)\n- `returnFlightInstanceId`: Flight instance ID cho chuyến về (inbound)\n- `flightSeatId`: Optional, Seat ID cho chuyến đi (from `/search/seats` response)\n- `returnFlightSeatId`: Optional, Seat ID cho chuyến về (from `/search/seats` response for return flight)"
 						},
@@ -672,9 +698,9 @@
 							"method": "GET",
 							"header": [],
 							"url": {
-								"raw": "{{base_url}}/reservations/{{reservationId}}",
+								"raw": "{{base_url}}/api/v1/reservations/{{reservationId}}",
 								"host": ["{{base_url}}"],
-								"path": ["reservations", "{{reservationId}}"]
+								"path": ["api", "v1", "reservations", "{{reservationId}}"]
 							},
 							"description": "Lấy thông tin reservation theo ID. API tự động detect nếu input là UUID v7 (ID) hay 6 ký tự (code)."
 						},
@@ -696,9 +722,9 @@
 							"method": "GET",
 							"header": [],
 							"url": {
-								"raw": "{{base_url}}/reservations/code/{{reservationCode}}",
+								"raw": "{{base_url}}/api/v1/reservations/code/{{reservationCode}}",
 								"host": ["{{base_url}}"],
-								"path": ["reservations", "code", "{{reservationCode}}"]
+								"path": ["api", "v1", "reservations", "code", "{{reservationCode}}"]
 							},
 							"description": "Lấy thông tin reservation theo reservation code (6 alphanumeric characters)."
 						},
@@ -720,9 +746,9 @@
 							"method": "GET",
 							"header": [],
 							"url": {
-								"raw": "{{base_url}}/reservations",
+								"raw": "{{base_url}}/api/v1/reservations",
 								"host": ["{{base_url}}"],
-								"path": ["reservations"]
+								"path": ["api", "v1", "reservations"]
 							},
 							"description": "Lấy danh sách tất cả active reservations của user hiện tại (từ JWT token). Chỉ trả về reservations với status 'active' và chưa expired."
 						},
@@ -744,9 +770,9 @@
 							"method": "POST",
 							"header": [],
 							"url": {
-								"raw": "{{base_url}}/reservations/{{reservationId}}/cancel",
+								"raw": "{{base_url}}/api/v1/reservations/{{reservationId}}/cancel",
 								"host": ["{{base_url}}"],
-								"path": ["reservations", "{{reservationId}}", "cancel"]
+								"path": ["api", "v1", "reservations", "{{reservationId}}", "cancel"]
 							},
 							"description": "Hủy một reservation đang active. Chỉ có thể cancel reservation với status 'active'."
 						},
@@ -777,9 +803,9 @@
 								"raw": "{\n  \"additionalSeconds\": 600\n}"
 							},
 							"url": {
-								"raw": "{{base_url}}/reservations/{{reservationId}}/extend",
+								"raw": "{{base_url}}/api/v1/reservations/{{reservationId}}/extend",
 								"host": ["{{base_url}}"],
-								"path": ["reservations", "{{reservationId}}", "extend"]
+								"path": ["api", "v1", "reservations", "{{reservationId}}", "extend"]
 							},
 							"description": "Gia hạn thời gian expiration của reservation thêm một số giây. Chỉ có thể extend reservation với status 'active' và chưa expired. `additionalSeconds` phải là số dương."
 						},
@@ -825,7 +851,7 @@
 							"raw": "{\n  \"passengers\": [\n    {\n      \"passengerType\": \"ADT\",\n      \"fullname\": \"Nguyen Van A\",\n      \"dob\": \"1990-01-15\",\n      \"gender\": \"Male\",\n      \"documentNumber\": \"001234567890\"\n    }\n  ],\n  \"contactFullname\": \"Nguyen Van A\",\n  \"contactEmail\": \"nguyenvana@example.com\",\n  \"contactPhone\": \"0912345678\",\n  \"channel\": \"web\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/bookings?reservationId={{reservationId}}",
+							"raw": "{{base_url}}/api/v1/bookings?reservationId={{reservationId}}",
 							"host": [
 								"{{base_url}}"
 							],
@@ -864,7 +890,7 @@
 							"raw": "{\n  \"currencyCode\": \"VND\",\n  \"contactFullname\": \"Nguyen Van A\",\n  \"contactEmail\": \"nguyenvana@example.com\",\n  \"contactPhone\": \"0912345678\",\n  \"channel\": \"web\",\n  \"passengers\": [\n    {\n      \"passengerType\": \"ADT\",\n      \"fullname\": \"Nguyen Van A\",\n      \"dob\": \"1990-01-15\",\n      \"gender\": \"Male\",\n      \"documentNumber\": \"001234567890\"\n    }\n  ],\n  \"segments\": [\n    {\n      \"flightInstanceId\": \"{{flightInstanceId}}\",\n      \"fareClassCode\": \"YS\",\n      \"baseFare\": 1577000,\n      \"taxAmount\": 0,\n      \"feeAmount\": 0\n    }\n  ]\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/bookings",
+							"raw": "{{base_url}}/api/v1/bookings",
 							"host": [
 								"{{base_url}}"
 							],
@@ -882,11 +908,13 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/bookings/{{bookingId}}/fare-details",
+							"raw": "{{base_url}}/api/v1/bookings/{{bookingId}}/fare-details",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
+								"v1",
 								"bookings",
 								"{{bookingId}}",
 								"fare-details"
@@ -911,11 +939,13 @@
 							"raw": "{\n  \"adults\": 2,\n  \"minors\": 1\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/bookings/{{bookingId}}/passengers",
+							"raw": "{{base_url}}/api/v1/bookings/{{bookingId}}/passengers",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
+								"v1",
 								"bookings",
 								"{{bookingId}}",
 								"passengers"
@@ -931,11 +961,13 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/bookings/{{bookingId}}/payment-info",
+							"raw": "{{base_url}}/api/v1/bookings/{{bookingId}}/payment-info",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
+								"api",
+								"v1",
 								"bookings",
 								"{{bookingId}}",
 								"payment-info"
@@ -990,9 +1022,9 @@
 							"raw": "{\n  \"paymentMethodCode\": \"CREDIT_CARD\",\n  \"transactionRef\": \"TXN123456789\",\n  \"idempotencyKey\": \"idempotency-key-{{$randomUUID}}\",\n  \"amount\": 1577000\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/payments/bookings/{{bookingId}}",
+							"raw": "{{base_url}}/api/v1/payments/bookings/{{bookingId}}",
 							"host": ["{{base_url}}"],
-							"path": ["payments", "bookings", "{{bookingId}}"]
+							"path": ["api", "v1", "payments", "bookings", "{{bookingId}}"]
 						},
 						"description": "Create a payment record for a booking. Payment will have status 'pending'. To process payment immediately, use the /process endpoint. Requires JWT authentication and Payment Microservice running on port 4006.\n\n**Path Parameters:**\n- `bookingId`: Booking ID (UUID v7)\n\n**Request Body:**\n- `paymentMethodCode`: Required, enum: CREDIT_CARD, DEBIT_CARD, BANK_TRANSFER, EWALLET, CASH\n- `transactionRef`: Optional, transaction reference from payment gateway\n- `idempotencyKey`: Optional, idempotency key to prevent duplicate payments (fully supported at API Gateway level)\n- `amount`: Optional, payment amount (defaults to booking total amount, must equal booking total amount). Fully supported at API Gateway level with validation\n\n**Response:**\n- `paymentId`: Payment ID (UUID v7)\n- `bookingId`, `pnrCode`\n- `amount`, `currencyCode`\n- `paymentMethodCode`, `paymentMethodName`\n- `status`: 'pending'\n- `transactionRef`, `createdAt`, `paidAt` (null)\n- `expiresAt`: Payment expiration date (15 minutes from creation)\n\n**Features (Phase 1 & 2):**\n- **Idempotency**: If idempotencyKey provided, system will check and return existing payment if already exists\n- **Amount Validation**: Payment amount must equal booking total amount (strict validation, no partial payments)\n- **Payment Expiration**: Payment auto-expires after 15 minutes if not paid\n- **Payment Method Availability**: Payment method must be active (is_active = true)\n- **Concurrency Control**: Database lock prevents concurrent payments\n\n**Lưu ý:**\n- Payment được tạo với status 'pending'\n- Booking phải thuộc về user hiện tại (từ JWT token)\n- Booking không được đã paid hoặc cancelled\n- `userId` tự động extract từ JWT token (không cần gửi trong request body)"
 					},
@@ -1037,9 +1069,9 @@
 							"raw": "{\n  \"paymentMethodCode\": \"CREDIT_CARD\",\n  \"transactionRef\": \"TXN123456789\",\n  \"idempotencyKey\": \"idempotency-key-{{$randomUUID}}\",\n  \"amount\": 1577000\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/payments/bookings/{{bookingId}}/process",
+							"raw": "{{base_url}}/api/v1/payments/bookings/{{bookingId}}/process",
 							"host": ["{{base_url}}"],
-							"path": ["payments", "bookings", "{{bookingId}}", "process"]
+							"path": ["api", "v1", "payments", "bookings", "{{bookingId}}", "process"]
 						},
 						"description": "Create and process payment immediately. Payment will be created and integrated with payment gateway. In production, response will contain paymentUrl to redirect user to payment gateway. Payment status will be updated via webhook. Requires JWT authentication and Payment Microservice running on port 4006.\n\n**Path Parameters:**\n- `bookingId`: Booking ID (UUID v7)\n\n**Request Body:**\n- `paymentMethodCode`: Required, enum: CREDIT_CARD, DEBIT_CARD, BANK_TRANSFER, EWALLET, CASH\n- `transactionRef`: Optional, transaction reference from payment gateway\n- `idempotencyKey`: Optional, idempotency key to prevent duplicate payments (fully supported at API Gateway level)\n- `amount`: Optional, payment amount (defaults to booking total amount, must equal booking total amount). Fully supported at API Gateway level with validation\n\n**Response:**\n- `paymentId`: Payment ID (UUID v7)\n- `bookingId`, `pnrCode`\n- `amount`, `currencyCode`\n- `paymentMethodCode`, `paymentMethodName`\n- `status`: 'pending' (will be updated via webhook)\n- `transactionRef`, `createdAt`, `paidAt` (null initially)\n- `expiresAt`: Payment expiration date (15 minutes from creation)\n- `paymentUrl`: Payment gateway URL to redirect user (in production)\n\n**Features (Phase 1 & 2):**\n- **Payment Gateway Integration**: Calls payment gateway (VNPay, MoMo, Stripe, etc.) to create payment URL\n- **Idempotency**: Prevent duplicate payments with idempotency key\n- **Concurrency Control**: Database lock prevents concurrent payments\n- **Payment Expiration**: Payment auto-expires after 15 minutes\n- **Async Processing**: Payment status updated via webhook from payment gateway\n\n**Lưu ý:**\n- Payment được tạo và xử lý trong một transaction với concurrency control\n- Response có thể chứa `paymentUrl` để redirect user đến payment gateway\n- Payment status thường được update qua webhook (async)\n- Nếu payment thành công (via webhook), booking status tự động update thành 'paid'\n- `paidAt` được set khi payment status = 'success'"
 					},
@@ -1061,9 +1093,9 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/payments/{{paymentId}}",
+							"raw": "{{base_url}}/api/v1/payments/{{paymentId}}",
 							"host": ["{{base_url}}"],
-							"path": ["payments", "{{paymentId}}"]
+							"path": ["api", "v1", "payments", "{{paymentId}}"]
 						},
 						"description": "Get payment details by payment ID. Requires JWT authentication and Payment Microservice running on port 4006.\n\n**Path Parameters:**\n- `paymentId`: Payment ID (UUID v7)\n\n**Response:**\n- Full payment details including status, amount, payment method, transaction reference, etc.\n\n**Lưu ý:**\n- User chỉ có thể xem payments của bookings thuộc về mình\n- Payment phải thuộc về booking của user hiện tại (từ JWT token)"
 					},
@@ -1085,9 +1117,9 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/payments/bookings/{{bookingId}}",
+							"raw": "{{base_url}}/api/v1/payments/bookings/{{bookingId}}",
 							"host": ["{{base_url}}"],
-							"path": ["payments", "bookings", "{{bookingId}}"]
+							"path": ["api", "v1", "payments", "bookings", "{{bookingId}}"]
 						},
 						"description": "Get all payment records for a specific booking. Requires JWT authentication and Payment Microservice running on port 4006.\n\n**Path Parameters:**\n- `bookingId`: Booking ID (UUID v7)\n\n**Response:**\n- Array of payment records, sorted by createdAt DESC (newest first)\n\n**Lưu ý:**\n- Payments được sắp xếp theo createdAt DESC (mới nhất trước)\n- User chỉ có thể xem payments của bookings thuộc về mình\n- Một booking có thể có nhiều payments (ví dụ: payment failed, retry payment)"
 					},
@@ -1118,9 +1150,9 @@
 							"raw": "{\n  \"status\": \"success\",\n  \"transactionRef\": \"TXN123456789\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/payments/{{paymentId}}/status",
+							"raw": "{{base_url}}/api/v1/payments/{{paymentId}}/status",
 							"host": ["{{base_url}}"],
-							"path": ["payments", "{{paymentId}}", "status"]
+							"path": ["api", "v1", "payments", "{{paymentId}}", "status"]
 						},
 						"description": "Update payment status. Typically used by payment gateway webhooks or admin operations. Requires JWT authentication and Payment Microservice running on port 4006.\n\n**Path Parameters:**\n- `paymentId`: Payment ID (UUID v7)\n\n**Request Body:**\n- `status`: Required, enum: pending, success, failed\n- `transactionRef`: Optional, transaction reference from payment gateway\n\n**Response:**\n- Updated payment details\n\n**Lưu ý:**\n- Nếu status = 'success', `paidAt` được tự động set\n- Nếu payment thành công, booking status tự động update thành 'paid'\n- User chỉ có thể update payments của bookings thuộc về mình\n- Trong production, endpoint này thường được gọi bởi payment gateway webhook"
 					},
@@ -1146,9 +1178,9 @@
 							"raw": "{\n  \"transactionId\": \"{{transactionRef}}\",\n  \"status\": \"success\",\n  \"amount\": 1577000,\n  \"currency\": \"VND\",\n  \"message\": \"Payment processed successfully\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/payments/webhooks/mock",
+							"raw": "{{base_url}}/api/v1/payments/webhooks/mock",
 							"host": ["{{base_url}}"],
-							"path": ["payments", "webhooks", "mock"]
+							"path": ["api", "v1", "payments", "webhooks", "mock"]
 						},
 						"description": "Handle webhook from payment gateway when payment status changes. This endpoint is called by payment gateway (VNPay, MoMo, Stripe, etc.) asynchronously. No JWT authentication required (payment gateway calls directly). Payment Microservice running on port 4006.\n\n**Path Parameters:**\n- `gateway`: Payment gateway name (e.g., vnpay, momo, stripe, mock)\n\n**Request Headers:**\n- `x-signature`: Webhook signature for verification (required)\n\n**Request Body:**\n- `transactionId`: Transaction ID from payment gateway (must match payment.transaction_ref)\n- `status`: Payment status ('success' or 'failed')\n- `amount`: Payment amount (optional)\n- `currency`: Currency code (optional)\n- `message`: Additional message (optional)\n\n**Response:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Webhook processed successfully\"\n}\n```\n\n**Features:**\n- **Webhook Verification**: System verify webhook signature to ensure request is from valid payment gateway\n- **Async Payment Status Update**: Payment gateway calls webhook when payment status changes\n- **Automatic Booking Update**: When webhook confirms payment success, booking status automatically updated to 'paid'\n- **Payment Notifications**: System automatically sends notification when payment status updated via webhook\n- **Transaction Safety**: Webhook processing uses transactions to ensure data consistency\n\n**Lưu ý:**\n- Gateway name must match payment method: `vnpay` → EWALLET, `stripe` → CREDIT_CARD, `mock` → for testing\n- In production, webhook will come from actual payment gateway (configure webhook URL in payment gateway settings)\n- Payment status and booking status will be updated automatically\n- This is a public endpoint (no JWT authentication required)"
 					},
@@ -1199,9 +1231,9 @@
 							"raw": "{\n  \"to\": \"{{user_email}}\",\n  \"template\": \"payment_success\",\n  \"templateData\": {\n    \"pnrCode\": \"{{pnrCode}}\",\n    \"bookingId\": \"{{bookingId}}\",\n    \"totalAmount\": 1577000,\n    \"currency\": \"VND\",\n    \"passengerName\": \"Nguyen Van A\"\n  }\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/emails/send",
+							"raw": "{{base_url}}/api/v1/emails/send",
 							"host": ["{{base_url}}"],
-							"path": ["emails", "send"]
+							"path": ["api", "v1", "emails", "send"]
 						},
 						"description": "Send an email. Email will be queued and processed asynchronously. Supports both custom emails and template-based emails. Requires JWT authentication and Email Microservice running on port 4007.\n\n**Request Body:**\n- `to`: Required, recipient email address\n- `subject`: Optional, email subject (required if template not provided)\n- `htmlBody`: Optional, email body HTML (required if template not provided)\n- `textBody`: Optional, email body plain text\n- `template`: Optional, email template enum (`otp_payment`, `otp_password_reset`, `payment_success`, `payment_failed`, `booking_confirmation`)\n- `templateData`: Optional, template variables object\n- `replyTo`: Optional, reply-to email address\n\n**Response:**\n- `emailId`: Email job ID (UUID v7)\n- `to`, `subject`, `status`\n- `queuedAt`: Timestamp when email was queued\n- `retryCount`: Number of retry attempts\n\n**Email Status:**\n- `queued`: Email đã được thêm vào queue\n- `sending`: Đang gửi email\n- `sent`: Email đã được gửi thành công\n- `failed`: Email gửi thất bại (sau khi retry)\n\n**Features:**\n- **Async Processing**: Email được queue và xử lý bất đồng bộ (không block request)\n- **Rate Limiting**: 100 emails/phút\n- **Retry Logic**: Tối đa 3 lần với exponential backoff\n- **Email Templates**: 5 templates sẵn có (OTP payment, OTP password reset, payment success/failed, booking confirmation)\n- **Gmail API Integration**: OAuth 2.0 authentication với Gmail API\n\n**Lưu ý:**\n- Cần Email Microservice (port 4007) chạy\n- Cần Gmail API credentials file: `credentials_desktop_apps.json`\n- Cần Gmail token file: `token.json` (sẽ được tạo sau khi authenticate OAuth 2.0)"
 					},
@@ -1223,9 +1255,9 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/emails/{{emailId}}/status",
+							"raw": "{{base_url}}/api/v1/emails/{{emailId}}/status",
 							"host": ["{{base_url}}"],
-							"path": ["emails", "{{emailId}}", "status"]
+							"path": ["api", "v1", "emails", "{{emailId}}", "status"]
 						},
 						"description": "Get the status of an email by email ID. Requires JWT authentication and Email Microservice running on port 4007.\n\n**Path Parameters:**\n- `emailId`: Email job ID (UUID v7)\n\n**Response:**\n- `emailId`, `to`, `subject`, `status`\n- `queuedAt`: Timestamp when email was queued\n- `sentAt`: Timestamp when email was sent (if sent)\n- `retryCount`: Number of retry attempts\n- `error`: Error message (if failed)"
 					},
@@ -1237,9 +1269,9 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/emails/health",
+							"raw": "{{base_url}}/api/v1/emails/health",
 							"host": ["{{base_url}}"],
-							"path": ["emails", "health"]
+							"path": ["api", "v1", "emails", "health"]
 						},
 						"description": "Check the health status of the Email Service. Public endpoint (no authentication required).\n\n**Response:**\n- `status`: Service status ('ok')\n- `gmailReady`: `true` nếu Gmail API client đã được khởi tạo và sẵn sàng\n- `queueStats`: Thống kê queue hiện tại\n  - `total`: Tổng số emails trong queue\n  - `queued`: Số emails đang chờ xử lý\n  - `sending`: Số emails đang được gửi\n  - `sent`: Số emails đã gửi thành công\n  - `failed`: Số emails gửi thất bại\n  - `rateLimitRemaining`: Số email còn lại có thể gửi trong window hiện tại (100 emails/phút)"
 					},
