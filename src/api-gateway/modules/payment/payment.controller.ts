@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Patch, Body, Param, Req, UseGuards, Headers, HttpCode, HttpStatus, BadRequestException, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Param, Req, UseGuards, Headers, HttpCode, HttpStatus, BadRequestException, InternalServerErrorException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import {
 	ApiBadRequestResponse,
 	ApiOkResponse,
@@ -77,14 +77,23 @@ export class PaymentController {
 				throw error;
 			}
 
-			// Handle microservice connection errors
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException('Payment microservice is not running. Please start it with: npm run start:payment:dev');
+			// Handle microservice connection errors - these are infrastructure issues (503)
+			const errorMessage = error?.message || error?.toString() || '';
+			const errorCode = error?.code || '';
+			
+			// Connection refused - microservice is not running
+			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
+				throw new ServiceUnavailableException('Payment microservice is not available. Please ensure the service is running.');
 			}
-
-			// Handle timeout errors
-			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException('Payment microservice request timeout. Please check if the service is running.');
+			
+			// Connection closed - microservice disconnected
+			if (errorMessage.includes('Connection closed') || errorMessage.includes('Connection closed')) {
+				throw new ServiceUnavailableException('Payment microservice connection was closed. Please ensure the service is running.');
+			}
+			
+			// Timeout errors - microservice not responding
+			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+				throw new ServiceUnavailableException('Payment microservice request timeout. The service may be unavailable or overloaded.');
 			}
 
 			// Handle microservice error format: { status: 'error', message: '...' }
@@ -106,8 +115,12 @@ export class PaymentController {
 				throw new BadRequestException(`Create payment failed: ${error.message}`);
 			}
 
-			// Generic error - provide more context
-			const errorMessage = error?.message || error?.toString() || 'Unknown error';
+			// Generic error - check if it might be a not found case
+			const lowerErrorMessage = errorMessage.toLowerCase();
+			if (lowerErrorMessage.includes('not found') || lowerErrorMessage.includes('not exist')) {
+				throw new NotFoundException('Booking not found');
+			}
+			
 			throw new BadRequestException(`Create payment failed: ${errorMessage}. Please check the booking ID and payment details.`);
 		}
 	}
@@ -166,14 +179,23 @@ export class PaymentController {
 				throw error;
 			}
 
-			// Handle microservice connection errors
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException('Payment microservice is not running. Please start it with: npm run start:payment:dev');
+			// Handle microservice connection errors - these are infrastructure issues (503)
+			const errorMessage = error?.message || error?.toString() || '';
+			const errorCode = error?.code || '';
+			
+			// Connection refused - microservice is not running
+			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
+				throw new ServiceUnavailableException('Payment microservice is not available. Please ensure the service is running.');
 			}
-
-			// Handle timeout errors
-			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException('Payment microservice request timeout. Please check if the service is running.');
+			
+			// Connection closed - microservice disconnected
+			if (errorMessage.includes('Connection closed') || errorMessage.includes('Connection closed')) {
+				throw new ServiceUnavailableException('Payment microservice connection was closed. Please ensure the service is running.');
+			}
+			
+			// Timeout errors - microservice not responding
+			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+				throw new ServiceUnavailableException('Payment microservice request timeout. The service may be unavailable or overloaded.');
 			}
 
 			// Handle microservice error format: { status: 'error', message: '...' }
@@ -195,18 +217,17 @@ export class PaymentController {
 						}
 					}
 					// Generic internal server error - likely microservice issue
-					throw new InternalServerErrorException('Payment microservice error. Please check if the service is running and try again.');
+					throw new ServiceUnavailableException('Payment microservice error. Please ensure the service is running and try again.');
 				}
 				throw new BadRequestException(`Process payment failed: ${error.message}`);
 			}
 
-			// Generic error - provide more context
-			const errorMessage = error?.message || error?.toString() || 'Unknown error';
-			// If it's a generic error without status, it might be a microservice connection issue
-			if (errorMessage.toLowerCase().includes('internal server error') || 
-			    (errorMessage.toLowerCase().includes('error') && !error?.statusCode)) {
-				throw new InternalServerErrorException('Payment microservice error. Please check if the service is running and try again.');
+			// Generic error - check if it might be a not found case
+			const lowerErrorMessage = errorMessage.toLowerCase();
+			if (lowerErrorMessage.includes('not found') || lowerErrorMessage.includes('not exist')) {
+				throw new NotFoundException('Booking not found');
 			}
+			
 			throw new BadRequestException(`Process payment failed: ${errorMessage}. Please check the booking ID and payment details.`);
 		}
 	}
@@ -260,14 +281,23 @@ export class PaymentController {
 				throw error;
 			}
 
-			// Handle microservice connection errors
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException('Payment microservice is not running. Please start it with: npm run start:payment:dev');
+			// Handle microservice connection errors - these are infrastructure issues (503)
+			const errorMessage = error?.message || error?.toString() || '';
+			const errorCode = error?.code || '';
+			
+			// Connection refused - microservice is not running
+			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
+				throw new ServiceUnavailableException('Payment microservice is not available. Please ensure the service is running.');
 			}
-
-			// Handle timeout errors
-			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException('Payment microservice request timeout. Please check if the service is running.');
+			
+			// Connection closed - microservice disconnected
+			if (errorMessage.includes('Connection closed') || errorMessage.includes('Connection closed')) {
+				throw new ServiceUnavailableException('Payment microservice connection was closed. Please ensure the service is running.');
+			}
+			
+			// Timeout errors - microservice not responding
+			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+				throw new ServiceUnavailableException('Payment microservice request timeout. The service may be unavailable or overloaded.');
 			}
 
 			// Handle microservice error format: { status: 'error', message: '...' }
@@ -289,8 +319,12 @@ export class PaymentController {
 				throw new BadRequestException(`Get payment failed: ${error.message}`);
 			}
 
-			// Generic error - provide more context
-			const errorMessage = error?.message || error?.toString() || 'Unknown error';
+			// Generic error - check if it might be a not found case
+			const lowerErrorMessage = errorMessage.toLowerCase();
+			if (lowerErrorMessage.includes('not found') || lowerErrorMessage.includes('not exist')) {
+				throw new NotFoundException('Payment not found');
+			}
+			
 			throw new BadRequestException(`Get payment failed: ${errorMessage}. Please check the payment ID.`);
 		}
 	}
@@ -344,14 +378,23 @@ export class PaymentController {
 				throw error;
 			}
 
-			// Handle microservice connection errors
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException('Payment microservice is not running. Please start it with: npm run start:payment:dev');
+			// Handle microservice connection errors - these are infrastructure issues (503)
+			const errorMessage = error?.message || error?.toString() || '';
+			const errorCode = error?.code || '';
+			
+			// Connection refused - microservice is not running
+			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
+				throw new ServiceUnavailableException('Payment microservice is not available. Please ensure the service is running.');
 			}
-
-			// Handle timeout errors
-			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException('Payment microservice request timeout. Please check if the service is running.');
+			
+			// Connection closed - microservice disconnected
+			if (errorMessage.includes('Connection closed') || errorMessage.includes('Connection closed')) {
+				throw new ServiceUnavailableException('Payment microservice connection was closed. Please ensure the service is running.');
+			}
+			
+			// Timeout errors - microservice not responding
+			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+				throw new ServiceUnavailableException('Payment microservice request timeout. The service may be unavailable or overloaded.');
 			}
 
 			// Handle microservice error format: { status: 'error', message: '...' }
@@ -373,8 +416,12 @@ export class PaymentController {
 				throw new BadRequestException(`Get payments by booking failed: ${error.message}`);
 			}
 
-			// Generic error - provide more context
-			const errorMessage = error?.message || error?.toString() || 'Unknown error';
+			// Generic error - check if it might be a not found case
+			const lowerErrorMessage = errorMessage.toLowerCase();
+			if (lowerErrorMessage.includes('not found') || lowerErrorMessage.includes('not exist')) {
+				throw new NotFoundException('Booking not found');
+			}
+			
 			throw new BadRequestException(`Get payments by booking failed: ${errorMessage}. Please check the booking ID.`);
 		}
 	}
@@ -433,14 +480,23 @@ export class PaymentController {
 				throw error;
 			}
 
-			// Handle microservice connection errors
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException('Payment microservice is not running. Please start it with: npm run start:payment:dev');
+			// Handle microservice connection errors - these are infrastructure issues (503)
+			const errorMessage = error?.message || error?.toString() || '';
+			const errorCode = error?.code || '';
+			
+			// Connection refused - microservice is not running
+			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
+				throw new ServiceUnavailableException('Payment microservice is not available. Please ensure the service is running.');
 			}
-
-			// Handle timeout errors
-			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException('Payment microservice request timeout. Please check if the service is running.');
+			
+			// Connection closed - microservice disconnected
+			if (errorMessage.includes('Connection closed') || errorMessage.includes('Connection closed')) {
+				throw new ServiceUnavailableException('Payment microservice connection was closed. Please ensure the service is running.');
+			}
+			
+			// Timeout errors - microservice not responding
+			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+				throw new ServiceUnavailableException('Payment microservice request timeout. The service may be unavailable or overloaded.');
 			}
 
 			// Handle microservice error format: { status: 'error', message: '...' }
@@ -462,8 +518,12 @@ export class PaymentController {
 				throw new BadRequestException(`Update payment status failed: ${error.message}`);
 			}
 
-			// Generic error - provide more context
-			const errorMessage = error?.message || error?.toString() || 'Unknown error';
+			// Generic error - check if it might be a not found case
+			const lowerErrorMessage = errorMessage.toLowerCase();
+			if (lowerErrorMessage.includes('not found') || lowerErrorMessage.includes('not exist')) {
+				throw new NotFoundException('Payment not found');
+			}
+			
 			throw new BadRequestException(`Update payment status failed: ${errorMessage}. Please check the payment ID and status.`);
 		}
 	}
@@ -530,15 +590,42 @@ export class PaymentController {
 				throw error;
 			}
 
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException('Payment microservice is not running. Please start it with: npm run start:payment:dev');
+			// Handle microservice connection errors - these are infrastructure issues (503)
+			const errorMessage = error?.message || error?.toString() || '';
+			const errorCode = error?.code || '';
+			
+			// Connection refused - microservice is not running
+			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
+				throw new ServiceUnavailableException('Payment microservice is not available. Please ensure the service is running.');
+			}
+			
+			// Connection closed - microservice disconnected
+			if (errorMessage.includes('Connection closed') || errorMessage.includes('Connection closed')) {
+				throw new ServiceUnavailableException('Payment microservice connection was closed. Please ensure the service is running.');
+			}
+			
+			// Timeout errors - microservice not responding
+			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+				throw new ServiceUnavailableException('Payment microservice request timeout. The service may be unavailable or overloaded.');
 			}
 
+			// Handle microservice error format: { status: 'error', message: '...' }
 			if (error?.status === 'error' && error?.message) {
+				const message = error.message.toLowerCase();
+				// Check if message indicates "not found"
+				if (message.includes('not found') || message.includes('notfound') || message.includes('does not exist')) {
+					throw new NotFoundException(error.message);
+				}
+				// For other business logic errors, return 400 Bad Request
 				throw new BadRequestException(`Webhook processing failed: ${error.message}`);
 			}
 
-			throw new BadRequestException(`Webhook processing failed: ${error?.message || 'Unknown error'}`);
+			// For any other unexpected errors, return 500 Internal Server Error
+			if (errorMessage.toLowerCase().includes('not found') || errorMessage.toLowerCase().includes('not exist')) {
+				throw new NotFoundException('Resource not found');
+			}
+			
+			throw new InternalServerErrorException(`An unexpected error occurred while processing webhook. Please try again later.`);
 		}
 	}
 }

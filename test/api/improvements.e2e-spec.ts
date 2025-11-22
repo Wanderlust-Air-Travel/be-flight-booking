@@ -171,6 +171,8 @@ describe('Improvements & New Features (e2e)', () => {
 		});
 
 		it('should return 429 when rate limit is exceeded', async () => {
+			jest.setTimeout(10000); // Increase timeout for this test
+			
 			// Make many requests quickly to trigger rate limit
 			// Note: This test might be flaky depending on rate limit configuration
 			// Adjust rate limit in test environment if needed
@@ -189,7 +191,7 @@ describe('Improvements & New Features (e2e)', () => {
 				expect(rateLimitedResponse?.body).toHaveProperty('statusCode', 429);
 				expect(rateLimitedResponse?.body).toHaveProperty('message');
 			}
-		}).timeout(10000); // Increase timeout for this test
+		});
 	});
 
 	describe('Logging Interceptor', () => {

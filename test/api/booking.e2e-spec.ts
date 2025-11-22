@@ -1,7 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from '../../src/api-gateway/app.module';
+import { AllExceptionsFilter } from '../../src/api-gateway/common/filters/all-exceptions.filter';
+import { RequestIdInterceptor } from '../../src/api-gateway/common/interceptors/request-id.interceptor';
+import { LoggingInterceptor } from '../../src/api-gateway/common/interceptors/logging.interceptor';
 import {
   createAndLoginUser,
   searchFlightsOneWay,
@@ -26,6 +29,14 @@ describe('Booking API (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    
+    // Set global prefix and versioning to match main.ts
+    app.setGlobalPrefix('api');
+    app.enableVersioning({
+      type: VersioningType.URI,
+      defaultVersion: '1',
+    });
+    
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -33,6 +44,14 @@ describe('Booking API (e2e)', () => {
         transform: true,
       }),
     );
+    
+    // Add global exception filter and interceptors to match main.ts
+    app.useGlobalFilters(new AllExceptionsFilter());
+    app.useGlobalInterceptors(
+      new RequestIdInterceptor(),
+      new LoggingInterceptor(),
+    );
+    
     await app.init();
 
     // Setup test data
