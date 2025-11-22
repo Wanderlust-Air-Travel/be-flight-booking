@@ -73,6 +73,10 @@ describe('Booking API (e2e)', () => {
     await app.close();
   });
 
+  // Note: Booking tests automatically trigger email confirmation notifications
+  // Email confirmations are sent non-blocking after successful booking creation
+  // Email notifications are sent via Email Microservice and won't block booking creation if email service fails
+
   describe('POST /bookings (Create from Reservation)', () => {
     it('should create booking from reservation successfully (happy case)', async () => {
       // Create reservation first

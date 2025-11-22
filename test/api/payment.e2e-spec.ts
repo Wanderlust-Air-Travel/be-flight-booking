@@ -97,6 +97,10 @@ describe('Payment API (e2e)', () => {
     await app.close();
   });
 
+  // Note: Payment tests automatically trigger email notifications (success/failed)
+  // Email notifications are sent non-blocking, so test failures won't occur if email service is unavailable
+  // Email notifications are sent via Email Microservice when payment status changes
+
   // Skip all tests if microservices are not available
   const describeOrSkip = microservicesAvailable ? describe : describe.skip;
 
