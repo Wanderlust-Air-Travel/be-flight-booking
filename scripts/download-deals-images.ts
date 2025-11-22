@@ -57,51 +57,29 @@ const IMAGES_DIR = join(process.cwd(), 'public', 'images', 'routes');
 const IMAGE_WIDTH = 1920;
 const IMAGE_HEIGHT = 1080;
 
-// Keywords cho ảnh phong cảnh (random để có ảnh đa dạng)
-const LANDSCAPE_KEYWORDS = [
-	'landscape',
-	'mountain',
-	'beach',
-	'city',
-	'nature',
-	'sunset',
-	'sunrise',
-	'forest',
-	'valley',
-	'coast',
-	'island',
-	'countryside',
-	'vietnam',
-	'asia',
-	'tropical',
-];
+// Không cần keywords nữa vì sử dụng Lorem Picsum với seed từ route_id
 
 /**
- * Get random keyword for image search
- */
-function getRandomKeyword(): string {
-	return LANDSCAPE_KEYWORDS[Math.floor(Math.random() * LANDSCAPE_KEYWORDS.length)];
-}
-
-/**
- * Download image from Unsplash Source API
- * Unsplash Source API không cần key, format: https://source.unsplash.com/{width}x{height}/?{keyword}
+ * Download image from Lorem Picsum (random landscape images)
+ * Lorem Picsum không cần key, format: https://picsum.photos/{width}/{height}?random={seed}
  */
 async function downloadImage(routeId: string, retryCount = 3): Promise<boolean> {
 	const filePath = join(IMAGES_DIR, `${routeId}.jpg`);
 	
 	// Skip nếu file đã tồn tại
 	if (existsSync(filePath)) {
-		console.log(`   ⏭️  Đã tồn tại: ${routeId}.jpg`);
+		console.log(`   Đã tồn tại: ${routeId}.jpg`);
 		return true;
 	}
 
-	const keyword = getRandomKeyword();
-	const url = `https://source.unsplash.com/${IMAGE_WIDTH}x${IMAGE_HEIGHT}/?${keyword}`;
+	// Sử dụng routeId như seed để mỗi route có ảnh riêng (nhưng consistent)
+	// Convert UUID thành số để dùng làm seed
+	const seed = routeId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+	const url = `https://picsum.photos/${IMAGE_WIDTH}/${IMAGE_HEIGHT}?random=${seed}`;
 
 	for (let attempt = 1; attempt <= retryCount; attempt++) {
 		try {
-			console.log(`   📥 Downloading (attempt ${attempt}/${retryCount}): ${keyword}...`);
+			console.log(`   Downloading (attempt ${attempt}/${retryCount})...`);
 			
 			const response = await axios.get(url, {
 				responseType: 'arraybuffer',
@@ -109,21 +87,22 @@ async function downloadImage(routeId: string, retryCount = 3): Promise<boolean> 
 				headers: {
 					'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
 				},
+				maxRedirects: 5,
 			});
 
-			if (response.status === 200 && response.data) {
+			if (response.status === 200 && response.data && response.data.length > 0) {
 				await writeFile(filePath, response.data);
 				const sizeKB = (response.data.length / 1024).toFixed(2);
-				console.log(`   ✅ Đã lưu: ${routeId}.jpg (${sizeKB} KB)`);
+				console.log(`   Đã lưu: ${routeId}.jpg (${sizeKB} KB)`);
 				return true;
 			}
 		} catch (error: any) {
 			if (attempt < retryCount) {
-				console.log(`   ⚠️  Lỗi (attempt ${attempt}): ${error.message}, retrying...`);
+				console.log(`   Lỗi (attempt ${attempt}): ${error.message}, retrying...`);
 				// Wait before retry
 				await new Promise(resolve => setTimeout(resolve, 2000));
 			} else {
-				console.log(`   ❌ Lỗi sau ${retryCount} lần thử: ${error.message}`);
+				console.log(`   Lỗi sau ${retryCount} lần thử: ${error.message}`);
 			}
 		}
 	}
@@ -136,7 +115,7 @@ async function downloadImage(routeId: string, retryCount = 3): Promise<boolean> 
  */
 async function getRoutes(): Promise<Array<{ route_id: string; origin: string; destination: string }>> {
 	await ds.initialize();
-	console.log('✅ Đã kết nối database\n');
+	console.log('Đã kết nối database\n');
 
 	const routes = await ds
 		.createQueryBuilder(Route, 'route')
@@ -156,12 +135,12 @@ async function getRoutes(): Promise<Array<{ route_id: string; origin: string; de
  * Main function
  */
 async function main() {
-	console.log('🚀 Bắt đầu download ảnh phong cảnh cho deals API...\n');
+	console.log('Bắt đầu download ảnh phong cảnh cho deals API...\n');
 
 	// Ensure images directory exists
 	if (!existsSync(IMAGES_DIR)) {
 		await mkdir(IMAGES_DIR, { recursive: true });
-		console.log(`📁 Đã tạo thư mục: ${IMAGES_DIR}\n`);
+		console.log(`Đã tạo thư mục: ${IMAGES_DIR}\n`);
 	}
 
 	try {
@@ -169,11 +148,11 @@ async function main() {
 		const routes = await getRoutes();
 		
 		if (routes.length === 0) {
-			console.log('❌ Không tìm thấy route nào trong database!');
+			console.log('Không tìm thấy route nào trong database!');
 			return;
 		}
 
-		console.log(`📋 Tìm thấy ${routes.length} routes nội địa:\n`);
+		console.log(`Tìm thấy ${routes.length} routes nội địa:\n`);
 		
 		// Count existing images
 		const existingImages = routes.filter(r => 
@@ -207,29 +186,30 @@ async function main() {
 				failCount++;
 			}
 
-			// Delay giữa các request để tránh rate limit
+			// Delay giữa các request để tránh rate limit (giảm xuống 1 giây cho Lorem Picsum)
 			if (i < routes.length - 1) {
-				await new Promise(resolve => setTimeout(resolve, 2000)); // 2 seconds delay
+				await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
 			}
 		}
 
 		// Summary
 		console.log('\n' + '─'.repeat(60));
-		console.log('📊 Tổng kết:');
-		console.log(`   ✅ Thành công: ${successCount} ảnh`);
-		console.log(`   ⏭️  Đã có sẵn: ${skipCount} ảnh`);
-		console.log(`   ❌ Thất bại: ${failCount} ảnh`);
-		console.log(`   📁 Tổng cộng: ${successCount + skipCount}/${routes.length} ảnh`);
+		console.log('Tổng kết:');
+		console.log(`   Thành công: ${successCount} ảnh`);
+		console.log(`   Đã có sẵn: ${skipCount} ảnh`);
+		console.log(`   Thất bại: ${failCount} ảnh`);
+		console.log(`   Tổng cộng: ${successCount + skipCount}/${routes.length} ảnh`);
 		console.log('─'.repeat(60));
-		console.log('\n💡 Lưu ý:');
+		console.log('\nLưu ý:');
 		console.log('   - Ảnh được lưu tại: public/images/routes/');
 		console.log('   - Format: {route_id}.jpg');
 		console.log('   - Kích thước: 1920x1080 (16:9)');
-		console.log('   - Nguồn: Unsplash (landscape images)');
-		console.log('\n✅ Hoàn tất!');
+		console.log('   - Nguồn: Lorem Picsum (random landscape images)');
+		console.log('   - Mỗi route_id có ảnh riêng (dựa trên seed từ route_id)');
+		console.log('\nHoàn tất!');
 
 	} catch (error: any) {
-		console.error('\n❌ Lỗi:', error.message);
+		console.error('\nLỗi:', error.message);
 		if (error.stack) {
 			console.error(error.stack);
 		}
@@ -243,7 +223,7 @@ async function main() {
 
 // Run script
 main().catch((error) => {
-	console.error('❌ Lỗi không mong đợi:', error);
+	console.error('Lỗi không mong đợi:', error);
 	process.exit(1);
 });
 
