@@ -1,12 +1,36 @@
 /**
  * Script test kết nối database
- * Chạy: node test-db-connection.js
+ * Chạy: ts-node -r tsconfig-paths/register tools/test-db-connection.ts
+ * Hoặc: npm run test:db
  */
 
-require('dotenv').config();
-const sql = require('mssql');
+import * as dotenv from 'dotenv';
+import * as sql from 'mssql';
 
-const config = {
+dotenv.config();
+
+interface DatabaseConfig {
+	server: string;
+	port: number;
+	user: string | undefined;
+	password: string | undefined;
+	database: string | undefined;
+	options: {
+		encrypt: boolean;
+		trustServerCertificate: boolean;
+		enableArithAbort: boolean;
+	};
+	connectionTimeout: number;
+	requestTimeout: number;
+}
+
+interface DatabaseInfo {
+	Version: string;
+	CurrentDatabase: string;
+	CurrentUser: string;
+}
+
+const config: DatabaseConfig = {
 	server: process.env.DB_HOST || 'localhost',
 	port: parseInt(process.env.DB_PORT || '1434', 10),
 	user: process.env.DB_USER,
@@ -21,7 +45,7 @@ const config = {
 	requestTimeout: 10000,
 };
 
-console.log('🔍 Testing database connection...');
+console.log('Testing database connection...');
 console.log('');
 console.log('Configuration:');
 console.log(`  Server: ${config.server}`);
@@ -33,30 +57,36 @@ console.log(`  Trust Certificate: ${config.options.trustServerCertificate}`);
 console.log('');
 
 sql
-	.connect(config)
-	.then((pool) => {
-		console.log('✅ Connection successful!');
+	.connect(config as sql.config)
+	.then((pool: sql.ConnectionPool) => {
+		console.log('Connection successful!');
 		console.log('');
-		return pool.request().query('SELECT @@VERSION AS Version, DB_NAME() AS CurrentDatabase, SUSER_SNAME() AS CurrentUser');
+		return pool.request().query<DatabaseInfo>(
+			'SELECT @@VERSION AS Version, DB_NAME() AS CurrentDatabase, SUSER_SNAME() AS CurrentUser',
+		);
 	})
-	.then((result) => {
+	.then((result: sql.IResult<DatabaseInfo>) => {
 		console.log('Database Info:');
 		console.log(`  Current Database: ${result.recordset[0].CurrentDatabase}`);
 		console.log(`  Current User: ${result.recordset[0].CurrentUser}`);
 		console.log('');
-		console.log('✅ Test completed successfully!');
+		console.log('Test completed successfully!');
 		process.exit(0);
 	})
-	.catch((err) => {
-		console.error('❌ Connection failed!');
+	.catch((err: sql.ConnectionError | sql.RequestError | Error) => {
+		console.error('Connection failed!');
 		console.error('');
 		console.error('Error details:');
-		console.error(`  Code: ${err.code || 'N/A'}`);
-		console.error(`  Message: ${err.message || 'N/A'}`);
-		console.error('');
 		
-		if (err.code === 'ELOGIN') {
-			console.error('🔴 Login failed! Possible causes:');
+		const errorCode = (err as sql.ConnectionError | sql.RequestError).code || 'N/A';
+		const errorMessage = err.message || 'N/A';
+		
+		console.error(`  Code: ${errorCode}`);
+		console.error(`  Message: ${errorMessage}`);
+		console.error('');
+
+		if (errorCode === 'ELOGIN') {
+			console.error('Login failed! Possible causes:');
 			console.error('  1. SQL Server Authentication is not enabled (Windows Auth only)');
 			console.error('  2. Wrong username or password');
 			console.error('  3. Login is disabled');
@@ -68,16 +98,16 @@ sql
 			console.error('  2. Reset password:');
 			console.error('     - Run: sql/utils/fix-login-issues.sql');
 			console.error('  3. Check .env file has correct credentials');
-		} else if (err.code === 'ETIMEOUT' || err.code === 'ECONNREFUSED') {
-			console.error('🔴 Connection timeout or refused!');
+		} else if (errorCode === 'ETIMEOUT' || errorCode === 'ECONNREFUSED') {
+			console.error('Connection timeout or refused!');
 			console.error('  1. Check SQL Server is running');
 			console.error('  2. Check host and port in .env');
 			console.error('  3. Check firewall settings');
 		} else {
-			console.error('🔴 Unknown error!');
+			console.error('Unknown error!');
 			console.error('  Check error message above for details');
 		}
-		
+
 		process.exit(1);
 	});
 
