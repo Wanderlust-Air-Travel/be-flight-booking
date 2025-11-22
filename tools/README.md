@@ -6,12 +6,24 @@ Thư mục này chứa các công cụ và scripts hỗ trợ cho dự án.
 
 ### 🧪 Testing & Debugging
 
-- **test-db-connection.js** - Script test kết nối database từ Node.js
+- **test-db-connection.ts** - Script test kết nối database (TypeScript)
   ```bash
   npm run test:db
   # hoặc
-  node tools/test-db-connection.js
+  ts-node -r tsconfig-paths/register tools/test-db-connection.ts
   ```
+  - Type-safe với proper TypeScript typing
+  - Sử dụng shared interface `SqlConfig` từ `src/shared/types/database/`
+
+- **test-otp-email.ts** - Script test gửi OTP email (TypeScript)
+  ```bash
+  npm run test:email
+  # hoặc
+  ts-node -r tsconfig-paths/register tools/test-otp-email.ts
+  ```
+  - Test email service health check
+  - Test gửi OTP email với authentication token
+  - Type-safe HTTP requests và responses
 
 - **test-db-connection.sh** - Script test kết nối database từ bash (Linux/Mac/WSL)
   ```bash

@@ -6,6 +6,45 @@ Tất cả các thay đổi quan trọng của project sẽ được ghi nhận 
 
 ### Changed
 
+- **TypeScript Migration & Code Refactoring - Tools & Docker Scripts (2025-01-XX)**:
+  - **Tools Scripts Migration**: Chuyển đổi tất cả utility scripts từ JavaScript sang TypeScript
+    - `tools/test-db-connection.js` → `tools/test-db-connection.ts`
+    - `tools/test-otp-email.js` → `tools/test-otp-email.ts`
+    - Thêm type definitions và proper TypeScript typing
+    - Cập nhật npm scripts để sử dụng `ts-node`
+  - **Interface Refactoring**: Tách interfaces ra khỏi code logic theo chuẩn TypeScript/NestJS
+    - Tạo `src/shared/types/database/sql-config.interface.ts` - Shared interface cho SQL Server configuration
+    - Tạo `src/shared/types/database/index.ts` - Index file để export
+    - Cập nhật `docker/wait-for-database.ts` - Import interface từ shared location
+    - Cập nhật `docker/init-database.ts` - Import interface từ shared location
+    - Cập nhật `tools/test-db-connection.ts` - Import interface từ shared location
+  - **Docker Scripts Improvements**:
+    - Sửa lỗi TypeScript compilation trong `docker/wait-for-database.ts` và `docker/init-database.ts`
+    - Sử dụng `new sql.ConnectionPool()` thay vì `sql.connect()` để phù hợp với TypeScript types
+    - Thêm property `database` vào SqlConfig interface
+  - **Impact**:
+    - Code tuân thủ chuẩn TypeScript/NestJS best practices
+    - Interfaces được tách riêng, dễ maintain và reuse
+    - Type-safe code với proper error handling
+    - Tất cả scripts giờ có type checking và IntelliSense support
+  - **Updated Documentation**:
+    - `docs/CHANGELOG.md`: Log thay đổi này
+    - `docs/README.md`: Cập nhật thông tin về tools scripts
+    - `docs/STRUCTURE.md`: Cập nhật cấu trúc shared/types
+  - **Files Modified**:
+    - `tools/test-db-connection.ts` - Migrated to TypeScript
+    - `tools/test-otp-email.ts` - Migrated to TypeScript
+    - `docker/wait-for-database.ts` - Fixed TypeScript errors, use shared interface
+    - `docker/init-database.ts` - Fixed TypeScript errors, use shared interface
+    - `src/shared/types/database/sql-config.interface.ts` - New shared interface
+    - `src/shared/types/database/index.ts` - New index file
+    - `package.json` - Updated scripts and added dependencies (@types/mssql, dotenv)
+  - **Files Deleted**:
+    - `tools/test-db-connection.js` - Replaced by TypeScript version
+    - `tools/test-otp-email.js` - Replaced by TypeScript version
+
+### Changed
+
 - **Fare Class Mapping Fix - Economy Standard & Business Standard (2025-01-XX)**:
   - **Issue**: Fare class mapping không nhất quán với database - `Y` (Economy) và `J` (Business) đều được map thành "Smart" thay vì "Standard" như trong database
   - **Fix**:

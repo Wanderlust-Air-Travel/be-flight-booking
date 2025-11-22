@@ -39,9 +39,23 @@ Tài liệu dự án Flight Booking Backend được tổ chức theo các danh 
 
 Các công cụ và scripts hỗ trợ được đặt trong thư mục [`../tools/`](../tools/):
 - **Flight-Booking-API.postman_collection.json** - Postman collection để test API
-- **test-db-connection.js** - Script test kết nối database
+- **test-db-connection.ts** - Script test kết nối database (TypeScript)
+- **test-otp-email.ts** - Script test gửi OTP email (TypeScript)
 - **test-db-connection.sh** - Script test kết nối database (bash)
 - **open-firewall-port.ps1** - Script mở firewall port cho SQL Server
+
+**Chạy tools scripts:**
+```bash
+# Test database connection
+npm run test:db
+
+# Test email service
+npm run test:email
+
+# Hoặc chạy trực tiếp với ts-node
+ts-node -r tsconfig-paths/register tools/test-db-connection.ts
+ts-node -r tsconfig-paths/register tools/test-otp-email.ts
+```
 
 ## Cấu trúc thư mục
 

@@ -21,6 +21,9 @@ src/
 ├── shared/                    # Code dùng chung
 │   ├── entities/              # Database models (TypeORM)
 │   ├── types/                 # TypeScript types (shared types only)
+│   │   ├── auth/              # Authentication types (token-payload, login-response, etc.)
+│   │   ├── database/          # Database-related types (sql-config.interface.ts)
+│   │   └── express/           # Express type extensions
 │   ├── config/                # Configuration
 │   └── constants/             # Constants (enums, etc.)
 │
@@ -100,6 +103,16 @@ src/
 │
 └── scripts/                   # Database scripts
     └── seed-domestic.ts       # Seed domestic flights data
+
+tools/                         # Utility scripts and tools
+├── test-db-connection.ts      # Test database connection (TypeScript)
+├── test-otp-email.ts          # Test OTP email sending (TypeScript)
+└── Flight-Booking-API.postman_collection.json  # Postman collection
+
+docker/                        # Docker-related scripts
+├── wait-for-database.ts       # Wait for SQL Server to be ready (TypeScript)
+├── init-database.ts           # Initialize database and run migrations (TypeScript)
+└── start-all.ts               # Start all microservices (TypeScript)
 ```
 
 ## Luồng xử lý request từ FE
@@ -329,6 +342,12 @@ docker-compose up -d redis
 
 # Seed database với dữ liệu nội địa (HAN, SGN, DAD)
 npm run seed:domestic
+
+# Test database connection
+npm run test:db
+
+# Test email service
+npm run test:email
 ```
 
 ## Environment Variables

@@ -32,6 +32,7 @@ docker-compose -f docker-compose-full-services.yml up --build
 Lệnh này sẽ tự động:
 - Build backend image
 - Khởi động SQL Server và Redis
+- Đợi SQL Server sẵn sàng (qua script TypeScript `docker/wait-for-database.ts`)
 - Tạo database và chạy migrations (qua script TypeScript `docker/init-database.ts`)
 - Seed database
 - Khởi động tất cả services
