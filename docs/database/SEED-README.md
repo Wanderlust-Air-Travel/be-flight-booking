@@ -36,8 +36,8 @@ Script SQL để xóa toàn bộ data trong database, cho phép chạy lại see
 ### 2. Cabin Classes & Fare Classes
 - 4 cabin classes: Y (Economy), J (Business), F (First), W (Premium Economy)
 - 7 fare classes:
-  - Economy: YSM (Saver Max), YS (Smart), YF (Flex), Y (Standard)
-  - Business: JS (Smart), JF (Flex), J (Standard)
+  - Economy: YSM (Saver Max), Y (Standard), YS (Smart), YF (Flex)
+  - Business: J (Standard), JS (Smart), JF (Flex)
 
 ### 3. Aircraft Types & Aircrafts
 - 6 aircraft types: A320, A321, A350, B737, B787, ATR72

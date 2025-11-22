@@ -452,6 +452,54 @@ GET /search/fare-options?flightInstanceId=019a8f4a-bb0e-7402-a0c4-27647b89dc71&c
         "refundRule": "Non-refundable"
       },
       {
+        "fareClassCode": "Y",
+        "name": "Economy Standard",
+        "typeTicket": "Economy Standard",
+        "price": 1577000,
+        "availableSeats": 12,
+        "desc": [
+          {
+            "text": "Hành lý xách tay: 7kg",
+            "status": true
+          },
+          {
+            "text": "Không bao gồm hành lý ký gửi",
+            "status": false
+          },
+          {
+            "text": "Hoàn/hủy trước giờ khởi hành: 400.000 VND (*)",
+            "status": true
+          },
+          {
+            "text": "Hoàn/hủy sau giờ khởi hành: 400.000 VND (*)",
+            "status": true
+          },
+          {
+            "text": "Thay đổi trước giờ khởi hành: 500.000 VND (*)",
+            "status": true
+          },
+          {
+            "text": "Thay đổi sau giờ khởi hành: 500.000 VND (*)",
+            "status": true
+          },
+          {
+            "text": "Hệ số cộng điểm Bamboo Club: 0.5",
+            "status": true
+          },
+          {
+            "text": "Chọn ghế ngồi mất phí",
+            "status": true
+          },
+          {
+            "text": "Không áp dụng cho go-show",
+            "status": false
+          }
+        ],
+        "description": "Economy Standard",
+        "changeRule": "Change before departure: 500,000 VND",
+        "refundRule": "Refund before departure: 400,000 VND"
+      },
+      {
         "fareClassCode": "YS",
         "name": "Economy Smart",
         "typeTicket": "Economy Smart",
@@ -553,10 +601,97 @@ GET /search/fare-options?flightInstanceId=019a8f4a-bb0e-7402-a0c4-27647b89dc71&c
   "cabinType": "business",
   "fareOptions": [
     {
+      "fareClassCode": "J",
+      "name": "Business Standard",
+      "typeTicket": "Business Standard",
+      "price": 5022000,
+      "availableSeats": 6,
+      "desc": [
+        {
+          "text": "Hành lý xách tay: 7kg",
+          "status": true
+        },
+        {
+          "text": "01 kiện hành lý ký gửi 30kg",
+          "status": true
+        },
+        {
+          "text": "Hoàn/hủy trước giờ khởi hành: 400.000 VND (*)",
+          "status": true
+        },
+        {
+          "text": "Hoàn/hủy sau giờ khởi hành: 400.000 VND (*)",
+          "status": true
+        },
+        {
+          "text": "Thay đổi trước giờ khởi hành: 350.000 VND (*)",
+          "status": true
+        },
+        {
+          "text": "Thay đổi sau giờ khởi hành: 350.000 VND (*)",
+          "status": true
+        },
+        {
+          "text": "Hệ số cộng điểm Bamboo Club: 1.5",
+          "status": true
+        },
+        {
+          "text": "Chọn ghế ngồi miễn phí",
+          "status": true
+        },
+        {
+          "text": "Ưu tiên check-in và lên máy bay",
+          "status": true
+        }
+      ],
+      "description": "Business Standard",
+      "changeRule": "Change before departure: 350,000 VND",
+      "refundRule": "Refund before departure: 400,000 VND"
+    },
+    {
       "fareClassCode": "JS",
       "name": "Business Smart",
+      "typeTicket": "Business Smart",
       "price": 5022000,
       "availableSeats": 8,
+      "desc": [
+        {
+          "text": "Hành lý xách tay: 7kg",
+          "status": true
+        },
+        {
+          "text": "01 kiện hành lý ký gửi 30kg",
+          "status": true
+        },
+        {
+          "text": "Hoàn/hủy trước giờ khởi hành: 450.000 VND (*)",
+          "status": true
+        },
+        {
+          "text": "Hoàn/hủy sau giờ khởi hành: 800.000 VND (*)",
+          "status": true
+        },
+        {
+          "text": "Thay đổi trước giờ khởi hành: 300.000 VND (*)",
+          "status": true
+        },
+        {
+          "text": "Thay đổi sau giờ khởi hành: 800.000 VND (*)",
+          "status": true
+        },
+        {
+          "text": "Hệ số cộng điểm Bamboo Club: 1.5",
+          "status": true
+        },
+        {
+          "text": "Chọn ghế ngồi miễn phí",
+          "status": true
+        },
+        {
+          "text": "Ưu tiên check-in và lên máy bay",
+          "status": true
+        }
+      ],
       "description": "Business Smart",
       "changeRule": "Change before departure: 300,000 VND",
       "refundRule": "Refund before departure: 450,000 VND"
@@ -608,8 +743,8 @@ Hoặc:
 - **Response format**: Trả về array trực tiếp của fare options `[{ fareClassCode, name, typeTicket, price, availableSeats, desc, ... }]`
 - Response chỉ trả về các fare options có `availableSeats > 0`
 - Fare options được sắp xếp theo price (tăng dần)
-- Economy có 3 cabin types: Economy Saver Max, Economy Smart, Economy Flex
-- Business có 2 cabin types: Business Smart, Business Flex
+- Economy có 4 cabin types: Economy Saver Max, Economy Standard, Economy Smart, Economy Flex
+- Business có 3 cabin types: Business Standard, Business Smart, Business Flex
 - Mỗi fare option có `desc` array chứa các mô tả chi tiết với `text` và `status` (true/false)
 - `typeTicket` field chứa tên hiển thị của fare class (tương tự `name`)
 

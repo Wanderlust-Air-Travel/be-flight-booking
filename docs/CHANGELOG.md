@@ -4,6 +4,35 @@ Tất cả các thay đổi quan trọng của project sẽ được ghi nhận 
 
 ## [Unreleased]
 
+### Changed
+
+- **Fare Class Mapping Fix - Economy Standard & Business Standard (2025-01-XX)**:
+  - **Issue**: Fare class mapping không nhất quán với database - `Y` (Economy) và `J` (Business) đều được map thành "Smart" thay vì "Standard" như trong database
+  - **Fix**:
+    - **Search Service**: Cập nhật `FARE_CLASS_NAMES` mapping:
+      - `'Y': 'Economy Smart'` → `'Y': 'Economy Standard'`
+      - `'J': 'Business Smart'` → `'J': 'Business Standard'`
+    - **Booking Service**: Cập nhật tương tự trong `getFareClassName` method
+    - **Fare Descriptions**: Tách logic description riêng cho Economy Standard và Business Standard với rules phù hợp:
+      - Economy Standard (Y): Change 500,000 VND, Refund 400,000 VND
+      - Business Standard (J): Change 350,000 VND, Refund 400,000 VND
+    - **Price Calculation**: Tách logic price riêng cho Standard fare classes
+    - **Description Parsing**: Thêm pattern "standard" vào logic parse description để nhận diện cả Economy Standard và Business Standard
+  - **Impact**:
+    - Fare classes giờ hiển thị đúng tên theo database (Standard vs Smart)
+    - Economy có 4 fare types: Saver Max, Standard, Smart, Flex
+    - Business có 3 fare types: Standard, Smart, Flex
+    - Rules và pricing được áp dụng đúng cho từng fare class
+  - **Updated Documentation**:
+    - `docs/api/API_DOCS.md`: Cập nhật số lượng cabin types và thêm examples cho Economy Standard và Business Standard
+    - `docs/database/SEED-README.md`: Cập nhật danh sách fare classes
+    - `docs/CHANGELOG.md`: Log thay đổi này
+  - **Files Modified**:
+    - `src/microservices/search/search.service.ts` - Updated fare class mapping and descriptions
+    - `src/microservices/booking/booking.service.ts` - Updated fare class mapping and descriptions
+    - `docs/api/API_DOCS.md` - Updated documentation
+    - `docs/database/SEED-README.md` - Updated fare classes list
+
 ### Fixed
 
 - **Error Handling Standardization - Infrastructure vs Business Logic Errors (2025-11-22)**:
