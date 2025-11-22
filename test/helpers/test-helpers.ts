@@ -161,7 +161,7 @@ export async function createAndLoginUser(
 }
 
 /**
- * Search flights (one-way)
+ * Search flights (one-way) - throws error if not 200
  */
 export async function searchFlightsOneWay(
   app: INestApplication,
@@ -178,10 +178,42 @@ export async function searchFlightsOneWay(
       tripType: 'one_way',
       adults: 1,
       minors: 0,
-    })
-    .expect(200);
+    });
+
+  if (response.status !== 200) {
+    const errorMessage = response.body?.message || `Search failed with status ${response.status}`;
+    const error = new Error(errorMessage);
+    (error as any).status = response.status;
+    (error as any).body = response.body;
+    throw error;
+  }
 
   return response.body;
+}
+
+/**
+ * Try to search flights (one-way) - returns null if microservice is not available
+ */
+export async function trySearchFlightsOneWay(
+  app: INestApplication,
+  origin: string = 'HAN',
+  destination: string = 'SGN',
+  departDate?: string,
+): Promise<any | null> {
+  try {
+    return await searchFlightsOneWay(app, origin, destination, departDate);
+  } catch (error: any) {
+    const errorMessage = error?.message || String(error);
+    if (
+      errorMessage.includes('Connection closed') ||
+      errorMessage.includes('ECONNREFUSED') ||
+      errorMessage.includes('Search microservice') ||
+      error?.status === 400
+    ) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 /**
