@@ -5,6 +5,7 @@ interface SqlConfig {
   port: number;
   user: string;
   password: string;
+  database?: string;
   options: {
     encrypt: boolean;
     trustServerCertificate: boolean;
@@ -30,6 +31,7 @@ async function waitForDatabase(): Promise<boolean> {
         port: parseInt(process.env.DB_PORT || defaultPort.toString(), 10),
         user: process.env.DB_USER || 'sa',
         password: process.env.DB_PASS || process.env.SA_PASSWORD || 'Passw0rd123!',
+        database: process.env.DB_NAME || 'master',
         options: {
           encrypt: false,
           trustServerCertificate: true,
@@ -38,7 +40,8 @@ async function waitForDatabase(): Promise<boolean> {
         connectionTimeout: 5000,
       };
       
-      const pool = await sql.connect(config);
+      const pool = new sql.ConnectionPool(config as sql.config);
+      await pool.connect();
       await pool.request().query('SELECT 1');
       await pool.close();
       console.log('SQL Server is ready!');
