@@ -75,8 +75,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: sh -c "npm run start:all"
-    # npm run wait-for-db && npm run init-db && (npm run seed-db || true) && npm run gmail:auth && 
+    command: sh -c "npm run wait-for-db && npm run init-db && (npm run seed-db || true) && npm run start:all"
+    # npm run wait-for-db && npm run init-db && (npm run seed-db || true) && npm run gmail:auth && npm run download:deals-images
     restart: unless-stopped
 
 volumes:
