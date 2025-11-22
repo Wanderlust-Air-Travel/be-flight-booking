@@ -6,6 +6,38 @@ Tất cả các thay đổi quan trọng của project sẽ được ghi nhận 
 
 ### Changed
 
+- **Search Flights API - Auto-set tripType based on returnDate (2025-01-XX)**:
+  - **Feature**: `tripType` parameter is now optional in `/search/flights` API
+  - **Auto-set Logic**:
+    - Nếu không truyền `tripType` và không có `returnDate` → mặc định `tripType=one_way`
+    - Nếu không truyền `tripType` nhưng có `returnDate` → mặc định `tripType=round_trip`
+    - Nếu truyền `tripType` → sử dụng giá trị được truyền vào (có thể override)
+  - **Benefits**:
+    - Đơn giản hóa API usage - không cần truyền `tripType` nếu có thể suy luận từ `returnDate`
+    - Backward compatible - vẫn hỗ trợ truyền `tripType` để override
+    - Cải thiện UX - FE có thể chỉ cần truyền `returnDate` để search round trip
+  - **Updated Files**:
+    - `src/api-gateway/modules/search/dto/search-flights.dto.ts` - `tripType` chuyển từ required sang optional
+    - `src/api-gateway/modules/search/search.controller.ts` - Thêm logic auto-set `tripType` dựa trên `returnDate`
+    - `docs/api/API_DOCS.md` - Cập nhật mô tả API và examples
+    - `docs/STRUCTURE.md` - Cập nhật mô tả endpoint
+    - `tools/Flight-Booking-API.postman_collection.json` - Thêm requests mới demo auto-set logic
+    - `docs/api/API_TESTING_FLOW.md` - Cập nhật examples
+    - `docs/database/SQL-SCRIPTS-GUIDE.md` - Cập nhật examples
+  - **API Examples**:
+    ```
+    # One Way (auto-set):
+    GET /search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&adults=1&minors=0
+    
+    # Round Trip (auto-set):
+    GET /search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&returnDate=2025-11-24&adults=2&minors=1
+    
+    # Explicit tripType (override):
+    GET /search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&tripType=one_way&adults=1&minors=0
+    ```
+
+### Changed
+
 - **TypeScript Migration & Code Refactoring - Tools & Docker Scripts (2025-01-XX)**:
   - **Tools Scripts Migration**: Chuyển đổi tất cả utility scripts từ JavaScript sang TypeScript
     - `tools/test-db-connection.js` → `tools/test-db-connection.ts`

@@ -387,8 +387,13 @@ Các script này giúp tìm dữ liệu hợp lệ để test API trên Postman.
 3. Chạy script
 4. Copy một cặp ngày từ kết quả để test API:
    ```
+   # Auto tripType (recommended):
+   GET /search/flights?origin=HAN&destination=SGN&departDate=2025-11-18&returnDate=2025-11-25&adults=2&minors=1
+   
+   # Explicit tripType:
    GET /search/flights?origin=HAN&destination=SGN&departDate=2025-11-18&returnDate=2025-11-25&tripType=round_trip&adults=2&minors=1
    ```
+   *Note: `tripType` là optional. Khi có `returnDate`, `tripType` tự động set thành `round_trip`.
 
 **Output:**
 - Query 1: Tất cả các cặp ngày hợp lệ với số flights mỗi chiều

@@ -84,9 +84,9 @@ export class SearchController {
 	})
 	@ApiQuery({ 
 		name: 'tripType', 
-		required: true,
+		required: false,
 		enum: TripType,
-		description: 'Type of trip: one_way or round_trip',
+		description: 'Type of trip: one_way or round_trip. If not provided, defaults to one_way when returnDate is missing, or round_trip when returnDate is provided',
 		example: TripType.ONE_WAY
 	})
 	@ApiQuery({ 
@@ -105,6 +105,12 @@ export class SearchController {
 	})
 	async searchFlights(@Query() query: SearchFlightsDto): Promise<SearchFlightsResponseDto> {
 		try {
+			// Auto-set tripType based on returnDate if not provided
+			let tripType = query.tripType;
+			if (!tripType) {
+				tripType = query.returnDate ? TripType.ROUND_TRIP : TripType.ONE_WAY;
+			}
+			
 			// Validate: origin and destination must be different
 			if (query.origin.toUpperCase() === query.destination.toUpperCase()) {
 				throw new BadRequestException('Origin and destination airports must be different');
@@ -118,8 +124,11 @@ export class SearchController {
 				throw new BadRequestException('Departure date cannot be in the past');
 			}
 			
-			// Validate: for round trip, returnDate must be after departDate
-			if (query.tripType === TripType.ROUND_TRIP && query.returnDate) {
+			// Validate: for round trip, returnDate must be provided and after departDate
+			if (tripType === TripType.ROUND_TRIP) {
+				if (!query.returnDate) {
+					throw new BadRequestException('returnDate is required when tripType is round_trip');
+				}
 				const returnDate = new Date(query.returnDate);
 				if (returnDate <= departDate) {
 					throw new BadRequestException('Return date must be after departure date');
@@ -131,7 +140,7 @@ export class SearchController {
 				destination: query.destination,
 				departDate: query.departDate,
 				returnDate: query.returnDate,
-				tripType: query.tripType,
+				tripType: tripType,
 				adults: Number(query.adults),
 				minors: Number(query.minors),
 			};

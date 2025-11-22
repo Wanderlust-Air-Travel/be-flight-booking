@@ -271,15 +271,37 @@ Authorization: Bearer <access_token>
 | `destination` | string | Yes | IATA code sân bay đến (3 ký tự) | `SGN` |
 | `departDate` | string | Yes | Ngày đi (YYYY-MM-DD) | `2025-11-17` |
 | `returnDate` | string | Optional* | Ngày về (YYYY-MM-DD) | `2025-11-24` |
-| `tripType` | string | Yes | Loại chuyến: `one_way` hoặc `round_trip` | `one_way` |
+| `tripType` | string | Optional** | Loại chuyến: `one_way` hoặc `round_trip` | `one_way` |
 | `adults` | number | Yes | Số người lớn (≥1) | `1` |
 | `minors` | number | Yes | Số trẻ em (≥0) | `0` |
 
 *Note: `returnDate` bắt buộc nếu `tripType=round_trip`
 
-**Example Request:**
+**Note: `tripType` sẽ tự động được set dựa trên `returnDate`:
+- Nếu không truyền `tripType` và không có `returnDate` → mặc định `tripType=one_way`
+- Nếu không truyền `tripType` nhưng có `returnDate` → mặc định `tripType=round_trip`
+- Nếu truyền `tripType` → sử dụng giá trị được truyền vào (có thể override)
+
+**Example Requests:**
+
+**One Way (không cần truyền tripType):**
+```
+GET /search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&adults=1&minors=0
+```
+
+**One Way (truyền rõ tripType):**
 ```
 GET /search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&tripType=one_way&adults=1&minors=0
+```
+
+**Round Trip (không cần truyền tripType, chỉ cần returnDate):**
+```
+GET /search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&returnDate=2025-11-24&adults=2&minors=1
+```
+
+**Round Trip (truyền rõ tripType):**
+```
+GET /search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&returnDate=2025-11-24&tripType=round_trip&adults=2&minors=1
 ```
 
 **Response (200 OK) - One Way:**
@@ -2401,15 +2423,28 @@ const { data } = await api.post('/auth/login', {
 // Set token for subsequent requests
 api.defaults.headers.common['Authorization'] = `Bearer ${data.access_token}`;
 
-// Search Flights
+// Search Flights - One Way (tripType is optional, auto-set to 'one_way' when returnDate is missing)
 const { data: flights } = await api.get('/search/flights', {
   params: {
     origin: 'HAN',
     destination: 'SGN',
     departDate: '2025-11-17',
-    tripType: 'one_way',
+    // tripType: 'one_way', // Optional - auto-set to 'one_way' when returnDate is missing
     adults: 1,
     minors: 0
+  }
+});
+
+// Search Flights - Round Trip (tripType is optional, auto-set to 'round_trip' when returnDate is provided)
+const { data: roundTripFlights } = await api.get('/search/flights', {
+  params: {
+    origin: 'HAN',
+    destination: 'SGN',
+    departDate: '2025-11-17',
+    returnDate: '2025-11-24',
+    // tripType: 'round_trip', // Optional - auto-set to 'round_trip' when returnDate is provided
+    adults: 2,
+    minors: 1
   }
 });
 
@@ -2427,7 +2462,9 @@ const { data: fareOptions } = await api.get('/search/fare-options', {
 ## Notes
 
 1. **Swagger UI**: Xem và test API trực tiếp tại `http://localhost:3000/api-docs`
-2. **Round Trip**: Khi `tripType=round_trip`, bắt buộc phải có `returnDate`
+2. **Round Trip**: 
+   - Khi `tripType=round_trip`, bắt buộc phải có `returnDate`
+   - `tripType` là optional: Nếu không truyền, sẽ tự động set thành `round_trip` khi có `returnDate`
 3. **Dates**: Format date là `YYYY-MM-DD` (ví dụ: `2025-11-17`) cho search API, nhưng `DD/MM/YYYY` cho deals API
 4. **IATA Codes**: Phải đúng 3 ký tự, uppercase (HAN, SGN, DAD...)
 5. **Token Expiry**: `access_token` hết hạn sau 15 phút, `refresh_token` sau 7 ngày

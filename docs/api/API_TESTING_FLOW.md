@@ -107,10 +107,17 @@ Content-Type: application/json
 
 ### Step 3: Search Flights (One-Way)
 
-**Request:**
+**Request (One Way - Auto tripType):**
+```http
+GET {{base_url}}/search/flights?origin=HAN&destination=SGN&departDate={{departDate}}&adults=1&minors=0
+```
+
+**Request (One Way - Explicit tripType):**
 ```http
 GET {{base_url}}/search/flights?origin=HAN&destination=SGN&departDate={{departDate}}&tripType=one_way&adults=1&minors=0
 ```
+
+*Note: `tripType` là optional. Nếu không truyền, sẽ tự động set thành `one_way` khi không có `returnDate`.
 
 **Response:**
 ```json
@@ -600,10 +607,17 @@ Giống như Flow 1 (Step 1-2)
 
 ### Step 3: Search Flights (Round-Trip)
 
-**Request:**
+**Request (Round Trip - Auto tripType):**
+```http
+GET {{base_url}}/search/flights?origin=HAN&destination=SGN&departDate={{departDate}}&returnDate={{returnDate}}&adults=1&minors=0
+```
+
+**Request (Round Trip - Explicit tripType):**
 ```http
 GET {{base_url}}/search/flights?origin=HAN&destination=SGN&departDate={{departDate}}&returnDate={{returnDate}}&tripType=round_trip&adults=1&minors=0
 ```
+
+*Note: `tripType` là optional. Nếu không truyền, sẽ tự động set thành `round_trip` khi có `returnDate`.
 
 **Response:**
 ```json

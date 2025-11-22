@@ -10,7 +10,55 @@
 			"name": "Search",
 			"item": [
 				{
-					"name": "Search Flights - One Way (HAN → SGN)",
+					"name": "Search Flights - One Way (HAN → SGN) - Auto tripType",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/search/flights?origin=HAN&destination=SGN&departDate={{departDate}}&adults=1&minors=0",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"search",
+								"flights"
+							],
+							"query": [
+								{
+									"key": "origin",
+									"value": "HAN",
+									"description": "Origin airport IATA code"
+								},
+								{
+									"key": "destination",
+									"value": "SGN",
+									"description": "Destination airport IATA code"
+								},
+								{
+									"key": "departDate",
+									"value": "{{departDate}}",
+									"description": "Departure date (YYYY-MM-DD). Phải nằm trong khoảng 60 ngày từ hôm nay (sau khi seed)"
+								},
+								{
+									"key": "adults",
+									"value": "1",
+									"description": "Number of adult passengers"
+								},
+								{
+									"key": "minors",
+									"value": "0",
+									"description": "Number of minor passengers"
+								}
+							]
+						},
+						"description": "Search for one-way flights from Hanoi to Ho Chi Minh City. tripType is automatically set to 'one_way' when returnDate is not provided."
+					},
+					"response": []
+				},
+				{
+					"name": "Search Flights - One Way (HAN → SGN) - Explicit tripType",
 					"request": {
 						"method": "GET",
 						"header": [],
@@ -44,7 +92,7 @@
 								{
 									"key": "tripType",
 									"value": "one_way",
-									"description": "Trip type: one_way or round_trip"
+									"description": "Trip type: one_way or round_trip (optional - auto-set based on returnDate if not provided)"
 								},
 								{
 									"key": "adults",
@@ -58,12 +106,65 @@
 								}
 							]
 						},
-						"description": "Search for one-way flights from Hanoi to Ho Chi Minh City"
+						"description": "Search for one-way flights from Hanoi to Ho Chi Minh City with explicit tripType parameter."
 					},
 					"response": []
 				},
 				{
-					"name": "Search Flights - Round Trip (HAN → SGN)",
+					"name": "Search Flights - Round Trip (HAN → SGN) - Auto tripType",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/search/flights?origin=HAN&destination=SGN&departDate={{departDate}}&returnDate={{returnDate}}&adults=2&minors=1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"search",
+								"flights"
+							],
+							"query": [
+								{
+									"key": "origin",
+									"value": "HAN",
+									"description": "Origin airport IATA code"
+								},
+								{
+									"key": "destination",
+									"value": "SGN",
+									"description": "Destination airport IATA code"
+								},
+								{
+									"key": "departDate",
+									"value": "{{departDate}}",
+									"description": "Departure date (YYYY-MM-DD)"
+								},
+								{
+									"key": "returnDate",
+									"value": "{{returnDate}}",
+									"description": "Return date (YYYY-MM-DD). Phải sau departDate và trong khoảng 60 ngày. Khi có returnDate, tripType tự động set thành 'round_trip'"
+								},
+								{
+									"key": "adults",
+									"value": "2",
+									"description": "Number of adult passengers"
+								},
+								{
+									"key": "minors",
+									"value": "1",
+									"description": "Number of minor passengers"
+								}
+							]
+						},
+						"description": "Search for round-trip flights from Hanoi to Ho Chi Minh City. tripType is automatically set to 'round_trip' when returnDate is provided."
+					},
+					"response": []
+				},
+				{
+					"name": "Search Flights - Round Trip (HAN → SGN) - Explicit tripType",
 					"request": {
 						"method": "GET",
 						"header": [],
@@ -81,11 +182,13 @@
 							"query": [
 								{
 									"key": "origin",
-									"value": "HAN"
+									"value": "HAN",
+									"description": "Origin airport IATA code"
 								},
 								{
 									"key": "destination",
-									"value": "SGN"
+									"value": "SGN",
+									"description": "Destination airport IATA code"
 								},
 								{
 									"key": "departDate",
@@ -99,18 +202,22 @@
 								},
 								{
 									"key": "tripType",
-									"value": "round_trip"
+									"value": "round_trip",
+									"description": "Trip type: one_way or round_trip (optional - auto-set based on returnDate if not provided)"
 								},
 								{
 									"key": "adults",
-									"value": "2"
+									"value": "2",
+									"description": "Number of adult passengers"
 								},
 								{
 									"key": "minors",
-									"value": "1"
+									"value": "1",
+									"description": "Number of minor passengers"
 								}
 							]
-						}
+						},
+						"description": "Search for round-trip flights from Hanoi to Ho Chi Minh City with explicit tripType parameter."
 					},
 					"response": []
 				},

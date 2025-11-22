@@ -153,7 +153,10 @@ API Gateway → Response to FE
     - `destination` (required): IATA code (3 chars, e.g., "SGN")
     - `departDate` (required): YYYY-MM-DD (e.g., "2025-11-17")
     - `returnDate` (optional): YYYY-MM-DD (required nếu `tripType=round_trip`)
-    - `tripType` (required): "one_way" hoặc "round_trip"
+    - `tripType` (optional): "one_way" hoặc "round_trip"
+      - **Auto-set logic**: Nếu không truyền `tripType`:
+        - Không có `returnDate` → mặc định `tripType=one_way`
+        - Có `returnDate` → mặc định `tripType=round_trip`
     - `adults` (required): Số người lớn (≥1)
     - `minors` (required): Số trẻ em (≥0)
   
@@ -421,7 +424,9 @@ REDIS_RESERVATION_TTL=900  # 15 minutes (in seconds)
 2. **Swagger UI**: Xem chi tiết API tại `http://localhost:3000/api-docs`
 3. **Search API**: Cần cả API Gateway và Search Microservice đều chạy
 4. **Services API**: Cần cả API Gateway và Services Microservice đều chạy (nếu dùng `/services/deals`)
-5. **Round trip**: Nếu `tripType=round_trip` thì bắt buộc phải có `returnDate`
+5. **Round trip**: 
+   - Nếu `tripType=round_trip` thì bắt buộc phải có `returnDate`
+   - `tripType` là optional: Nếu không truyền, sẽ tự động set dựa trên `returnDate` (có `returnDate` → `round_trip`, không có → `one_way`)
 6. **Error handling**: Check `statusCode` trong response để handle errors
 7. **UUID v7**: Tất cả IDs trong hệ thống (flightInstanceId, bookingId, userId...) sử dụng **UUID v7** (time-ordered UUID). Format: `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx`. UUID v7 có thể sắp xếp theo thời gian, tốt cho database indexing.
 8. **Payment Service Features (Phase 1 & 2 - Production Ready)**:

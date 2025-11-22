@@ -22,17 +22,21 @@ export class SearchFlightsDto {
 	departDate!: string;
 
 	@ApiPropertyOptional({ 
-		description: 'Return date for round trip in ISO format (YYYY-MM-DD). Required if tripType is round_trip', 
+		description: 'Return date for round trip in ISO format (YYYY-MM-DD). If provided, tripType will default to round_trip', 
 		example: '2025-11-24' 
 	})
-	@ValidateIf(o => o.tripType === TripType.ROUND_TRIP)
-	@IsNotEmpty({ message: 'returnDate is required when tripType is round_trip' })
+	@IsOptional()
 	@IsDateString()
 	returnDate?: string;
 
-	@ApiProperty({ enum: TripType, example: TripType.ONE_WAY })
+	@ApiPropertyOptional({ 
+		enum: TripType, 
+		example: TripType.ONE_WAY,
+		description: 'Type of trip: one_way or round_trip. If not provided, will default to one_way when returnDate is missing, or round_trip when returnDate is provided'
+	})
+	@IsOptional()
 	@IsEnum(TripType)
-	tripType!: TripType;
+	tripType?: TripType;
 
 	@ApiProperty({ description: 'Number of adult passengers', minimum: 1, example: 1 })
 	@Type(() => Number)
