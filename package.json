@@ -29,7 +29,7 @@
     "download:deals-images": "ts-node -r tsconfig-paths/register scripts/download-deals-images.ts",
     "test:db": "ts-node -r tsconfig-paths/register tools/test-db-connection.ts",
     "test:email": "ts-node -r tsconfig-paths/register tools/test-otp-email.ts",
-    "env:setup": "node -e \"const fs = require('fs'); if (!fs.existsSync('.env')) { fs.copyFileSync('env.example', '.env'); console.log('✅ Created .env file from env.example'); } else { console.log('⚠️  .env file already exists. Skipping...'); }\"",
+    "env:setup": "node -e \"const fs = require('fs'); if (!fs.existsSync('.env')) { fs.copyFileSync('env.example', '.env'); console.log('Created .env file from env.example'); } else { console.log('.env file already exists. Skipping...'); }\"",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/api-gateway/main",
     "wait-for-db": "ts-node -r tsconfig-paths/register docker/wait-for-database.ts",

@@ -97,7 +97,7 @@ try {
         -Headers $headers `
         -ErrorAction Stop
     
-    Write-Host "✅ OTP Email sent successfully!" -ForegroundColor Green
+    Write-Host "OTP Email sent successfully!" -ForegroundColor Green
     Write-Host "   Email ID: $($emailResponse.emailId)" -ForegroundColor Green
     Write-Host "   Status: $($emailResponse.status)" -ForegroundColor Green
     Write-Host "   OTP Code: $otp" -ForegroundColor Yellow
@@ -114,18 +114,18 @@ try {
             -Headers $headers `
             -ErrorAction Stop
         
-        Write-Host "✅ Email Status:" -ForegroundColor Green
+        Write-Host "Email Status:" -ForegroundColor Green
         Write-Host "   Status: $($statusResponse.status)" -ForegroundColor Green
         Write-Host "   To: $($statusResponse.to)" -ForegroundColor Gray
         if ($statusResponse.sentAt) {
             Write-Host "   Sent At: $($statusResponse.sentAt)" -ForegroundColor Gray
         }
     } catch {
-        Write-Host "⚠️  Could not get email status: $_" -ForegroundColor Yellow
+        Write-Host "Could not get email status: $_" -ForegroundColor Yellow
     }
     
 } catch {
-    Write-Host "❌ Failed to send OTP email: $_" -ForegroundColor Red
+    Write-Host "Failed to send OTP email: $_" -ForegroundColor Red
     if ($_.Exception.Response) {
         $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
         $responseBody = $reader.ReadToEnd()

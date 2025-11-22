@@ -85,7 +85,7 @@ describe('Payment API (e2e)', () => {
     } else {
       microservicesAvailable = false;
       console.warn(
-        '⚠️  Search microservice is not running. Payment tests will be skipped.',
+        'Search microservice is not running. Payment tests will be skipped.',
       );
       console.warn(
         '   Please start microservices with: docker-compose -f docker-compose-full-services.yml up -d',

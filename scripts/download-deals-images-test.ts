@@ -44,7 +44,7 @@ async function downloadImage(routeId: string): Promise<boolean> {
 	const filePath = join(IMAGES_DIR, `${routeId}.jpg`);
 	
 	if (existsSync(filePath)) {
-		console.log(`   ⏭️  Đã tồn tại: ${routeId}.jpg`);
+		console.log(`   Đã tồn tại: ${routeId}.jpg`);
 		return true;
 	}
 
@@ -52,7 +52,7 @@ async function downloadImage(routeId: string): Promise<boolean> {
 	const url = `https://picsum.photos/${IMAGE_WIDTH}/${IMAGE_HEIGHT}?random=${seed}`;
 
 	try {
-		console.log(`   📥 Downloading...`);
+		console.log(`   Downloading...`);
 		const response = await axios.get(url, {
 			responseType: 'arraybuffer',
 			timeout: 30000,
@@ -65,11 +65,11 @@ async function downloadImage(routeId: string): Promise<boolean> {
 		if (response.status === 200 && response.data && response.data.length > 0) {
 			await writeFile(filePath, response.data);
 			const sizeKB = (response.data.length / 1024).toFixed(2);
-			console.log(`   ✅ Đã lưu: ${routeId}.jpg (${sizeKB} KB)`);
+			console.log(`   Đã lưu: ${routeId}.jpg (${sizeKB} KB)`);
 			return true;
 		}
 	} catch (error: any) {
-		console.log(`   ❌ Lỗi: ${error.message}`);
+		console.log(`   Lỗi: ${error.message}`);
 		return false;
 	}
 
@@ -77,7 +77,7 @@ async function downloadImage(routeId: string): Promise<boolean> {
 }
 
 async function main() {
-	console.log('🧪 Test download ảnh (10 routes đầu tiên)...\n');
+	console.log('Test download ảnh (10 routes đầu tiên)...\n');
 
 	if (!existsSync(IMAGES_DIR)) {
 		await mkdir(IMAGES_DIR, { recursive: true });
@@ -93,7 +93,7 @@ async function main() {
 			.take(10) // Chỉ lấy 10 routes đầu tiên
 			.getMany();
 
-		console.log(`📋 Test với ${routes.length} routes:\n`);
+		console.log(`Test với ${routes.length} routes:\n`);
 
 		for (let i = 0; i < routes.length; i++) {
 			const route = routes[i];
@@ -102,9 +102,9 @@ async function main() {
 			await new Promise(resolve => setTimeout(resolve, 1000));
 		}
 
-		console.log('\n✅ Test hoàn tất!');
+		console.log('\nTest hoàn tất!');
 	} catch (error: any) {
-		console.error('❌ Lỗi:', error.message);
+		console.error('Lỗi:', error.message);
 	} finally {
 		if (ds.isInitialized) {
 			await ds.destroy();
