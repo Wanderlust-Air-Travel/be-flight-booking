@@ -6,7 +6,7 @@ Trước khi chạy tests, đảm bảo:
 
 1. **Docker services đang chạy:**
    ```bash
-   docker-compose -f docker-compose-full-services.yml up -d
+   docker-compose -f docker-compose.yml up -d
    ```
 
 2. **Kiểm tra các microservices đang chạy trong Docker:**
