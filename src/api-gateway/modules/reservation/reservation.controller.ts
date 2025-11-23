@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Req, UseGuards, HttpCode, HttpStatus, BadRequestException, InternalServerErrorException, ServiceUnavailableException } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Req, UseGuards, HttpCode, HttpStatus, BadRequestException, InternalServerErrorException, ServiceUnavailableException, HttpException } from '@nestjs/common';
 import {
 	ApiBadRequestResponse,
 	ApiOkResponse,
@@ -15,6 +15,7 @@ import { ReservationResponseDto } from './dto/reservation-response.dto';
 import { JwtAuthGuard } from '../auth/guard/jwt-auth.guard';
 import { Request } from 'express';
 import { RESERVATION_MS } from 'src/microservices/reservation/reservation.messages';
+import { ParseUUIDv7Pipe } from 'src/shared/pipes/parse-uuid-v7.pipe';
 
 @ApiTags('reservations')
 @Controller('reservations')
@@ -105,21 +106,36 @@ export class ReservationController {
 	@ApiBadRequestResponse({
 		description: 'Reservation not found or expired',
 	})
-	async getReservation(@Param('id') reservationId: string): Promise<ReservationResponseDto> {
+	async getReservation(@Param('id', ParseUUIDv7Pipe) reservationId: string): Promise<ReservationResponseDto> {
 		try {
 			return await firstValueFrom(
 				this.client.send<ReservationResponseDto>(RESERVATION_MS.PATTERN.GET_RESERVATION, reservationId),
 			);
 		} catch (error: any) {
-			console.error('Get reservation error:', error);
+			// Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
+			if (error instanceof HttpException) {
+				throw error;
+			}
+			
+			// Also check for statusCode property for compatibility
 			if (error?.statusCode && error?.message) {
 				throw error;
 			}
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException(
-					'Reservation microservice is not running. Please start it with: npm run start:reservation:dev',
-				);
+			
+			// Handle microservice connection errors - these are infrastructure issues (503)
+			const errorMessage = error?.message || error?.toString() || '';
+			const errorCode = error?.code || '';
+			
+			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
+				throw new ServiceUnavailableException('Reservation microservice is not available. Please ensure the service is running.');
 			}
+			if (errorMessage.includes('Connection closed')) {
+				throw new ServiceUnavailableException('Reservation microservice connection was closed. Please ensure the service is running.');
+			}
+			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+				throw new ServiceUnavailableException('Reservation microservice request timeout. The service may be unavailable or overloaded.');
+			}
+			
 			if (error?.status === 'error' && error?.message) {
 				throw new BadRequestException(`Get reservation failed: ${error.message}`);
 			}
@@ -145,13 +161,25 @@ export class ReservationController {
 		description: 'Reservation code not found or expired',
 	})
 	async getReservationByCode(@Param('code') reservationCode: string): Promise<ReservationResponseDto> {
+		// Validate reservation code format BEFORE calling microservice
+		// Reservation code should be 6 alphanumeric characters
+		const codeRegex = /^[A-Z0-9]{6}$/i;
+		if (!codeRegex.test(reservationCode)) {
+			throw new BadRequestException('Reservation code must be exactly 6 alphanumeric characters');
+		}
+		
 		try {
 			// Send reservation code to microservice - it will auto-detect if it's a code (6 chars) or ID (UUID)
 			return await firstValueFrom(
 				this.client.send<ReservationResponseDto>(RESERVATION_MS.PATTERN.GET_RESERVATION, reservationCode),
 			);
 		} catch (error: any) {
-			console.error('Get reservation by code error:', error);
+			// Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
+			if (error instanceof HttpException) {
+				throw error;
+			}
+			
+			// Also check for statusCode property for compatibility
 			if (error?.statusCode && error?.message) {
 				throw error;
 			}
@@ -202,7 +230,7 @@ export class ReservationController {
 		description: 'Reservation not found, expired, or already cancelled',
 	})
 	async cancelReservation(
-		@Param('id') reservationId: string,
+		@Param('id', ParseUUIDv7Pipe) reservationId: string,
 	): Promise<{ success: boolean; message: string }> {
 		try {
 			return await firstValueFrom(
@@ -212,7 +240,12 @@ export class ReservationController {
 				),
 			);
 		} catch (error: any) {
-			console.error('Cancel reservation error:', error);
+			// Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
+			if (error instanceof HttpException) {
+				throw error;
+			}
+			
+			// Also check for statusCode property for compatibility
 			if (error?.statusCode && error?.message) {
 				throw error;
 			}
@@ -259,7 +292,12 @@ export class ReservationController {
 				this.client.send<ReservationResponseDto[]>(RESERVATION_MS.PATTERN.LIST_RESERVATIONS, userId), // ✅ Send userId, NOT token
 			);
 		} catch (error: any) {
-			console.error('List reservations error:', error);
+			// Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
+			if (error instanceof HttpException) {
+				throw error;
+			}
+			
+			// Also check for statusCode property for compatibility
 			if (error?.statusCode && error?.message) {
 				throw error;
 			}
@@ -303,7 +341,7 @@ export class ReservationController {
 		description: 'Reservation not found, expired, or invalid extension time',
 	})
 	async extendReservation(
-		@Param('id') reservationId: string,
+		@Param('id', ParseUUIDv7Pipe) reservationId: string,
 		@Body() body: { additionalSeconds: number },
 	): Promise<ReservationResponseDto> {
 		try {
@@ -319,7 +357,12 @@ export class ReservationController {
 				}),
 			);
 		} catch (error: any) {
-			console.error('Extend reservation error:', error);
+			// Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
+			if (error instanceof HttpException) {
+				throw error;
+			}
+			
+			// Also check for statusCode property for compatibility
 			if (error?.statusCode && error?.message) {
 				throw error;
 			}

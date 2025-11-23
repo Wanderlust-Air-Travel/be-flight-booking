@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<coverage generated="1763909820993" clover="3.2.0">
-  <project timestamp="1763909820993" name="All files">
+<coverage generated="1763910228214" clover="3.2.0">
+  <project timestamp="1763910228214" name="All files">
     <metrics statements="156" coveredstatements="67" conditionals="150" coveredconditionals="53" methods="28" coveredmethods="13" elements="334" coveredelements="133" complexity="0" loc="156" ncloc="156" packages="1" files="1" classes="1"/>
     <file name="test-helpers.ts" path="C:\Users\ACER\flight-booking\be-flight-booking\test\helpers\test-helpers.ts">
       <metrics statements="156" coveredstatements="67" conditionals="150" coveredconditionals="53" methods="28" coveredmethods="13"/>
@@ -47,11 +47,11 @@
       <line num="201" count="0" type="stmt"/>
       <line num="204" count="0" type="stmt"/>
       <line num="210" count="7" type="stmt"/>
-      <line num="216" count="7" type="stmt"/>
-      <line num="217" count="7" type="stmt"/>
-      <line num="219" count="7" type="cond" truecount="1" falsecount="1"/>
-      <line num="220" count="7" type="cond" truecount="1" falsecount="1"/>
-      <line num="226" count="7" type="stmt"/>
+      <line num="216" count="15" type="stmt"/>
+      <line num="217" count="15" type="stmt"/>
+      <line num="219" count="15" type="cond" truecount="1" falsecount="1"/>
+      <line num="220" count="15" type="cond" truecount="1" falsecount="1"/>
+      <line num="226" count="15" type="stmt"/>
       <line num="228" count="0" type="stmt"/>
       <line num="235" count="7" type="stmt"/>
       <line num="242" count="0" type="cond" truecount="0" falsecount="2"/>
@@ -148,14 +148,14 @@
       <line num="638" count="7" type="stmt"/>
       <line num="639" count="0" type="stmt"/>
       <line num="646" count="7" type="stmt"/>
-      <line num="647" count="65" type="stmt"/>
-      <line num="648" count="65" type="stmt"/>
-      <line num="649" count="65" type="stmt"/>
-      <line num="650" count="65" type="stmt"/>
-      <line num="651" count="65" type="stmt"/>
-      <line num="652" count="65" type="stmt"/>
-      <line num="655" count="65" type="stmt"/>
-      <line num="658" count="65" type="stmt"/>
+      <line num="647" count="67" type="stmt"/>
+      <line num="648" count="67" type="stmt"/>
+      <line num="649" count="67" type="stmt"/>
+      <line num="650" count="67" type="stmt"/>
+      <line num="651" count="67" type="stmt"/>
+      <line num="652" count="67" type="stmt"/>
+      <line num="655" count="67" type="stmt"/>
+      <line num="658" count="67" type="stmt"/>
       <line num="664" count="7" type="stmt"/>
       <line num="665" count="4" type="stmt"/>
       <line num="666" count="4" type="stmt"/>
