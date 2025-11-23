@@ -134,5 +134,36 @@ export class BookingStateRepository {
 		const key = this.generateKey(userId, flightInstanceId);
 		return await this.redisService.ttl(key);
 	}
+
+	/**
+	 * Get all booking states for a user
+	 * @returns Array of {flightInstanceId, state} pairs
+	 */
+	async findAllByUserId(userId: string): Promise<Array<{ flightInstanceId: string; state: BookingState }>> {
+		const pattern = `${this.keyPrefix}:${userId}:*`;
+		
+		try {
+			const keys = await this.redisService.keys(pattern);
+			
+			const results: Array<{ flightInstanceId: string; state: BookingState }> = [];
+			for (const key of keys) {
+				// Extract flightInstanceId from key: booking:state:{userId}:{flightInstanceId}
+				const parts = key.split(':');
+				if (parts.length >= 4) {
+					const flightInstanceId = parts.slice(3).join(':'); // Handle UUID v7 format
+					const state = await this.redisService.get<BookingState>(key);
+					if (state) {
+						results.push({ flightInstanceId, state });
+					}
+				}
+			}
+
+			this.logger.debug(`Found ${results.length} booking states for user: ${userId}`);
+			return results;
+		} catch (error) {
+			this.logger.error(`Error finding all booking states for user: ${userId}`, error instanceof Error ? error.stack : '');
+			return [];
+		}
+	}
 }
 

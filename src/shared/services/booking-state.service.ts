@@ -192,5 +192,17 @@ export class BookingStateService {
 	async getTtl(userId: string, flightInstanceId: string): Promise<number> {
 		return await this.bookingStateRepository.getTtl(userId, flightInstanceId);
 	}
+
+	/**
+	 * Get all booking states for a user
+	 * Useful for frontend to get flightInstanceId without storing in session
+	 * 
+	 * @param userId - User ID
+	 * @returns Array of booking states with flightInstanceId
+	 */
+	async getAllBookingStates(userId: string): Promise<Array<{ flightInstanceId: string; state: BookingState }>> {
+		this.logger.log(`Getting all booking states for user ${userId}`);
+		return await this.bookingStateRepository.findAllByUserId(userId);
+	}
 }
 

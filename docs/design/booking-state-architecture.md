@@ -221,18 +221,31 @@ Client → API Gateway → BookingStateController
       → Redis (save)
 ```
 
-### 3. Lấy Booking State (Optional - Recommended Best Practice)
+### 3. Lấy Tất Cả Booking States (Stateless Frontend - No Session Storage)
 
 ```
 Client → API Gateway → BookingStateController
-  → BookingStateService
-    → BookingStateRepository
+  → BookingStateService.getAllBookingStates()
+    → BookingStateRepository.findAllByUserId()
+      → Redis (SCAN + MGET)
+```
+
+**Mục đích:** Lấy tất cả booking states của user, bao gồm `flightInstanceId`. Frontend không cần lưu `flightInstanceId` vào session - có thể lấy từ endpoint này.
+
+**Response:** Array of booking states, mỗi state có `flightInstanceId`, `cabin`, `seat`, `updatedAt`
+
+### 4. Lấy Booking State theo flightInstanceId (Optional - Recommended Best Practice)
+
+```
+Client → API Gateway → BookingStateController
+  → BookingStateService.getBookingState()
+    → BookingStateRepository.findOne()
       → Redis (get)
 ```
 
 **Mục đích:** Verify state trước khi tạo reservation (best practice)
 
-### 4. Xóa Booking State (Optional - Clear State)
+### 5. Xóa Booking State (Optional - Clear State)
 
 ```
 Client → API Gateway → BookingStateController
@@ -243,7 +256,7 @@ Client → API Gateway → BookingStateController
 
 **Mục đích:** Xóa state để bắt đầu lại từ đầu (idempotent)
 
-### 5. Tạo Reservation
+### 6. Tạo Reservation
 
 ```
 Client → API Gateway → ReservationController

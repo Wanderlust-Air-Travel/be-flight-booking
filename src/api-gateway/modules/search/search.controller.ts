@@ -1,8 +1,9 @@
-import { Controller, Get, Query, BadRequestException, InternalServerErrorException, NotFoundException, ServiceUnavailableException, Logger } from '@nestjs/common';
-import { ApiBadRequestResponse, ApiOkResponse, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, Query, BadRequestException, InternalServerErrorException, NotFoundException, ServiceUnavailableException, Logger, Req, Optional } from '@nestjs/common';
+import { ApiBadRequestResponse, ApiOkResponse, ApiOperation, ApiQuery, ApiResponse, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { ClientProxy } from '@nestjs/microservices';
 import { Inject } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
+import { Request } from 'express';
 import { SearchFlightsDto } from './dto/search-flights.dto';
 import { TripType, CabinType } from 'src/shared/constants/enums';
 import { SearchFlightsResponseDto } from './dto/search-flights-response.dto';
@@ -12,13 +13,17 @@ import { FareOptionDto } from './dto/fare-option.dto';
 import { GetSeatMapDto } from './dto/get-seat-map.dto';
 import { SeatMapResponseDto } from './dto/seat-map-response.dto';
 import { SEARCH_MS } from 'src/microservices/search/search.messages';
+import { BookingStateService } from 'src/shared/services/booking-state.service';
 
 @ApiTags('search')
 @Controller('search')
 export class SearchController {
 	private readonly logger = new Logger(SearchController.name);
 
-	constructor(@Inject('SEARCH_CLIENT') private readonly client: ClientProxy) {}
+	constructor(
+		@Inject('SEARCH_CLIENT') private readonly client: ClientProxy,
+		private readonly bookingStateService: BookingStateService,
+	) {}
 
 	@Get('flights')
 	@ApiOperation({ 
@@ -241,36 +246,80 @@ export class SearchController {
 	})
 	@ApiQuery({
 		name: 'flightInstanceId',
-		required: true,
-		description: 'Flight instance ID',
+		required: false,
+		description: 'Flight instance ID. Optional - if not provided and user is authenticated, backend will automatically fetch from booking state.',
 		example: 'a3f1f8e6-5a6b-4b2d-9f1a-2c3d4e5f6a7b',
 		type: String,
 	})
 	@ApiQuery({
 		name: 'cabinType',
-		required: true,
+		required: false,
 		enum: CabinType,
-		description: 'Cabin type: economy or business',
+		description: 'Cabin type: economy or business. Optional - if not provided and user is authenticated, backend will automatically fetch from booking state.',
 		example: CabinType.ECONOMY,
 	})
-	async getFareOptions(@Query() query: GetFareOptionsDto): Promise<FareOptionDto[]> {
+	async getFareOptions(
+		@Query() query: GetFareOptionsDto,
+		@Req() req?: Request & { user?: { userId: string; email: string } },
+	): Promise<FareOptionDto[]> {
 		try {
-			// Manual validation and transformation if needed
-			if (!query.flightInstanceId || typeof query.flightInstanceId !== 'string') {
-				throw new Error('flightInstanceId is required and must be a string');
+			// Auto-fetch flightInstanceId and cabinType from booking state if not provided and user is authenticated
+			let flightInstanceId = query.flightInstanceId;
+			let cabinType = query.cabinType;
+			
+			if ((!flightInstanceId || !cabinType) && req?.user?.userId) {
+				try {
+					const allStates = await this.bookingStateService.getAllBookingStates(req.user.userId);
+					if (allStates.length > 0) {
+						// Get the most recent booking state (first one, sorted by updatedAt if needed)
+						const latestState = allStates[0];
+						
+						if (!flightInstanceId && latestState.flightInstanceId) {
+							flightInstanceId = latestState.flightInstanceId;
+							this.logger.debug(
+								`Auto-fetched flightInstanceId from booking state: ${flightInstanceId} for user ${req.user.userId}`,
+							);
+						}
+						
+						if (!cabinType && latestState.state.cabin?.cabinType) {
+							cabinType = latestState.state.cabin.cabinType as CabinType;
+							this.logger.debug(
+								`Auto-fetched cabinType from booking state: ${cabinType} for user ${req.user.userId}`,
+							);
+						}
+					}
+				} catch (error) {
+					// If booking state not found or error, continue without auto-fetch
+					this.logger.debug('Could not auto-fetch flightInstanceId/cabinType from booking state, using provided values or requiring them');
+				}
 			}
 			
-			const trimmedFlightInstanceId = query.flightInstanceId.trim();
+			// Validate flightInstanceId is available (either from query or booking state)
+			if (!flightInstanceId || typeof flightInstanceId !== 'string') {
+				throw new BadRequestException(
+					'flightInstanceId is required. Either provide it in query parameter or save cabin selection first using POST /api/v1/booking-state/cabin',
+				);
+			}
+			
+			// Validate cabinType is available (either from query or booking state)
+			if (!cabinType) {
+				throw new BadRequestException(
+					'cabinType is required. Either provide it in query parameter or save cabin selection first using POST /api/v1/booking-state/cabin',
+				);
+			}
+			
+			const trimmedFlightInstanceId = flightInstanceId.trim();
 			this.logger.debug('Get fare options request:', {
 				original: query.flightInstanceId,
 				trimmed: trimmedFlightInstanceId,
 				length: trimmedFlightInstanceId.length,
-				cabinType: query.cabinType,
+				cabinType: cabinType,
+				autoFetched: !query.flightInstanceId || !query.cabinType,
 			});
 			
 			const payload: GetFareOptionsDto = {
 				flightInstanceId: trimmedFlightInstanceId,
-				cabinType: query.cabinType,
+				cabinType: cabinType,
 			};
 			const result = await firstValueFrom(this.client.send<FareOptionsResponseDto>('search.fare-options', payload));
 			
@@ -368,12 +417,15 @@ export class SearchController {
 	})
 	@ApiQuery({
 		name: 'cabinType',
-		required: true,
+		required: false,
 		enum: CabinType,
-		description: 'Cabin type: economy or business',
+		description: 'Cabin type: economy or business. Optional - if not provided and user is authenticated, backend will automatically fetch from booking state (if cabin selection was saved).',
 		example: CabinType.ECONOMY,
 	})
-	async getSeatMap(@Query() query: GetSeatMapDto): Promise<SeatMapResponseDto> {
+	async getSeatMap(
+		@Query() query: GetSeatMapDto,
+		@Req() req?: Request & { user?: { userId: string; email: string } },
+	): Promise<SeatMapResponseDto> {
 		try {
 			// Manual validation and transformation if needed
 			if (!query.flightInstanceId || typeof query.flightInstanceId !== 'string') {
@@ -385,9 +437,36 @@ export class SearchController {
 				throw new BadRequestException('flightInstanceId cannot be empty');
 			}
 			
+			// Auto-fetch cabinType from booking state if not provided and user is authenticated
+			let cabinType = query.cabinType;
+			if (!cabinType && req?.user?.userId) {
+				try {
+					const bookingState = await this.bookingStateService.getBookingState(
+						req.user.userId,
+						trimmedFlightInstanceId,
+					);
+					if (bookingState?.cabin?.cabinType) {
+						cabinType = bookingState.cabin.cabinType as CabinType;
+						this.logger.debug(
+							`Auto-fetched cabinType from booking state: ${cabinType} for user ${req.user.userId}`,
+						);
+					}
+				} catch (error) {
+					// If booking state not found or error, continue without auto-fetch
+					this.logger.debug('Could not auto-fetch cabinType from booking state, using provided value or requiring it');
+				}
+			}
+			
+			// Validate cabinType is available (either from query or booking state)
+			if (!cabinType) {
+				throw new BadRequestException(
+					'cabinType is required. Either provide it in query parameter or save cabin selection first using POST /api/v1/booking-state/cabin',
+				);
+			}
+			
 			const payload: GetSeatMapDto = {
 				flightInstanceId: trimmedFlightInstanceId,
-				cabinType: query.cabinType,
+				cabinType: cabinType,
 			};
 			const result = await firstValueFrom(this.client.send<SeatMapResponseDto>(SEARCH_MS.PATTERN.GET_SEAT_MAP, payload));
 			

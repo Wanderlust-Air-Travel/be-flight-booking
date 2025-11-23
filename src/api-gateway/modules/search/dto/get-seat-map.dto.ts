@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsEnum } from 'class-validator';
+import { IsNotEmpty, IsEnum, IsOptional } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { CabinType } from 'src/shared/constants/enums';
 import { IsUUIDv7 } from 'src/shared/validators/is-uuid-v7.validator';
@@ -21,11 +21,12 @@ export class GetSeatMapDto {
 
 	@ApiProperty({
 		enum: CabinType,
-		description: 'Cabin type: economy or business',
+		description: 'Cabin type: economy or business. Optional - if not provided, backend will automatically fetch from booking state (if cabin selection was saved).',
 		example: CabinType.ECONOMY,
+		required: false,
 	})
-	@IsNotEmpty()
+	@IsOptional()
 	@IsEnum(CabinType)
-	cabinType!: CabinType;
+	cabinType?: CabinType;
 }
 

@@ -33,9 +33,11 @@ http://localhost:3000
 
 **Lưu ý:** 
 - Backend tự quản lý state trong Redis. Frontend chỉ cần fetch và gọi API.
+- **Stateless Frontend**: Frontend không cần lưu `flightInstanceId` vào session - có thể lấy từ `GET /api/v1/booking-state`
 - State tự động expire sau 30 phút (TTL)
 - State tự động được clear sau khi tạo reservation thành công
 - Optional: `DELETE /api/v1/booking-state/:flightInstanceId` để xóa state và bắt đầu lại
+- Optional: `GET /api/v1/booking-state` để lấy tất cả booking states (bao gồm `flightInstanceId`)
 
 ---
 
@@ -164,8 +166,14 @@ GET /api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&retu
 **GET** `/api/v1/search/fare-options`
 
 **Tham số:**
-- `flightInstanceId` (bắt buộc): ID chuyến bay
-- `cabinType` (bắt buộc): `economy` hoặc `business`
+- `flightInstanceId` (optional): ID chuyến bay
+  - **Nếu không truyền**: Backend tự động lấy từ booking state (nếu user đã đăng nhập và đã save cabin selection)
+  - **Nếu truyền**: Sử dụng giá trị được truyền (override booking state)
+  - **Lưu ý**: Nếu không truyền và không có booking state → 400 Bad Request
+- `cabinType` (optional): `economy` hoặc `business`
+  - **Nếu không truyền**: Backend tự động lấy từ booking state (nếu user đã đăng nhập và đã save cabin selection)
+  - **Nếu truyền**: Sử dụng giá trị được truyền (override booking state)
+  - **Lưu ý**: Nếu không truyền và không có booking state → 400 Bad Request
 
 **Trả về:** Danh sách các loại vé (Economy: Saver Max, Standard, Smart, Flex | Business: Standard, Smart, Flex) với giá và mô tả điều kiện
 
@@ -176,7 +184,10 @@ GET /api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&retu
 
 **Tham số:**
 - `flightInstanceId` (bắt buộc): ID chuyến bay (UUID v7)
-- `cabinType` (bắt buộc): `economy` hoặc `business`
+- `cabinType` (optional): `economy` hoặc `business`
+  - **Nếu không truyền**: Backend tự động lấy từ booking state (nếu user đã đăng nhập và đã save cabin selection)
+  - **Nếu truyền**: Sử dụng giá trị được truyền (override booking state)
+  - **Lưu ý**: Nếu không truyền và không có booking state → 400 Bad Request
 
 **Trả về:** Bản đồ ghế được group theo cabin class với thông tin chi tiết:
 
@@ -276,7 +287,44 @@ GET /api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&retu
 
 ---
 
-### Lấy booking state hiện tại
+### Lấy tất cả booking states
+**GET** `/api/v1/booking-state`
+
+**Cần đăng nhập:** Có
+
+**Mục đích:** Lấy tất cả booking states của user (bao gồm `flightInstanceId`). **Frontend không cần lưu `flightInstanceId` vào session** - có thể lấy từ endpoint này.
+
+**Trả về:**
+```json
+{
+  "states": [
+    {
+      "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+      "cabin": {
+        "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+        "cabinType": "economy",
+        "fareClassCode": "YS"
+      },
+      "seat": {
+        "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+        "flightSeatId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
+        "seatNumber": "12A"
+      },
+      "updatedAt": "2025-01-15T10:30:00Z"
+    }
+  ]
+}
+```
+
+**Lưu ý:**
+- Trả về array tất cả booking states của user
+- Mỗi state có `flightInstanceId` - frontend có thể dùng để gọi các API khác
+- Thường chỉ có 1 booking state (cho flight đang book)
+- Nếu có nhiều, frontend có thể chọn state mới nhất (dựa vào `updatedAt`)
+
+---
+
+### Lấy booking state hiện tại (cho flight cụ thể)
 **GET** `/api/v1/booking-state/:flightInstanceId`
 
 **Cần đăng nhập:** Có
@@ -611,7 +659,9 @@ const bookingResponse = await fetch('http://localhost:3000/api/v1/bookings?reser
 
 1. **Tìm kiếm** → `GET /api/v1/search/flights`
 2. **Chọn chuyến bay** → Lấy `flightInstanceId`
-3. **Xem loại vé** → `GET /api/v1/search/fare-options` (chọn cabin)
+3. **Xem loại vé** → `GET /api/v1/search/fare-options?flightInstanceId=xxx&cabinType=economy` (cả 2 đều optional)
+   - **Lần đầu**: Truyền `flightInstanceId` (từ search results - component state) và `cabinType` (user selection)
+   - **Lần sau**: Nếu đã save cabin selection, có thể gọi lại mà không cần truyền (backend tự động lấy từ booking state)
 4. **Lưu cabin selection** → `POST /api/v1/booking-state/cabin` (Backend lưu vào Redis)
 5. **Xem ghế** → `GET /api/v1/search/seats` → Lấy `flightSeatId` và `seatNumber`
 6. **Lưu seat selection** → `POST /api/v1/booking-state/seat` (Backend lưu vào Redis)

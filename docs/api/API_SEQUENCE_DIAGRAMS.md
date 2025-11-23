@@ -78,7 +78,19 @@ sequenceDiagram
         API Gateway-->>Client: 200 OK<br/>{success: true, message: "Seat selection saved successfully"}
     end
 
-    Note over Client,Redis: Phase 3.8: Get Booking State (Optional - Recommended Best Practice)
+    Note over Client,Redis: Phase 3.8: Get All Booking States (Stateless Frontend - No Session Storage)
+    Client->>API Gateway: GET /booking-state<br/>Authorization: Bearer <token>
+    API Gateway->>API Gateway: JwtAuthGuard: Validate JWT token<br/>Extract userId from payload
+    API Gateway->>API Gateway: BookingStateService.getAllBookingStates()
+    API Gateway->>Redis: SCAN keys matching booking:state:{userId}:*
+    Redis-->>API Gateway: Array of booking state keys
+    API Gateway->>Redis: MGET all booking states
+    Redis-->>API Gateway: Array of booking states
+    API Gateway->>API Gateway: Parse and format response
+    API Gateway-->>Client: 200 OK<br/>{states: [{flightInstanceId, cabin, seat, updatedAt}, ...]}
+    Note right of Client: Frontend can get flightInstanceId<br/>from backend state (no session storage)
+
+    Note over Client,Redis: Phase 3.9: Get Booking State by flightInstanceId (Optional - Recommended Best Practice)
     Client->>API Gateway: GET /booking-state/:flightInstanceId<br/>Authorization: Bearer <token>
     API Gateway->>API Gateway: JwtAuthGuard: Validate JWT token<br/>Extract userId from payload
     API Gateway->>API Gateway: BookingStateService.getBookingState()

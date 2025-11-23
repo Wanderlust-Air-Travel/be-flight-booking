@@ -16,6 +16,7 @@ import { BookingStateService } from 'src/shared/services/booking-state.service';
 import { SaveCabinSelectionDto } from './dto/save-cabin-selection.dto';
 import { SaveSeatSelectionDto } from './dto/save-seat-selection.dto';
 import { BookingStateResponseDto } from './dto/booking-state-response.dto';
+import { AllBookingStatesResponseDto } from './dto/all-booking-states-response.dto';
 import {
 	BookingStateException,
 	BookingStateNotFoundException,
@@ -109,6 +110,32 @@ export class BookingStateController {
 			// Wrap unexpected errors
 			throw new BookingStateStorageException('save seat selection', error instanceof Error ? error.message : String(error));
 		}
+	}
+
+	@Get()
+	@ApiOperation({
+		summary: 'Get all booking states',
+		description:
+			'Get all booking states (cabin and seat selections) for the authenticated user. Returns array of booking states with flightInstanceId. Useful for frontend to get flightInstanceId without storing in session.',
+	})
+	@ApiOkResponse({
+		description: 'List of all booking states for the user',
+		type: AllBookingStatesResponseDto,
+	})
+	async getAllBookingStates(
+		@Req() req: Request & { user: { userId: string; email: string } },
+	): Promise<AllBookingStatesResponseDto> {
+		const userId = req.user.userId;
+		const allStates = await this.bookingStateService.getAllBookingStates(userId);
+		
+		return {
+			states: allStates.map(({ flightInstanceId, state }) => ({
+				flightInstanceId,
+				cabin: state.cabin,
+				seat: state.seat,
+				updatedAt: state.updatedAt,
+			})),
+		};
 	}
 
 	@Get(':flightInstanceId')

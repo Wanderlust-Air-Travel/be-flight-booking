@@ -1,13 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEnum, IsNotEmpty } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional } from 'class-validator';
 import { IsUUIDv7 } from 'src/shared/validators/is-uuid-v7.validator';
 import { CabinType } from 'src/shared/constants/enums';
 
 export class GetFareOptionsDto {
 	@ApiProperty({
-		description: 'Flight instance ID (UUID v7 - time-ordered)',
+		description: 'Flight instance ID (UUID v7 - time-ordered). Optional - if not provided and user is authenticated, backend will automatically fetch from booking state (if cabin selection was saved).',
 		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+		required: false,
 	})
 	@Transform(({ value }) => {
 		if (typeof value === 'string') {
@@ -15,17 +16,18 @@ export class GetFareOptionsDto {
 		}
 		return value;
 	})
-	@IsNotEmpty()
+	@IsOptional()
 	@IsUUIDv7({ message: 'flightInstanceId must be a valid UUID v7' })
-	flightInstanceId!: string;
+	flightInstanceId?: string;
 
 	@ApiProperty({
 		enum: CabinType,
-		description: 'Cabin type: economy or business',
+		description: 'Cabin type: economy or business. Optional - if not provided and user is authenticated, backend will automatically fetch from booking state (if cabin selection was saved).',
 		example: CabinType.ECONOMY,
+		required: false,
 	})
-	@IsNotEmpty()
+	@IsOptional()
 	@IsEnum(CabinType)
-	cabinType!: CabinType;
+	cabinType?: CabinType;
 }
 

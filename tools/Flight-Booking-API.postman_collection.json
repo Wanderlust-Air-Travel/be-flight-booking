@@ -343,7 +343,7 @@
 								}
 							]
 						},
-						"description": "Get economy fare options for a flight instance. Set flightInstanceId variable from search flights response.\n\n**Response format:**\nReturns array directly: `[{ fareClassCode, name, typeTicket, price, availableSeats, desc, ... }]`\n\nEach fare option includes:\n- `desc`: Array of descriptions with `text` and `status` (true/false)\n- `typeTicket`: Display name for the fare class\n- `price`: Price in VND\n- `availableSeats`: Number of available seats"
+						"description": "Get economy fare options for a flight instance. **Both `flightInstanceId` and `cabinType` are optional** - backend will automatically fetch from booking state if user is authenticated and has saved cabin selection.\n\n**Query Parameters (Both Optional):**\n- `flightInstanceId`: Optional - if not provided, backend auto-fetches from booking state (if user is authenticated and has saved cabin selection)\n- `cabinType`: Optional - if not provided, backend auto-fetches from booking state (if user is authenticated and has saved cabin selection)\n\n**Usage:**\n- **First time (before saving cabin)**: Provide both `flightInstanceId` (from search results) and `cabinType` (user selection)\n- **After saving cabin**: Can call without parameters - backend auto-fetches from booking state\n- **Override**: Can still provide parameters to override booking state\n\n**Response format:**\nReturns array directly: `[{ fareClassCode, name, typeTicket, price, availableSeats, desc, ... }]`\n\nEach fare option includes:\n- `desc`: Array of descriptions with `text` and `status` (true/false)\n- `typeTicket`: Display name for the fare class\n- `price`: Price in VND\n- `availableSeats`: Number of available seats\n\n**Best Practice:**\n- Frontend can use component state (React state, Vue data) for `flightInstanceId` and `cabinType` in the same flow\n- After saving cabin selection, frontend can get these values from `GET /api/v1/booking-state`\n- **No need to store in session/localStorage** - backend manages persistent state"
 					},
 					"response": []
 				},
@@ -374,7 +374,7 @@
 								}
 							]
 						},
-						"description": "Get business fare options for a flight instance. Set flightInstanceId variable from search flights response.\n\n**Response format:**\nReturns array directly: `[{ fareClassCode, name, typeTicket, price, availableSeats, desc, ... }]`\n\nEach fare option includes:\n- `desc`: Array of descriptions with `text` and `status` (true/false)\n- `typeTicket`: Display name for the fare class\n- `price`: Price in VND\n- `availableSeats`: Number of available seats"
+						"description": "Get business fare options for a flight instance. **Both `flightInstanceId` and `cabinType` are optional** - backend will automatically fetch from booking state if user is authenticated and has saved cabin selection.\n\n**Query Parameters (Both Optional):**\n- `flightInstanceId`: Optional - if not provided, backend auto-fetches from booking state (if user is authenticated and has saved cabin selection)\n- `cabinType`: Optional - if not provided, backend auto-fetches from booking state (if user is authenticated and has saved cabin selection)\n\n**Usage:**\n- **First time (before saving cabin)**: Provide both `flightInstanceId` (from search results) and `cabinType` (user selection)\n- **After saving cabin**: Can call without parameters - backend auto-fetches from booking state\n- **Override**: Can still provide parameters to override booking state\n\n**Response format:**\nReturns array directly: `[{ fareClassCode, name, typeTicket, price, availableSeats, desc, ... }]`\n\nEach fare option includes:\n- `desc`: Array of descriptions with `text` and `status` (true/false)\n- `typeTicket`: Display name for the fare class\n- `price`: Price in VND\n- `availableSeats`: Number of available seats\n\n**Best Practice:**\n- Frontend can use component state (React state, Vue data) for `flightInstanceId` and `cabinType` in the same flow\n- After saving cabin selection, frontend can get these values from `GET /api/v1/booking-state`\n- **No need to store in session/localStorage** - backend manages persistent state"
 					},
 					"response": []
 				},
@@ -889,7 +889,31 @@
 						"response": []
 					},
 					{
-						"name": "Get Booking State",
+						"name": "Get All Booking States",
+						"request": {
+							"auth": {
+								"type": "bearer",
+								"bearer": [
+									{
+										"key": "token",
+										"value": "{{access_token}}",
+										"type": "string"
+									}
+								]
+							},
+							"method": "GET",
+							"header": [],
+							"url": {
+								"raw": "{{base_url}}/api/v1/booking-state",
+								"host": ["{{base_url}}"],
+								"path": ["api", "v1", "booking-state"]
+							},
+							"description": "Lấy tất cả booking states của user (bao gồm `flightInstanceId`). **Frontend không cần lưu `flightInstanceId` vào session** - có thể lấy từ endpoint này.\n\n**Response:**\n```json\n{\n  \"states\": [\n    {\n      \"flightInstanceId\": \"...\",\n      \"cabin\": {\n        \"flightInstanceId\": \"...\",\n        \"cabinType\": \"economy\",\n        \"fareClassCode\": \"YS\"\n      },\n      \"seat\": {\n        \"flightInstanceId\": \"...\",\n        \"flightSeatId\": \"...\",\n        \"seatNumber\": \"12A\"\n      },\n      \"updatedAt\": \"2025-01-15T10:30:00Z\"\n    }\n  ]\n}\n```\n\n**Lưu ý:**\n- Yêu cầu JWT authentication\n- Trả về array tất cả booking states của user\n- Mỗi state có `flightInstanceId` - frontend có thể dùng để gọi các API khác\n- Thường chỉ có 1 booking state (cho flight đang book)\n- Nếu có nhiều, frontend có thể chọn state mới nhất (dựa vào `updatedAt`)\n- **Stateless Frontend**: Frontend không cần lưu `flightInstanceId` vào session, chỉ cần gọi API này để lấy"
+						},
+						"response": []
+					},
+					{
+						"name": "Get Booking State (by flightInstanceId)",
 						"request": {
 							"auth": {
 								"type": "bearer",
@@ -908,7 +932,7 @@
 								"host": ["{{base_url}}"],
 								"path": ["api", "v1", "booking-state", "{{flightInstanceId}}"]
 							},
-							"description": "Lấy booking state hiện tại từ Redis. **Recommended: Gọi API này trước khi tạo reservation để verify state đầy đủ** (best practice).\n\n**Response:**\n```json\n{\n  \"flightInstanceId\": \"...\",\n  \"cabin\": {\n    \"flightInstanceId\": \"...\",\n    \"cabinType\": \"economy\",\n    \"fareClassCode\": \"YS\"\n  },\n  \"seat\": {\n    \"flightInstanceId\": \"...\",\n    \"flightSeatId\": \"...\",\n    \"seatNumber\": \"12A\"\n  },\n  \"updatedAt\": \"2025-01-15T10:30:00Z\"\n}\n```\n\n**Lưu ý:**\n- Yêu cầu JWT authentication\n- Trả về 404 nếu state không tồn tại (expired hoặc chưa được tạo)\n- `cabin` và `seat` có thể là `null` nếu chưa được chọn\n- State tự động expire sau 30 phút (TTL)\n- State tự động được clear sau khi tạo reservation thành công"
+							"description": "Lấy booking state hiện tại từ Redis cho một flight instance cụ thể. **Recommended: Gọi API này trước khi tạo reservation để verify state đầy đủ** (best practice).\n\n**Response:**\n```json\n{\n  \"flightInstanceId\": \"...\",\n  \"cabin\": {\n    \"flightInstanceId\": \"...\",\n    \"cabinType\": \"economy\",\n    \"fareClassCode\": \"YS\"\n  },\n  \"seat\": {\n    \"flightInstanceId\": \"...\",\n    \"flightSeatId\": \"...\",\n    \"seatNumber\": \"12A\"\n  },\n  \"updatedAt\": \"2025-01-15T10:30:00Z\"\n}\n```\n\n**Lưu ý:**\n- Yêu cầu JWT authentication\n- Trả về 404 nếu state không tồn tại (expired hoặc chưa được tạo)\n- `cabin` và `seat` có thể là `null` nếu chưa được chọn\n- State tự động expire sau 30 phút (TTL)\n- State tự động được clear sau khi tạo reservation thành công\n- **Lấy flightInstanceId**: Có thể lấy từ `GET /api/v1/booking-state` (không cần lưu vào session)"
 						},
 						"response": []
 					},
@@ -937,7 +961,7 @@
 						"response": []
 					}
 				],
-				"description": "Booking State APIs - Quản lý trạng thái đặt vé (cabin và seat selection)\n\n**Backend State Management (Best Practice):**\n- ✅ Backend tự quản lý toàn bộ state trong Redis\n- ✅ Frontend chỉ cần gọi API để lưu và fetch state (stateless frontend)\n- ✅ State được lưu với TTL 30 phút (dài hơn reservation TTL 15 phút)\n- ✅ Key format: `booking:state:{userId}:{flightInstanceId}`\n- ✅ Automatic cleanup sau khi tạo reservation thành công\n- ✅ Idempotent operations (có thể gọi nhiều lần)\n\n**Flow (Best Practice):**\n1. User chọn cabin → `POST /booking-state/cabin`\n2. User chọn seat → `POST /booking-state/seat` (cabin phải được chọn trước)\n3. **Optional (Recommended)**: Verify state → `GET /booking-state/:flightInstanceId`\n4. User tạo reservation → `POST /reservations` (backend tự động lấy cabin + seat từ Redis)\n5. Backend tự động xóa booking state sau khi tạo reservation thành công\n\n**Optional: Clear State:**\n- `DELETE /booking-state/:flightInstanceId` - Xóa state để bắt đầu lại từ đầu\n\n**Lưu ý:**\n- Tất cả APIs yêu cầu JWT authentication\n- Cabin phải được chọn trước seat\n- Seat phải được chọn trước khi tạo reservation\n- State tự động expire sau 30 phút nếu không sử dụng\n- DELETE endpoint là idempotent (có thể gọi nhiều lần)"
+				"description": "Booking State APIs - Quản lý trạng thái đặt vé (cabin và seat selection)\n\n**Backend State Management (Best Practice):**\n- Backend tự quản lý toàn bộ state trong Redis\n- Frontend chỉ cần gọi API để lưu và fetch state (stateless frontend)\n- State được lưu với TTL 30 phút (dài hơn reservation TTL 15 phút)\n- Key format: `booking:state:{userId}:{flightInstanceId}`\n- Automatic cleanup sau khi tạo reservation thành công\n- Idempotent operations (có thể gọi nhiều lần)\n\n**Stateless Frontend (No Session Storage):**\n- Frontend KHÔNG cần lưu `flightInstanceId` vào session/localStorage\n- Lấy `flightInstanceId` từ `GET /api/v1/booking-state` (get all states)\n- Backend là source of truth cho tất cả state\n- Component state (React/Vue) OK cho temporary UI state, nhưng không cần persistent storage\n\n**Flow (Best Practice):**\n1. User chọn cabin → `POST /booking-state/cabin`\n2. User chọn seat → `POST /booking-state/seat` (cabin phải được chọn trước)\n3. **Optional (Recommended)**: Get all states → `GET /api/v1/booking-state` (lấy flightInstanceId)\n4. **Optional (Recommended)**: Verify state → `GET /booking-state/:flightInstanceId`\n5. User tạo reservation → `POST /reservations` (backend tự động lấy cabin + seat từ Redis)\n6. Backend tự động xóa booking state sau khi tạo reservation thành công\n\n**Optional: Clear State:**\n- `DELETE /booking-state/:flightInstanceId` - Xóa state để bắt đầu lại từ đầu\n\n**Lưu ý:**\n- Tất cả APIs yêu cầu JWT authentication\n- Cabin phải được chọn trước seat\n- Seat phải được chọn trước khi tạo reservation\n- State tự động expire sau 30 phút nếu không sử dụng\n- DELETE endpoint là idempotent (có thể gọi nhiều lần)\n- `GET /api/v1/booking-state` trả về tất cả states, mỗi state có `flightInstanceId`"
 			},
 			{
 				"name": "Reservations",

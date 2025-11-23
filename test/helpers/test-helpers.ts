@@ -370,7 +370,7 @@ export async function saveSeatSelection(
 }
 
 /**
- * Get booking state
+ * Get booking state for a specific flight instance
  */
 export async function getBookingState(
 	app: INestApplication,
@@ -379,6 +379,22 @@ export async function getBookingState(
 ): Promise<any> {
 	const response = await request(app.getHttpServer())
 		.get(`/api/v1/booking-state/${flightInstanceId}`)
+		.set('Authorization', `Bearer ${accessToken}`)
+		.expect(200);
+
+	return response.body;
+}
+
+/**
+ * Get all booking states for the authenticated user
+ * Returns array of all booking states (stateless frontend - no need to store flightInstanceId in session)
+ */
+export async function getAllBookingStates(
+	app: INestApplication,
+	accessToken: string,
+): Promise<{ states: any[] }> {
+	const response = await request(app.getHttpServer())
+		.get('/api/v1/booking-state')
 		.set('Authorization', `Bearer ${accessToken}`)
 		.expect(200);
 
