@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Req, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Body, Param, Req, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import {
 	ApiBadRequestResponse,
 	ApiOkResponse,
@@ -8,6 +8,7 @@ import {
 	ApiBearerAuth,
 	ApiNotFoundResponse,
 	ApiInternalServerErrorResponse,
+	ApiNoContentResponse,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guard/jwt-auth.guard';
 import { Request } from 'express';
@@ -113,7 +114,7 @@ export class BookingStateController {
 	@Get(':flightInstanceId')
 	@ApiOperation({
 		summary: 'Get current booking state',
-		description: 'Get current booking state (cabin and seat selections) from Redis for a specific flight instance.',
+		description: 'Get current booking state (cabin and seat selections) from Redis for a specific flight instance. Recommended to call before creating reservation to verify state.',
 	})
 	@ApiParam({
 		name: 'flightInstanceId',
@@ -125,7 +126,7 @@ export class BookingStateController {
 		type: BookingStateResponseDto,
 	})
 	@ApiNotFoundResponse({
-		description: 'Booking state not found',
+		description: 'Booking state not found (expired or never created)',
 	})
 	async getBookingState(
 		@Req() req: Request & { user: { userId: string; email: string } },
@@ -139,6 +140,39 @@ export class BookingStateController {
 		}
 
 		return state;
+	}
+
+	@Delete(':flightInstanceId')
+	@HttpCode(HttpStatus.NO_CONTENT)
+	@ApiOperation({
+		summary: 'Clear booking state',
+		description:
+			'Clear booking state (cabin and seat selections) from Redis for a specific flight instance. Useful when user wants to start over or cancel the booking process. State is automatically cleared after successful reservation creation.',
+	})
+	@ApiParam({
+		name: 'flightInstanceId',
+		description: 'Flight instance ID (UUID v7)',
+		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+	})
+	@ApiNoContentResponse({
+		description: 'Booking state cleared successfully (or did not exist)',
+	})
+	@ApiNotFoundResponse({
+		description: 'Booking state not found (already cleared or expired)',
+	})
+	async clearBookingState(
+		@Req() req: Request & { user: { userId: string; email: string } },
+		@Param('flightInstanceId', ParseUUIDv7Pipe) flightInstanceId: string,
+	): Promise<void> {
+		const userId = req.user.userId;
+		const deleted = await this.bookingStateService.clearBookingState(userId, flightInstanceId);
+		
+		// Return 204 No Content regardless of whether state existed or not (idempotent)
+		// This follows REST best practice: DELETE is idempotent
+		if (!deleted) {
+			// State didn't exist, but we still return 204 (idempotent behavior)
+			// This is acceptable as DELETE operations should be idempotent
+		}
 	}
 }
 

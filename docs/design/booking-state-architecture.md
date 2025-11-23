@@ -18,9 +18,10 @@ Hệ thống quản lý booking state (cabin và seat selection) được thiế
 │                    API Gateway (Port 3000)                  │
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │         BookingStateController                        │  │
-│  │  - POST /api/v1/booking-state/cabin                   │  │
-│  │  - POST /api/v1/booking-state/seat                   │  │
-│  │  - GET  /api/v1/booking-state/:flightInstanceId      │  │
+│  │  - POST   /api/v1/booking-state/cabin                 │  │
+│  │  - POST   /api/v1/booking-state/seat                 │  │
+│  │  - GET    /api/v1/booking-state/:flightInstanceId    │  │
+│  │  - DELETE /api/v1/booking-state/:flightInstanceId    │  │
 │  └──────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
                             │
@@ -220,7 +221,29 @@ Client → API Gateway → BookingStateController
       → Redis (save)
 ```
 
-### 3. Tạo Reservation
+### 3. Lấy Booking State (Optional - Recommended Best Practice)
+
+```
+Client → API Gateway → BookingStateController
+  → BookingStateService
+    → BookingStateRepository
+      → Redis (get)
+```
+
+**Mục đích:** Verify state trước khi tạo reservation (best practice)
+
+### 4. Xóa Booking State (Optional - Clear State)
+
+```
+Client → API Gateway → BookingStateController
+  → BookingStateService
+    → BookingStateRepository
+      → Redis (delete)
+```
+
+**Mục đích:** Xóa state để bắt đầu lại từ đầu (idempotent)
+
+### 5. Tạo Reservation
 
 ```
 Client → API Gateway → ReservationController
@@ -234,6 +257,8 @@ Client → API Gateway → ReservationController
         → BookingStateRepository.delete()
           → Redis (delete)
 ```
+
+**Lưu ý:** State tự động được clear sau khi tạo reservation thành công
 
 ## Redis Key Strategy
 

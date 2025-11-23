@@ -23,14 +23,19 @@ http://localhost:3000
 
 ### Luồng đặt vé
 1. Tìm kiếm chuyến bay
-2. Chọn loại vé (cabin) → Lưu cabin vào Redis
-3. **Chọn ghế ngồi (BẮT BUỘC)** → Lưu seat vào Redis
-4. Giữ chỗ 15 phút (reservation) - Backend tự động lấy cabin + seat từ Redis, lưu reservation vào Redis
-5. Điền thông tin hành khách
-6. Tạo booking
-7. Thanh toán
+2. Chọn loại vé (cabin) → Lưu cabin vào Redis (`POST /api/v1/booking-state/cabin`)
+3. **Chọn ghế ngồi (BẮT BUỘC)** → Lưu seat vào Redis (`POST /api/v1/booking-state/seat`)
+4. **Verify state (Optional - Recommended)** → Kiểm tra state trước khi tạo reservation (`GET /api/v1/booking-state/:flightInstanceId`)
+5. Giữ chỗ 15 phút (reservation) - Backend tự động lấy cabin + seat từ Redis, lưu reservation vào Redis, tự động clear booking state sau khi thành công
+6. Điền thông tin hành khách
+7. Tạo booking
+8. Thanh toán
 
-**Lưu ý:** Backend tự quản lý state trong Redis. Frontend chỉ cần fetch và gọi API.
+**Lưu ý:** 
+- Backend tự quản lý state trong Redis. Frontend chỉ cần fetch và gọi API.
+- State tự động expire sau 30 phút (TTL)
+- State tự động được clear sau khi tạo reservation thành công
+- Optional: `DELETE /api/v1/booking-state/:flightInstanceId` để xóa state và bắt đầu lại
 
 ---
 
@@ -170,12 +175,62 @@ GET /api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&retu
 **GET** `/api/v1/search/seats`
 
 **Tham số:**
-- `flightInstanceId` (bắt buộc): ID chuyến bay
+- `flightInstanceId` (bắt buộc): ID chuyến bay (UUID v7)
 - `cabinType` (bắt buộc): `economy` hoặc `business`
 
-**Trả về:** Danh sách ghế với thông tin: `flightSeatId`, `seatNumber`, `seatType`, `isAvailable`
+**Trả về:** Bản đồ ghế được group theo cabin class với thông tin chi tiết:
 
-**Lưu ý:** Chọn ghế là **BẮT BUỘC** sau khi chọn cabin. Phải lấy `flightSeatId` để gửi khi tạo reservation.
+```json
+{
+  "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "flightNumber": "VN123",
+  "cabinType": "economy",
+  "seats": [
+    {
+      "id": "economy",
+      "list": [
+        {
+          "flightSeatId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
+          "seatNumber": "1A",
+          "cabinClassCode": "Y",
+          "seatType": "window",
+          "isExitRow": false,
+          "position": "left",
+          "isAvailable": true,
+          "note": "es"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Giải thích các trường:**
+- `flightSeatId`: UUID v7 - **Dùng để lưu vào booking state và tạo reservation**
+- `seatNumber`: Số ghế (ví dụ: `1A`, `10B`, `12F`)
+- `cabinClassCode`: Mã cabin class (`Y` = Economy, `J` = Business)
+- `seatType`: Loại ghế (`window`, `aisle`, `middle`)
+- `isExitRow`: Có phải ghế exit row không
+- `position`: Vị trí (`left` hoặc `right`) - dùng để render UI
+  - Economy: A-B-C = left, D-E-F = right
+  - Business: A-B = left, C-D = right
+- `isAvailable`: Ghế còn trống không (`true` = có thể chọn, `false` = đã được giữ/book)
+- `note`: Mã note cho fare class (`ef` = Economy Flex, `es` = Economy Smart, `em` = Economy Saver Max, `bf` = Business Flex, `bs` = Business Smart)
+
+**Cách hoạt động:**
+1. API query tất cả seats của flight instance từ database
+2. Filter theo cabin type (economy → cabin class `Y`, business → cabin class `J`)
+3. Group seats theo cabin class
+4. Determine position (left/right) dựa vào seat number và cabin type
+5. Map fare class note codes
+6. Trả về seat map với đầy đủ thông tin để frontend render UI
+
+**Lưu ý:**
+- Chọn ghế là **BẮT BUỘC** sau khi chọn cabin
+- Phải lấy `flightSeatId` từ response để lưu vào booking state
+- `isAvailable = false` nghĩa là ghế đã được giữ (reserved) hoặc đã được book
+- Khi tạo reservation với `flightSeatId`, backend tự động mark seat as unavailable
+- Xem thêm: `docs/design/SEAT_MAP_API_EXPLANATION.md` để hiểu chi tiết
 
 ---
 
@@ -226,6 +281,8 @@ GET /api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&retu
 
 **Cần đăng nhập:** Có
 
+**Mục đích:** Verify state trước khi tạo reservation (best practice - recommended)
+
 **Trả về:** 
 ```json
 {
@@ -243,6 +300,28 @@ GET /api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&retu
   "updatedAt": "2025-01-15T10:30:00Z"
 }
 ```
+
+**Lưu ý:** 
+- Recommended: Gọi API này trước khi tạo reservation để verify state đầy đủ
+- State tự động expire sau 30 phút (TTL)
+- State tự động được clear sau khi tạo reservation thành công
+
+---
+
+### Xóa booking state
+**DELETE** `/api/v1/booking-state/:flightInstanceId`
+
+**Cần đăng nhập:** Có
+
+**Mục đích:** Xóa booking state để bắt đầu lại từ đầu (best practice - optional)
+
+**Trả về:** `204 No Content` (idempotent - có thể gọi nhiều lần)
+
+**Lưu ý:**
+- Xóa toàn bộ booking state (cabin + seat) cho flight instance
+- Idempotent: Có thể gọi nhiều lần, không gây lỗi nếu state không tồn tại
+- State cũng tự động được clear sau khi tạo reservation thành công
+- Hữu ích khi user muốn chọn lại cabin hoặc seat
 
 ---
 
@@ -536,9 +615,10 @@ const bookingResponse = await fetch('http://localhost:3000/api/v1/bookings?reser
 4. **Lưu cabin selection** → `POST /api/v1/booking-state/cabin` (Backend lưu vào Redis)
 5. **Xem ghế** → `GET /api/v1/search/seats` → Lấy `flightSeatId` và `seatNumber`
 6. **Lưu seat selection** → `POST /api/v1/booking-state/seat` (Backend lưu vào Redis)
-7. **Giữ chỗ 15 phút** → `POST /api/v1/reservations` (Backend tự động lấy cabin + seat từ Redis, lưu reservation vào Redis với TTL 15 phút)
-8. **Điền thông tin** → Tạo booking → `POST /api/v1/bookings?reservationId=xxx`
-9. **Thanh toán** → `POST /api/v1/payments/bookings/:bookingId/process`
+7. **Verify state (Optional - Recommended)** → `GET /api/v1/booking-state/:flightInstanceId` (Best practice: verify trước khi tạo reservation)
+8. **Giữ chỗ 15 phút** → `POST /api/v1/reservations` (Backend tự động lấy cabin + seat từ Redis, lưu reservation vào Redis với TTL 15 phút, tự động clear booking state sau khi thành công)
+9. **Điền thông tin** → Tạo booking → `POST /api/v1/bookings?reservationId=xxx`
+10. **Thanh toán** → `POST /api/v1/payments/bookings/:bookingId/process`
 
 **Lưu ý:** Backend tự quản lý toàn bộ state trong Redis. Frontend chỉ cần gọi API để lưu và fetch, không cần gửi lại cabin/seat trong request tạo reservation.
 

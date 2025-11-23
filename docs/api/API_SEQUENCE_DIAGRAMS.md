@@ -78,6 +78,20 @@ sequenceDiagram
         API Gateway-->>Client: 200 OK<br/>{success: true, message: "Seat selection saved successfully"}
     end
 
+    Note over Client,Redis: Phase 3.8: Get Booking State (Optional - Recommended Best Practice)
+    Client->>API Gateway: GET /booking-state/:flightInstanceId<br/>Authorization: Bearer <token>
+    API Gateway->>API Gateway: JwtAuthGuard: Validate JWT token<br/>Extract userId from payload
+    API Gateway->>API Gateway: BookingStateService.getBookingState()
+    API Gateway->>Redis: GET booking:state:{userId}:{flightInstanceId}
+    alt Booking state not found
+        Redis-->>API Gateway: null
+        API Gateway-->>Client: 404 Not Found<br/>{message: "No booking state found for flight {flightInstanceId}"}
+    else Booking state found
+        Redis-->>API Gateway: {flightInstanceId, cabin: {...}, seat: {...}, updatedAt}
+        API Gateway-->>Client: 200 OK<br/>{flightInstanceId, cabin, seat, updatedAt}
+        Note right of Client: Frontend displays summary<br/>for user confirmation
+    end
+
     Note over Client,Redis: Phase 4: Create Reservation (Backend Auto-Fetches Cabin + Seat from Redis)
     Client->>API Gateway: POST /reservations<br/>Authorization: Bearer <token><br/>{segments: [{flightInstanceId, segmentType}, ...], numberOfPassengers, currencyCode?}
     API Gateway->>API Gateway: JwtAuthGuard: Validate JWT token<br/>JwtStrategy: Extract userId from payload
@@ -103,20 +117,26 @@ sequenceDiagram
         Database-->>Reservation MS: Reservation saved
         Reservation MS->>Redis: SET reservation:{id}<br/>TTL: 900 seconds<br/>{segments: [...with flightSeatId], totalAmount, status: 'active', ...}
         Redis-->>Reservation MS: OK
-        Reservation MS->>Reservation MS: BookingStateService.clearBookingState()<br/>Clear booking state after successful reservation
+        Reservation MS->>Reservation MS: BookingStateService.clearBookingState()<br/>Clear booking state after successful reservation (automatic cleanup)
         Reservation MS->>Redis: DEL booking:state:{userId}:{flightInstanceId}
         Redis-->>Reservation MS: OK
         Reservation MS-->>API Gateway: {reservationId, reservationCode, segments: [...with flightSeatId & seatNumber], totalAmount, ...}
         API Gateway-->>Client: 201 Created<br/>{reservationId, segments: [...with seat info], ...}
     end
-    Reservation MS->>Reservation MS: Calculate price for each segment<br/>Validate round-trip (if has inbound, must have outbound)
-    Reservation MS->>Reservation MS: Generate reservationId & code
-    Reservation MS->>Database: INSERT INTO Reservations<br/>(status: 'pending', segments_json with flightSeatId, ...)
-    Database-->>Reservation MS: Reservation saved
-    Reservation MS->>Redis: SET reservation:{id}<br/>TTL: 900 seconds<br/>{segments: [...with flightSeatId], totalAmount, status: 'active', ...}
-    Redis-->>Reservation MS: OK
-    Reservation MS-->>API Gateway: {reservationId, reservationCode, segments: [...with flightSeatId & seatNumber], totalAmount, ...}
-    API Gateway-->>Client: 201 Created<br/>{reservationId, segments: [...with seat info], ...}
+
+    Note over Client,Redis: Phase 4.1: Clear Booking State (Optional - Manual Clear)
+    alt User wants to start over (optional)
+        Client->>API Gateway: DELETE /booking-state/:flightInstanceId<br/>Authorization: Bearer <token>
+        API Gateway->>API Gateway: JwtAuthGuard: Validate JWT token<br/>Extract userId from payload
+        API Gateway->>API Gateway: BookingStateService.clearBookingState()
+        API Gateway->>Redis: DEL booking:state:{userId}:{flightInstanceId}
+        alt State exists
+            Redis-->>API Gateway: OK (deleted)
+        else State not found
+            Redis-->>API Gateway: OK (idempotent - no error)
+        end
+        API Gateway-->>Client: 204 No Content<br/>(Idempotent - can be called multiple times)
+    end
 
     Note over Client,Redis: Phase 5: Create Booking (From Reservation - REQUIRED - Hybrid Approach)
     Client->>API Gateway: POST /bookings?reservationId=xxx<br/>Authorization: Bearer <token><br/>{passengers: [...], contactInfo}
