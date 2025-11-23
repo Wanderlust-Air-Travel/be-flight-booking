@@ -322,10 +322,17 @@ export async function getSeatMap(
 export async function saveCabinSelection(
 	app: INestApplication,
 	accessToken: string,
-	flightInstanceId: string,
+	flightInstanceId: string | undefined,
 	cabinType: 'economy' | 'business' = 'economy',
-	fareClassCode: string = 'YS',
+	fareClassCode: string | undefined = 'YS',
 ): Promise<{ success: boolean; message: string }> {
+	if (!flightInstanceId) {
+		throw new Error('flightInstanceId is required but was undefined. Search microservice may not be available.');
+	}
+	if (!fareClassCode) {
+		throw new Error('fareClassCode is required but was undefined. Search microservice may not be available.');
+	}
+
 	const response = await request(app.getHttpServer())
 		.post('/api/v1/booking-state/cabin')
 		.set('Authorization', `Bearer ${accessToken}`)
