@@ -7,11 +7,15 @@ import { RequestIdInterceptor } from '../../src/api-gateway/common/interceptors/
 import { LoggingInterceptor } from '../../src/api-gateway/common/interceptors/logging.interceptor';
 import {
   searchFlightsOneWay,
+  trySearchFlightsOneWay,
   getFareOptions,
   getSeatMap,
   generateFutureDate,
   verifyErrorResponseFormat,
   verifyRequestIdHeaders,
+  createAndLoginUser,
+  saveCabinSelection,
+  saveSeatSelection,
 } from '../helpers/test-helpers';
 
 describe('Search API (e2e)', () => {
@@ -454,6 +458,94 @@ describe('Search API (e2e)', () => {
 
       verifyErrorResponseFormat(response, 400);
     });
+
+    it('should auto-fetch flightInstanceId and cabinType from booking state when authenticated (NEW - Best Practice)', async () => {
+      // Skip if search microservice is not available
+      const searchResult = await trySearchFlightsOneWay(app);
+      if (!searchResult || !searchResult.outbound || searchResult.outbound.length === 0) {
+        console.warn('Skipping test: Search microservice not available');
+        return;
+      }
+
+      const testFlightInstanceId = searchResult.outbound[0].flightInstanceId;
+      if (!testFlightInstanceId) {
+        console.warn('Skipping test: No flight instance ID available');
+        return;
+      }
+
+      // Create authenticated user
+      const user = await createAndLoginUser(app);
+      const accessToken = user.accessToken!;
+
+      // Get fare options to get fareClassCode
+      const fareOptions = await getFareOptions(app, testFlightInstanceId, 'economy');
+      if (!fareOptions || fareOptions.length === 0) {
+        console.warn('Skipping test: No fare options available');
+        return;
+      }
+
+      const fareClassCode = fareOptions[0].fareClassCode;
+
+      // Save cabin selection to booking state
+      await saveCabinSelection(app, accessToken, testFlightInstanceId, 'economy', fareClassCode);
+
+      // Now call getFareOptions WITHOUT flightInstanceId and cabinType
+      // Backend should auto-fetch from booking state
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/search/fare-options')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .query({})
+        .expect(200);
+
+      expect(Array.isArray(response.body)).toBe(true);
+      if (response.body.length > 0) {
+        expect(response.body[0]).toHaveProperty('fareClassCode');
+      }
+    });
+
+    it('should auto-fetch only cabinType when flightInstanceId is provided (NEW)', async () => {
+      // Skip if search microservice is not available
+      const searchResult = await trySearchFlightsOneWay(app);
+      if (!searchResult || !searchResult.outbound || searchResult.outbound.length === 0) {
+        console.warn('Skipping test: Search microservice not available');
+        return;
+      }
+
+      const testFlightInstanceId = searchResult.outbound[0].flightInstanceId;
+      if (!testFlightInstanceId) {
+        console.warn('Skipping test: No flight instance ID available');
+        return;
+      }
+
+      // Create authenticated user
+      const user = await createAndLoginUser(app);
+      const accessToken = user.accessToken!;
+
+      // Get fare options to get fareClassCode
+      const fareOptions = await getFareOptions(app, testFlightInstanceId, 'business');
+      if (!fareOptions || fareOptions.length === 0) {
+        console.warn('Skipping test: No fare options available');
+        return;
+      }
+
+      const fareClassCode = fareOptions[0].fareClassCode;
+
+      // Save cabin selection to booking state (business class)
+      await saveCabinSelection(app, accessToken, testFlightInstanceId, 'business', fareClassCode);
+
+      // Now call getFareOptions with flightInstanceId but WITHOUT cabinType
+      // Backend should auto-fetch cabinType from booking state
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/search/fare-options')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .query({
+          flightInstanceId: testFlightInstanceId,
+          // cabinType is missing - should be auto-fetched
+        })
+        .expect(200);
+
+      expect(Array.isArray(response.body)).toBe(true);
+    });
   });
 
   describe('GET /search/seats', () => {
@@ -589,6 +681,86 @@ describe('Search API (e2e)', () => {
           expect(seat).toHaveProperty('note');
         }
       }
+    });
+
+    it('should auto-fetch cabinType from booking state when authenticated (NEW - Best Practice)', async () => {
+      // Skip if search microservice is not available
+      const searchResult = await trySearchFlightsOneWay(app);
+      if (!searchResult || !searchResult.outbound || searchResult.outbound.length === 0) {
+        console.warn('Skipping test: Search microservice not available');
+        return;
+      }
+
+      const testFlightInstanceId = searchResult.outbound[0].flightInstanceId;
+      if (!testFlightInstanceId) {
+        console.warn('Skipping test: No flight instance ID available');
+        return;
+      }
+
+      // Create authenticated user
+      const user = await createAndLoginUser(app);
+      const accessToken = user.accessToken!;
+
+      // Get fare options to get fareClassCode
+      const fareOptions = await getFareOptions(app, testFlightInstanceId, 'economy');
+      if (!fareOptions || fareOptions.length === 0) {
+        console.warn('Skipping test: No fare options available');
+        return;
+      }
+
+      const fareClassCode = fareOptions[0].fareClassCode;
+
+      // Save cabin selection to booking state
+      await saveCabinSelection(app, accessToken, testFlightInstanceId, 'economy', fareClassCode);
+
+      // Now call getSeatMap WITHOUT cabinType
+      // Backend should auto-fetch cabinType from booking state
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/search/seats')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .query({
+          flightInstanceId: testFlightInstanceId,
+          // cabinType is missing - should be auto-fetched
+        })
+        .expect(200);
+
+      expect(response.body).toHaveProperty('flightInstanceId', testFlightInstanceId);
+      expect(response.body).toHaveProperty('cabinType', 'economy');
+      expect(response.body).toHaveProperty('seats');
+      expect(Array.isArray(response.body.seats)).toBe(true);
+    });
+
+    it('should fail when cabinType is missing and no booking state exists (unhappy case)', async () => {
+      // Skip if search microservice is not available
+      const searchResult = await trySearchFlightsOneWay(app);
+      if (!searchResult || !searchResult.outbound || searchResult.outbound.length === 0) {
+        console.warn('Skipping test: Search microservice not available');
+        return;
+      }
+
+      const testFlightInstanceId = searchResult.outbound[0].flightInstanceId;
+      if (!testFlightInstanceId) {
+        console.warn('Skipping test: No flight instance ID available');
+        return;
+      }
+
+      // Create authenticated user (but don't save cabin selection)
+      const user = await createAndLoginUser(app);
+      const accessToken = user.accessToken!;
+
+      // Call getSeatMap WITHOUT cabinType and WITHOUT booking state
+      // Should fail with 400 Bad Request
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/search/seats')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .query({
+          flightInstanceId: testFlightInstanceId,
+          // cabinType is missing and no booking state exists
+        })
+        .expect(400);
+
+      verifyErrorResponseFormat(response, 400);
+      expect(response.body.message).toMatch(/cabinType|booking state/i);
     });
   });
 });
