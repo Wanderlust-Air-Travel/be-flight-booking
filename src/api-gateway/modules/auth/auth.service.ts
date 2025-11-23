@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, UnauthorizedException, NotFoundException, BadRequestException, Inject, Logger } from "@nestjs/common";
+import { ConflictException, Injectable, UnauthorizedException, NotFoundException, BadRequestException, Inject, Logger, ServiceUnavailableException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { InjectRepository } from "@nestjs/typeorm";
 import { User } from "src/shared/entities/user/user.entity";
@@ -164,6 +164,27 @@ export class AuthService {
 			this.logger.error(`Failed to send OTP email: ${error.message}`);
 			// Delete OTP if email sending fails
 			await this.otpStorageService.deleteOtp('payment', dto.userId);
+			
+			// Handle microservice connection errors - these are infrastructure issues (503)
+			const errorMessage = error?.message || error?.toString() || '';
+			const errorCode = error?.code || '';
+			
+			// Connection refused - microservice is not running
+			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
+				throw new ServiceUnavailableException('Email microservice is not available. Please ensure the service is running.');
+			}
+			
+			// Connection closed - microservice disconnected
+			if (errorMessage.includes('Connection closed')) {
+				throw new ServiceUnavailableException('Email microservice connection was closed. Please ensure the service is running.');
+			}
+			
+			// Timeout errors - microservice not responding
+			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+				throw new ServiceUnavailableException('Email microservice request timeout. The service may be unavailable or overloaded.');
+			}
+			
+			// For other errors, throw BadRequestException
 			throw new BadRequestException('Failed to send OTP email. Please try again.');
 		}
 	}
@@ -238,6 +259,27 @@ export class AuthService {
 			this.logger.error(`Failed to send OTP email: ${error.message}`);
 			// Delete OTP if email sending fails
 			await this.otpStorageService.deleteOtp('password-reset', dto.email);
+			
+			// Handle microservice connection errors - these are infrastructure issues (503)
+			const errorMessage = error?.message || error?.toString() || '';
+			const errorCode = error?.code || '';
+			
+			// Connection refused - microservice is not running
+			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
+				throw new ServiceUnavailableException('Email microservice is not available. Please ensure the service is running.');
+			}
+			
+			// Connection closed - microservice disconnected
+			if (errorMessage.includes('Connection closed')) {
+				throw new ServiceUnavailableException('Email microservice connection was closed. Please ensure the service is running.');
+			}
+			
+			// Timeout errors - microservice not responding
+			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+				throw new ServiceUnavailableException('Email microservice request timeout. The service may be unavailable or overloaded.');
+			}
+			
+			// For other errors, throw BadRequestException
 			throw new BadRequestException('Failed to send OTP email. Please try again.');
 		}
 	}

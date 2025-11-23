@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, Length } from 'class-validator';
+import { IsUUIDv7 } from 'src/shared/validators/is-uuid-v7.validator';
 
 export class VerifyOtpPaymentDto {
 	@ApiProperty({
@@ -8,6 +9,7 @@ export class VerifyOtpPaymentDto {
 	})
 	@IsString()
 	@IsNotEmpty()
+	@IsUUIDv7({ message: 'userId must be a valid UUID v7' })
 	userId: string;
 
 	@ApiProperty({

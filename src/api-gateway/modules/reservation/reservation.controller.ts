@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Req, UseGuards, HttpCode, HttpStatus, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Req, UseGuards, HttpCode, HttpStatus, BadRequestException, InternalServerErrorException, ServiceUnavailableException } from '@nestjs/common';
 import {
 	ApiBadRequestResponse,
 	ApiOkResponse,
@@ -59,16 +59,23 @@ export class ReservationController {
 				throw error;
 			}
 			
-			// Log only unexpected errors (connection issues, timeouts)
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				console.error('Create reservation error: Reservation microservice connection refused');
-				throw new InternalServerErrorException(
-					'Reservation microservice is not running. Please start it with: npm run start:reservation:dev',
-				);
+			// Handle microservice connection errors - these are infrastructure issues (503)
+			const errorMessage = error?.message || error?.toString() || '';
+			const errorCode = error?.code || '';
+			
+			// Connection refused - microservice is not running
+			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
+				throw new ServiceUnavailableException('Reservation microservice is not available. Please ensure the service is running.');
 			}
-			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				console.error('Create reservation error: Reservation microservice request timeout');
-				throw new InternalServerErrorException('Reservation microservice request timeout. Please check if the service is running.');
+			
+			// Connection closed - microservice disconnected
+			if (errorMessage.includes('Connection closed')) {
+				throw new ServiceUnavailableException('Reservation microservice connection was closed. Please ensure the service is running.');
+			}
+			
+			// Timeout errors - microservice not responding
+			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+				throw new ServiceUnavailableException('Reservation microservice request timeout. The service may be unavailable or overloaded.');
 			}
 			
 			// Handle microservice error format: { status: 'error', message: '...' }
@@ -77,7 +84,6 @@ export class ReservationController {
 			}
 			
 			// Generic error - log unexpected errors only
-			const errorMessage = error?.message || error?.toString() || 'Unknown error';
 			throw new BadRequestException(`Create reservation failed: ${errorMessage}`);
 		}
 	}
@@ -149,11 +155,21 @@ export class ReservationController {
 			if (error?.statusCode && error?.message) {
 				throw error;
 			}
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException(
-					'Reservation microservice is not running. Please start it with: npm run start:reservation:dev',
-				);
+			
+			// Handle microservice connection errors - these are infrastructure issues (503)
+			const errorMessage = error?.message || error?.toString() || '';
+			const errorCode = error?.code || '';
+			
+			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
+				throw new ServiceUnavailableException('Reservation microservice is not available. Please ensure the service is running.');
 			}
+			if (errorMessage.includes('Connection closed')) {
+				throw new ServiceUnavailableException('Reservation microservice connection was closed. Please ensure the service is running.');
+			}
+			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+				throw new ServiceUnavailableException('Reservation microservice request timeout. The service may be unavailable or overloaded.');
+			}
+			
 			if (error?.status === 'error' && error?.message) {
 				throw new BadRequestException(`Get reservation by code failed: ${error.message}`);
 			}
@@ -200,11 +216,21 @@ export class ReservationController {
 			if (error?.statusCode && error?.message) {
 				throw error;
 			}
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException(
-					'Reservation microservice is not running. Please start it with: npm run start:reservation:dev',
-				);
+			
+			// Handle microservice connection errors - these are infrastructure issues (503)
+			const errorMessage = error?.message || error?.toString() || '';
+			const errorCode = error?.code || '';
+			
+			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
+				throw new ServiceUnavailableException('Reservation microservice is not available. Please ensure the service is running.');
 			}
+			if (errorMessage.includes('Connection closed')) {
+				throw new ServiceUnavailableException('Reservation microservice connection was closed. Please ensure the service is running.');
+			}
+			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+				throw new ServiceUnavailableException('Reservation microservice request timeout. The service may be unavailable or overloaded.');
+			}
+			
 			if (error?.status === 'error' && error?.message) {
 				throw new BadRequestException(`Cancel reservation failed: ${error.message}`);
 			}
@@ -237,9 +263,21 @@ export class ReservationController {
 			if (error?.statusCode && error?.message) {
 				throw error;
 			}
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException('Reservation microservice is not running. Please start it with: npm run start:reservation:dev');
+			
+			// Handle microservice connection errors - these are infrastructure issues (503)
+			const errorMessage = error?.message || error?.toString() || '';
+			const errorCode = error?.code || '';
+			
+			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
+				throw new ServiceUnavailableException('Reservation microservice is not available. Please ensure the service is running.');
 			}
+			if (errorMessage.includes('Connection closed')) {
+				throw new ServiceUnavailableException('Reservation microservice connection was closed. Please ensure the service is running.');
+			}
+			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+				throw new ServiceUnavailableException('Reservation microservice request timeout. The service may be unavailable or overloaded.');
+			}
+			
 			if (error?.status === 'error' && error?.message) {
 				throw new BadRequestException(`List reservations failed: ${error.message}`);
 			}
@@ -285,9 +323,21 @@ export class ReservationController {
 			if (error?.statusCode && error?.message) {
 				throw error;
 			}
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException('Reservation microservice is not running. Please start it with: npm run start:reservation:dev');
+			
+			// Handle microservice connection errors - these are infrastructure issues (503)
+			const errorMessage = error?.message || error?.toString() || '';
+			const errorCode = error?.code || '';
+			
+			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
+				throw new ServiceUnavailableException('Reservation microservice is not available. Please ensure the service is running.');
 			}
+			if (errorMessage.includes('Connection closed')) {
+				throw new ServiceUnavailableException('Reservation microservice connection was closed. Please ensure the service is running.');
+			}
+			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+				throw new ServiceUnavailableException('Reservation microservice request timeout. The service may be unavailable or overloaded.');
+			}
+			
 			if (error?.status === 'error' && error?.message) {
 				throw new BadRequestException(`Extend reservation failed: ${error.message}`);
 			}
