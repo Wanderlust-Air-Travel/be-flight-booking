@@ -140,12 +140,13 @@
 								{
 									"key": "departDate",
 									"value": "{{departDate}}",
-									"description": "Departure date (YYYY-MM-DD)"
+									"description": "Departure date (YYYY-MM-DD). Phải nằm trong khoảng 60 ngày từ hôm nay (sau khi seed)"
 								},
 								{
 									"key": "returnDate",
 									"value": "{{returnDate}}",
-									"description": "Return date (YYYY-MM-DD). Phải sau departDate và trong khoảng 60 ngày. Khi có returnDate, tripType tự động set thành 'round_trip'"
+									"description": "Return date (YYYY-MM-DD). Phải sau departDate và trong khoảng 60 ngày. **Lưu ý**: Nếu không set variable {{returnDate}} hoặc để trống, API sẽ tự động hiểu là one_way. Chỉ khi có returnDate thì mới là round_trip.",
+									"disabled": false
 								},
 								{
 									"key": "adults",
@@ -159,7 +160,7 @@
 								}
 							]
 						},
-						"description": "Search for round-trip flights from Hanoi to Ho Chi Minh City. tripType is automatically set to 'round_trip' when returnDate is provided."
+						"description": "Search for round-trip flights from Hanoi to Ho Chi Minh City. **Auto tripType logic**:\n- Nếu **không truyền** `returnDate` (hoặc để trống): API tự động set `tripType = one_way`\n- Nếu **có truyền** `returnDate`: API tự động set `tripType = round_trip`\n\n**Lưu ý quan trọng:**\n- Variable `{{returnDate}}` phải được set trong Postman environment/collection variables\n- Nếu variable không được set hoặc để trống, API sẽ tự động hiểu là one-way search\n- Để test round-trip, phải set `returnDate` variable với giá trị hợp lệ (YYYY-MM-DD, sau departDate)\n- Nếu muốn test one-way, có thể uncheck `returnDate` parameter hoặc không set variable"
 					},
 					"response": []
 				},

@@ -107,7 +107,14 @@ export class SearchController {
 	})
 	async searchFlights(@Query() query: SearchFlightsDto): Promise<SearchFlightsResponseDto> {
 		try {
+			// Normalize returnDate: treat empty string or whitespace-only as undefined
+			if (!query.returnDate || query.returnDate.trim() === '') {
+				query.returnDate = undefined;
+			}
+			
 			// Auto-set tripType based on returnDate if not provided
+			// Logic: Nếu không truyền returnDate (hoặc để trống) → one_way
+			//        Nếu có truyền returnDate → round_trip
 			let tripType = query.tripType;
 			if (!tripType) {
 				tripType = query.returnDate ? TripType.ROUND_TRIP : TripType.ONE_WAY;

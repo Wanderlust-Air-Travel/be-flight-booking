@@ -22,10 +22,11 @@ export class SearchFlightsDto {
 	departDate!: string;
 
 	@ApiPropertyOptional({ 
-		description: 'Return date for round trip in ISO format (YYYY-MM-DD). If provided, tripType will default to round_trip', 
+		description: 'Return date for round trip in ISO format (YYYY-MM-DD). If provided, tripType will default to round_trip. If not provided or empty, tripType will default to one_way', 
 		example: '2025-11-24' 
 	})
 	@IsOptional()
+	@ValidateIf((o) => o.returnDate !== '' && o.returnDate !== null && o.returnDate !== undefined)
 	@IsDateString()
 	returnDate?: string;
 

@@ -137,8 +137,11 @@ Khi `access_token` hết hạn, dùng `refresh_token` để lấy token mới.
 - `destination` (bắt buộc): Mã sân bay đến (3 ký tự, ví dụ: `SGN`)
 - `departDate` (bắt buộc): Ngày đi (`YYYY-MM-DD`)
 - `returnDate` (tùy chọn): Ngày về (`YYYY-MM-DD`)
+  - **Logic tự động**: Nếu **không truyền** `returnDate` (hoặc để trống) → API tự động set `tripType = one_way`
+  - Nếu **có truyền** `returnDate` → API tự động set `tripType = round_trip`
 - `tripType` (tùy chọn): `one_way` hoặc `round_trip`
-  - Nếu không truyền: Có `returnDate` → `round_trip`, không có → `one_way`
+  - Nếu không truyền: Tự động dựa vào `returnDate` (có `returnDate` → `round_trip`, không có → `one_way`)
+  - Nếu truyền: Sẽ override logic tự động
 - `adults` (bắt buộc): Số người lớn (≥1)
 - `minors` (bắt buộc): Số trẻ em (≥0)
 
