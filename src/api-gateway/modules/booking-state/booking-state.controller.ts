@@ -21,6 +21,7 @@ import {
 	CabinNotSelectedException,
 	BookingStateStorageException,
 } from 'src/shared/exceptions/booking-state.exceptions';
+import { ParseUUIDv7Pipe } from 'src/shared/pipes/parse-uuid-v7.pipe';
 
 @ApiTags('booking-state')
 @Controller('booking-state')
@@ -128,7 +129,7 @@ export class BookingStateController {
 	})
 	async getBookingState(
 		@Req() req: Request & { user: { userId: string; email: string } },
-		@Param('flightInstanceId') flightInstanceId: string,
+		@Param('flightInstanceId', ParseUUIDv7Pipe) flightInstanceId: string,
 	): Promise<BookingStateResponseDto> {
 		const userId = req.user.userId;
 		const state = await this.bookingStateService.getBookingState(userId, flightInstanceId);

@@ -1,4 +1,4 @@
-import { Controller, Get, Query, BadRequestException, InternalServerErrorException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { Controller, Get, Query, BadRequestException, InternalServerErrorException, NotFoundException, ServiceUnavailableException, Logger } from '@nestjs/common';
 import { ApiBadRequestResponse, ApiOkResponse, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ClientProxy } from '@nestjs/microservices';
 import { Inject } from '@nestjs/common';
@@ -16,6 +16,8 @@ import { SEARCH_MS } from 'src/microservices/search/search.messages';
 @ApiTags('search')
 @Controller('search')
 export class SearchController {
+	private readonly logger = new Logger(SearchController.name);
+
 	constructor(@Inject('SEARCH_CLIENT') private readonly client: ClientProxy) {}
 
 	@Get('flights')
@@ -146,7 +148,7 @@ export class SearchController {
 			};
 			return await firstValueFrom(this.client.send<SearchFlightsResponseDto>('search.flights', payload));
 		} catch (error: any) {
-			console.error('Search flights error:', error);
+			this.logger.error('Search flights error:', error);
 			// Re-throw NestJS exceptions as-is (including NotFoundException)
 			if (error?.statusCode && error?.message) {
 				// Map NotFoundException from microservice to 404
@@ -252,7 +254,7 @@ export class SearchController {
 			}
 			
 			const trimmedFlightInstanceId = query.flightInstanceId.trim();
-			console.log('[DEBUG] Get fare options request:', {
+			this.logger.debug('Get fare options request:', {
 				original: query.flightInstanceId,
 				trimmed: trimmedFlightInstanceId,
 				length: trimmedFlightInstanceId.length,
@@ -269,7 +271,7 @@ export class SearchController {
 			// FE can access: result.fareOptions or result.list (if wrapped)
 			return result.fareOptions;
 		} catch (error: any) {
-			console.error('Get fare options error:', error);
+			this.logger.error('Get fare options error:', error);
 			// Re-throw NestJS exceptions as-is (including NotFoundException)
 			if (error?.statusCode && error?.message) {
 				// Map NotFoundException from microservice to 404
@@ -384,6 +386,7 @@ export class SearchController {
 			
 			return result;
 		} catch (error: any) {
+			this.logger.error('Get seat map error:', error);
 			// Re-throw NestJS exceptions as-is (including NotFoundException, BadRequestException)
 			if (error?.statusCode && error?.message) {
 				if (error.statusCode === 404) {

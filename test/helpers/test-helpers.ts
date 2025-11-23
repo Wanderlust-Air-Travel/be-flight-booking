@@ -182,6 +182,19 @@ export async function searchFlightsOneWay(
 
   if (response.status !== 200) {
     const errorMessage = response.body?.message || `Search failed with status ${response.status}`;
+    
+    // Check for connection errors and provide helpful message
+    if (
+      errorMessage.includes('Connection closed') ||
+      errorMessage.includes('ECONNREFUSED') ||
+      errorMessage.includes('Search microservice')
+    ) {
+      throw new Error(
+        'Search microservice connection was closed. Please ensure the service is running. ' +
+        'Start microservices with: npm run start:search (or docker-compose up)'
+      );
+    }
+    
     const error = new Error(errorMessage);
     (error as any).status = response.status;
     (error as any).body = response.body;
@@ -239,8 +252,28 @@ export async function searchFlightsRoundTrip(
       tripType: 'round_trip',
       adults: 1,
       minors: 0,
-    })
-    .expect(200);
+    });
+
+  if (response.status !== 200) {
+    const errorMessage = response.body?.message || `Search failed with status ${response.status}`;
+    
+    // Check for connection errors and provide helpful message
+    if (
+      errorMessage.includes('Connection closed') ||
+      errorMessage.includes('ECONNREFUSED') ||
+      errorMessage.includes('Search microservice')
+    ) {
+      throw new Error(
+        'Search microservice connection was closed. Please ensure the service is running. ' +
+        'Start microservices with: npm run start:search (or docker-compose up)'
+      );
+    }
+    
+    const error = new Error(errorMessage);
+    (error as any).status = response.status;
+    (error as any).body = response.body;
+    throw error;
+  }
 
   return response.body;
 }

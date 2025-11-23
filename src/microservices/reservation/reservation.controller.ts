@@ -20,7 +20,7 @@ export class ReservationMsController {
 	}): Promise<ReservationResponseDto> {
 		try {
 			const segmentsInfo = payload.dto.segments
-				.map((seg) => `${seg.flightInstanceId} (${seg.fareClassCode}, ${seg.segmentType})`)
+				.map((seg) => `${seg.flightInstanceId} (${seg.segmentType})`)
 				.join(', ');
 			this.logger.log(
 				`Create reservation: ${payload.dto.segments.length} segment(s) - ${segmentsInfo}, passengers: ${payload.dto.numberOfPassengers}`,
