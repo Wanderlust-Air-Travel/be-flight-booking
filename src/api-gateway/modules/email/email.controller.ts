@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, UseGuards, HttpCode, HttpStatus, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, UseGuards, HttpCode, HttpStatus, BadRequestException, HttpException, ServiceUnavailableException } from '@nestjs/common';
 import {
 	ApiBadRequestResponse,
 	ApiOkResponse,
@@ -49,10 +49,28 @@ export class EmailController {
 			
 			return await firstValueFrom(this.client.send<EmailResponseDto>(EMAIL_MS.PATTERN.SEND_EMAIL, dto));
 		} catch (error: any) {
+			// Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
+			if (error instanceof HttpException) {
+				throw error;
+			}
+			
+			// Also check for statusCode property for compatibility
 			if (error?.statusCode && error?.message) {
 				throw error;
 			}
-			throw error;
+			
+			// Handle microservice connection errors - these are infrastructure issues (503)
+			const errorMessage = error?.message || error?.toString() || '';
+			const errorCode = error?.code || '';
+			
+			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED') ||
+			    errorMessage.includes('Connection closed') || errorCode === 'ETIMEDOUT' ||
+			    errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+				throw new ServiceUnavailableException('Email microservice is not available. Please ensure the service is running.');
+			}
+			
+			// Generic error fallback
+			throw new BadRequestException(`Failed to send email: ${errorMessage || 'Unknown error'}`);
 		}
 	}
 
@@ -93,10 +111,28 @@ export class EmailController {
 			
 			return result;
 		} catch (error: any) {
+			// Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
+			if (error instanceof HttpException) {
+				throw error;
+			}
+			
+			// Also check for statusCode property for compatibility
 			if (error?.statusCode && error?.message) {
 				throw error;
 			}
-			throw error;
+			
+			// Handle microservice connection errors - these are infrastructure issues (503)
+			const errorMessage = error?.message || error?.toString() || '';
+			const errorCode = error?.code || '';
+			
+			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED') ||
+			    errorMessage.includes('Connection closed') || errorCode === 'ETIMEDOUT' ||
+			    errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+				throw new ServiceUnavailableException('Email microservice is not available. Please ensure the service is running.');
+			}
+			
+			// Generic error fallback
+			throw new BadRequestException(`Failed to get email status: ${errorMessage || 'Unknown error'}`);
 		}
 	}
 
@@ -141,6 +177,21 @@ export class EmailController {
 		try {
 			return await firstValueFrom(this.client.send(EMAIL_MS.PATTERN.HEALTH_CHECK, {}));
 		} catch (error: any) {
+			// Re-throw HttpException instances
+			if (error instanceof HttpException) {
+				throw error;
+			}
+			
+			// Handle microservice connection errors
+			const errorMessage = error?.message || error?.toString() || '';
+			const errorCode = error?.code || '';
+			
+			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED') ||
+			    errorMessage.includes('Connection closed') || errorCode === 'ETIMEDOUT' ||
+			    errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+				throw new ServiceUnavailableException('Email microservice is not available. Please ensure the service is running.');
+			}
+			
 			throw error;
 		}
 	}

@@ -1,4 +1,4 @@
-import { Controller, Get, Query, BadRequestException, InternalServerErrorException, NotFoundException, ServiceUnavailableException, Logger, Req, Optional } from '@nestjs/common';
+import { Controller, Get, Query, BadRequestException, InternalServerErrorException, NotFoundException, ServiceUnavailableException, Logger, Req, Optional, HttpException } from '@nestjs/common';
 import { ApiBadRequestResponse, ApiOkResponse, ApiOperation, ApiQuery, ApiResponse, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { ClientProxy } from '@nestjs/microservices';
 import { Inject } from '@nestjs/common';
@@ -160,8 +160,12 @@ export class SearchController {
 			};
 			return await firstValueFrom(this.client.send<SearchFlightsResponseDto>('search.flights', payload));
 		} catch (error: any) {
-			this.logger.error('Search flights error:', error);
-			// Re-throw NestJS exceptions as-is (including NotFoundException)
+			// Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
+			if (error instanceof HttpException) {
+				throw error;
+			}
+			
+			// Also check for statusCode property for compatibility
 			if (error?.statusCode && error?.message) {
 				// Map NotFoundException from microservice to 404
 				if (error?.statusCode === 404) {
