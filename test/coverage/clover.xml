@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<coverage generated="1763910228214" clover="3.2.0">
-  <project timestamp="1763910228214" name="All files">
+<coverage generated="1763910992184" clover="3.2.0">
+  <project timestamp="1763910992185" name="All files">
     <metrics statements="156" coveredstatements="67" conditionals="150" coveredconditionals="53" methods="28" coveredmethods="13" elements="334" coveredelements="133" complexity="0" loc="156" ncloc="156" packages="1" files="1" classes="1"/>
     <file name="test-helpers.ts" path="C:\Users\ACER\flight-booking\be-flight-booking\test\helpers\test-helpers.ts">
       <metrics statements="156" coveredstatements="67" conditionals="150" coveredconditionals="53" methods="28" coveredmethods="13"/>
@@ -148,14 +148,14 @@
       <line num="638" count="7" type="stmt"/>
       <line num="639" count="0" type="stmt"/>
       <line num="646" count="7" type="stmt"/>
-      <line num="647" count="67" type="stmt"/>
-      <line num="648" count="67" type="stmt"/>
-      <line num="649" count="67" type="stmt"/>
-      <line num="650" count="67" type="stmt"/>
-      <line num="651" count="67" type="stmt"/>
-      <line num="652" count="67" type="stmt"/>
-      <line num="655" count="67" type="stmt"/>
-      <line num="658" count="67" type="stmt"/>
+      <line num="647" count="69" type="stmt"/>
+      <line num="648" count="69" type="stmt"/>
+      <line num="649" count="69" type="stmt"/>
+      <line num="650" count="69" type="stmt"/>
+      <line num="651" count="69" type="stmt"/>
+      <line num="652" count="69" type="stmt"/>
+      <line num="655" count="69" type="stmt"/>
+      <line num="658" count="69" type="stmt"/>
       <line num="664" count="7" type="stmt"/>
       <line num="665" count="4" type="stmt"/>
       <line num="666" count="4" type="stmt"/>
