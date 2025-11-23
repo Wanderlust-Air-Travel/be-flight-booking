@@ -67,8 +67,6 @@ export class PaymentController {
 				}),
 			);
 		} catch (error: any) {
-			console.error('Create payment error:', error);
-
 			// Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
 			if (error instanceof HttpException) {
 				throw error;
@@ -174,8 +172,6 @@ export class PaymentController {
 				}),
 			);
 		} catch (error: any) {
-			console.error('Process payment error:', error);
-
 			// Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
 			if (error instanceof HttpException) {
 				throw error;
@@ -281,8 +277,6 @@ export class PaymentController {
 				}),
 			);
 		} catch (error: any) {
-			console.error('Get payment error:', error);
-
 			// Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
 			if (error instanceof HttpException) {
 				throw error;
@@ -383,8 +377,6 @@ export class PaymentController {
 				}),
 			);
 		} catch (error: any) {
-			console.error('Get payments by booking error:', error);
-
 			// Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
 			if (error instanceof HttpException) {
 				throw error;
@@ -490,8 +482,6 @@ export class PaymentController {
 				}),
 			);
 		} catch (error: any) {
-			console.error('Update payment status error:', error);
-
 			// Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
 			if (error instanceof HttpException) {
 				throw error;
@@ -609,8 +599,6 @@ export class PaymentController {
 				message: 'Webhook processed successfully',
 			};
 		} catch (error: any) {
-			console.error('Webhook processing error:', error);
-
 			// Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
 			// Check both statusCode property and instanceof HttpException
 			if (error instanceof HttpException) {
