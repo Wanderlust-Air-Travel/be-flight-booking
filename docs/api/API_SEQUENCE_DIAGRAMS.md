@@ -564,7 +564,105 @@ sequenceDiagram
 
 ---
 
-## 5. Error Handling Flow
+## 5. OTP Payment Flow
+
+Sequence diagram mô tả flow gửi và xác thực OTP cho thanh toán:
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API Gateway
+    participant Auth Service
+    participant Database
+    participant Redis
+    participant Email MS
+
+    Note over Client,Email MS: OTP Payment Flow
+
+    rect rgb(240, 248, 255)
+        Note over Client,Email MS: Send OTP for Payment
+        Client->>API Gateway: POST /auth/otp/payment/send<br/>{userId: "019a8f4a-..."}
+        API Gateway->>API Gateway: ValidationPipe validation<br/>@IsUUIDv7() validator
+        alt Invalid UUID v7 format
+            API Gateway-->>Client: 400 Bad Request<br/>{message: "userId must be a valid UUID v7"}
+        else Valid UUID v7
+            API Gateway->>Auth Service: sendOtpPayment(dto)
+            Auth Service->>Database: Query Users<br/>WHERE user_id = :userId
+            alt User not found
+                Database-->>Auth Service: null
+                Auth Service-->>API Gateway: 404 Not Found<br/>{message: "User {userId} not found"}
+                API Gateway-->>Client: 404 Not Found
+            else User found
+                Database-->>Auth Service: User data
+                Auth Service->>Auth Service: Generate 6-digit OTP
+                Auth Service->>Redis: SET otp:payment:{userId}<br/>TTL: 900 seconds (15 min)<br/>Value: {otp, expiresAt}
+                Redis-->>Auth Service: OK
+                Auth Service->>Email MS: SEND_EMAIL message (TCP)<br/>{to: user.email, template: 'otp_payment', templateData: {otp, expiresIn}}
+                alt Email MS Connection Error
+                    Email MS-->>Auth Service: ECONNREFUSED / Connection closed / ETIMEDOUT
+                    Auth Service->>Auth Service: Catch error<br/>Detect connection error
+                    Auth Service->>Redis: DELETE otp:payment:{userId}
+                    Redis-->>Auth Service: OK
+                    Auth Service->>Auth Service: Throw ServiceUnavailableException
+                    Auth Service-->>API Gateway: 503 Service Unavailable<br/>{message: "Email microservice connection was closed. Please ensure the service is running."}
+                    API Gateway-->>Client: 503 Service Unavailable
+                else Email MS Success
+                    Email MS->>Email MS: Queue email (non-blocking)
+                    Email MS-->>Auth Service: {emailId, status: 'queued'}
+                    Auth Service-->>API Gateway: {success: true, message: "OTP sent successfully", expiresIn: 900}
+                    API Gateway-->>Client: 200 OK<br/>{success: true, message: "OTP sent successfully", expiresIn: 900}
+                end
+            end
+        end
+    end
+
+    rect rgb(255, 248, 240)
+        Note over Client,Email MS: Verify OTP for Payment
+        Client->>API Gateway: POST /auth/otp/payment/verify<br/>{userId: "019a8f4a-...", otp: "123456"}
+        API Gateway->>API Gateway: ValidationPipe validation<br/>@IsUUIDv7() validator for userId<br/>@Length(6, 6) validator for otp
+        alt Validation Error
+            API Gateway-->>Client: 400 Bad Request<br/>{message: ["userId must be a valid UUID v7", "OTP must be exactly 6 digits"]}
+        else Validation Passed
+            API Gateway->>Auth Service: verifyOtpPayment(dto)
+            Auth Service->>Database: Query Users<br/>WHERE user_id = :userId
+            alt User not found
+                Database-->>Auth Service: null
+                Auth Service-->>API Gateway: 404 Not Found<br/>{message: "User {userId} not found"}
+                API Gateway-->>Client: 404 Not Found
+            else User found
+                Database-->>Auth Service: User data
+                Auth Service->>Redis: GET otp:payment:{userId}
+                alt OTP not found or expired
+                    Redis-->>Auth Service: null
+                    Auth Service-->>API Gateway: 401 Unauthorized<br/>{message: "Invalid or expired OTP"}
+                    API Gateway-->>Client: 401 Unauthorized
+                else OTP found
+                    Redis-->>Auth Service: {otp: "123456", expiresAt: "..."}
+                    Auth Service->>Auth Service: Compare OTP<br/>(otp === storedOtp)
+                    alt OTP mismatch
+                        Auth Service-->>API Gateway: 401 Unauthorized<br/>{message: "Invalid or expired OTP"}
+                        API Gateway-->>Client: 401 Unauthorized
+                    else OTP match
+                        Auth Service->>Redis: DELETE otp:payment:{userId}
+                        Redis-->>Auth Service: OK
+                        Auth Service-->>API Gateway: {success: true, message: "OTP verified successfully"}
+                        API Gateway-->>Client: 200 OK<br/>{success: true, message: "OTP verified successfully"}
+                    end
+                end
+            end
+        end
+    end
+```
+
+**Lưu ý:**
+- **UUID v7 Validation**: `userId` phải được validate là UUID v7 hợp lệ trước khi query database (tránh SQL Server "Invalid GUID" errors)
+- **Email Service Error Handling**: Connection errors (ECONNREFUSED, Connection closed, ETIMEDOUT) được xử lý như 503 Service Unavailable, không phải 400 Bad Request
+- **OTP Storage**: OTP được lưu trong Redis với TTL 15 phút, tự động expire
+- **Security**: OTP được xóa ngay sau khi verify thành công hoặc khi email sending fails
+
+---
+
+## 6. Error Handling Flow
 
 Sequence diagram mô tả cách hệ thống xử lý errors:
 
@@ -621,7 +719,7 @@ sequenceDiagram
 
 ---
 
-## 6. Data Flow Through System
+## 7. Data Flow Through System
 
 Sequence diagram mô tả luồng dữ liệu qua các layers của hệ thống:
 

@@ -83,19 +83,42 @@ Khi `access_token` hết hạn, dùng `refresh_token` để lấy token mới.
 ### Gửi OTP thanh toán
 **POST** `/api/v1/auth/otp/payment/send`
 
+**Cần đăng nhập:** Không (nhưng `userId` phải hợp lệ)
+
 ```json
 {
   "userId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71"
 }
 ```
 
-- OTP được gửi đến email
-- Hết hạn sau 15 phút
+**Validation:**
+- `userId`: Bắt buộc, phải là UUID v7 hợp lệ (format: `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx`)
+
+**Trả về:**
+```json
+{
+  "success": true,
+  "message": "OTP sent successfully",
+  "expiresIn": 900
+}
+```
+
+**Lưu ý:**
+- OTP được gửi đến email của user
+- Hết hạn sau 15 phút (900 giây)
+- OTP được lưu trong Redis với TTL 15 phút
+
+**Error Responses:**
+- **400 Bad Request**: `userId` không phải UUID v7 hợp lệ hoặc thiếu tham số
+- **404 Not Found**: User không tồn tại
+- **503 Service Unavailable**: Email microservice không khả dụng (connection closed/refused/timeout)
 
 ---
 
 ### Xác thực OTP thanh toán
 **POST** `/api/v1/auth/otp/payment/verify`
+
+**Cần đăng nhập:** Không (nhưng `userId` phải hợp lệ)
 
 ```json
 {
@@ -103,6 +126,23 @@ Khi `access_token` hết hạn, dùng `refresh_token` để lấy token mới.
   "otp": "123456"
 }
 ```
+
+**Validation:**
+- `userId`: Bắt buộc, phải là UUID v7 hợp lệ (format: `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx`)
+- `otp`: Bắt buộc, phải là chuỗi 6 ký tự
+
+**Trả về:**
+```json
+{
+  "success": true,
+  "message": "OTP verified successfully"
+}
+```
+
+**Error Responses:**
+- **400 Bad Request**: `userId` không phải UUID v7 hợp lệ, `otp` không đúng format, hoặc thiếu tham số
+- **401 Unauthorized**: OTP không hợp lệ hoặc đã hết hạn
+- **404 Not Found**: User không tồn tại
 
 ---
 
@@ -595,13 +635,26 @@ Tạo payment và xử lý thanh toán ngay. Có thể trả về `paymentUrl` �
 
 - **200 OK**: Thành công
 - **201 Created**: Tạo mới thành công
-- **400 Bad Request**: Dữ liệu không hợp lệ hoặc thiếu tham số
-- **401 Unauthorized**: Chưa đăng nhập hoặc token không hợp lệ
-- **404 Not Found**: Không tìm thấy (chuyến bay, booking, payment...)
-- **503 Service Unavailable**: Dịch vụ tạm thời không khả dụng
+- **400 Bad Request**: Dữ liệu không hợp lệ hoặc thiếu tham số (business logic errors)
+- **401 Unauthorized**: Chưa đăng nhập hoặc token không hợp lệ, hoặc OTP không hợp lệ/hết hạn
+- **404 Not Found**: Không tìm thấy (chuyến bay, booking, payment, user...)
+- **503 Service Unavailable**: Dịch vụ tạm thời không khả dụng (infrastructure errors)
+
+### Phân loại lỗi (Best Practice)
+
+**Infrastructure Errors (503 Service Unavailable):**
+- Microservice không chạy (Connection refused, Connection closed)
+- Timeout errors (ETIMEDOUT)
+- Network errors giữa API Gateway và Microservices
+
+**Business Logic Errors (400 Bad Request / 404 Not Found):**
+- Validation errors (missing required fields, invalid format)
+- Business rule violations (missing cabin/seat selection, not enough seats)
+- Resource not found (404)
 
 ### Ví dụ lỗi
 
+**400 Bad Request (Business Logic Error):**
 ```json
 {
   "statusCode": 400,
@@ -609,6 +662,46 @@ Tạo payment và xử lý thanh toán ngay. Có thể trả về `paymentUrl` �
   "error": "Bad Request"
 }
 ```
+
+**503 Service Unavailable (Infrastructure Error):**
+```json
+{
+  "statusCode": 503,
+  "timestamp": "2025-11-23T14:13:56.784Z",
+  "path": "/api/v1/reservations",
+  "method": "POST",
+  "requestId": "019ab110-73a2-71da-b086-982c9d6eafcf",
+  "message": "Reservation microservice connection was closed. Please ensure the service is running.",
+  "error": "Service Unavailable"
+}
+```
+
+**400 Bad Request (Missing Cabin/Seat Selection):**
+```json
+{
+  "statusCode": 400,
+  "message": "Cannot create reservation: Cabin not selected for flight 019a8f4a-bb0e-7402-a0c4-27647b89dc71. Please select cabin first. Please select cabin and seat first using /api/v1/booking-state endpoints.",
+  "error": "Bad Request"
+}
+```
+
+### Error Handling cho Reservation API
+
+**503 Service Unavailable:**
+- Xảy ra khi Reservation Microservice không chạy hoặc connection bị đóng
+- **Troubleshooting**: Kiểm tra Reservation Microservice có đang chạy không (`npm run start:reservation:dev`)
+- **Error messages:**
+  - "Reservation microservice is not available. Please ensure the service is running."
+  - "Reservation microservice connection was closed. Please ensure the service is running."
+  - "Reservation microservice request timeout. The service may be unavailable or overloaded."
+
+**400 Bad Request:**
+- Validation errors: Missing required fields, invalid UUID format
+- Business logic errors: Missing cabin/seat selection, not enough seats, invalid flight instance
+- **Error messages:**
+  - "Cannot create reservation: Cabin not selected for flight {flightInstanceId}. Please select cabin first."
+  - "Cannot create reservation: Seat not selected for flight {flightInstanceId}. Please select seat after cabin selection."
+  - "Flight instance {flightInstanceId} not found"
 
 ---
 

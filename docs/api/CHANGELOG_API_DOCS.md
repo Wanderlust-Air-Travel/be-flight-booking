@@ -1,6 +1,49 @@
 # Changelog - API Documentation Updates
 
-## Ngày cập nhật: 2025-11-22 (Latest - Error Handling Improvements)
+## Ngày cập nhật: 2025-11-23 (Latest - OTP Payment Validation & Error Handling)
+
+### OTP Payment API - UUID v7 Validation & Email Service Error Handling
+
+**Issue:**
+- Invalid `userId` values (e.g., "invalid-user-id") gây ra SQL Server errors: "Validation failed for parameter '0'. Invalid GUID"
+- Email microservice connection failures trả về `400 Bad Request` thay vì `503 Service Unavailable`
+- Không có validation cho `userId` trong OTP payment DTOs
+
+**Fix:**
+- **SendOtpPaymentDto & VerifyOtpPaymentDto**: Thêm `@IsUUIDv7()` validator cho `userId`
+  - Validate UUID v7 format trước khi query database
+  - Tránh SQL Server "Invalid GUID" errors
+  - Trả về `400 Bad Request` với message rõ ràng nếu UUID không hợp lệ
+
+- **AuthService.sendOtpPayment()**: Cập nhật error handling cho email microservice
+  - Connection closed → `503 Service Unavailable`
+  - ECONNREFUSED → `503 Service Unavailable`
+  - ETIMEDOUT → `503 Service Unavailable`
+  - Other errors → `400 Bad Request`
+
+- **AuthService.sendOtpPasswordReset()**: Cập nhật error handling cho email microservice
+  - Connection closed → `503 Service Unavailable`
+  - ECONNREFUSED → `503 Service Unavailable`
+  - ETIMEDOUT → `503 Service Unavailable`
+  - Other errors → `400 Bad Request`
+
+**Files Changed:**
+- `src/api-gateway/modules/auth/dto/send-otp-payment.dto.ts`
+- `src/api-gateway/modules/auth/dto/verify-otp-payment.dto.ts`
+- `src/api-gateway/modules/auth/auth.service.ts`
+
+**Documentation Updated:**
+- `docs/api/API_DOCS.md`: Thêm validation details và error responses cho OTP payment APIs
+- `docs/api/API_SEQUENCE_DIAGRAMS.md`: Thêm OTP Payment Flow sequence diagram với error handling
+
+**Best Practice:**
+- **UUID Validation**: Validate UUID format ở DTO level (trước khi query database)
+- **Infrastructure Errors**: Email microservice connection errors → `503 Service Unavailable`
+- **Business Logic Errors**: Validation errors → `400 Bad Request`
+
+---
+
+## Ngày cập nhật: 2025-11-22 (Error Handling Improvements)
 
 ### Error Handling Standardization - Infrastructure vs Business Logic Errors
 
