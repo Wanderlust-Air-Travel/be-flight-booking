@@ -5,29 +5,12 @@ import { IsUUIDv7 } from 'src/shared/validators/is-uuid-v7.validator';
 
 export class CreateReservationSegmentDto {
 	@ApiProperty({
-		description: 'Flight instance ID (from search/flights API)',
+		description: 'Flight instance ID (from search/flights API). Backend will automatically fetch cabin and seat selection from Redis.',
 		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
 	})
 	@IsNotEmpty()
 	@IsUUIDv7()
 	flightInstanceId!: string;
-
-	@ApiProperty({
-		description: 'Fare class code (from search/fare-options API)',
-		example: 'YS',
-	})
-	@IsNotEmpty()
-	@IsString()
-	fareClassCode!: string;
-
-	@ApiProperty({
-		description: 'Flight seat ID (from search/seats API) - optional, can be selected later',
-		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc72',
-		required: false,
-	})
-	@IsOptional()
-	@IsUUIDv7()
-	flightSeatId?: string;
 
 	@ApiProperty({
 		description: 'Segment type: outbound or inbound (for round-trip bookings)',

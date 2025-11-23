@@ -11,6 +11,7 @@ import { Currency } from 'src/shared/entities/currency/currency.entity';
 import { Reservation } from 'src/shared/entities/reservation/reservation.entity';
 import { RedisService } from 'src/shared/modules/redis/redis.service';
 import { ConfigService } from '@nestjs/config';
+import { BookingStateService } from 'src/shared/services/booking-state.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { ReservationResponseDto } from './dto/reservation-response.dto';
 import { CabinType } from 'src/shared/constants/enums';
@@ -27,6 +28,7 @@ export class ReservationService {
 		@InjectRepository(Reservation) private readonly reservationRepo: Repository<Reservation>,
 		private readonly redisService: RedisService,
 		private readonly configService: ConfigService,
+		private readonly bookingStateService: BookingStateService,
 	) {
 		const redisConfig = this.configService.get('redis');
 		this.reservationTtl = redisConfig?.ttl?.reservation || 900; // 15 minutes default
@@ -171,59 +173,79 @@ export class ReservationService {
 				throw new NotFoundException(`Flight instance ${segmentDto.flightInstanceId} not found`);
 			}
 
-			// Validate fare class
+			// Get cabin and seat selection from Redis (Backend manages state)
+			if (!userId) {
+				throw new BadRequestException('User ID is required to retrieve booking state from Redis');
+			}
+
+			// Get cabin and seat selection from Redis (Backend manages state)
+			let cabinSelection, seatSelection;
+			try {
+				const selections = await this.bookingStateService.getSelectionsForReservation(
+					userId,
+					segmentDto.flightInstanceId,
+				);
+				cabinSelection = selections.cabin;
+				seatSelection = selections.seat;
+			} catch (error: any) {
+				// Re-throw custom booking state exceptions with context
+				if (error instanceof NotFoundException || error instanceof BadRequestException) {
+					throw new BadRequestException(
+						`Cannot create reservation: ${error.message}. Please select cabin and seat first using /api/v1/booking-state endpoints.`,
+					);
+				}
+				// Re-throw other exceptions as-is
+				throw error;
+			}
+
+			// Validate fare class from cabin selection
 			const fareClass = await this.fareClassRepo.findOne({
-				where: { fare_class_code: segmentDto.fareClassCode },
+				where: { fare_class_code: cabinSelection.fareClassCode },
 				relations: ['cabin_class'],
 			});
 			if (!fareClass) {
-				throw new NotFoundException(`Fare class ${segmentDto.fareClassCode} not found`);
+				throw new NotFoundException(`Fare class ${cabinSelection.fareClassCode} not found`);
 			}
 
 			// Determine cabin type
 			const cabinType =
 				fareClass.cabin_class.cabin_class_code === 'Y' ? CabinType.ECONOMY : CabinType.BUSINESS;
 
-			// Validate and assign seat if provided
-			let flightSeatId: string | null = null;
-			let seatNumber: string | null = null;
-			
-			if (segmentDto.flightSeatId) {
-				const flightSeat = await this.flightSeatRepo.findOne({
-					where: { flight_seat_id: segmentDto.flightSeatId },
-					relations: ['seat_config', 'seat_config.cabin_class', 'flight_instance'],
-				});
+			// Validate and assign seat from Redis state
+			const flightSeat = await this.flightSeatRepo.findOne({
+				where: { flight_seat_id: seatSelection.flightSeatId },
+				relations: ['seat_config', 'seat_config.cabin_class', 'flight_instance'],
+			});
 
-				if (!flightSeat) {
-					throw new NotFoundException(`Flight seat ${segmentDto.flightSeatId} not found`);
-				}
-
-				// Validate seat belongs to the correct flight instance
-				if (flightSeat.flight_instance_id !== segmentDto.flightInstanceId) {
-					throw new BadRequestException(
-						`Seat ${segmentDto.flightSeatId} does not belong to flight instance ${segmentDto.flightInstanceId}`,
-					);
-				}
-
-				// Validate seat belongs to the correct cabin class
-				if (flightSeat.seat_config.cabin_class.cabin_class_code !== fareClass.cabin_class.cabin_class_code) {
-					throw new BadRequestException(
-						`Seat ${segmentDto.flightSeatId} does not belong to cabin class ${fareClass.cabin_class.cabin_class_code}`,
-					);
-				}
-
-				// Validate seat is available
-				if (!flightSeat.is_available) {
-					throw new BadRequestException(`Seat ${flightSeat.seat_number} is not available`);
-				}
-
-				// Mark seat as unavailable (hold the seat)
-				flightSeat.is_available = false;
-				await this.flightSeatRepo.save(flightSeat);
-
-				flightSeatId = flightSeat.flight_seat_id;
-				seatNumber = flightSeat.seat_number;
+			if (!flightSeat) {
+				throw new NotFoundException(`Flight seat ${seatSelection.flightSeatId} not found`);
 			}
+
+			// Validate seat belongs to the correct flight instance
+			if (flightSeat.flight_instance_id !== segmentDto.flightInstanceId) {
+				throw new BadRequestException(
+					`Seat ${seatSelection.flightSeatId} does not belong to flight instance ${segmentDto.flightInstanceId}`,
+				);
+			}
+
+			// Validate seat belongs to the correct cabin class
+			if (flightSeat.seat_config.cabin_class.cabin_class_code !== fareClass.cabin_class.cabin_class_code) {
+				throw new BadRequestException(
+					`Seat ${seatSelection.flightSeatId} does not belong to cabin class ${fareClass.cabin_class.cabin_class_code}`,
+				);
+			}
+
+			// Validate seat is available
+			if (!flightSeat.is_available) {
+				throw new BadRequestException(`Seat ${flightSeat.seat_number} is not available`);
+			}
+
+			// Mark seat as unavailable (hold the seat)
+			flightSeat.is_available = false;
+			await this.flightSeatRepo.save(flightSeat);
+
+			const flightSeatId = flightSeat.flight_seat_id;
+			const seatNumber = flightSeat.seat_number;
 
 			// Calculate price
 			const baseFare = this.calculateFarePrice(fareClass.fare_class_code, cabinType);
@@ -231,24 +253,22 @@ export class ReservationService {
 			const feeAmount = 0;
 			const segmentTotal = (baseFare + taxAmount + feeAmount) * dto.numberOfPassengers;
 
-			// Validate availability (only if no seat was selected, or for additional passengers)
-			if (!segmentDto.flightSeatId) {
-				await this.validateAvailability(segmentDto.flightInstanceId, fareClass, dto.numberOfPassengers);
-			} else if (dto.numberOfPassengers > 1) {
-				// If seat was selected but multiple passengers, validate remaining seats
+			// Validate availability for additional passengers (if multiple passengers, validate remaining seats)
+			if (dto.numberOfPassengers > 1) {
+				// One seat is already selected, validate remaining seats for additional passengers
 				await this.validateAvailability(segmentDto.flightInstanceId, fareClass, dto.numberOfPassengers - 1);
 			}
 
 			validatedSegments.push({
 				segmentId: uuidv7(),
 				flightInstanceId: segmentDto.flightInstanceId,
-				fareClassCode: segmentDto.fareClassCode,
+				fareClassCode: cabinSelection.fareClassCode,
 				segmentType: segmentDto.segmentType,
 				baseFare,
 				taxAmount,
 				feeAmount,
-				flightSeatId: flightSeatId || null,
-				seatNumber: seatNumber || null,
+				flightSeatId: seatSelection.flightSeatId,
+				seatNumber: seatSelection.seatNumber,
 			});
 
 			totalAmount += segmentTotal;
@@ -319,6 +339,13 @@ export class ReservationService {
 
 		await this.redisService.set(reservationKey, reservation, this.reservationTtl);
 		await this.redisService.set(codeKey, reservationId, this.reservationTtl); // Map code -> id
+
+		// 4. Clear booking state from Redis after successful reservation (cleanup)
+		if (userId) {
+			for (const segment of validatedSegments) {
+				await this.bookingStateService.clearBookingState(userId, segment.flightInstanceId);
+			}
+		}
 
 		return reservation;
 	}

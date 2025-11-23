@@ -7,10 +7,10 @@ services:
       - ACCEPT_EULA=Y
       - SA_PASSWORD=Passw0rd123!
       - MSSQL_PID=Developer
-      - MSSQL_TCP_PORT=1433
-      - MSSQL_IP_ADDRESS=0.0.0.0
+      # - MSSQL_TCP_PORT=1434
+      # - MSSQL_IP_ADDRESS=0.0.0.0
     ports:
-      - "1434:1433"  # Port 1434 trên host để tránh conflict với SQL Server local
+      - "1434:1433"  # Đổi port host thành 1434 để tránh conflict với SQL Server local
     volumes:
       - sqlserver-data:/var/opt/mssql
     healthcheck:
@@ -20,7 +20,6 @@ services:
       retries: 10
       start_period: 30s
     restart: unless-stopped
-    # npm run init-db && (npm run seed-db || true)
 
   # Redis Cache
   redis:
@@ -38,8 +37,51 @@ services:
       timeout: 3s
       retries: 3
 
+  # Backend Application
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: backend
+    env_file:
+      - .env  # Load environment variables from .env file (app.config.ts will use defaults if not set)
+    environment:
+      # Docker-specific overrides only (different from localhost defaults in app.config.ts)
+      # Database: Use Docker service name and container port
+      - DB_HOST=sqlserver  # Override: Docker service name (app.config.ts default: localhost)
+      - DB_PORT=1433  # Override: Container port inside Docker network (app.config.ts default: 1433 for local SQL Server)
+      # Redis: Use Docker service name
+      - REDIS_HOST=redis  # Override: Docker service name (app.config.ts default: localhost)
+      # SA password for init scripts (not in app.config.ts)
+      - SA_PASSWORD=${SA_PASSWORD:-${DB_PASS:-Passw0rd123!}}
+      # All other configs will use defaults from app.config.ts or values from .env file
+    ports:
+      - "3000:3000"  # API Gateway
+      - "4001:4001"  # Search MS
+      - "4002:4002"  # Services MS
+      - "4003:4003"  # Routes MS
+      - "4004:4004"  # Booking MS
+      - "4005:4005"  # Reservation MS
+      - "4006:4006"  # Payment MS
+      - "4007:4007"  # Email MS
+    volumes:
+      # Persist uploaded images to host filesystem
+      - ./public:/app/public
+      # Gmail API credentials and token
+      - ./credentials_desktop_apps.json:/app/credentials_desktop_apps.json:ro
+      - ./token.json:/app/token.json:rw
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: sh -c "npm run wait-for-db && npm run init-db && (npm run seed-db || true) && npm run start:all"
+    # npm run wait-for-db && npm run init-db && (npm run seed-db || true) && npm run download:deals-images && npm run gmail:auth
+    restart: unless-stopped
+
 volumes:
   # SQL Server data persistence
   sqlserver-data:
   # Redis data persistence
   redis-data:
+

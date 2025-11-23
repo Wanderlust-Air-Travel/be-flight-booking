@@ -15,6 +15,8 @@ import {
   expect200Or201,
   verifyErrorResponseFormat,
   verifyRequestIdHeaders,
+  saveCabinSelection,
+  saveSeatSelection,
 } from '../helpers/test-helpers';
 
 describe('Reservation API (e2e)', () => {
@@ -82,6 +84,33 @@ describe('Reservation API (e2e)', () => {
 
   describe('POST /reservations (One-Way)', () => {
     it('should create reservation one-way successfully (happy case)', async () => {
+      // New flow: Must save cabin and seat to booking state first
+      // Step 1: Save cabin selection
+      await saveCabinSelection(app, accessToken, flightInstanceId, 'economy', fareClassCode);
+
+      // Step 2: Get available seat and save seat selection
+      const seatMap = await getSeatMap(app, flightInstanceId, 'economy');
+      let availableSeat: any = null;
+      if (seatMap.seats && seatMap.seats.length > 0) {
+        for (const group of seatMap.seats) {
+          if (group.list && group.list.length > 0) {
+            availableSeat = group.list.find((seat: any) => seat.isAvailable === true);
+            if (availableSeat) break;
+          }
+        }
+      }
+
+      if (availableSeat) {
+        await saveSeatSelection(
+          app,
+          accessToken,
+          flightInstanceId,
+          availableSeat.flightSeatId,
+          availableSeat.seatNumber,
+        );
+      }
+
+      // Step 3: Create reservation (backend gets cabin + seat from Redis)
       const response = await request(app.getHttpServer())
         .post('/api/v1/reservations')
         .set('Authorization', `Bearer ${accessToken}`)
@@ -89,8 +118,8 @@ describe('Reservation API (e2e)', () => {
           segments: [
             {
               flightInstanceId,
-              fareClassCode,
               segmentType: 'outbound',
+              // No fareClassCode or flightSeatId - backend gets from Redis
             },
           ],
           numberOfPassengers: 1,
@@ -106,7 +135,7 @@ describe('Reservation API (e2e)', () => {
       expect(response.body).toHaveProperty('segments');
       expect(Array.isArray(response.body.segments)).toBe(true);
       expect(response.body.segments.length).toBe(1);
-      
+
       // Verify request ID headers
       verifyRequestIdHeaders(response);
     });
@@ -151,7 +180,6 @@ describe('Reservation API (e2e)', () => {
           segments: [
             {
               flightInstanceId: 'invalid-id',
-              fareClassCode,
               segmentType: 'outbound',
             },
           ],
@@ -163,7 +191,8 @@ describe('Reservation API (e2e)', () => {
       verifyErrorResponseFormat(response, 400);
     });
 
-    it('should fail with zero passengers (unhappy case)', async () => {
+    it('should fail without cabin and seat selection (unhappy case)', async () => {
+      // Try to create reservation without saving cabin/seat first
       const response = await request(app.getHttpServer())
         .post('/api/v1/reservations')
         .set('Authorization', `Bearer ${accessToken}`)
@@ -171,7 +200,42 @@ describe('Reservation API (e2e)', () => {
           segments: [
             {
               flightInstanceId,
-              fareClassCode,
+              segmentType: 'outbound',
+            },
+          ],
+          numberOfPassengers: 1,
+          currencyCode: 'VND',
+        })
+        .expect(400);
+
+      verifyErrorResponseFormat(response, 400);
+      expect(response.body.message).toContain('cabin and seat');
+    });
+
+    it('should fail with zero passengers (unhappy case)', async () => {
+      // Save cabin and seat first
+      await saveCabinSelection(app, accessToken, flightInstanceId, 'economy', fareClassCode);
+      const seatMap = await getSeatMap(app, flightInstanceId, 'economy');
+      let availableSeat: any = null;
+      if (seatMap.seats && seatMap.seats.length > 0) {
+        for (const group of seatMap.seats) {
+          if (group.list && group.list.length > 0) {
+            availableSeat = group.list.find((seat: any) => seat.isAvailable === true);
+            if (availableSeat) break;
+          }
+        }
+      }
+      if (availableSeat) {
+        await saveSeatSelection(app, accessToken, flightInstanceId, availableSeat.flightSeatId, availableSeat.seatNumber);
+      }
+
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/reservations')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          segments: [
+            {
+              flightInstanceId,
               segmentType: 'outbound',
             },
           ],
@@ -183,27 +247,24 @@ describe('Reservation API (e2e)', () => {
       verifyErrorResponseFormat(response, 400);
     });
 
-    it('should fail with invalid fareClassCode (unhappy case)', async () => {
-      const response = await request(app.getHttpServer())
-        .post('/api/v1/reservations')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send({
-          segments: [
-            {
-              flightInstanceId,
-              fareClassCode: 'INVALID',
-              segmentType: 'outbound',
-            },
-          ],
-          numberOfPassengers: 1,
-          currencyCode: 'VND',
-        })
-        .expect(400);
-
-      verifyErrorResponseFormat(response, 400);
-    });
-
     it('should create reservation without currencyCode (currencyCode is optional)', async () => {
+      // Save cabin and seat first
+      await saveCabinSelection(app, accessToken, flightInstanceId, 'economy', fareClassCode);
+      const seatMap = await getSeatMap(app, flightInstanceId, 'economy');
+      let availableSeat: any = null;
+      if (seatMap.seats && seatMap.seats.length > 0) {
+        for (const group of seatMap.seats) {
+          if (group.list && group.list.length > 0) {
+            availableSeat = group.list.find((seat: any) => seat.isAvailable === true);
+            if (availableSeat) break;
+          }
+        }
+      }
+
+      if (availableSeat) {
+        await saveSeatSelection(app, accessToken, flightInstanceId, availableSeat.flightSeatId, availableSeat.seatNumber);
+      }
+
       const response = await request(app.getHttpServer())
         .post('/api/v1/reservations')
         .set('Authorization', `Bearer ${accessToken}`)
@@ -211,7 +272,6 @@ describe('Reservation API (e2e)', () => {
           segments: [
             {
               flightInstanceId,
-              fareClassCode,
               segmentType: 'outbound',
             },
           ],
@@ -260,6 +320,76 @@ describe('Reservation API (e2e)', () => {
 
   describe('POST /reservations (Round-Trip)', () => {
     it('should create reservation round-trip successfully (happy case)', async () => {
+      // New flow: Save cabin and seat for both flights
+      // Outbound flight
+      await request(app.getHttpServer())
+        .post('/api/v1/booking-state/cabin')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          flightInstanceId,
+          cabinType: 'economy',
+          fareClassCode,
+        })
+        .expect(expect200Or201());
+
+      const outboundSeatMap = await getSeatMap(app, flightInstanceId, 'economy');
+      let outboundSeat: any = null;
+      if (outboundSeatMap.seats && outboundSeatMap.seats.length > 0) {
+        for (const group of outboundSeatMap.seats) {
+          if (group.list && group.list.length > 0) {
+            outboundSeat = group.list.find((seat: any) => seat.isAvailable === true);
+            if (outboundSeat) break;
+          }
+        }
+      }
+
+      if (outboundSeat) {
+        await request(app.getHttpServer())
+          .post('/api/v1/booking-state/seat')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .send({
+            flightInstanceId,
+            flightSeatId: outboundSeat.flightSeatId,
+            seatNumber: outboundSeat.seatNumber,
+          })
+          .expect(expect200Or201());
+      }
+
+      // Inbound flight
+      await request(app.getHttpServer())
+        .post('/api/v1/booking-state/cabin')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          flightInstanceId: returnFlightInstanceId,
+          cabinType: 'economy',
+          fareClassCode,
+        })
+        .expect(expect200Or201());
+
+      const inboundSeatMap = await getSeatMap(app, returnFlightInstanceId, 'economy');
+      let inboundSeat: any = null;
+      if (inboundSeatMap.seats && inboundSeatMap.seats.length > 0) {
+        for (const group of inboundSeatMap.seats) {
+          if (group.list && group.list.length > 0) {
+            inboundSeat = group.list.find((seat: any) => seat.isAvailable === true);
+            if (inboundSeat) break;
+          }
+        }
+      }
+
+      if (inboundSeat) {
+        await request(app.getHttpServer())
+          .post('/api/v1/booking-state/seat')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .send({
+            flightInstanceId: returnFlightInstanceId,
+            flightSeatId: inboundSeat.flightSeatId,
+            seatNumber: inboundSeat.seatNumber,
+          })
+          .expect(expect200Or201());
+      }
+
+      // Create reservation (backend gets cabin + seat from Redis for each flight)
       const response = await request(app.getHttpServer())
         .post('/api/v1/reservations')
         .set('Authorization', `Bearer ${accessToken}`)
@@ -267,12 +397,10 @@ describe('Reservation API (e2e)', () => {
           segments: [
             {
               flightInstanceId,
-              fareClassCode,
               segmentType: 'outbound',
             },
             {
               flightInstanceId: returnFlightInstanceId,
-              fareClassCode,
               segmentType: 'inbound',
             },
           ],
@@ -290,6 +418,40 @@ describe('Reservation API (e2e)', () => {
     });
 
     it('should fail with invalid return flightInstanceId (unhappy case)', async () => {
+      // Save cabin and seat for outbound first
+      await request(app.getHttpServer())
+        .post('/api/v1/booking-state/cabin')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          flightInstanceId,
+          cabinType: 'economy',
+          fareClassCode,
+        })
+        .expect(expect200Or201());
+
+      const seatMap = await getSeatMap(app, flightInstanceId, 'economy');
+      let availableSeat: any = null;
+      if (seatMap.seats && seatMap.seats.length > 0) {
+        for (const group of seatMap.seats) {
+          if (group.list && group.list.length > 0) {
+            availableSeat = group.list.find((seat: any) => seat.isAvailable === true);
+            if (availableSeat) break;
+          }
+        }
+      }
+
+      if (availableSeat) {
+        await request(app.getHttpServer())
+          .post('/api/v1/booking-state/seat')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .send({
+            flightInstanceId,
+            flightSeatId: availableSeat.flightSeatId,
+            seatNumber: availableSeat.seatNumber,
+          })
+          .expect(expect200Or201());
+      }
+
       const response = await request(app.getHttpServer())
         .post('/api/v1/reservations')
         .set('Authorization', `Bearer ${accessToken}`)
@@ -297,12 +459,10 @@ describe('Reservation API (e2e)', () => {
           segments: [
             {
               flightInstanceId,
-              fareClassCode,
               segmentType: 'outbound',
             },
             {
               flightInstanceId: 'invalid-return-id',
-              fareClassCode,
               segmentType: 'inbound',
             },
           ],
@@ -505,10 +665,19 @@ describe('Reservation API (e2e)', () => {
 
   describe('POST /reservations (With Seat Selection)', () => {
     it('should create reservation with seat selection successfully (happy case)', async () => {
-      // Get seat map first
+      // New flow: Save cabin and seat to booking state first
+      await request(app.getHttpServer())
+        .post('/api/v1/booking-state/cabin')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          flightInstanceId,
+          cabinType: 'economy',
+          fareClassCode,
+        })
+        .expect(expect200Or201());
+
+      // Get seat map and find available seat
       const seatMap = await getSeatMap(app, flightInstanceId, 'economy');
-      
-      // Find an available seat
       let availableSeat: any = null;
       if (seatMap.seats && seatMap.seats.length > 0) {
         for (const group of seatMap.seats) {
@@ -520,11 +689,22 @@ describe('Reservation API (e2e)', () => {
       }
 
       if (!availableSeat) {
-        // Skip test if no available seats
         console.warn('No available seats found for seat selection test');
         return;
       }
 
+      // Save seat selection
+      await request(app.getHttpServer())
+        .post('/api/v1/booking-state/seat')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          flightInstanceId,
+          flightSeatId: availableSeat.flightSeatId,
+          seatNumber: availableSeat.seatNumber,
+        })
+        .expect(expect200Or201());
+
+      // Create reservation (backend gets cabin + seat from Redis)
       const response = await request(app.getHttpServer())
         .post('/api/v1/reservations')
         .set('Authorization', `Bearer ${accessToken}`)
@@ -532,9 +712,8 @@ describe('Reservation API (e2e)', () => {
           segments: [
             {
               flightInstanceId,
-              fareClassCode,
               segmentType: 'outbound',
-              flightSeatId: availableSeat.flightSeatId,
+              // No fareClassCode or flightSeatId - backend gets from Redis
             },
           ],
           numberOfPassengers: 1,
@@ -550,21 +729,26 @@ describe('Reservation API (e2e)', () => {
       expect(response.body.segments[0]).toHaveProperty('seatNumber', availableSeat.seatNumber);
     });
 
-    it('should fail with invalid flightSeatId (unhappy case)', async () => {
-      const response = await request(app.getHttpServer())
-        .post('/api/v1/reservations')
+    it('should fail with invalid seat selection in booking state (unhappy case)', async () => {
+      // Save cabin first
+      await request(app.getHttpServer())
+        .post('/api/v1/booking-state/cabin')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({
-          segments: [
-            {
-              flightInstanceId,
-              fareClassCode,
-              segmentType: 'outbound',
-              flightSeatId: '01900000-0000-7000-8000-000000000000', // Valid UUID v7 format but doesn't exist
-            },
-          ],
-          numberOfPassengers: 1,
-          currencyCode: 'VND',
+          flightInstanceId,
+          cabinType: 'economy',
+          fareClassCode,
+        })
+        .expect(expect200Or201());
+
+      // Try to save invalid seat
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/booking-state/seat')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          flightInstanceId,
+          flightSeatId: '01900000-0000-7000-8000-000000000000', // Valid UUID v7 format but doesn't exist
+          seatNumber: '99Z',
         })
         .expect(400);
 
@@ -577,7 +761,7 @@ describe('Reservation API (e2e)', () => {
       if (searchResult.outbound && searchResult.outbound.length > 1) {
         const differentFlightId = searchResult.outbound[1].flightInstanceId;
         const differentSeatMap = await getSeatMap(app, differentFlightId, 'economy');
-        
+
         let differentSeat: any = null;
         if (differentSeatMap.seats && differentSeatMap.seats.length > 0) {
           for (const group of differentSeatMap.seats) {
@@ -589,20 +773,16 @@ describe('Reservation API (e2e)', () => {
         }
 
         if (differentSeat) {
+          // Save cabin for the original flight
+          await saveCabinSelection(app, accessToken, flightInstanceId, 'economy', fareClassCode);
+          // Try to save seat from different flight - should fail validation
           const response = await request(app.getHttpServer())
-            .post('/api/v1/reservations')
+            .post('/api/v1/booking-state/seat')
             .set('Authorization', `Bearer ${accessToken}`)
             .send({
-              segments: [
-                {
-                  flightInstanceId, // Different flight instance
-                  fareClassCode,
-                  segmentType: 'outbound',
-                  flightSeatId: differentSeat.flightSeatId, // Seat from different flight
-                },
-              ],
-              numberOfPassengers: 1,
-              currencyCode: 'VND',
+              flightInstanceId, // Original flight instance
+              flightSeatId: differentSeat.flightSeatId, // Seat from different flight
+              seatNumber: differentSeat.seatNumber,
             })
             .expect(400);
 
@@ -613,12 +793,7 @@ describe('Reservation API (e2e)', () => {
 
     it('should fail with unavailable seat (unhappy case)', async () => {
       // First, create a reservation to make a seat unavailable
-      const reservation1 = await createReservationOneWay(
-        app,
-        accessToken,
-        flightInstanceId,
-        fareClassCode,
-      );
+      const reservation1 = await createReservationOneWay(app, accessToken, flightInstanceId, fareClassCode);
 
       // Get seat map again to find the reserved seat
       const seatMap = await getSeatMap(app, flightInstanceId, 'economy');
@@ -633,20 +808,16 @@ describe('Reservation API (e2e)', () => {
       }
 
       if (reservedSeat) {
+        // Save cabin first
+        await saveCabinSelection(app, accessToken, flightInstanceId, 'economy', fareClassCode);
+        // Try to save unavailable seat - should fail
         const response = await request(app.getHttpServer())
-          .post('/api/v1/reservations')
+          .post('/api/v1/booking-state/seat')
           .set('Authorization', `Bearer ${accessToken}`)
           .send({
-            segments: [
-              {
-                flightInstanceId,
-                fareClassCode,
-                segmentType: 'outbound',
-                flightSeatId: reservedSeat.flightSeatId,
-              },
-            ],
-            numberOfPassengers: 1,
-            currencyCode: 'VND',
+            flightInstanceId,
+            flightSeatId: reservedSeat.flightSeatId,
+            seatNumber: reservedSeat.seatNumber,
           })
           .expect(400);
 
@@ -654,7 +825,19 @@ describe('Reservation API (e2e)', () => {
       }
     });
 
-    it('should create reservation without seat selection (seat is optional)', async () => {
+    it('should fail without seat selection (seat is now required)', async () => {
+      // Save cabin only (no seat)
+      await request(app.getHttpServer())
+        .post('/api/v1/booking-state/cabin')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          flightInstanceId,
+          cabinType: 'economy',
+          fareClassCode,
+        })
+        .expect(expect200Or201());
+
+      // Try to create reservation without seat - should fail
       const response = await request(app.getHttpServer())
         .post('/api/v1/reservations')
         .set('Authorization', `Bearer ${accessToken}`)
@@ -662,21 +845,16 @@ describe('Reservation API (e2e)', () => {
           segments: [
             {
               flightInstanceId,
-              fareClassCode,
               segmentType: 'outbound',
-              // No flightSeatId - seat selection is optional
             },
           ],
           numberOfPassengers: 1,
           currencyCode: 'VND',
         })
-        .expect(expect200Or201());
+        .expect(400);
 
-      expect(response.body).toHaveProperty('reservationId');
-      expect(response.body).toHaveProperty('segments');
-      expect(response.body.segments.length).toBe(1);
-      // Seat fields should be null or undefined when not selected
-      expect(response.body.segments[0].flightSeatId).toBeFalsy();
+      verifyErrorResponseFormat(response, 400);
+      expect(response.body.message).toContain('seat');
     });
   });
 });

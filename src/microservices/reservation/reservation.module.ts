@@ -6,7 +6,7 @@ import { FlightSeat } from 'src/shared/entities/flight/flight-seat.entity';
 import { FareClass } from 'src/shared/entities/fare/fare-class.entity';
 import { Currency } from 'src/shared/entities/currency/currency.entity';
 import { Reservation } from 'src/shared/entities/reservation/reservation.entity';
-import { RedisModule } from 'src/shared/modules/redis/redis.module';
+import { BookingStateModule } from 'src/shared/modules/booking-state/booking-state.module';
 import { ReservationService } from './reservation.service';
 import { ReservationMsController } from './reservation.controller';
 
@@ -16,7 +16,7 @@ import { ReservationMsController } from './reservation.controller';
 			isGlobal: true,
 		}),
 		TypeOrmModule.forFeature([FlightInstance, FlightSeat, FareClass, Currency, Reservation]),
-		RedisModule,
+		BookingStateModule,
 	],
 	providers: [ReservationService],
 	controllers: [ReservationMsController],
