@@ -48,7 +48,7 @@ sequenceDiagram
     Search MS-->>API Gateway: [{fareClassCode, price, ...}]
     API Gateway-->>Client: 200 OK<br/>{fare options}
 
-    Note over Client,Redis: Phase 3.5: Get Seat Map (Optional - Seat Selection)
+    Note over Client,Redis: Phase 3.5: Get Seat Map (Required - Seat Selection)
     Client->>API Gateway: GET /search/seats<br/>?flightInstanceId=xxx&cabinType=economy
     API Gateway->>Search MS: GET_SEAT_MAP message (TCP)
     Search MS->>Database: Query FlightSeats, SeatConfigurations<br/>Filter by cabin class
@@ -56,18 +56,58 @@ sequenceDiagram
     Search MS-->>API Gateway: {flightInstanceId, cabinType, seats: [{flightSeatId, seatNumber, isAvailable, ...}]}
     API Gateway-->>Client: 200 OK<br/>{seat map}
 
-    Note over Client,Redis: Phase 4: Create Reservation (Multi-Segment Support - Hybrid: Database + Redis - With Seat Selection)
-    Client->>API Gateway: POST /reservations<br/>Authorization: Bearer <token><br/>{segments: [{flightInstanceId, fareClassCode, segmentType, flightSeatId?}, ...], ...}
+    Note over Client,Redis: Phase 3.6: Save Cabin Selection (Backend State Management)
+    Client->>API Gateway: POST /booking-state/cabin<br/>Authorization: Bearer <token><br/>{flightInstanceId, cabinType, fareClassCode}
+    API Gateway->>API Gateway: JwtAuthGuard: Validate JWT token<br/>Extract userId from payload
+    API Gateway->>API Gateway: BookingStateService.saveCabinSelection()
+    API Gateway->>Redis: SET booking:state:{userId}:{flightInstanceId}<br/>TTL: 1800 seconds (30 min)<br/>{cabin: {flightInstanceId, cabinType, fareClassCode}, updatedAt}
+    Redis-->>API Gateway: OK
+    API Gateway-->>Client: 200 OK<br/>{success: true, message: "Cabin selection saved successfully"}
+
+    Note over Client,Redis: Phase 3.7: Save Seat Selection (Backend State Management - Required)
+    Client->>API Gateway: POST /booking-state/seat<br/>Authorization: Bearer <token><br/>{flightInstanceId, flightSeatId, seatNumber}
+    API Gateway->>API Gateway: JwtAuthGuard: Validate JWT token<br/>Extract userId from payload
+    API Gateway->>API Gateway: BookingStateService.saveSeatSelection()
+    API Gateway->>Redis: GET booking:state:{userId}:{flightInstanceId}
+    Redis-->>API Gateway: Booking state (with cabin)
+    alt Cabin not selected
+        API Gateway-->>Client: 400 Bad Request<br/>{message: "Cabin not selected. Please select cabin first."}
+    else Cabin selected
+        API Gateway->>Redis: SET booking:state:{userId}:{flightInstanceId}<br/>TTL: 1800 seconds<br/>{cabin: {...}, seat: {flightInstanceId, flightSeatId, seatNumber}, updatedAt}
+        Redis-->>API Gateway: OK
+        API Gateway-->>Client: 200 OK<br/>{success: true, message: "Seat selection saved successfully"}
+    end
+
+    Note over Client,Redis: Phase 4: Create Reservation (Backend Auto-Fetches Cabin + Seat from Redis)
+    Client->>API Gateway: POST /reservations<br/>Authorization: Bearer <token><br/>{segments: [{flightInstanceId, segmentType}, ...], numberOfPassengers, currencyCode?}
     API Gateway->>API Gateway: JwtAuthGuard: Validate JWT token<br/>JwtStrategy: Extract userId from payload
     API Gateway->>API Gateway: Extract userId from req.user.userId
     API Gateway->>Reservation MS: CREATE_RESERVATION message (TCP)<br/>{userId, dto} (NOT token)
-    Reservation MS->>Database: Validate all segments (flight & fare class)
-    Database-->>Reservation MS: Validation result for each segment
-    alt Seat selected (flightSeatId provided)
+    Reservation MS->>Reservation MS: BookingStateService.getSelectionsForReservation()<br/>For each segment: flightInstanceId
+    Reservation MS->>Redis: GET booking:state:{userId}:{flightInstanceId}
+    alt Booking state not found or missing cabin/seat
+        Redis-->>Reservation MS: null or incomplete state
+        Reservation MS-->>API Gateway: 400 Bad Request<br/>{message: "Cabin/seat not selected. Please select cabin and seat first."}
+        API Gateway-->>Client: 400 Bad Request
+    else Booking state found with cabin + seat
+        Redis-->>Reservation MS: {cabin: {fareClassCode, cabinType}, seat: {flightSeatId, seatNumber}}
+        Reservation MS->>Database: Validate all segments (flight & fare class from cabin selection)
+        Database-->>Reservation MS: Validation result for each segment
         Reservation MS->>Database: Validate seat (exists, available, correct flight & cabin)
         Database-->>Reservation MS: Seat validation result
         Reservation MS->>Database: UPDATE FlightSeats<br/>SET is_available = false<br/>WHERE flight_seat_id = :seatId
         Database-->>Reservation MS: Seat marked as unavailable (held)
+        Reservation MS->>Reservation MS: Calculate price for each segment<br/>(using fareClassCode from cabin selection)<br/>Validate round-trip (if has inbound, must have outbound)
+        Reservation MS->>Reservation MS: Generate reservationId & code
+        Reservation MS->>Database: INSERT INTO Reservations<br/>(status: 'pending', segments_json with flightSeatId from seat selection, ...)
+        Database-->>Reservation MS: Reservation saved
+        Reservation MS->>Redis: SET reservation:{id}<br/>TTL: 900 seconds<br/>{segments: [...with flightSeatId], totalAmount, status: 'active', ...}
+        Redis-->>Reservation MS: OK
+        Reservation MS->>Reservation MS: BookingStateService.clearBookingState()<br/>Clear booking state after successful reservation
+        Reservation MS->>Redis: DEL booking:state:{userId}:{flightInstanceId}
+        Redis-->>Reservation MS: OK
+        Reservation MS-->>API Gateway: {reservationId, reservationCode, segments: [...with flightSeatId & seatNumber], totalAmount, ...}
+        API Gateway-->>Client: 201 Created<br/>{reservationId, segments: [...with seat info], ...}
     end
     Reservation MS->>Reservation MS: Calculate price for each segment<br/>Validate round-trip (if has inbound, must have outbound)
     Reservation MS->>Reservation MS: Generate reservationId & code
