@@ -75,7 +75,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: sh -c "npm run wait-for-db && npm run init-db && (npm run seed-db || true) && npm run start:all"
+    command: sh -c "npm run wait-for-sqlserver && npm run init-db && npm run wait-for-db && (npm run seed-db || true) && npm run start:all"
     # Alternative: npm run wait-for-db && npm run init-db && (npm run seed-db || true) && npm run download:deals-images && npm run gmail:auth
     restart: unless-stopped
 

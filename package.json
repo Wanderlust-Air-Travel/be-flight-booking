@@ -32,6 +32,7 @@
     "env:setup": "node -e \"const fs = require('fs'); if (!fs.existsSync('.env')) { fs.copyFileSync('env.example', '.env'); console.log('Created .env file from env.example'); } else { console.log('.env file already exists. Skipping...'); }\"",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/api-gateway/main",
+    "wait-for-sqlserver": "ts-node -r tsconfig-paths/register docker/wait-for-sqlserver.ts",
     "wait-for-db": "ts-node -r tsconfig-paths/register docker/wait-for-database.ts",
     "init-db": "ts-node -r tsconfig-paths/register docker/init-database.ts",
     "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/shared/config/typeorm.ts",

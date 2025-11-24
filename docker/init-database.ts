@@ -126,20 +126,73 @@ async function runMigrations(): Promise<boolean> {
 }
 
 /**
+ * Verify database is accessible
+ */
+async function verifyDatabase(): Promise<boolean> {
+  console.log('Verifying database is accessible...');
+  try {
+    const dbHost = process.env.DB_HOST || 'sqlserver';
+    const isDockerNetwork = dbHost === 'sqlserver' || dbHost.includes('.docker');
+    const defaultPort = isDockerNetwork ? 1433 : 1434;
+    
+    const dataSource = new DataSource({
+      type: 'mssql',
+      host: dbHost,
+      port: parseInt(process.env.DB_PORT || defaultPort.toString(), 10),
+      username: process.env.DB_USER || 'sa',
+      password: process.env.DB_PASS || process.env.SA_PASSWORD || 'Passw0rd123!',
+      database: process.env.DB_NAME || 'flight_booking_db',
+      options: {
+        encrypt: process.env.DB_ENCRYPT === 'true',
+        trustServerCertificate: process.env.DB_TRUST_CERT === 'true',
+      },
+      extra: {
+        trustServerCertificate: process.env.DB_TRUST_CERT === 'true',
+      },
+      entities: [],
+      synchronize: false,
+    });
+
+    await dataSource.initialize();
+    await dataSource.query('SELECT 1');
+    await dataSource.destroy();
+    console.log('Database verification successful!');
+    return true;
+  } catch (error: any) {
+    console.error('Database verification failed:', error.message);
+    return false;
+  }
+}
+
+/**
  * Main function to initialize database
  */
 async function main(): Promise<void> {
   const dbCreated = await createDatabase();
   if (!dbCreated) {
+    console.error('Failed to create database');
     process.exit(1);
   }
 
+  // Wait longer for database to be fully ready after creation
+  // SQL Server needs time to finalize database creation
+  console.log('Waiting for database to be fully ready...');
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+
   const migrationsRun = await runMigrations();
   if (!migrationsRun) {
-    console.warn('Migration execution had issues, but continuing...');
+    console.error('Failed to run migrations');
+    process.exit(1);
   }
 
-  console.log('Database initialization completed!');
+  // Verify database is accessible before proceeding
+  const verified = await verifyDatabase();
+  if (!verified) {
+    console.error('Database verification failed');
+    process.exit(1);
+  }
+
+  console.log('Database initialization completed successfully!');
   process.exit(0);
 }
 

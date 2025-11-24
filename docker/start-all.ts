@@ -1,14 +1,9 @@
-import { spawn, ChildProcess } from 'child_process';
+import { spawn } from 'child_process';
+import { Service, ProcessInfo } from './start-all.types';
 
-interface Service {
-  name: string;
-  script: string;
-  port: number;
-}
-
-interface ProcessInfo {
-  name: string;
-  process: ChildProcess;
+// Helper function to wait
+function wait(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 const services: Service[] = [
@@ -23,63 +18,77 @@ const services: Service[] = [
 
 const processes: ProcessInfo[] = [];
 
-// Start all microservices
-console.log('Starting all microservices...');
-services.forEach(service => {
-  const proc = spawn('node', [service.script], {
-    stdio: 'inherit',
-    cwd: process.cwd(),
-  });
-  
-  proc.on('error', (error: Error) => {
-    console.error(`Error starting ${service.name}:`, error);
-  });
-  
-  proc.on('exit', (code: number | null) => {
-    if (code !== 0 && code !== null) {
-      console.error(`${service.name} exited with code ${code}`);
-    }
-  });
-  
-  processes.push({ name: service.name, process: proc });
-  console.log(`Started ${service.name} on port ${service.port}`);
-});
+// Main function to start all services
+async function startServices() {
+  // Wait longer to ensure database is fully ready before starting services
+  // This gives time for database to be fully initialized after init-db
+  console.log('Waiting for database to be fully ready before starting services...');
+  await wait(10000); // Increased to 10 seconds
 
-// Wait a bit for microservices to start
-setTimeout(() => {
-  console.log('Starting API Gateway...');
-  const apiGateway = spawn('node', ['dist/api-gateway/main.js'], {
-    stdio: 'inherit',
-    cwd: process.cwd(),
-  });
-  
-  apiGateway.on('error', (error: Error) => {
-    console.error('Error starting API Gateway:', error);
-  });
-  
-  apiGateway.on('exit', (code: number | null) => {
-    console.log(`API Gateway exited with code ${code}`);
-    // Kill all microservices when API Gateway exits
-    processes.forEach(({ name, process: proc }) => {
-      console.log(`Stopping ${name}...`);
-      proc.kill();
+  // Start all microservices
+  console.log('Starting all microservices...');
+  services.forEach(service => {
+    const proc = spawn('node', [service.script], {
+      stdio: 'inherit',
+      cwd: process.cwd(),
     });
-    process.exit(code || 0);
+    
+    proc.on('error', (error: Error) => {
+      console.error(`Error starting ${service.name}:`, error);
+    });
+    
+    proc.on('exit', (code: number | null) => {
+      if (code !== 0 && code !== null) {
+        console.error(`${service.name} exited with code ${code}`);
+      }
+    });
+    
+    processes.push({ name: service.name, process: proc });
+    console.log(`Started ${service.name} on port ${service.port}`);
   });
-  
-  // Handle graceful shutdown
-  process.on('SIGINT', () => {
-    console.log('\nShutting down all services...');
-    apiGateway.kill();
-    processes.forEach(({ process: proc }) => proc.kill());
-    process.exit(0);
-  });
-  
-  process.on('SIGTERM', () => {
-    console.log('\nShutting down all services...');
-    apiGateway.kill();
-    processes.forEach(({ process: proc }) => proc.kill());
-    process.exit(0);
-  });
-}, 3000);
+
+  // Wait a bit for microservices to start
+  setTimeout(() => {
+    console.log('Starting API Gateway...');
+    const apiGateway = spawn('node', ['dist/api-gateway/main.js'], {
+      stdio: 'inherit',
+      cwd: process.cwd(),
+    });
+    
+    apiGateway.on('error', (error: Error) => {
+      console.error('Error starting API Gateway:', error);
+    });
+    
+    apiGateway.on('exit', (code: number | null) => {
+      console.log(`API Gateway exited with code ${code}`);
+      // Kill all microservices when API Gateway exits
+      processes.forEach(({ name, process: proc }) => {
+        console.log(`Stopping ${name}...`);
+        proc.kill();
+      });
+      process.exit(code || 0);
+    });
+    
+    // Handle graceful shutdown
+    process.on('SIGINT', () => {
+      console.log('\nShutting down all services...');
+      apiGateway.kill();
+      processes.forEach(({ process: proc }) => proc.kill());
+      process.exit(0);
+    });
+    
+    process.on('SIGTERM', () => {
+      console.log('\nShutting down all services...');
+      apiGateway.kill();
+      processes.forEach(({ process: proc }) => proc.kill());
+      process.exit(0);
+    });
+  }, 3000);
+}
+
+// Start services
+startServices().catch(error => {
+  console.error('Fatal error starting services:', error);
+  process.exit(1);
+});
 
