@@ -299,21 +299,108 @@ export async function getFareOptions(
 
 /**
  * Get seat map for a flight instance
+ * @param cabinType - Optional. If not provided, backend will auto-fetch from booking state (if authenticated)
  */
 export async function getSeatMap(
   app: INestApplication,
   flightInstanceId: string,
-  cabinType: string = 'economy',
+  cabinType?: string,
+  accessToken?: string,
 ): Promise<any> {
-  const response = await request(app.getHttpServer())
+  const req = request(app.getHttpServer())
     .get('/api/v1/search/seats')
     .query({
       flightInstanceId,
-      cabinType,
-    })
-    .expect(200);
+      ...(cabinType && { cabinType }), // Only add cabinType if provided
+    });
 
+  if (accessToken) {
+    req.set('Authorization', `Bearer ${accessToken}`);
+  }
+
+  const response = await req.expect(200);
   return response.body;
+}
+
+/**
+ * Find first selectable seat from seat map (NEW - Updated for isSelectable field)
+ * Returns seat that is both available AND selectable for the requested cabin type
+ */
+export function findSelectableSeat(seatMap: any, requestedCabinType: string = 'economy'): any | null {
+  if (!seatMap || !seatMap.seats || !Array.isArray(seatMap.seats)) {
+    return null;
+  }
+
+  for (const group of seatMap.seats) {
+    if (group.list && Array.isArray(group.list)) {
+      const selectableSeat = group.list.find(
+        (seat: any) => seat.isAvailable === true && seat.isSelectable === true
+      );
+      if (selectableSeat) {
+        return selectableSeat;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Validate seat map response structure (NEW - Updated for isSelectable field)
+ */
+export function validateSeatMapResponse(seatMap: any, requestedCabinType?: string): void {
+  expect(seatMap).toHaveProperty('flightInstanceId');
+  expect(seatMap).toHaveProperty('flightNumber');
+  expect(seatMap).toHaveProperty('cabinType');
+  expect(seatMap).toHaveProperty('seats');
+  expect(Array.isArray(seatMap.seats)).toBe(true);
+
+  // API LUÔN TRẢ VỀ CẢ ECONOMY VÀ BUSINESS SEATS
+  expect(seatMap.seats.length).toBeGreaterThanOrEqual(1);
+  
+  // Check that we have both economy and business groups (if flight has both)
+  const groupIds = seatMap.seats.map((g: any) => g.id);
+  expect(groupIds).toContain('economy'); // Always has economy
+  // Business may or may not exist depending on flight
+
+  // Validate each seat group
+  seatMap.seats.forEach((group: any) => {
+    expect(group).toHaveProperty('id');
+    expect(['business', 'economy']).toContain(group.id);
+    expect(group).toHaveProperty('list');
+    expect(Array.isArray(group.list)).toBe(true);
+
+    // Validate each seat
+    group.list.forEach((seat: any) => {
+      expect(seat).toHaveProperty('flightSeatId');
+      expect(seat).toHaveProperty('seatNumber');
+      expect(seat).toHaveProperty('cabinClassCode');
+      expect(seat).toHaveProperty('seatType');
+      expect(seat).toHaveProperty('isExitRow');
+      expect(seat).toHaveProperty('position');
+      expect(seat).toHaveProperty('isAvailable');
+      expect(seat).toHaveProperty('note');
+      
+      // NEW: Check isSelectable field
+      expect(seat).toHaveProperty('isSelectable');
+      expect(typeof seat.isSelectable).toBe('boolean');
+
+      // Validate isSelectable logic
+      if (requestedCabinType) {
+        const seatCabinType = seat.cabinClassCode === 'J' ? 'business' : 'economy';
+        const isRequestedCabin = seatCabinType === requestedCabinType;
+        
+        // isSelectable = true only if:
+        // 1. Seat belongs to requested cabin type AND
+        // 2. Seat is available
+        if (isRequestedCabin && seat.isAvailable) {
+          expect(seat.isSelectable).toBe(true);
+        } else {
+          expect(seat.isSelectable).toBe(false);
+        }
+      }
+    });
+  });
 }
 
 /**
@@ -418,16 +505,16 @@ export async function createReservationOneWay(
 	if (flightSeatId) {
 		// Get seat number from seat map
 		const seatMap = await getSeatMap(app, flightInstanceId, 'economy');
+		validateSeatMapResponse(seatMap, 'economy');
 		let seatNumber: string | null = null;
 
-		if (seatMap.seats && seatMap.seats.length > 0) {
-			for (const group of seatMap.seats) {
-				if (group.list && group.list.length > 0) {
-					const seat = group.list.find((s: any) => s.flightSeatId === flightSeatId);
-					if (seat) {
-						seatNumber = seat.seatNumber;
-						break;
-					}
+		// Find seat by flightSeatId in all groups (economy and business)
+		for (const group of seatMap.seats) {
+			if (group.list && group.list.length > 0) {
+				const seat = group.list.find((s: any) => s.flightSeatId === flightSeatId);
+				if (seat) {
+					seatNumber = seat.seatNumber;
+					break;
 				}
 			}
 		}
@@ -479,16 +566,16 @@ export async function createReservationRoundTrip(
 
 	if (outboundFlightSeatId) {
 		const seatMap = await getSeatMap(app, outboundFlightInstanceId, 'economy');
+		validateSeatMapResponse(seatMap, 'economy');
 		let seatNumber: string | null = null;
 
-		if (seatMap.seats && seatMap.seats.length > 0) {
-			for (const group of seatMap.seats) {
-				if (group.list && group.list.length > 0) {
-					const seat = group.list.find((s: any) => s.flightSeatId === outboundFlightSeatId);
-					if (seat) {
-						seatNumber = seat.seatNumber;
-						break;
-					}
+		// Find seat by flightSeatId in all groups (economy and business)
+		for (const group of seatMap.seats) {
+			if (group.list && group.list.length > 0) {
+				const seat = group.list.find((s: any) => s.flightSeatId === outboundFlightSeatId);
+				if (seat) {
+					seatNumber = seat.seatNumber;
+					break;
 				}
 			}
 		}
@@ -503,16 +590,16 @@ export async function createReservationRoundTrip(
 
 	if (inboundFlightSeatId) {
 		const seatMap = await getSeatMap(app, inboundFlightInstanceId, 'economy');
+		validateSeatMapResponse(seatMap, 'economy');
 		let seatNumber: string | null = null;
 
-		if (seatMap.seats && seatMap.seats.length > 0) {
-			for (const group of seatMap.seats) {
-				if (group.list && group.list.length > 0) {
-					const seat = group.list.find((s: any) => s.flightSeatId === inboundFlightSeatId);
-					if (seat) {
-						seatNumber = seat.seatNumber;
-						break;
-					}
+		// Find seat by flightSeatId in all groups (economy and business)
+		for (const group of seatMap.seats) {
+			if (group.list && group.list.length > 0) {
+				const seat = group.list.find((s: any) => s.flightSeatId === inboundFlightSeatId);
+				if (seat) {
+					seatNumber = seat.seatNumber;
+					break;
 				}
 			}
 		}

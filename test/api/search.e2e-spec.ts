@@ -16,6 +16,7 @@ import {
   createAndLoginUser,
   saveCabinSelection,
   saveSeatSelection,
+  validateSeatMapResponse,
 } from '../helpers/test-helpers';
 
 describe('Search API (e2e)', () => {
@@ -739,28 +740,34 @@ describe('Search API (e2e)', () => {
 
       const seatMap = await getSeatMap(app, flightInstanceId, 'economy');
       
-      expect(seatMap).toHaveProperty('seats');
-      expect(Array.isArray(seatMap.seats)).toBe(true);
+      // Validate seat map response structure (includes isSelectable check)
+      validateSeatMapResponse(seatMap, 'economy');
       
-      // Check if there are any seats
-      if (seatMap.seats.length > 0) {
-        const seatGroup = seatMap.seats[0];
-        expect(seatGroup).toHaveProperty('id');
-        expect(['business', 'economy']).toContain(seatGroup.id);
-        expect(seatGroup).toHaveProperty('list');
-        
-        // Check seat properties
-        if (seatGroup.list.length > 0) {
-          const seat = seatGroup.list[0];
-          expect(seat).toHaveProperty('flightSeatId');
-          expect(seat).toHaveProperty('seatNumber');
-          expect(seat).toHaveProperty('cabinClassCode');
-          expect(seat).toHaveProperty('seatType');
-          expect(seat).toHaveProperty('isExitRow');
-          expect(seat).toHaveProperty('position');
-          expect(seat).toHaveProperty('isAvailable');
-          expect(seat).toHaveProperty('note');
+      // API LUÔN TRẢ VỀ CẢ ECONOMY VÀ BUSINESS SEATS
+      expect(seatMap.seats.length).toBeGreaterThanOrEqual(1);
+      
+      // Find economy and business groups
+      const economyGroup = seatMap.seats.find((g: any) => g.id === 'economy');
+      const businessGroup = seatMap.seats.find((g: any) => g.id === 'business');
+      
+      // Economy group should exist
+      expect(economyGroup).toBeDefined();
+      expect(economyGroup.list.length).toBeGreaterThan(0);
+      
+      // Check isSelectable for economy seats (requested cabin type)
+      if (economyGroup.list.length > 0) {
+        const economySeat = economyGroup.list.find((s: any) => s.isAvailable === true);
+        if (economySeat) {
+          expect(economySeat.isSelectable).toBe(true); // Economy seat with requested cabin type
+          expect(economySeat.cabinClassCode).toBe('Y');
         }
+      }
+      
+      // Check isSelectable for business seats (not requested cabin type)
+      if (businessGroup && businessGroup.list.length > 0) {
+        const businessSeat = businessGroup.list[0];
+        expect(businessSeat.isSelectable).toBe(false); // Business seat not requested
+        expect(businessSeat.cabinClassCode).toBe('J');
       }
     });
 
@@ -809,6 +816,12 @@ describe('Search API (e2e)', () => {
       expect(response.body).toHaveProperty('cabinType', 'economy');
       expect(response.body).toHaveProperty('seats');
       expect(Array.isArray(response.body.seats)).toBe(true);
+      
+      // Validate seat map response (includes isSelectable check)
+      validateSeatMapResponse(response.body, 'economy');
+      
+      // API should return both economy and business seats
+      expect(response.body.seats.length).toBeGreaterThanOrEqual(1);
     });
 
     it('should fail when cabinType is missing and no booking state exists (unhappy case)', async () => {

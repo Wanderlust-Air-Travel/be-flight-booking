@@ -18,6 +18,8 @@ import {
   verifyRequestIdHeaders,
   saveCabinSelection,
   saveSeatSelection,
+  validateSeatMapResponse,
+  findSelectableSeat,
 } from '../helpers/test-helpers';
 
 describe('Reservation API (e2e)', () => {
@@ -116,15 +118,10 @@ describe('Reservation API (e2e)', () => {
 
       // Step 2: Get available seat and save seat selection
       const seatMap = await getSeatMap(app, flightInstanceId, 'economy');
-      let availableSeat: any = null;
-      if (seatMap.seats && seatMap.seats.length > 0) {
-        for (const group of seatMap.seats) {
-          if (group.list && group.list.length > 0) {
-            availableSeat = group.list.find((seat: any) => seat.isAvailable === true);
-            if (availableSeat) break;
-          }
-        }
-      }
+      validateSeatMapResponse(seatMap, 'economy');
+      
+      // Find selectable seat (available AND selectable for economy cabin)
+      const availableSeat = findSelectableSeat(seatMap, 'economy');
 
       if (availableSeat) {
         await saveSeatSelection(
@@ -266,15 +263,9 @@ describe('Reservation API (e2e)', () => {
       // Save cabin and seat first
       await saveCabinSelection(app, accessToken, flightInstanceId, 'economy', fareClassCode);
       const seatMap = await getSeatMap(app, flightInstanceId, 'economy');
-      let availableSeat: any = null;
-      if (seatMap.seats && seatMap.seats.length > 0) {
-        for (const group of seatMap.seats) {
-          if (group.list && group.list.length > 0) {
-            availableSeat = group.list.find((seat: any) => seat.isAvailable === true);
-            if (availableSeat) break;
-          }
-        }
-      }
+      validateSeatMapResponse(seatMap, 'economy');
+      
+      const availableSeat = findSelectableSeat(seatMap, 'economy');
       if (availableSeat) {
         await saveSeatSelection(app, accessToken, flightInstanceId, availableSeat.flightSeatId, availableSeat.seatNumber);
       }
@@ -395,15 +386,8 @@ describe('Reservation API (e2e)', () => {
         .expect(expect200Or201());
 
       const outboundSeatMap = await getSeatMap(app, flightInstanceId, 'economy');
-      let outboundSeat: any = null;
-      if (outboundSeatMap.seats && outboundSeatMap.seats.length > 0) {
-        for (const group of outboundSeatMap.seats) {
-          if (group.list && group.list.length > 0) {
-            outboundSeat = group.list.find((seat: any) => seat.isAvailable === true);
-            if (outboundSeat) break;
-          }
-        }
-      }
+      validateSeatMapResponse(outboundSeatMap, 'economy');
+      const outboundSeat = findSelectableSeat(outboundSeatMap, 'economy');
 
       if (outboundSeat) {
         await request(app.getHttpServer())
@@ -434,15 +418,8 @@ describe('Reservation API (e2e)', () => {
         .expect(expect200Or201());
 
       const inboundSeatMap = await getSeatMap(app, returnFlightInstanceId, 'economy');
-      let inboundSeat: any = null;
-      if (inboundSeatMap.seats && inboundSeatMap.seats.length > 0) {
-        for (const group of inboundSeatMap.seats) {
-          if (group.list && group.list.length > 0) {
-            inboundSeat = group.list.find((seat: any) => seat.isAvailable === true);
-            if (inboundSeat) break;
-          }
-        }
-      }
+      validateSeatMapResponse(inboundSeatMap, 'economy');
+      const inboundSeat = findSelectableSeat(inboundSeatMap, 'economy');
 
       if (inboundSeat) {
         await request(app.getHttpServer())
@@ -815,18 +792,11 @@ describe('Reservation API (e2e)', () => {
 
       // Get seat map and find available seat
       const seatMap = await getSeatMap(app, flightInstanceId, 'economy');
-      let availableSeat: any = null;
-      if (seatMap.seats && seatMap.seats.length > 0) {
-        for (const group of seatMap.seats) {
-          if (group.list && group.list.length > 0) {
-            availableSeat = group.list.find((seat: any) => seat.isAvailable === true);
-            if (availableSeat) break;
-          }
-        }
-      }
+      validateSeatMapResponse(seatMap, 'economy');
+      const availableSeat = findSelectableSeat(seatMap, 'economy');
 
       if (!availableSeat) {
-        console.warn('No available seats found for seat selection test');
+        console.warn('No selectable seats found for seat selection test');
         return;
       }
 
@@ -908,15 +878,8 @@ describe('Reservation API (e2e)', () => {
         const differentFlightId = searchResult.outbound[1].flightInstanceId;
         const differentSeatMap = await getSeatMap(app, differentFlightId, 'economy');
 
-        let differentSeat: any = null;
-        if (differentSeatMap.seats && differentSeatMap.seats.length > 0) {
-          for (const group of differentSeatMap.seats) {
-            if (group.list && group.list.length > 0) {
-              differentSeat = group.list.find((seat: any) => seat.isAvailable === true);
-              if (differentSeat) break;
-            }
-          }
-        }
+        validateSeatMapResponse(differentSeatMap, 'economy');
+        const differentSeat = findSelectableSeat(differentSeatMap, 'economy');
 
         if (differentSeat) {
           // Save cabin for the original flight
@@ -948,13 +911,14 @@ describe('Reservation API (e2e)', () => {
 
       // Get seat map again to find the reserved seat
       const seatMap = await getSeatMap(app, flightInstanceId, 'economy');
+      validateSeatMapResponse(seatMap, 'economy');
+      
+      // Find a reserved/unavailable seat (isAvailable = false)
       let reservedSeat: any = null;
-      if (seatMap.seats && seatMap.seats.length > 0) {
-        for (const group of seatMap.seats) {
-          if (group.list && group.list.length > 0) {
-            reservedSeat = group.list.find((seat: any) => seat.isAvailable === false);
-            if (reservedSeat) break;
-          }
+      for (const group of seatMap.seats) {
+        if (group.list && group.list.length > 0) {
+          reservedSeat = group.list.find((seat: any) => seat.isAvailable === false);
+          if (reservedSeat) break;
         }
       }
 

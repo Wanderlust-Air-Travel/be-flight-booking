@@ -15,6 +15,8 @@ import {
   expect200Or201,
   verifyErrorResponseFormat,
   verifyRequestIdHeaders,
+  validateSeatMapResponse,
+  findSelectableSeat,
 } from '../helpers/test-helpers';
 
 describe('Booking API (e2e)', () => {
@@ -610,17 +612,10 @@ describe('Booking API (e2e)', () => {
       }
       // Get seat map first
       const seatMap = await getSeatMap(app, flightInstanceId, 'economy');
+      validateSeatMapResponse(seatMap, 'economy');
       
-      // Find an available seat
-      let availableSeat: any = null;
-      if (seatMap.seats && seatMap.seats.length > 0) {
-        for (const group of seatMap.seats) {
-          if (group.list && group.list.length > 0) {
-            availableSeat = group.list.find((seat: any) => seat.isAvailable === true);
-            if (availableSeat) break;
-          }
-        }
-      }
+      // Find a selectable seat (available AND selectable for economy cabin)
+      const availableSeat = findSelectableSeat(seatMap, 'economy');
 
       if (!availableSeat) {
         // Skip test if no available seats

@@ -14,6 +14,7 @@ import {
 	expect200Or201,
 	verifyErrorResponseFormat,
 	verifyRequestIdHeaders,
+	validateSeatMapResponse,
 } from '../helpers/test-helpers';
 
 describe('Booking State API (e2e)', () => {
@@ -66,15 +67,18 @@ describe('Booking State API (e2e)', () => {
 					fareClassCode = fareOptions[0].fareClassCode;
 				}
 
-				// Get available seat
+				// Get available seat (with isSelectable check)
 				const seatMap = await getSeatMap(app, flightInstanceId, 'economy');
 				if (seatMap.seats && seatMap.seats.length > 0) {
 					for (const group of seatMap.seats) {
 						if (group.list && group.list.length > 0) {
-							const availableSeat = group.list.find((seat: any) => seat.isAvailable === true);
-							if (availableSeat) {
-								flightSeatId = availableSeat.flightSeatId;
-								seatNumber = availableSeat.seatNumber;
+							// Find seat that is both available AND selectable (for economy cabin)
+							const selectableSeat = group.list.find(
+								(seat: any) => seat.isAvailable === true && seat.isSelectable === true
+							);
+							if (selectableSeat) {
+								flightSeatId = selectableSeat.flightSeatId;
+								seatNumber = selectableSeat.seatNumber;
 								break;
 							}
 						}
@@ -624,13 +628,19 @@ describe('Booking State API (e2e)', () => {
 			let testSeatId: string | null = null;
 			let testSeatNumber: string | null = null;
 
+			// Validate seat map response structure
+			validateSeatMapResponse(seatMap, 'economy');
+			
 			if (seatMap.seats && seatMap.seats.length > 0) {
 				for (const group of seatMap.seats) {
 					if (group.list && group.list.length > 0) {
-						const availableSeat = group.list.find((seat: any) => seat.isAvailable === true);
-						if (availableSeat) {
-							testSeatId = availableSeat.flightSeatId;
-							testSeatNumber = availableSeat.seatNumber;
+						// Find seat that is both available AND selectable (for economy cabin)
+						const selectableSeat = group.list.find(
+							(seat: any) => seat.isAvailable === true && seat.isSelectable === true
+						);
+						if (selectableSeat) {
+							testSeatId = selectableSeat.flightSeatId;
+							testSeatNumber = selectableSeat.seatNumber;
 							break;
 						}
 					}
