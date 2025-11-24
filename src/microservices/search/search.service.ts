@@ -452,57 +452,77 @@ export class SearchService {
 			throw new BadRequestException('Flight instance does not have aircraft assigned');
 		}
 
-		// Get cabin class codes for the requested cabin type
-		const cabinClassCodes = this.CABIN_TYPE_MAP[dto.cabinType];
-		if (!cabinClassCodes || cabinClassCodes.length === 0) {
+		// Get cabin class codes for the requested cabin type (for determining selectability)
+		const requestedCabinClassCodes = this.CABIN_TYPE_MAP[dto.cabinType];
+		if (!requestedCabinClassCodes || requestedCabinClassCodes.length === 0) {
 			throw new BadRequestException(`Invalid cabin type: ${dto.cabinType}`);
 		}
 
-		// Get all seats for this flight instance filtered by cabin class
+		// Get ALL seats for this flight instance (both economy and business)
+		// This ensures frontend can display both cabin sections even if user selected one cabin type
 		const aircraftTypeId = flightInstance.aircraft.aircraft_type.aircraft_type_id;
-		const seats = await this.seatRepo
+		const allSeats = await this.seatRepo
 			.createQueryBuilder('seat')
 			.innerJoinAndSelect('seat.seat_config', 'config')
 			.innerJoinAndSelect('config.cabin_class', 'cabin')
 			.where('seat.flight_instance_id = :instanceId', { instanceId: dto.flightInstanceId })
-			.andWhere('cabin.cabin_class_code IN (:...codes)', { codes: cabinClassCodes })
+			.andWhere('cabin.cabin_class_code IN (:...codes)', { codes: ['Y', 'J'] }) // Get both economy (Y) and business (J)
 			.andWhere('config.aircraft_type_id = :aircraftTypeId', { aircraftTypeId })
 			.orderBy('seat.seat_number', 'ASC')
 			.getMany();
 
-		// Get all fare classes for this cabin type to map note codes
-		const fareClasses = await this.fareClassRepo
+		// Get all fare classes for both economy and business to map note codes
+		const allFareClasses = await this.fareClassRepo
 			.createQueryBuilder('fare')
 			.innerJoinAndSelect('fare.cabin_class', 'cabin')
-			.where('cabin.cabin_class_code IN (:...codes)', { codes: cabinClassCodes })
+			.where('cabin.cabin_class_code IN (:...codes)', { codes: ['Y', 'J'] })
 			.getMany();
 
-		// Create fare class code to note mapping
+		// Create fare class code to note mapping for both cabin types
 		const fareClassNoteMap = new Map<string, string>();
-		fareClasses.forEach((fareClass) => {
-			const note = this.getFareClassNote(fareClass.fare_class_code, dto.cabinType);
+		allFareClasses.forEach((fareClass) => {
+			const cabinType = fareClass.cabin_class.cabin_class_code === 'J' ? CabinType.BUSINESS : CabinType.ECONOMY;
+			const note = this.getFareClassNote(fareClass.fare_class_code, cabinType);
 			fareClassNoteMap.set(fareClass.fare_class_code, note);
+		});
+
+		// Group fare classes by cabin class for easier note lookup
+		const fareClassesByCabin = new Map<string, FareClass[]>();
+		allFareClasses.forEach((fareClass) => {
+			const cabinCode = fareClass.cabin_class.cabin_class_code;
+			if (!fareClassesByCabin.has(cabinCode)) {
+				fareClassesByCabin.set(cabinCode, []);
+			}
+			fareClassesByCabin.get(cabinCode)!.push(fareClass);
 		});
 
 		// Group seats by cabin class and convert to DTOs
 		const seatGroups = new Map<string, SeatDto[]>();
 		
-		for (const seat of seats) {
+		for (const seat of allSeats) {
 			const cabinCode = seat.seat_config.cabin_class.cabin_class_code;
 			if (!seatGroups.has(cabinCode)) {
 				seatGroups.set(cabinCode, []);
 			}
 
-			// Determine position (left or right) based on seat number
-			const position = this.determineSeatPosition(seat.seat_number, dto.cabinType);
+			// Determine if this seat is selectable based on requested cabin type
+			const isSelectable = requestedCabinClassCodes.includes(cabinCode) && seat.is_available;
 
-			// Get note code from fare class (default to first fare class note for this cabin)
-			// In real scenario, we might need to map seat to specific fare class
-			// For now, we'll use a default note based on cabin type
-			const defaultNote = dto.cabinType === CabinType.BUSINESS ? 'bf' : 'ef';
-			const note = fareClassNoteMap.size > 0 
-				? Array.from(fareClassNoteMap.values())[0] 
-				: defaultNote;
+			// Determine position (left or right) based on seat number
+			// Use the seat's actual cabin type for position determination
+			const seatCabinType = cabinCode === 'J' ? CabinType.BUSINESS : CabinType.ECONOMY;
+			const position = this.determineSeatPosition(seat.seat_number, seatCabinType);
+
+			// Get note code from fare class for this cabin class
+			// Use first available fare class note for this cabin, or default
+			const defaultNote = cabinCode === 'J' ? 'bf' : 'ef';
+			let note = defaultNote;
+			const cabinFareClasses = fareClassesByCabin.get(cabinCode);
+			if (cabinFareClasses && cabinFareClasses.length > 0) {
+				// Get note from first fare class of this cabin
+				const firstFareClass = cabinFareClasses[0];
+				note = fareClassNoteMap.get(firstFareClass.fare_class_code) || defaultNote;
+			}
 
 			const seatDto: SeatDto = {
 				flightSeatId: seat.flight_seat_id,
@@ -513,20 +533,28 @@ export class SearchService {
 				position,
 				isAvailable: seat.is_available,
 				note,
+				isSelectable,
 			};
 
 			seatGroups.get(cabinCode)!.push(seatDto);
 		}
 
-		// Convert to response format
+		// Convert to response format - ensure both economy and business groups exist
 		const seatMapGroups: SeatMapGroupDto[] = [];
-		for (const [cabinCode, seatList] of seatGroups.entries()) {
-			const groupId = cabinCode === 'J' ? 'business' : 'economy';
-			seatMapGroups.push({
-				id: groupId as 'business' | 'economy',
-				list: seatList,
-			});
-		}
+		
+		// Always include economy group (even if empty)
+		const economySeats = seatGroups.get('Y') || [];
+		seatMapGroups.push({
+			id: 'economy',
+			list: economySeats,
+		});
+
+		// Always include business group (even if empty)
+		const businessSeats = seatGroups.get('J') || [];
+		seatMapGroups.push({
+			id: 'business',
+			list: businessSeats,
+		});
 
 		return {
 			flightInstanceId: dto.flightInstanceId,

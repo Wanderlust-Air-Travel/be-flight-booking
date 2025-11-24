@@ -51,5 +51,11 @@ export class SeatDto {
 		nullable: true,
 	})
 	note!: string | null;
+
+	@ApiProperty({
+		description: 'Whether this seat can be selected based on the requested cabin type. Seats from other cabin types are shown but not selectable.',
+		example: true,
+	})
+	isSelectable!: boolean;
 }
 

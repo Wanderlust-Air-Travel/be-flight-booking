@@ -229,7 +229,7 @@ GET /api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&retu
   - **Nếu truyền**: Sử dụng giá trị được truyền (override booking state)
   - **Lưu ý**: Nếu không truyền và không có booking state → 400 Bad Request
 
-**Trả về:** Bản đồ ghế được group theo cabin class với thông tin chi tiết:
+**Trả về:** Bản đồ ghế được group theo cabin class với thông tin chi tiết. **API LUÔN TRẢ VỀ CẢ ECONOMY VÀ BUSINESS SEATS** (bất kể cabinType được request):
 
 ```json
 {
@@ -242,13 +242,30 @@ GET /api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&retu
       "list": [
         {
           "flightSeatId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
-          "seatNumber": "1A",
+          "seatNumber": "10A",
           "cabinClassCode": "Y",
           "seatType": "window",
           "isExitRow": false,
           "position": "left",
           "isAvailable": true,
+          "isSelectable": true,
           "note": "es"
+        }
+      ]
+    },
+    {
+      "id": "business",
+      "list": [
+        {
+          "flightSeatId": "019a8f4a-bb0e-7402-a0c4-27647b89dc73",
+          "seatNumber": "1A",
+          "cabinClassCode": "J",
+          "seatType": "window",
+          "isExitRow": false,
+          "position": "left",
+          "isAvailable": true,
+          "isSelectable": false,
+          "note": "bf"
         }
       ]
     }
@@ -266,20 +283,27 @@ GET /api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&retu
   - Economy: A-B-C = left, D-E-F = right
   - Business: A-B = left, C-D = right
 - `isAvailable`: Ghế còn trống không (`true` = có thể chọn, `false` = đã được giữ/book)
+- `isSelectable`: **NEW** - Ghế có thể chọn không dựa trên cabin type được request
+  - `true`: Seat thuộc cabin type được request và `isAvailable = true` → User có thể chọn
+  - `false`: Seat thuộc cabin type khác hoặc `isAvailable = false` → User không thể chọn (nhưng vẫn hiển thị)
 - `note`: Mã note cho fare class (`ef` = Economy Flex, `es` = Economy Smart, `em` = Economy Saver Max, `bf` = Business Flex, `bs` = Business Smart)
 
 **Cách hoạt động:**
-1. API query tất cả seats của flight instance từ database
-2. Filter theo cabin type (economy → cabin class `Y`, business → cabin class `J`)
-3. Group seats theo cabin class
-4. Determine position (left/right) dựa vào seat number và cabin type
-5. Map fare class note codes
-6. Trả về seat map với đầy đủ thông tin để frontend render UI
+1. API query **TẤT CẢ seats** của flight instance từ database (cả economy và business)
+2. Group seats theo cabin class (economy và business)
+3. Determine position (left/right) dựa vào seat number và cabin type của từng seat
+4. Map fare class note codes cho từng cabin class
+5. Đánh dấu `isSelectable` dựa trên cabin type được request:
+   - Seats thuộc cabin type được request và `isAvailable = true` → `isSelectable = true`
+   - Seats thuộc cabin type khác hoặc `isAvailable = false` → `isSelectable = false`
+6. Trả về seat map với đầy đủ thông tin để frontend render UI (bao gồm cả 2 cabin sections)
 
 **Lưu ý:**
 - Chọn ghế là **BẮT BUỘC** sau khi chọn cabin
 - Phải lấy `flightSeatId` từ response để lưu vào booking state
+- **API luôn trả về cả economy và business seats** - Frontend nên check `isSelectable` để disable seats không thuộc cabin type đã chọn
 - `isAvailable = false` nghĩa là ghế đã được giữ (reserved) hoặc đã được book
+- `isSelectable = false` nghĩa là ghế không thuộc cabin type được request (nhưng vẫn hiển thị để UI không bị trống)
 - Khi tạo reservation với `flightSeatId`, backend tự động mark seat as unavailable
 - Xem thêm: `docs/design/SEAT_MAP_API_EXPLANATION.md` để hiểu chi tiết
 

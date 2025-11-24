@@ -99,8 +99,16 @@
          ```
    - **Backend tự quản lý**: 
      - Nếu `cabinType` không được truyền và user đã đăng nhập, backend tự động lấy `cabinType` từ booking state (nếu đã save cabin selection)
-   - **Response**: Danh sách tất cả ghế với `isAvailable`, `seatType`, `position`
-   - **Frontend**: Render seat map UI (grid layout với left/right, window/aisle/middle)
+   - **Response**: 
+     - **API LUÔN TRẢ VỀ CẢ ECONOMY VÀ BUSINESS SEATS** (ngay cả khi user chỉ chọn economy)
+     - Mỗi seat có field `isSelectable`:
+       - `isSelectable = true`: Seat thuộc cabin type được request và `isAvailable = true` → User có thể chọn
+       - `isSelectable = false`: Seat thuộc cabin type khác hoặc `isAvailable = false` → User không thể chọn (nhưng vẫn hiển thị)
+     - Danh sách tất cả ghế với `isAvailable`, `isSelectable`, `seatType`, `position`
+   - **Frontend**: 
+     - Render seat map UI (grid layout với left/right, window/aisle/middle)
+     - **Disable seats với `isSelectable = false`** (hiển thị nhưng không cho click)
+     - Điều này đảm bảo phần business không bị trống khi user chọn economy
    - **Recovery sau reload**: 
      - Đọc `flightInstanceId` từ URL params (luôn có vì đã lưu vào URL)
      - Gọi `GET /api/v1/booking-state/:flightInstanceId` để lấy cabinType
@@ -437,15 +445,21 @@ export default function SeatMapPage() {
     <div>
       <h2>Select Your Seat</h2>
       <div className="seat-map-grid">
-        {seats.map((seat) => (
-          <button
-            key={seat.flightSeatId}
-            className={`seat ${seat.isAvailable ? 'available' : 'unavailable'} ${selectedSeatId === seat.flightSeatId ? 'selected' : ''}`}
-            onClick={() => seat.isAvailable && handleSelectSeat(seat.flightSeatId, seat.seatNumber)}
-            disabled={!seat.isAvailable}
-          >
-            {seat.seatNumber}
-          </button>
+        {seats.map((seatGroup) => (
+          <div key={seatGroup.id} className={`cabin-section ${seatGroup.id}`}>
+            <h3>{seatGroup.id === 'business' ? 'Business Class' : 'Economy Class'}</h3>
+            {seatGroup.list.map((seat) => (
+              <button
+                key={seat.flightSeatId}
+                className={`seat ${seat.isSelectable ? 'selectable' : 'non-selectable'} ${seat.isAvailable ? 'available' : 'unavailable'} ${selectedSeatId === seat.flightSeatId ? 'selected' : ''}`}
+                onClick={() => seat.isSelectable && handleSelectSeat(seat.flightSeatId, seat.seatNumber)}
+                disabled={!seat.isSelectable}
+                title={!seat.isSelectable ? `This seat is not available for ${cabinType} cabin` : ''}
+              >
+                {seat.seatNumber}
+              </button>
+            ))}
+          </div>
         ))}
       </div>
     </div>
@@ -565,3 +579,95 @@ Trang 4: Reservation Summary
 - ✅ Reload page không mất data (đọc từ URL)
 - ✅ SEO friendly
 - ✅ Debug dễ dàng (có thể thấy flightInstanceId trong URL)
+
+---
+
+## Thay đổi quan trọng: API luôn trả về cả Economy và Business Seats
+
+### Vấn đề trước đây:
+- API chỉ trả về seats của cabin type được request
+- Khi user chọn economy, phần business bị trống → UI không đẹp
+- Frontend không thể hiển thị đầy đủ seat map
+
+### Giải pháp (Best Practice):
+- **API LUÔN TRẢ VỀ CẢ ECONOMY VÀ BUSINESS SEATS** (bất kể cabinType được request)
+- Thêm field `isSelectable` vào mỗi seat:
+  - `isSelectable = true`: Seat thuộc cabin type được request và `isAvailable = true` → User có thể chọn
+  - `isSelectable = false`: Seat thuộc cabin type khác hoặc `isAvailable = false` → User không thể chọn (nhưng vẫn hiển thị)
+
+### Response Structure mới:
+```json
+{
+  "flightInstanceId": "...",
+  "flightNumber": "VN123",
+  "cabinType": "economy",
+  "seats": [
+    {
+      "id": "economy",
+      "list": [
+        {
+          "flightSeatId": "...",
+          "seatNumber": "10A",
+          "cabinClassCode": "Y",
+          "seatType": "window",
+          "isExitRow": false,
+          "position": "left",
+          "isAvailable": true,
+          "isSelectable": true,  // ← NEW FIELD: Có thể chọn vì thuộc economy
+          "note": "es"
+        }
+      ]
+    },
+    {
+      "id": "business",
+      "list": [
+        {
+          "flightSeatId": "...",
+          "seatNumber": "1A",
+          "cabinClassCode": "J",
+          "seatType": "window",
+          "isExitRow": false,
+          "position": "left",
+          "isAvailable": true,
+          "isSelectable": false,  // ← NEW FIELD: Không thể chọn vì không thuộc economy
+          "note": "bf"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Logic `isSelectable`:
+```typescript
+// Backend logic
+const isSelectable = requestedCabinClassCodes.includes(cabinCode) && seat.is_available;
+```
+
+- Nếu user request `economy`:
+  - Economy seats với `isAvailable = true` → `isSelectable = true`
+  - Business seats (dù `isAvailable = true`) → `isSelectable = false`
+- Nếu user request `business`:
+  - Business seats với `isAvailable = true` → `isSelectable = true`
+  - Economy seats (dù `isAvailable = true`) → `isSelectable = false`
+
+### Frontend Usage:
+```typescript
+// Frontend check isSelectable để disable/enable seats
+seats.forEach(seatGroup => {
+  seatGroup.list.forEach(seat => {
+    if (!seat.isSelectable) {
+      // Disable seat selection UI
+      // Show seat but make it non-clickable
+      // Có thể thêm tooltip: "This seat is not available for your selected cabin type"
+    }
+  });
+});
+```
+
+### Lợi ích:
+1. ✅ Frontend luôn có đầy đủ dữ liệu để hiển thị cả 2 phần cabin
+2. ✅ UI không bị trống ở phần business khi user chọn economy
+3. ✅ User vẫn chỉ có thể chọn seats phù hợp với cabin type đã chọn
+4. ✅ Không breaking change: Thêm field mới, không xóa field cũ
+5. ✅ Logic rõ ràng: `isSelectable` cho biết seat nào có thể chọn

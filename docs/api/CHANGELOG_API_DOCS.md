@@ -1,6 +1,120 @@
 # Changelog - API Documentation Updates
 
-## Ngày cập nhật: 2025-11-23 (Latest - OTP Payment Validation & Error Handling)
+## Ngày cập nhật: 2025-11-24 (Latest - Seat Map API Enhancement: Always Return Both Economy & Business Seats)
+
+### Seat Map API Enhancement - Complete Seat Map Display
+
+**Issue:**
+- API chỉ trả về seats của cabin type được request
+- Khi user chọn economy, phần business bị trống → UI không đẹp
+- Frontend không thể hiển thị đầy đủ seat map cho cả 2 cabin sections
+
+**Fix:**
+- **API LUÔN TRẢ VỀ CẢ ECONOMY VÀ BUSINESS SEATS** (bất kể cabinType được request)
+- Thêm field `isSelectable` vào `SeatDto`:
+  - `isSelectable = true`: Seat thuộc cabin type được request và `isAvailable = true` → User có thể chọn
+  - `isSelectable = false`: Seat thuộc cabin type khác hoặc `isAvailable = false` → User không thể chọn (nhưng vẫn hiển thị)
+- Logic `isSelectable`: `requestedCabinClassCodes.includes(cabinCode) && seat.is_available`
+- Response luôn có cả 2 groups: `economy` và `business` (ngay cả khi không có seats)
+
+**Response Structure:**
+```json
+{
+  "flightInstanceId": "...",
+  "flightNumber": "VN123",
+  "cabinType": "economy",
+  "seats": [
+    {
+      "id": "economy",
+      "list": [
+        {
+          "flightSeatId": "...",
+          "seatNumber": "10A",
+          "cabinClassCode": "Y",
+          "seatType": "window",
+          "isExitRow": false,
+          "position": "left",
+          "isAvailable": true,
+          "isSelectable": true,  // NEW FIELD
+          "note": "es"
+        }
+      ]
+    },
+    {
+      "id": "business",
+      "list": [
+        {
+          "flightSeatId": "...",
+          "seatNumber": "1A",
+          "cabinClassCode": "J",
+          "seatType": "window",
+          "isExitRow": false,
+          "position": "left",
+          "isAvailable": true,
+          "isSelectable": false,  // NEW FIELD
+          "note": "bf"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Backend Changes:**
+- `src/microservices/search/search.service.ts`: 
+  - Query tất cả seats (economy + business) thay vì filter theo cabin type
+  - Đánh dấu `isSelectable` dựa trên cabin type được request
+  - Luôn trả về cả 2 groups (economy và business)
+- `src/api-gateway/modules/search/dto/seat.dto.ts`: Thêm field `isSelectable`
+- `src/microservices/search/dto/seat.dto.ts`: Thêm field `isSelectable`
+
+**Frontend Usage:**
+```typescript
+// Frontend check isSelectable để disable/enable seats
+seats.forEach(seatGroup => {
+  seatGroup.list.forEach(seat => {
+    if (!seat.isSelectable) {
+      // Disable seat selection UI
+      // Show seat but make it non-clickable
+    }
+  });
+});
+```
+
+**Benefits:**
+1. ✅ Frontend luôn có đầy đủ dữ liệu để hiển thị cả 2 phần cabin
+2. ✅ UI không bị trống ở phần business khi user chọn economy
+3. ✅ User vẫn chỉ có thể chọn seats phù hợp với cabin type đã chọn
+4. ✅ Không breaking change: Thêm field mới, không xóa field cũ
+5. ✅ Logic rõ ràng: `isSelectable` cho biết seat nào có thể chọn
+
+**Files Changed:**
+- `src/microservices/search/search.service.ts` - Updated getSeatMap logic
+- `src/api-gateway/modules/search/dto/seat.dto.ts` - Added isSelectable field
+- `src/microservices/search/dto/seat.dto.ts` - Added isSelectable field
+
+**Documentation Updated:**
+- `docs/design/SEAT_MAP_API_EXPLANATION.md`: 
+  - Added section explaining the change
+  - Updated frontend examples with isSelectable usage
+  - Updated response structure examples
+- `docs/api/API_DOCS.md`: 
+  - Updated seat map API documentation with isSelectable field
+  - Updated response structure with both economy and business seats
+  - Updated notes about API always returning both cabin types
+- `tools/Flight-Booking-API.postman_collection.json`: 
+  - Updated descriptions for both economy and business seat map requests
+  - Updated response examples with isSelectable field
+  - Updated test scripts to check isSelectable
+
+**Best Practice:**
+- **Complete Data**: API trả về đầy đủ dữ liệu để frontend có thể render UI hoàn chỉnh
+- **Selectability Control**: Field `isSelectable` cho phép frontend control UI behavior mà không cần business logic phức tạp
+- **Backward Compatible**: Thêm field mới không breaking existing clients
+
+---
+
+## Ngày cập nhật: 2025-11-23 (OTP Payment Validation & Error Handling)
 
 ### OTP Payment API - UUID v7 Validation & Email Service Error Handling
 
