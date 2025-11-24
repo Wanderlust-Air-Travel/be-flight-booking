@@ -22,6 +22,7 @@ import {
 	BookingStateNotFoundException,
 	CabinNotSelectedException,
 	BookingStateStorageException,
+	InvalidFareClassException,
 } from 'src/shared/exceptions/booking-state.exceptions';
 import { ParseUUIDv7Pipe } from 'src/shared/pipes/parse-uuid-v7.pipe';
 

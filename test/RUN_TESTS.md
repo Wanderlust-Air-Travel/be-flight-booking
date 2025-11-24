@@ -63,7 +63,35 @@ npm run test:e2e
 
 ### Chạy một test file cụ thể:
 ```bash
+# Test Search API (bao gồm seat map với isSelectable mới)
+npm run test:e2e -- search.e2e-spec.ts
+
+# Test Booking State API
+npm run test:e2e -- booking-state.e2e-spec.ts
+
+# Test Reservation API
+npm run test:e2e -- reservation.e2e-spec.ts
+
+# Test Booking API
+npm run test:e2e -- booking.e2e-spec.ts
+
+# Test Auth API
 npm run test:e2e -- auth.e2e-spec.ts
+```
+
+### Chạy test case cụ thể (theo pattern):
+```bash
+# Test seat map với isSelectable (NEW)
+npm run test:e2e -- search.e2e-spec.ts -t "should return both economy and business seats"
+
+# Test auto-fetch cabinType từ booking state (NEW)
+npm run test:e2e -- search.e2e-spec.ts -t "auto-fetch cabinType"
+
+# Test isSelectable logic (NEW)
+npm run test:e2e -- search.e2e-spec.ts -t "isSelectable"
+
+# Test reservation với seat selection (UPDATED)
+npm run test:e2e -- reservation.e2e-spec.ts -t "seat"
 ```
 
 ### Chạy với coverage:
@@ -76,7 +104,17 @@ npm run test:e2e -- --coverage
 npm run test:e2e -- --watch
 ```
 
-### Chạy một test case cụ thể:
+### Chạy với verbose output (để debug):
+```bash
+npm run test:e2e -- --verbose
+```
+
+### Chạy test và chỉ hiển thị failed tests:
+```bash
+npm run test:e2e -- --silent
+```
+
+### Chạy một test case cụ thể (theo tên):
 ```bash
 npm run test:e2e -- --testNamePattern="should register"
 ```
@@ -86,13 +124,40 @@ npm run test:e2e -- --testNamePattern="should register"
 Test suite bao gồm:
 
 - ✅ **Auth API**: Register, Login, Refresh, Logout, Get Current User
-- ✅ **Search API**: Search flights (one-way & round-trip), Get fare options
-- ✅ **Reservation API**: Create, Get, List, Cancel, Extend
-- ✅ **Booking API**: Create from reservation, Get fare details, Get payment info, Update passengers
+- ✅ **Search API**: Search flights (one-way & round-trip), Get fare options, **Get seat map (UPDATED với isSelectable)**
+  - **NEW**: API trả về cả economy và business seats
+  - **NEW**: Validate `isSelectable` field cho mỗi seat
+  - **NEW**: Test auto-fetch `cabinType` từ booking state
+- ✅ **Booking State API**: Save cabin selection, Save seat selection, Get booking state
+- ✅ **Reservation API**: Create, Get, List, Cancel, Extend (UPDATED với seat selection validation)
+  - **UPDATED**: Validate seat selection với `isSelectable` logic
+- ✅ **Booking API**: Create from reservation, Get fare details, Get payment info, Update passengers (UPDATED với seat assignment)
 - ✅ **Payment API**: Create, Process, Get, Update status, Webhook, Idempotency
 - ✅ **Email API**: Send email, Get status, Health check
 
 Tất cả đều có **happy cases** và **unhappy cases**.
+
+## Thay đổi mới trong Tests (Seat Map API)
+
+### Helper Functions mới:
+- `validateSeatMapResponse()` - Validate cấu trúc response và `isSelectable` logic
+- `findSelectableSeat()` - Tìm seat có `isSelectable = true` cho cabin type được request
+
+### Test Cases mới:
+1. **Test API trả về cả economy và business seats:**
+   ```bash
+   npm run test:e2e -- search.e2e-spec.ts -t "should return both economy and business seats"
+   ```
+
+2. **Test `isSelectable` logic:**
+   - Economy seats có `isSelectable = true` khi request economy cabin
+   - Business seats có `isSelectable = false` khi request economy cabin
+   - Ngược lại cho business cabin
+
+3. **Test auto-fetch `cabinType` từ booking state:**
+   ```bash
+   npm run test:e2e -- search.e2e-spec.ts -t "auto-fetch cabinType"
+   ```
 
 ## Troubleshooting
 

@@ -5,6 +5,7 @@ import {
 	BookingStateNotFoundException,
 	CabinNotSelectedException,
 	SeatNotSelectedException,
+	InvalidFareClassException,
 } from '../exceptions/booking-state.exceptions';
 
 /**
@@ -20,17 +21,31 @@ export class BookingStateService {
 
 	/**
 	 * Save cabin selection to Redis
-	 * Business logic: Updates or creates booking state with cabin selection
+	 * Business logic: Validates fare class matches cabin type, then updates or creates booking state
 	 * 
 	 * @param userId - User ID
 	 * @param cabinSelection - Cabin selection data
 	 * @returns Success response
+	 * @throws InvalidFareClassException if fare class code doesn't match cabin type
 	 */
 	async saveCabinSelection(
 		userId: string,
 		cabinSelection: CabinSelection,
 	): Promise<{ success: boolean; message: string }> {
 		this.logger.log(`Saving cabin selection for user ${userId}, flight ${cabinSelection.flightInstanceId}`);
+
+		// Business rule: Validate fare class code matches cabin type
+		// Economy fare classes start with 'Y' (e.g., 'YS', 'YF', 'YSM')
+		// Business fare classes start with 'J' (e.g., 'JS', 'JF', 'JFLX')
+		const fareClassCode = cabinSelection.fareClassCode.toUpperCase();
+		const expectedPrefix = cabinSelection.cabinType === 'economy' ? 'Y' : 'J';
+		
+		if (!fareClassCode.startsWith(expectedPrefix)) {
+			this.logger.warn(
+				`Invalid fare class code '${fareClassCode}' for cabin type '${cabinSelection.cabinType}' for user ${userId}, flight ${cabinSelection.flightInstanceId}`
+			);
+			throw new InvalidFareClassException(fareClassCode, cabinSelection.cabinType);
+		}
 
 		// Get existing state or create new
 		let state = await this.bookingStateRepository.findOne(userId, cabinSelection.flightInstanceId);

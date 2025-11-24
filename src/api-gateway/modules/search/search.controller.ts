@@ -332,13 +332,20 @@ export class SearchController {
 			return result.fareOptions;
 		} catch (error: any) {
 			this.logger.error('Get fare options error:', error);
-			// Re-throw NestJS exceptions as-is (including NotFoundException)
+			// Re-throw NestJS HttpException instances as-is (BadRequestException, NotFoundException, etc.)
+			if (error instanceof HttpException) {
+				throw error;
+			}
+			// Also check for statusCode property for compatibility
 			if (error?.statusCode && error?.message) {
 				// Map NotFoundException from microservice to 404
 				if (error?.statusCode === 404) {
 					throw new NotFoundException(error.message);
 				}
-				throw error;
+				// Re-throw other HTTP exceptions (BadRequestException, etc.)
+				if (error?.statusCode >= 400 && error?.statusCode < 500) {
+					throw error;
+				}
 			}
 			// Handle microservice connection errors - these are infrastructure issues (503)
 			const errorMessageForFare = error?.message || error?.toString() || '';
@@ -477,7 +484,11 @@ export class SearchController {
 			return result;
 		} catch (error: any) {
 			this.logger.error('Get seat map error:', error);
-			// Re-throw NestJS exceptions as-is (including NotFoundException, BadRequestException)
+			// Re-throw NestJS HttpException instances as-is (BadRequestException, NotFoundException, etc.)
+			if (error instanceof HttpException) {
+				throw error;
+			}
+			// Also check for statusCode property for compatibility
 			if (error?.statusCode && error?.message) {
 				if (error.statusCode === 404) {
 					throw new NotFoundException(error.message);
@@ -485,8 +496,10 @@ export class SearchController {
 				if (error.statusCode === 400) {
 					throw new BadRequestException(error.message);
 				}
-				// Re-throw other HTTP exceptions as-is
-				throw error;
+				// Re-throw other HTTP exceptions (4xx) as-is
+				if (error?.statusCode >= 400 && error?.statusCode < 500) {
+					throw error;
+				}
 			}
 			
 			// Handle microservice connection errors - these are infrastructure issues (503)

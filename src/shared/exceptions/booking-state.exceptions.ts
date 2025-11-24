@@ -50,6 +50,17 @@ export class BookingStateNotFoundException extends BookingStateException {
 }
 
 /**
+ * Thrown when fare class code doesn't match cabin type
+ */
+export class InvalidFareClassException extends BookingStateException {
+	constructor(fareClassCode: string, cabinType: string) {
+		const message = `Fare class code '${fareClassCode}' does not match cabin type '${cabinType}'. Economy fare classes must start with 'Y', business fare classes must start with 'J'.`;
+		super(message, HttpStatus.BAD_REQUEST);
+		this.name = 'InvalidFareClassException';
+	}
+}
+
+/**
  * Thrown when Redis operation fails
  */
 export class BookingStateStorageException extends BookingStateException {

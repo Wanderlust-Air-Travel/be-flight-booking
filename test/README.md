@@ -30,7 +30,26 @@ npm run test:e2e
 
 ### Chạy một test file cụ thể:
 ```bash
-npm run test:e2e -- auth.e2e-spec.ts
+# Test Search API (bao gồm seat map với isSelectable)
+npm run test:e2e -- search.e2e-spec.ts
+
+# Test Booking State API
+npm run test:e2e -- booking-state.e2e-spec.ts
+
+# Test Reservation API
+npm run test:e2e -- reservation.e2e-spec.ts
+
+# Test Booking API
+npm run test:e2e -- booking.e2e-spec.ts
+```
+
+### Chạy test case cụ thể (theo pattern):
+```bash
+# Test seat map với isSelectable
+npm run test:e2e -- search.e2e-spec.ts -t "should return both economy and business seats"
+
+# Test auto-fetch cabinType từ booking state
+npm run test:e2e -- search.e2e-spec.ts -t "auto-fetch cabinType"
 ```
 
 ### Chạy với coverage:
@@ -41,6 +60,16 @@ npm run test:e2e -- --coverage
 ### Chạy với watch mode:
 ```bash
 npm run test:e2e -- --watch
+```
+
+### Chạy test với verbose output (để debug):
+```bash
+npm run test:e2e -- --verbose
+```
+
+### Chạy test và chỉ hiển thị failed tests:
+```bash
+npm run test:e2e -- --silent
 ```
 
 ## Prerequisites
@@ -107,11 +136,16 @@ Trước khi chạy tests, đảm bảo:
 - Search flights one-way (happy & unhappy cases)
 - Search flights round-trip (happy & unhappy cases)
 - Get fare options (happy & unhappy cases)
-- Get seat map (happy & unhappy cases)
+- Get seat map (happy & unhappy cases) - **UPDATED**
   - Get seat map for economy class
   - Get seat map for business class
+  - **NEW**: API always returns both economy and business seats
+  - **NEW**: Validate `isSelectable` field for each seat
+  - **NEW**: Test `isSelectable = true` for requested cabin type seats
+  - **NEW**: Test `isSelectable = false` for non-requested cabin type seats
+  - **NEW**: Auto-fetch cabinType from booking state (when authenticated)
   - Validation: missing/invalid parameters
-  - Seat structure validation
+  - Seat structure validation (includes `isSelectable` field)
 
 ### Reservation API
 - Create reservation one-way (happy & unhappy cases)
@@ -159,7 +193,9 @@ File `test/helpers/test-helpers.ts` cung cấp các helper functions:
 - `searchFlightsOneWay()` - Tìm chuyến bay một chiều
 - `searchFlightsRoundTrip()` - Tìm chuyến bay khứ hồi
 - `getFareOptions()` - Lấy fare options
-- `getSeatMap()` - Lấy bản đồ ghế ngồi (NEW)
+- `getSeatMap()` - Lấy bản đồ ghế ngồi (UPDATED - supports optional cabinType)
+- `validateSeatMapResponse()` - Validate seat map response structure (NEW - includes isSelectable check)
+- `findSelectableSeat()` - Find first selectable seat from seat map (NEW - checks isSelectable field)
 - `createReservationOneWay()` - Tạo reservation một chiều (hỗ trợ seat selection)
 - `createReservationRoundTrip()` - Tạo reservation khứ hồi (hỗ trợ seat selection)
 - `createBookingFromReservation()` - Tạo booking từ reservation
