@@ -4,6 +4,25 @@ Lịch sử các thay đổi quan trọng của dự án.
 
 ## [Unreleased]
 
+### Tính năng mới
+
+- **Auto-fetch từ Booking State (2025-11-25)**
+  - **OptionalJwtAuthGuard**: Guard mới cho phép optional authentication - extract user từ JWT token nếu có, nhưng không bắt buộc authentication
+  - **Auto-fetch Logic**: Một số API tự động lấy thông tin từ booking state khi user đã đăng nhập:
+    - `GET /api/v1/search/fare-options`: Tự động lấy `flightInstanceId` và `cabinType` từ booking state
+    - `GET /api/v1/search/seats`: Tự động lấy `cabinType` từ booking state
+  - **Benefits**: Cải thiện UX, giảm số lượng API calls, backward compatible
+  - **Implementation**:
+    - `OptionalJwtAuthGuard` extract user từ JWT token nhưng không block request nếu không có token
+    - `BookingStateRepository.findAllByUserId()` sử dụng raw Redis client để query keys (fix ioredis keyPrefix issue)
+    - Query parameters luôn có priority cao hơn booking state (override)
+  - **Files Changed**:
+    - `src/api-gateway/modules/auth/guard/optional-jwt-auth.guard.ts` (new)
+    - `src/api-gateway/modules/search/search.controller.ts` (updated)
+    - `src/shared/repositories/booking-state.repository.ts` (updated)
+    - `src/api-gateway/modules/auth/auth.module.ts` (updated)
+    - `src/api-gateway/modules/search/search.client.module.ts` (updated)
+
 ### Cải tiến
 
 - **Validation logic cho Booking State (2025-11-25)**

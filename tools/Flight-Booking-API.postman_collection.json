@@ -497,6 +497,68 @@
 						"description": "Get seat map for a flight instance and business cabin type. **API này được gọi sau khi chọn fare option và trước khi tạo reservation** để user có thể chọn ghế.\n\n**QUAN TRỌNG: API LUÔN TRẢ VỀ CẢ ECONOMY VÀ BUSINESS SEATS** (bất kể cabinType được request) để frontend có thể hiển thị đầy đủ seat map.\n\n**Cách hoạt động (Step-by-Step):**\n1. API query **TẤT CẢ seats** của flight instance từ database (`FlightSeats` table) - cả economy (Y) và business (J)\n2. Join với `SeatConfigurations` để lấy thông tin: `seat_type` (window/aisle/middle), `is_exit_row`\n3. Join với `CabinClasses` để lấy cabin class code\n4. Group seats theo cabin class (economy và business)\n5. Determine position (left/right) dựa vào seat number:\n   - Economy (3-3 config): A-B-C = left, D-E-F = right\n   - Business (2-2 config): A-B = left, C-D = right\n6. Map fare class note codes (ef/es/em cho Economy, bf/bs cho Business)\n7. Đánh dấu `isSelectable` dựa trên cabin type được request:\n   - Seats thuộc cabin type được request và `isAvailable = true` → `isSelectable = true`\n   - Seats thuộc cabin type khác hoặc `isAvailable = false` → `isSelectable = false`\n8. Trả về seat map với đầy đủ thông tin để frontend render UI (bao gồm cả 2 cabin sections)\n\n**Query Parameters:**\n- `flightInstanceId`: Required, UUID v7 (from `/search/flights` response)\n- `cabinType`: Optional, enum: `economy` or `business`\n  - Nếu không truyền: Backend tự động lấy từ booking state (nếu user đã đăng nhập và đã save cabin selection)\n\n**Response Structure:**\n```json\n{\n  \"flightInstanceId\": \"...\",\n  \"flightNumber\": \"VN123\",\n  \"cabinType\": \"business\",\n  \"seats\": [\n    {\n      \"id\": \"economy\",\n      \"list\": [\n        {\n          \"flightSeatId\": \"...\",\n          \"seatNumber\": \"10A\",\n          \"cabinClassCode\": \"Y\",\n          \"seatType\": \"window\",\n          \"isExitRow\": false,\n          \"position\": \"left\",\n          \"isAvailable\": true,\n          \"isSelectable\": false,    // NEW: false = không thể chọn (không thuộc cabin type được request)\n          \"note\": \"es\"\n        }\n      ]\n    },\n    {\n      \"id\": \"business\",\n      \"list\": [\n        {\n          \"flightSeatId\": \"...\",  // UUID v7 - DÙNG ĐỂ LƯU VÀO BOOKING STATE\n          \"seatNumber\": \"1A\",\n          \"cabinClassCode\": \"J\",\n          \"seatType\": \"window\",\n          \"isExitRow\": false,\n          \"position\": \"left\",\n          \"isAvailable\": true,\n          \"isSelectable\": true,     // NEW: true = có thể chọn (thuộc cabin type được request)\n          \"note\": \"bf\"\n        }\n      ]\n    }\n  ]\n}\n```\n\n**Các trường quan trọng:**\n- `flightSeatId`: **UUID v7 - Dùng để lưu vào booking state** (`POST /booking-state/seat`)\n- `seatNumber`: Số ghế (ví dụ: `1A`, `2B`)\n- `seatType`: Loại ghế (`window`, `aisle`, `middle`)\n- `position`: Vị trí (`left` hoặc `right`) - Business: A-B = left, C-D = right\n- `isAvailable`: Ghế còn trống không (`true` = có thể chọn, `false` = đã được giữ/book)\n- `isSelectable`: **NEW** - Ghế có thể chọn không dựa trên cabin type được request\n  - `true`: Seat thuộc cabin type được request và `isAvailable = true` → User có thể chọn\n  - `false`: Seat thuộc cabin type khác hoặc `isAvailable = false` → User không thể chọn (nhưng vẫn hiển thị)\n- `isExitRow`: Có phải ghế exit row không\n- `note`: Mã note cho fare class (`bf` = Business Flex, `bs` = Business Smart)\n\n**Flow sử dụng trong Booking:**\n1. Get seat map → `GET /search/seats?flightInstanceId=xxx&cabinType=business`\n2. Frontend render seat map UI (grid layout với left/right)\n   - **Check `isSelectable` để disable seats không thuộc cabin type đã chọn**\n   - Hiển thị cả economy và business sections (economy seats sẽ disabled nếu user chọn business)\n3. User chọn ghế → Lấy `flightSeatId` và `seatNumber` từ response (chỉ seats với `isSelectable = true`)\n4. Save seat selection → `POST /booking-state/seat` với `{flightInstanceId, flightSeatId, seatNumber}`\n5. Create reservation → `POST /reservations` (backend tự động lấy `flightSeatId` từ booking state)\n\n**Lưu ý:**\n- Chọn ghế là **BẮT BUỘC** sau khi chọn cabin\n- **API luôn trả về cả economy và business seats** - Frontend nên check `isSelectable` để disable seats không thuộc cabin type đã chọn\n- `isAvailable = false` nghĩa là ghế đã được giữ (reserved) hoặc đã được book\n- `isSelectable = false` nghĩa là ghế không thuộc cabin type được request (nhưng vẫn hiển thị để UI không bị trống)\n- Khi tạo reservation với `flightSeatId`, backend tự động mark seat as unavailable (`is_available = false`)\n- Khi cancel reservation, backend tự động mark seat as available (`is_available = true`)\n- Xem thêm: `docs/design/SEAT_MAP_API_EXPLANATION.md` để hiểu chi tiết về database schema và flow\n\n**Test Script:**\n- Automatically sets `flightSeatId` and `seatNumber` collection variables from first available seat with `isSelectable = true`"
 					},
 					"response": []
+				},
+				{
+					"name": "Get Fare Options - Auto-fetch (After Saving Cabin)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/search/fare-options",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"search",
+								"fare-options"
+							],
+							"query": []
+						},
+						"description": "**NEW (2025-11-25): Auto-fetch from Booking State**\n\nGet fare options without providing query parameters. Backend will automatically fetch `flightInstanceId` and `cabinType` from booking state if user is authenticated and has saved cabin selection.\n\n**Prerequisites:**\n1. User must be authenticated (Bearer token in header)\n2. User must have saved cabin selection via `POST /api/v1/booking-state/cabin`\n\n**How it works:**\n- Backend uses `OptionalJwtAuthGuard` to extract user from JWT token\n- If user is authenticated, backend queries booking state from Redis\n- Auto-fetches `flightInstanceId` and `cabinType` from the most recent booking state\n- Returns fare options for the auto-fetched flight instance and cabin type\n\n**Use case:**\n- After user saves cabin selection, frontend can call this API without needing to store `flightInstanceId` and `cabinType`\n- Improves UX: User doesn't need to re-enter information\n- Reduces API calls: Frontend doesn't need to manage state\n\n**Error handling:**\n- If user is not authenticated → Must provide query parameters\n- If no booking state exists → 400 Bad Request: \"flightInstanceId is required...\"\n- If booking state exists but missing cabin → 400 Bad Request: \"cabinType is required...\""
+					},
+					"response": []
+				},
+				{
+					"name": "Get Seat Map - Auto-fetch CabinType (After Saving Cabin)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/search/seats?flightInstanceId={{flightInstanceId}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"search",
+								"seats"
+							],
+							"query": [
+								{
+									"key": "flightInstanceId",
+									"value": "{{flightInstanceId}}",
+									"description": "Flight instance ID (required)"
+								}
+							]
+						},
+						"description": "**NEW (2025-11-25): Auto-fetch CabinType from Booking State**\n\nGet seat map with only `flightInstanceId`. Backend will automatically fetch `cabinType` from booking state if user is authenticated and has saved cabin selection.\n\n**Prerequisites:**\n1. User must be authenticated (Bearer token in header)\n2. User must have saved cabin selection via `POST /api/v1/booking-state/cabin`\n\n**How it works:**\n- Backend uses `OptionalJwtAuthGuard` to extract user from JWT token\n- If user is authenticated, backend queries booking state from Redis\n- Auto-fetches `cabinType` from the most recent booking state for the provided `flightInstanceId`\n- Returns seat map for the auto-fetched cabin type\n\n**Use case:**\n- After user saves cabin selection, frontend can call this API with only `flightInstanceId`\n- Improves UX: User doesn't need to remember cabin type\n- Reduces API calls: Frontend doesn't need to manage cabin type state\n\n**Error handling:**\n- If user is not authenticated → Must provide `cabinType` query parameter\n- If no booking state exists → 400 Bad Request: \"cabinType is required...\"\n- If booking state exists but for different `flightInstanceId` → 400 Bad Request: \"cabinType is required...\""
+					},
+					"response": []
 				}
 			],
 			"description": "Search flights and get fare options"

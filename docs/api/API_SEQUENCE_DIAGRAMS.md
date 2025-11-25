@@ -41,20 +41,48 @@ sequenceDiagram
     API Gateway-->>Client: 200 OK<br/>{flights list}
 
     Note over Client,Redis: Phase 3: Get Fare Options
-    Client->>API Gateway: GET /search/fare-options<br/>?flightInstanceId=xxx&cabinType=economy
-    API Gateway->>Search MS: GET_FARE_OPTIONS message (TCP)
-    Search MS->>Database: Query FareClasses, FlightSeats
-    Database-->>Search MS: Fare classes & availability
-    Search MS-->>API Gateway: [{fareClassCode, price, ...}]
-    API Gateway-->>Client: 200 OK<br/>{fare options}
+    alt With Query Parameters (Traditional Flow)
+        Client->>API Gateway: GET /search/fare-options<br/>?flightInstanceId=xxx&cabinType=economy
+        API Gateway->>Search MS: GET_FARE_OPTIONS message (TCP)<br/>{flightInstanceId, cabinType}
+        Search MS->>Database: Query FareClasses, FlightSeats
+        Database-->>Search MS: Fare classes & availability
+        Search MS-->>API Gateway: [{fareClassCode, price, ...}]
+        API Gateway-->>Client: 200 OK<br/>{fare options}
+    else Auto-fetch from Booking State (NEW - 2025-11-25)
+        Client->>API Gateway: GET /search/fare-options<br/>Authorization: Bearer <token><br/>(no query parameters)
+        API Gateway->>API Gateway: OptionalJwtAuthGuard<br/>Extract user from JWT token
+        API Gateway->>API Gateway: Check if flightInstanceId/cabinType missing<br/>AND req.user exists
+        API Gateway->>Redis: Query booking:state:{userId}:*<br/>(using raw Redis client)
+        Redis-->>API Gateway: Array of booking states
+        API Gateway->>API Gateway: Get latest booking state<br/>Extract flightInstanceId & cabinType
+        API Gateway->>Search MS: GET_FARE_OPTIONS message (TCP)<br/>{flightInstanceId, cabinType} (auto-fetched)
+        Search MS->>Database: Query FareClasses, FlightSeats
+        Database-->>Search MS: Fare classes & availability
+        Search MS-->>API Gateway: [{fareClassCode, price, ...}]
+        API Gateway-->>Client: 200 OK<br/>{fare options}
+    end
 
     Note over Client,Redis: Phase 3.5: Get Seat Map (Required - Seat Selection)
-    Client->>API Gateway: GET /search/seats<br/>?flightInstanceId=xxx&cabinType=economy
-    API Gateway->>Search MS: GET_SEAT_MAP message (TCP)
-    Search MS->>Database: Query FlightSeats, SeatConfigurations<br/>Filter by cabin class
-    Database-->>Search MS: Seat data with availability
-    Search MS-->>API Gateway: {flightInstanceId, cabinType, seats: [{flightSeatId, seatNumber, isAvailable, ...}]}
-    API Gateway-->>Client: 200 OK<br/>{seat map}
+    alt With Query Parameters (Traditional Flow)
+        Client->>API Gateway: GET /search/seats<br/>?flightInstanceId=xxx&cabinType=economy
+        API Gateway->>Search MS: GET_SEAT_MAP message (TCP)<br/>{flightInstanceId, cabinType}
+        Search MS->>Database: Query FlightSeats, SeatConfigurations<br/>Filter by cabin class
+        Database-->>Search MS: Seat data with availability
+        Search MS-->>API Gateway: {flightInstanceId, cabinType, seats: [{flightSeatId, seatNumber, isAvailable, ...}]}
+        API Gateway-->>Client: 200 OK<br/>{seat map}
+    else Auto-fetch CabinType from Booking State (NEW - 2025-11-25)
+        Client->>API Gateway: GET /search/seats<br/>?flightInstanceId=xxx<br/>Authorization: Bearer <token><br/>(cabinType not provided)
+        API Gateway->>API Gateway: OptionalJwtAuthGuard<br/>Extract user from JWT token
+        API Gateway->>API Gateway: Check if cabinType missing<br/>AND req.user exists
+        API Gateway->>Redis: Query booking:state:{userId}:{flightInstanceId}
+        Redis-->>API Gateway: Booking state (with cabin)
+        API Gateway->>API Gateway: Extract cabinType from booking state
+        API Gateway->>Search MS: GET_SEAT_MAP message (TCP)<br/>{flightInstanceId, cabinType} (auto-fetched)
+        Search MS->>Database: Query FlightSeats, SeatConfigurations<br/>Filter by cabin class
+        Database-->>Search MS: Seat data with availability
+        Search MS-->>API Gateway: {flightInstanceId, cabinType, seats: [{flightSeatId, seatNumber, isAvailable, ...}]}
+        API Gateway-->>Client: 200 OK<br/>{seat map}
+    end
 
     Note over Client,Redis: Phase 3.6: Save Cabin Selection (Backend State Management)
     Client->>API Gateway: POST /booking-state/cabin<br/>Authorization: Bearer <token><br/>{flightInstanceId, cabinType, fareClassCode}

@@ -66,6 +66,44 @@ Hệ thống quản lý booking state (cabin và seat selection) được thiế
 └─────────────────────────────────────────────────────────────┘
 ```
 
+## Auto-fetch Feature (Tự động lấy thông tin từ Booking State)
+
+**Tính năng mới (2025-11-25):** Một số API hỗ trợ tự động lấy thông tin từ booking state khi user đã đăng nhập:
+
+### APIs hỗ trợ Auto-fetch:
+1. **`GET /api/v1/search/fare-options`**
+   - Auto-fetch: `flightInstanceId` và `cabinType`
+   - Điều kiện: User đã đăng nhập (có JWT token hợp lệ) và đã save cabin selection
+   - Logic: Nếu query parameters không được truyền, backend tự động lấy từ booking state
+
+2. **`GET /api/v1/search/seats`**
+   - Auto-fetch: `cabinType`
+   - Điều kiện: User đã đăng nhập (có JWT token hợp lệ) và đã save cabin selection
+   - Logic: Nếu `cabinType` không được truyền, backend tự động lấy từ booking state
+
+### Implementation Details:
+
+**OptionalJwtAuthGuard:**
+- Guard mới cho phép optional authentication
+- Extract user từ JWT token nếu có, nhưng không bắt buộc authentication
+- Nếu token hợp lệ → `req.user` được populate
+- Nếu không có token hoặc token invalid → `req.user = undefined`, request vẫn được tiếp tục
+
+**Auto-fetch Flow:**
+```
+1. User gọi API với optional authentication
+2. OptionalJwtAuthGuard extract user từ token (nếu có)
+3. Controller check: Nếu query parameter thiếu và req.user có giá trị
+4. BookingStateService.getAllBookingStates(userId) → Query Redis
+5. Lấy thông tin từ booking state (flightInstanceId, cabinType)
+6. Sử dụng thông tin từ booking state hoặc query parameters (priority: query params > booking state)
+```
+
+**Benefits:**
+- Cải thiện UX: User không cần truyền lại thông tin đã chọn
+- Giảm số lượng API calls: Frontend có thể gọi API mà không cần lưu state
+- Backward compatible: Vẫn hỗ trợ gọi API với query parameters (override booking state)
+
 ## Các thành phần
 
 ### 1. Types & Interfaces (`src/shared/types/booking-state.types.ts`)

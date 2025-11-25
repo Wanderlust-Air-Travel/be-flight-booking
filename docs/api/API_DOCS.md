@@ -16,6 +16,10 @@ http://localhost:3000
 - Một số API cần đăng nhập trước
 - Sau khi đăng nhập, gửi token trong header: `Authorization: Bearer <access_token>`
 - Token có hiệu lực 15 phút, dùng `refresh_token` để lấy token mới
+- **Optional Authentication**: Một số API hỗ trợ optional authentication (có thể gọi với hoặc không có token):
+  - `GET /api/v1/search/fare-options` - Tự động lấy `flightInstanceId` và `cabinType` từ booking state nếu user đã đăng nhập
+  - `GET /api/v1/search/seats` - Tự động lấy `cabinType` từ booking state nếu user đã đăng nhập
+  - Nếu không có token hoặc không có booking state, phải truyền đầy đủ query parameters
 
 ### Định dạng
 - ID: Tất cả ID là mã UUID dạng `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx`
@@ -205,6 +209,8 @@ GET /api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&retu
 ### Lấy danh sách loại vé
 **GET** `/api/v1/search/fare-options`
 
+**Authentication:** Optional (Bearer token trong header `Authorization`)
+
 **Tham số:**
 - `flightInstanceId` (optional): ID chuyến bay
   - **Nếu không truyền**: Backend tự động lấy từ booking state (nếu user đã đăng nhập và đã save cabin selection)
@@ -215,6 +221,14 @@ GET /api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&retu
   - **Nếu truyền**: Sử dụng giá trị được truyền (override booking state)
   - **Lưu ý**: Nếu không truyền và không có booking state → 400 Bad Request
 
+**Auto-fetch Logic:**
+- Nếu user đã đăng nhập (có token hợp lệ) và đã save cabin selection:
+  - Backend tự động lấy `flightInstanceId` và `cabinType` từ booking state
+  - User không cần truyền query parameters
+- Nếu user chưa đăng nhập hoặc chưa save cabin selection:
+  - Phải truyền đầy đủ `flightInstanceId` và `cabinType`
+- Query parameters luôn có priority cao hơn booking state (override)
+
 **Trả về:** Danh sách các loại vé (Economy: Saver Max, Standard, Smart, Flex | Business: Standard, Smart, Flex) với giá và mô tả điều kiện
 
 ---
@@ -222,12 +236,22 @@ GET /api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&retu
 ### Lấy bản đồ ghế ngồi
 **GET** `/api/v1/search/seats`
 
+**Authentication:** Optional (Bearer token trong header `Authorization`)
+
 **Tham số:**
 - `flightInstanceId` (bắt buộc): ID chuyến bay (UUID v7)
 - `cabinType` (optional): `economy` hoặc `business`
   - **Nếu không truyền**: Backend tự động lấy từ booking state (nếu user đã đăng nhập và đã save cabin selection)
   - **Nếu truyền**: Sử dụng giá trị được truyền (override booking state)
   - **Lưu ý**: Nếu không truyền và không có booking state → 400 Bad Request
+
+**Auto-fetch Logic:**
+- Nếu user đã đăng nhập (có token hợp lệ) và đã save cabin selection:
+  - Backend tự động lấy `cabinType` từ booking state
+  - User chỉ cần truyền `flightInstanceId`
+- Nếu user chưa đăng nhập hoặc chưa save cabin selection:
+  - Phải truyền đầy đủ `flightInstanceId` và `cabinType`
+- Query parameters luôn có priority cao hơn booking state (override)
 
 **Trả về:** Bản đồ ghế được group theo cabin class với thông tin chi tiết. **API LUÔN TRẢ VỀ CẢ ECONOMY VÀ BUSINESS SEATS** (bất kể cabinType được request):
 
