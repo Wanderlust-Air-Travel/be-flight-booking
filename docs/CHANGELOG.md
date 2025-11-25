@@ -6,6 +6,26 @@ Lịch sử các thay đổi quan trọng của dự án.
 
 ### Tính năng mới
 
+- **Deals Images Download Script Improvements (2025-11-25)**
+  - **Auto-cleanup**: Tự động xóa tất cả ảnh cũ trong `public/images/routes` trước khi download ảnh mới
+  - **Top 8 Deals Only**: Chỉ download ảnh cho top 8 deals từ API `/api/v1/services/deals` (FE chỉ hiển thị 8 items)
+  - **API Gateway Health Check**: Đợi API Gateway sẵn sàng trước khi fetch deals với retry logic và exponential backoff
+  - **Error Handling**: Comprehensive error handling với logging
+  - **Files Changed**:
+    - `scripts/download-deals-images.ts` (updated)
+    - `docker/entrypoint-with-download.ts` (new)
+
+- **Conditional Database Seeding (2025-11-25)**
+  - **Check Existing Data**: Kiểm tra database đã có data chưa trước khi seed
+  - **Raw SQL Queries**: Sử dụng raw SQL để tránh TypeORM entity metadata issues
+  - **Prevent Duplicate Seeding**: Tránh seed lại data đã tồn tại
+  - **Graceful Exit**: Nếu đã có data, log message và exit gracefully
+  - **Files Changed**:
+    - `docker/seed-if-empty.ts` (new)
+    - `src/scripts/seed-full-database.ts` (updated - added check)
+
+### Tính năng mới
+
 - **Auto-fetch từ Booking State (2025-11-25)**
   - **OptionalJwtAuthGuard**: Guard mới cho phép optional authentication - extract user từ JWT token nếu có, nhưng không bắt buộc authentication
   - **Auto-fetch Logic**: Một số API tự động lấy thông tin từ booking state khi user đã đăng nhập:

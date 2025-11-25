@@ -28,7 +28,9 @@ http://localhost:3000
 ### Luồng đặt vé
 1. Tìm kiếm chuyến bay
 2. Chọn loại vé (cabin) → Lưu cabin vào Redis (`POST /api/v1/booking-state/cabin`)
+   - **Validation (Updated 2025-11-25)**: Fare class code phải match với cabin type (Economy: 'Y*', Business: 'J*')
 3. **Chọn ghế ngồi (BẮT BUỘC)** → Lưu seat vào Redis (`POST /api/v1/booking-state/seat`)
+   - **Auto-fetch (Updated 2025-11-25)**: `GET /api/v1/search/seats` có thể tự động lấy `cabinType` từ booking state nếu user đã đăng nhập
 4. **Verify state (Optional - Recommended)** → Kiểm tra state trước khi tạo reservation (`GET /api/v1/booking-state/:flightInstanceId`)
 5. Giữ chỗ 15 phút (reservation) - Backend tự động lấy cabin + seat từ Redis, lưu reservation vào Redis, tự động clear booking state sau khi thành công
 6. Điền thông tin hành khách

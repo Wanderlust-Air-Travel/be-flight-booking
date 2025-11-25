@@ -919,7 +919,7 @@
 								"host": ["{{base_url}}"],
 								"path": ["api", "v1", "booking-state", "cabin"]
 							},
-							"description": "Lưu cabin selection vào Redis. Backend tự quản lý state, frontend chỉ cần gọi API này.\n\n**Request body:**\n- `flightInstanceId`: Flight instance ID (UUID v7)\n- `cabinType`: \"economy\" hoặc \"business\"\n- `fareClassCode`: Fare class code (e.g., \"YS\", \"YF\", \"YSB\")\n\n**Response:**\n- `{success: true, message: \"Cabin selection saved successfully\"}`\n\n**Lưu ý:**\n- Yêu cầu JWT authentication\n- State được lưu vào Redis với TTL 30 phút\n- Phải lưu cabin trước khi lưu seat\n- Key format: `booking:state:{userId}:{flightInstanceId}`"
+							"description": "Lưu cabin selection vào Redis. Backend tự quản lý state, frontend chỉ cần gọi API này.\n\n**Request body:**\n- `flightInstanceId`: Flight instance ID (UUID v7)\n- `cabinType`: \"economy\" hoặc \"business\"\n- `fareClassCode`: Fare class code (e.g., \"YS\", \"YF\", \"JS\", \"JF\")\n\n**Validation (Updated 2025-11-25):**\n- **Economy**: `fareClassCode` must start with 'Y' (e.g., 'YS', 'YF', 'YSM')\n- **Business**: `fareClassCode` must start with 'J' (e.g., 'JS', 'JF', 'JFLX')\n- Returns `400 Bad Request` với `InvalidFareClassException` nếu validation fail\n\n**Response:**\n- `{success: true, message: \"Cabin selection saved successfully\"}`\n\n**Lưu ý:**\n- Yêu cầu JWT authentication\n- State được lưu vào Redis với TTL 30 phút\n- Phải lưu cabin trước khi lưu seat\n- Key format: `booking:state:{userId}:{flightInstanceId}:cabin`\n- **Auto-fetch**: Sau khi lưu, `GET /api/v1/search/seats` có thể tự động lấy `cabinType` từ booking state"
 						},
 						"response": []
 					},
