@@ -118,6 +118,43 @@ function generateDocumentNumber(): string {
 	return String(randomInt(100000000, 999999999));
 }
 
+/**
+ * Check if database already has seed data
+ * Returns true if data exists, false otherwise
+ */
+async function hasExistingSeedData(ds: DataSource): Promise<boolean> {
+	const repos = {
+		user: ds.getRepository(User),
+		route: ds.getRepository(Route),
+		schedule: ds.getRepository(FlightSchedule),
+		instance: ds.getRepository(FlightInstance),
+	};
+
+	// Check for existing seed data in key tables
+	// Seed script creates:
+	// - 500 users
+	// - Multiple routes (domestic routes between airports)
+	// - Flight schedules
+	// - Flight instances
+	
+	const userCount = await repos.user.count();
+	const routeCount = await repos.route.count();
+	const scheduleCount = await repos.schedule.count();
+	const instanceCount = await repos.instance.count();
+
+	// If any of these tables have data, assume database has been seeded
+	if (userCount > 0 || routeCount > 0 || scheduleCount > 0 || instanceCount > 0) {
+		console.log('\nDatabase đã có dữ liệu seed:');
+		console.log(`   - Users: ${userCount}`);
+		console.log(`   - Routes: ${routeCount}`);
+		console.log(`   - Flight Schedules: ${scheduleCount}`);
+		console.log(`   - Flight Instances: ${instanceCount}`);
+		return true;
+	}
+
+	return false;
+}
+
 async function run() {
 	console.log('Starting full database seed...');
 	
@@ -137,6 +174,22 @@ async function run() {
 		console.error('Error details:', error);
 		throw error;
 	}
+
+	// Check if database already has seed data
+	console.log('\nKiểm tra dữ liệu seed hiện có...');
+	const hasData = await hasExistingSeedData(ds);
+	
+	if (hasData) {
+		console.error('\nLỗi: Database đã có dữ liệu seed!');
+		console.error('   Để chạy lại seed script, bạn cần:');
+		console.error('   1. Xóa dữ liệu seed hiện có (chạy SQL script: sql/utils/data-management/clear-all-seed-data.sql)');
+		console.error('   2. Hoặc xóa và tạo lại database');
+		console.error('\n   Script sẽ dừng để tránh duplicate data.');
+		await ds.destroy();
+		process.exit(1);
+	}
+
+	console.log('Database trống, có thể tiếp tục seed...\n');
 
 	const repos = {
 		airport: ds.getRepository(Airport),
