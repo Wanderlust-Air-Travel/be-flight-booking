@@ -26,10 +26,11 @@ docker-compose -f docker-compose-full-services.yml up --build
 ```
 
 Hệ thống sẽ tự động:
-- Tạo database và user
-- **Chạy TypeORM migrations** (tạo tables, indexes, triggers) qua script TypeScript `docker/init-database.ts`
+- Đợi SQL Server sẵn sàng (`docker/wait-for-sqlserver.ts`)
+- Tạo database và chạy TypeORM migrations (`docker/init-database.ts`)
+- Verify database sẵn sàng (`docker/wait-for-database.ts`)
 - Seed database với dữ liệu mẫu
-- Khởi động tất cả services
+- Khởi động tất cả services (với delay để đảm bảo database sẵn sàng)
 
 **Xem chi tiết:** 
 - [Docker Setup Guide](./docker/README.md) - Tổng quan về Docker setup

@@ -101,6 +101,7 @@ export interface BookingState {
 - `CabinNotSelectedException` - Cabin chưa được chọn
 - `SeatNotSelectedException` - Seat chưa được chọn
 - `BookingStateNotFoundException` - State không tồn tại
+- `InvalidFareClassException` - Fare class code không match với cabin type (mới)
 - `BookingStateStorageException` - Lỗi Redis storage
 
 ### 3. Repository Pattern (`src/shared/repositories/booking-state.repository.ts`)
@@ -132,12 +133,20 @@ export interface BookingState {
 - Logging
 
 **Methods:**
-- `saveCabinSelection()` - Lưu cabin selection
+- `saveCabinSelection()` - Lưu cabin selection (validate fareClassCode match cabinType)
 - `saveSeatSelection()` - Lưu seat selection (validate cabin first)
 - `getBookingState()` - Lấy current state
 - `getSelectionsForReservation()` - Lấy cabin + seat cho reservation
 - `clearBookingState()` - Xóa state sau reservation
 - `clearAllUserStates()` - Cleanup tất cả state của user
+
+**Business Rules:**
+- **Fare Class Validation**: `fareClassCode` phải match với `cabinType`:
+  - Economy (`cabinType='economy'`): `fareClassCode` phải bắt đầu bằng 'Y' (ví dụ: 'YS', 'YF', 'YSM')
+  - Business (`cabinType='business'`): `fareClassCode` phải bắt đầu bằng 'J' (ví dụ: 'JS', 'JF', 'JFLX')
+  - Validation được thực hiện trong `saveCabinSelection()` để đảm bảo data integrity
+- **Cabin Before Seat**: Cabin phải được chọn trước khi chọn seat
+- **State Expiration**: State tự động expire sau 30 phút (TTL)
 
 ### 5. Module Structure (`src/shared/modules/booking-state/booking-state.module.ts`)
 
@@ -207,9 +216,15 @@ export interface BookingState {
 ```
 Client → API Gateway → BookingStateController
   → BookingStateService
+    → Validate fareClassCode matches cabinType
     → BookingStateRepository
       → Redis (save)
 ```
+
+**Validation Rules:**
+- Economy: `fareClassCode` phải bắt đầu bằng 'Y' (ví dụ: 'YS', 'YF', 'YSM')
+- Business: `fareClassCode` phải bắt đầu bằng 'J' (ví dụ: 'JS', 'JF', 'JFLX')
+- Throw `InvalidFareClassException` nếu validation fail
 
 ### 2. Lưu Seat Selection
 

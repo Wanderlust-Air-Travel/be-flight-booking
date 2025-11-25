@@ -32,10 +32,11 @@ docker-compose -f docker-compose-full-services.yml up --build
 Lệnh này sẽ tự động:
 - Build backend image
 - Khởi động SQL Server và Redis
-- Đợi SQL Server sẵn sàng (qua script TypeScript `docker/wait-for-database.ts`)
-- Tạo database và chạy migrations (qua script TypeScript `docker/init-database.ts`)
+- Đợi SQL Server sẵn sàng (qua script `docker/wait-for-sqlserver.ts` - kết nối `master` database)
+- Tạo database và chạy migrations (qua script `docker/init-database.ts`)
+- Verify database sẵn sàng (qua script `docker/wait-for-database.ts` - kết nối `flight_booking_db`)
 - Seed database
-- Khởi động tất cả services
+- Khởi động tất cả services (với delay để đảm bảo database sẵn sàng)
 
 **Lưu ý:** Lần đầu có thể mất 20-50 phút (download images, build, seed).
 
@@ -101,10 +102,20 @@ Nếu có SQL Server local trên port 1433, Docker dùng port 1434. Đổi port 
 
 ### Backend không kết nối được SQL Server
 
+**Kiểm tra logs:**
 ```bash
-docker-compose -f docker-compose-full-services.yml logs sqlserver
-# Đợi "SQL Server is ready"
+docker-compose -f docker-compose-full-services.yml logs backend
+# Tìm "SQL Server is ready!" - từ wait-for-sqlserver
+# Tìm "Database 'flight_booking_db' is ready!" - từ wait-for-db
 ```
+
+**Nếu thấy lỗi "Login failed for user 'sa'. Reason: Failed to open the explicitly specified database 'flight_booking_db'":**
+- Đây là lỗi do database chưa được tạo khi services cố kết nối
+- Giải pháp: Rebuild containers để đảm bảo flow đúng:
+  ```bash
+  docker-compose -f docker-compose-full-services.yml down -v
+  docker-compose -f docker-compose-full-services.yml up --build
+  ```
 
 ### Migrations không chạy
 
@@ -112,7 +123,9 @@ docker-compose -f docker-compose-full-services.yml logs sqlserver
 docker-compose -f docker-compose-full-services.yml exec backend npm run migration:run
 ```
 
-Xem chi tiết: [MIGRATIONS.md](./MIGRATIONS.md)
+Xem chi tiết: 
+- [MIGRATIONS.md](./MIGRATIONS.md)
+- [Docker Database Initialization](../docs/database/DOCKER_INITIALIZATION.md) - Chi tiết về flow khởi tạo database
 
 ### Reset hoàn toàn
 

@@ -19,6 +19,7 @@ Tài liệu dự án Flight Booking Backend được tổ chức theo các danh 
 ### Database
 - **[ERD.md](./database/ERD.md)** - Sơ đồ cơ sở dữ liệu
 - **[SEED-README.md](./database/SEED-README.md)** - Hướng dẫn tạo dữ liệu mẫu
+- **[DOCKER_INITIALIZATION.md](./database/DOCKER_INITIALIZATION.md)** - Chi tiết về flow khởi tạo database trong Docker
 
 ### Cài đặt
 - **[REDIS_SETUP.md](./setup/REDIS_SETUP.md)** - Hướng dẫn cài đặt Redis

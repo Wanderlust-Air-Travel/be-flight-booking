@@ -18,7 +18,12 @@ cd be-flight-booking
 docker-compose -f docker-compose-full-services.yml up --build -d
 ```
 
-Lệnh này tự động: tạo database, chạy migrations, seed data, khởi động services.
+Lệnh này tự động:
+1. Đợi SQL Server sẵn sàng (`wait-for-sqlserver.ts`)
+2. Tạo database và chạy migrations (`init-database.ts`)
+3. Verify database sẵn sàng (`wait-for-database.ts`)
+4. Seed data
+5. Khởi động tất cả services (với delay để đảm bảo database sẵn sàng)
 
 ## Kiểm tra
 

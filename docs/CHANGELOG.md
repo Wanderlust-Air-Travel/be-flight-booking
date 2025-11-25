@@ -4,6 +4,26 @@ Lịch sử các thay đổi quan trọng của dự án.
 
 ## [Unreleased]
 
+### Cải tiến
+
+- **Validation logic cho Booking State (2025-11-25)**
+  - Thêm validation `fareClassCode` phải match với `cabinType`:
+    - Economy: `fareClassCode` phải bắt đầu bằng 'Y' (ví dụ: 'YS', 'YF', 'YSM')
+    - Business: `fareClassCode` phải bắt đầu bằng 'J' (ví dụ: 'JS', 'JF', 'JFLX')
+  - Exception mới: `InvalidFareClassException` khi validation fail
+  - Đảm bảo data integrity trước khi lưu vào Redis
+
+- **Cải thiện Docker initialization flow (2025-11-25)**
+  - Tách `wait-for-sqlserver.ts` và `wait-for-database.ts` để tránh race condition
+  - Flow mới: `wait-for-sqlserver` → `init-db` → `wait-for-db` → `seed-db` → `start:all`
+  - Thêm verification step sau migrations để đảm bảo database sẵn sàng
+  - Tăng delay trước khi start services (10 giây) để đảm bảo database hoàn toàn sẵn sàng
+  - Fix lỗi "Login failed" do database chưa tồn tại khi services kết nối
+
+- **Code organization improvements (2025-11-25)**
+  - Tách interfaces ra file riêng (`docker/start-all.types.ts`)
+  - Tuân thủ separation of concerns: types tách khỏi logic code
+
 ### Tính năng mới
 
 - **Email thông báo tự động (2025-11-23)**
