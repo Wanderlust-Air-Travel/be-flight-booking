@@ -278,13 +278,30 @@ export class SearchController {
 			let flightInstanceId = query.flightInstanceId;
 			let cabinType = query.cabinType;
 			
+			this.logger.debug('getFareOptions - Before auto-fetch:', {
+				hasReq: !!req,
+				hasUser: !!req?.user,
+				userId: req?.user?.userId,
+				queryFlightInstanceId: query.flightInstanceId,
+				queryCabinType: query.cabinType,
+				needsAutoFetch: !flightInstanceId || !cabinType,
+			});
+			
 			if ((!flightInstanceId || !cabinType) && req?.user?.userId) {
 				// req.user is available when OptionalJwtAuthGuard extracts user from token
 				try {
+					this.logger.debug(`Attempting to auto-fetch from booking state for user ${req.user.userId}`);
 					const allStates = await this.bookingStateService.getAllBookingStates(req.user.userId);
+					this.logger.debug(`Found ${allStates.length} booking states for user ${req.user.userId}`);
+					
 					if (allStates.length > 0) {
 						// Get the most recent booking state (first one, sorted by updatedAt if needed)
 						const latestState = allStates[0];
+						this.logger.debug('Latest booking state:', {
+							flightInstanceId: latestState.flightInstanceId,
+							hasCabin: !!latestState.state?.cabin,
+							cabinType: latestState.state?.cabin?.cabinType,
+						});
 						
 						if (!flightInstanceId && latestState.flightInstanceId) {
 							flightInstanceId = latestState.flightInstanceId;
@@ -293,18 +310,26 @@ export class SearchController {
 							);
 						}
 						
-						if (!cabinType && latestState.state.cabin?.cabinType) {
+						if (!cabinType && latestState.state?.cabin?.cabinType) {
 							cabinType = latestState.state.cabin.cabinType as CabinType;
 							this.logger.debug(
 								`Auto-fetched cabinType from booking state: ${cabinType} for user ${req.user.userId}`,
 							);
 						}
+					} else {
+						this.logger.debug(`No booking states found for user ${req.user.userId}`);
 					}
 				} catch (error) {
 					// If booking state not found or error, continue without auto-fetch
+					this.logger.error('Error auto-fetching from booking state:', error);
 					this.logger.debug('Could not auto-fetch flightInstanceId/cabinType from booking state, using provided values or requiring them');
 				}
 			}
+			
+			this.logger.debug('getFareOptions - After auto-fetch:', {
+				flightInstanceId,
+				cabinType,
+			});
 			
 			// Validate flightInstanceId is available (either from query or booking state)
 			if (!flightInstanceId || typeof flightInstanceId !== 'string') {

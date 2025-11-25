@@ -10,39 +10,23 @@ import { Observable } from "rxjs";
 @Injectable()
 export class OptionalJwtAuthGuard extends AuthGuard('jwt') {
 	canActivate(context: ExecutionContext): boolean | Promise<boolean> | Observable<boolean> {
-		// Always allow request to continue
-		// Try to extract user from token, but don't fail if token is missing/invalid
-		const result = super.canActivate(context);
-		
-		// If super.canActivate returns a Promise/Observable, catch errors and allow request
-		if (result instanceof Promise) {
-			return result.catch(() => true);
-		}
-		
-		if (result instanceof Observable) {
-			return new Observable(observer => {
-				result.subscribe({
-					next: (value) => observer.next(value),
-					error: () => {
-						// If authentication fails, allow request to continue
-						observer.next(true);
-						observer.complete();
-					},
-					complete: () => observer.complete(),
-				});
-			});
-		}
-		
-		// If boolean, return true (allow request)
-		return true;
+		// Always allow authentication to proceed, even if it fails
+		// Passport will call handleRequest which we override to not throw errors
+		return super.canActivate(context);
 	}
 
-	handleRequest(err: any, user: any, info: any) {
-		// If there's an error or no user, return undefined (not throw)
-		// This allows the request to continue without authentication
-		if (err || !user) {
+	handleRequest(err: any, user: any, info: any, context?: ExecutionContext) {
+		// Don't throw error if authentication fails (missing/invalid token)
+		// Instead, return undefined to allow request to continue without authentication
+		// But if user exists, return it so Passport attaches it to req.user
+		if (err) {
+			// Authentication failed (missing token, invalid token, etc.)
+			// Return undefined to allow unauthenticated access
 			return undefined;
 		}
-		return user;
+		
+		// Return user if exists, or undefined if not
+		// This allows Passport to attach user to req.user when available
+		return user || undefined;
 	}
 }

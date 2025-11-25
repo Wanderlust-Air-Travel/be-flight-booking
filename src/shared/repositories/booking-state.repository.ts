@@ -140,18 +140,28 @@ export class BookingStateRepository {
 	 * @returns Array of {flightInstanceId, state} pairs
 	 */
 	async findAllByUserId(userId: string): Promise<Array<{ flightInstanceId: string; state: BookingState }>> {
+		// Pattern should match: booking:state:{userId}:*
+		// ioredis with keyPrefix 'flight-booking:' automatically prepends it to keys
+		// But keys() pattern matching doesn't work correctly with keyPrefix, so we use raw Redis client
+		// Actual key format in Redis: flight-booking:booking:state:{userId}:{flightInstanceId}
 		const pattern = `${this.keyPrefix}:${userId}:*`;
+		const fullPattern = `flight-booking:${pattern}`;
 		
 		try {
-			const keys = await this.redisService.keys(pattern);
+			// Use raw Redis client to query keys because ioredis keyPrefix handling 
+			// doesn't work correctly with keys() pattern matching
+			const rawRedis = this.redisService.getClient();
+			const rawKeys = await rawRedis.keys(fullPattern);
 			
 			const results: Array<{ flightInstanceId: string; state: BookingState }> = [];
-			for (const key of keys) {
-				// Extract flightInstanceId from key: booking:state:{userId}:{flightInstanceId}
-				const parts = key.split(':');
+			for (const rawKey of rawKeys) {
+				// Extract flightInstanceId from key: flight-booking:booking:state:{userId}:{flightInstanceId}
+				// Remove the keyPrefix to get the relative key for redisService.get()
+				const relativeKey = rawKey.replace(/^flight-booking:/, '');
+				const parts = relativeKey.split(':');
 				if (parts.length >= 4) {
 					const flightInstanceId = parts.slice(3).join(':'); // Handle UUID v7 format
-					const state = await this.redisService.get<BookingState>(key);
+					const state = await this.redisService.get<BookingState>(relativeKey);
 					if (state) {
 						results.push({ flightInstanceId, state });
 					}
