@@ -11,6 +11,8 @@ import {
 import { ClientProxy } from '@nestjs/microservices';
 import { Inject } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
+import { timeout, catchError } from 'rxjs/operators';
+import { throwError } from 'rxjs';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { PaymentResponseDto } from './dto/payment-response.dto';
 import { UpdatePaymentStatusDto } from './dto/update-payment-status.dto';
@@ -57,6 +59,8 @@ export class PaymentController {
 			
 			const userId = req.user.userId;
 
+			// BEST PRACTICE: Payment operations can be slow due to database transactions
+			// Set timeout to 60 seconds (payment operations are more complex than search)
 			return await firstValueFrom(
 				this.client.send<PaymentResponseDto>(PAYMENT_MS.PATTERN.CREATE_PAYMENT, {
 					userId,
@@ -64,7 +68,18 @@ export class PaymentController {
 						...dto,
 						bookingId,
 					},
-				}),
+				}).pipe(
+					timeout(60000), // 60 seconds timeout for payment operations
+					catchError((error) => {
+						// Re-throw timeout errors with proper code
+						if (error.name === 'TimeoutError') {
+							const timeoutError: any = new Error('Payment microservice request timeout. The service may be unavailable or overloaded.');
+							timeoutError.code = 'ETIMEDOUT';
+							return throwError(() => timeoutError);
+						}
+						return throwError(() => error);
+					}),
+				),
 			);
 		} catch (error: any) {
 			// Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
@@ -124,7 +139,21 @@ export class PaymentController {
 				throw new NotFoundException('Booking not found');
 			}
 			
-			throw new BadRequestException(`Create payment failed: ${errorMessage}. Please check the booking ID and payment details.`);
+			// Try to extract meaningful message from error object
+			let extractedMessage: string | null = null;
+			
+			// Try error.response.message (RpcException format)
+			if (error?.response?.message && typeof error.response.message === 'string') {
+				extractedMessage = error.response.message;
+			}
+			// Try error.message (direct)
+			else if (error?.message && typeof error.message === 'string' && error.message !== 'Internal server error') {
+				extractedMessage = error.message;
+			}
+			
+			// Use extracted message or provide descriptive default
+			const finalMessage = extractedMessage || errorMessage || 'Create payment failed: Internal server error';
+			throw new BadRequestException(`Create payment failed: ${finalMessage}. Please check the booking ID and payment details.`);
 		}
 	}
 
@@ -162,6 +191,8 @@ export class PaymentController {
 			
 			const userId = req.user.userId;
 
+			// BEST PRACTICE: Payment processing can be slow due to payment gateway integration and database transactions
+			// Set timeout to 60 seconds (payment processing is more complex)
 			return await firstValueFrom(
 				this.client.send<PaymentResponseDto>(PAYMENT_MS.PATTERN.PROCESS_PAYMENT, {
 					userId,
@@ -169,7 +200,18 @@ export class PaymentController {
 						...dto,
 						bookingId,
 					},
-				}),
+				}).pipe(
+					timeout(60000), // 60 seconds timeout for payment processing
+					catchError((error) => {
+						// Re-throw timeout errors with proper code
+						if (error.name === 'TimeoutError') {
+							const timeoutError: any = new Error('Payment microservice request timeout. The service may be unavailable or overloaded.');
+							timeoutError.code = 'ETIMEDOUT';
+							return throwError(() => timeoutError);
+						}
+						return throwError(() => error);
+					}),
+				),
 			);
 		} catch (error: any) {
 			// Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
@@ -270,11 +312,24 @@ export class PaymentController {
 			
 			const userId = req.user.userId;
 
+			// BEST PRACTICE: Get payment can be slow if database is under load
+			// Set timeout to 30 seconds (read operations should be faster)
 			return await firstValueFrom(
 				this.client.send<PaymentResponseDto>(PAYMENT_MS.PATTERN.GET_PAYMENT, {
 					userId,
 					paymentId,
-				}),
+				}).pipe(
+					timeout(30000), // 30 seconds timeout for read operations
+					catchError((error) => {
+						// Re-throw timeout errors with proper code
+						if (error.name === 'TimeoutError') {
+							const timeoutError: any = new Error('Payment microservice request timeout. The service may be unavailable or overloaded.');
+							timeoutError.code = 'ETIMEDOUT';
+							return throwError(() => timeoutError);
+						}
+						return throwError(() => error);
+					}),
+				),
 			);
 		} catch (error: any) {
 			// Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
@@ -370,11 +425,24 @@ export class PaymentController {
 			
 			const userId = req.user.userId;
 
+			// BEST PRACTICE: Get payments by booking can be slow if database is under load
+			// Set timeout to 30 seconds (read operations should be faster)
 			return await firstValueFrom(
 				this.client.send<PaymentResponseDto[]>(PAYMENT_MS.PATTERN.GET_PAYMENTS_BY_BOOKING, {
 					userId,
 					bookingId,
-				}),
+				}).pipe(
+					timeout(30000), // 30 seconds timeout for read operations
+					catchError((error) => {
+						// Re-throw timeout errors with proper code
+						if (error.name === 'TimeoutError') {
+							const timeoutError: any = new Error('Payment microservice request timeout. The service may be unavailable or overloaded.');
+							timeoutError.code = 'ETIMEDOUT';
+							return throwError(() => timeoutError);
+						}
+						return throwError(() => error);
+					}),
+				),
 			);
 		} catch (error: any) {
 			// Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
@@ -472,6 +540,8 @@ export class PaymentController {
 			
 			const userId = req.user.userId;
 
+			// BEST PRACTICE: Update payment status can be slow due to database transactions and notifications
+			// Set timeout to 60 seconds (write operations can be slower)
 			return await firstValueFrom(
 				this.client.send<PaymentResponseDto>(PAYMENT_MS.PATTERN.UPDATE_PAYMENT_STATUS, {
 					userId,
@@ -479,7 +549,18 @@ export class PaymentController {
 						...dto,
 						paymentId,
 					},
-				}),
+				}).pipe(
+					timeout(60000), // 60 seconds timeout for update operations
+					catchError((error) => {
+						// Re-throw timeout errors with proper code
+						if (error.name === 'TimeoutError') {
+							const timeoutError: any = new Error('Payment microservice request timeout. The service may be unavailable or overloaded.');
+							timeoutError.code = 'ETIMEDOUT';
+							return throwError(() => timeoutError);
+						}
+						return throwError(() => error);
+					}),
+				),
 			);
 		} catch (error: any) {
 			// Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
@@ -586,12 +667,25 @@ export class PaymentController {
 			}
 			
 			// Forward webhook to payment microservice
+			// BEST PRACTICE: Webhook processing can be slow due to payment gateway verification and database operations
+			// Set timeout to 60 seconds (webhook processing can involve external API calls)
 			await firstValueFrom(
 				this.client.send(PAYMENT_MS.PATTERN.HANDLE_WEBHOOK, {
 					gateway,
 					signature: signature || '',
 					payload,
-				}),
+				}).pipe(
+					timeout(60000), // 60 seconds timeout for webhook processing
+					catchError((error) => {
+						// Re-throw timeout errors with proper code
+						if (error.name === 'TimeoutError') {
+							const timeoutError: any = new Error('Payment microservice request timeout. The service may be unavailable or overloaded.');
+							timeoutError.code = 'ETIMEDOUT';
+							return throwError(() => timeoutError);
+						}
+						return throwError(() => error);
+					}),
+				),
 			);
 
 			return {

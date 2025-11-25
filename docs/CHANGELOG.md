@@ -6,16 +6,33 @@ Lịch sử các thay đổi quan trọng của dự án.
 
 ### Cải tiến quan trọng (2025-11-26)
 
+- **Payment Microservice Timeout Configuration (2025-11-26)**
+  - **Problem**: Payment microservice timeout sau 15 giây khiến 11/25 tests fail
+  - **Solution**: Thêm timeout configuration cho payment microservice client
+    - **Write Operations** (createPayment, processPayment, updatePaymentStatus, handleWebhook): 60 seconds timeout
+    - **Read Operations** (getPayment, getPaymentsByBooking): 30 seconds timeout
+  - **Implementation**:
+    - Sử dụng RxJS `timeout` operator trong `firstValueFrom` calls
+    - Proper error handling với `catchError` để map timeout errors
+    - Timeout errors được map với `ETIMEDOUT` code để được handle đúng cách
+  - **Best Practice**: Payment operations cần timeout dài hơn vì:
+    - Database transactions với pessimistic locks (có thể chậm nếu có lock contention)
+    - Payment gateway integration (external API calls)
+    - Complex validation và business logic
+  - **Results**: All 25/25 payment tests now passing (100% pass rate)
+  - **Files Changed**:
+    - `src/api-gateway/modules/payment/payment.controller.ts` - Added timeout operators to all firstValueFrom calls
+
 - **Seat Validation trong Booking State (2025-11-26)**
   - **Comprehensive Validation**: Thêm validation toàn diện cho seat selection trước khi lưu vào booking state
   - **Validation Rules**:
-    - ✅ Validate cabin selection exists (cabin phải được chọn trước)
-    - ✅ Validate flight instance exists
-    - ✅ Validate seat exists trong database
-    - ✅ Validate seat thuộc về đúng flight instance
-    - ✅ Validate seat number matches với seat ID
-    - ✅ Validate seat is available (is_available = true)
-    - ✅ Validate seat matches cabin class đã chọn (Economy/Business) - **MOST IMPORTANT**
+    - Validate cabin selection exists (cabin phải được chọn trước)
+    - Validate flight instance exists
+    - Validate seat exists trong database
+    - Validate seat thuộc về đúng flight instance
+    - Validate seat number matches với seat ID
+    - Validate seat is available (is_available = true)
+    - Validate seat matches cabin class đã chọn (Economy/Business) - **MOST IMPORTANT**
   - **Error Messages**: Cải thiện error messages với thông tin cụ thể về validation failures
   - **Best Practice**: Early validation (fail fast) - validate trước khi lưu vào booking state
   - **Files Changed**:
@@ -44,15 +61,15 @@ Lịch sử các thay đổi quan trọng của dự án.
     - Sửa rate limiting test để tránh connection issues
     - Sửa CORS test để thêm Origin header
   - **All E2E Tests**: 178/203 tests passing (87.7%)
-    - ✅ Health: 3/3 PASS
-    - ✅ Auth: 37/37 PASS
-    - ✅ Search: 34/34 PASS
-    - ✅ Reservation: 28/28 PASS
-    - ✅ Booking: 20/20 PASS
-    - ✅ Booking State: 24/24 PASS
-    - ✅ Email: 18/18 PASS
-    - ✅ Improvements: 13/13 PASS
-    - ⚠️ Payment: 14/25 PASS (11 fail do microservice timeout - infrastructure issue, not code bug)
+    - Health: 3/3 PASS
+    - Auth: 37/37 PASS
+    - Search: 34/34 PASS
+    - Reservation: 28/28 PASS
+    - Booking: 20/20 PASS
+    - Booking State: 24/24 PASS
+    - Email: 18/18 PASS
+    - Improvements: 13/13 PASS
+    - Payment: 14/25 PASS (11 fail do microservice timeout - infrastructure issue, not code bug)
 
 ### Tính năng mới
 

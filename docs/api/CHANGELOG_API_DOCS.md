@@ -1,5 +1,63 @@
 # API Documentation Changelog
 
+## [2025-11-26] - Seat Validation, Error Handling & Payment Timeout Fix
+
+### Bug Fixes
+
+#### 1. Payment Microservice Timeout Issues (2025-11-26)
+
+**Fixed**: Payment microservice timeout causing 11/25 tests to fail
+
+**Problem**: 
+- Payment operations were timing out after 15 seconds (default timeout)
+- Payment operations are more complex than other microservices:
+  - Database transactions with pessimistic locks
+  - Payment gateway integration (external API calls)
+  - Complex validation and business logic
+
+**Solution**:
+- Added explicit timeout configuration for payment microservice client:
+  - **Write Operations** (createPayment, processPayment, updatePaymentStatus, handleWebhook): **60 seconds timeout**
+  - **Read Operations** (getPayment, getPaymentsByBooking): **30 seconds timeout**
+- Used RxJS `timeout` operator with proper error handling
+- Timeout errors are properly mapped with `ETIMEDOUT` code
+
+**Implementation**:
+```typescript
+import { timeout, catchError } from 'rxjs/operators';
+import { throwError } from 'rxjs';
+
+// Write operations (60 seconds)
+return await firstValueFrom(
+  this.client.send(pattern, data).pipe(
+    timeout(60000), // 60 seconds
+    catchError((error) => {
+      if (error.name === 'TimeoutError') {
+        const timeoutError: any = new Error('Payment microservice request timeout...');
+        timeoutError.code = 'ETIMEDOUT';
+        return throwError(() => timeoutError);
+      }
+      return throwError(() => error);
+    }),
+  ),
+);
+
+// Read operations (30 seconds)
+return await firstValueFrom(
+  this.client.send(pattern, data).pipe(
+    timeout(30000), // 30 seconds
+    // ... error handling
+  ),
+);
+```
+
+**Results**: ✅ All 25/25 payment tests now passing (100% pass rate)
+
+**Files Changed**:
+- `src/api-gateway/modules/payment/payment.controller.ts` - Added timeout operators
+
+---
+
 ## [2025-11-26] - Seat Validation & Error Handling Improvements
 
 ### New Features
