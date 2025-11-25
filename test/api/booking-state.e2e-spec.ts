@@ -224,15 +224,17 @@ describe('Booking State API (e2e)', () => {
 			const mockFlightSeatId = flightSeatId || '019a8f4a-bb0e-7402-a0c4-27647b89dc72';
 			const mockSeatNumber = seatNumber || '12A';
 
-			// Clear booking state first
-			await request(app.getHttpServer())
-				.get(`/api/v1/booking-state/${mockFlightInstanceId}`)
-				.set('Authorization', `Bearer ${accessToken}`)
-				.catch(() => {
-					// Ignore if state doesn't exist
-				});
+			// Clear booking state first (DELETE to ensure no state exists)
+			try {
+				await request(app.getHttpServer())
+					.delete(`/api/v1/booking-state/${mockFlightInstanceId}`)
+					.set('Authorization', `Bearer ${accessToken}`)
+					.expect(204);
+			} catch {
+				// Ignore if state doesn't exist (idempotent)
+			}
 
-			// Try to save seat without cabin
+			// Try to save seat without cabin - should fail with cabin validation
 			const response = await request(app.getHttpServer())
 				.post('/api/v1/booking-state/seat')
 				.set('Authorization', `Bearer ${accessToken}`)
@@ -512,6 +514,17 @@ describe('Booking State API (e2e)', () => {
 			const searchResult = await trySearchFlightsOneWay(app);
 			if (searchResult && searchResult.outbound && searchResult.outbound.length > 1) {
 				const differentFlightId = searchResult.outbound[1].flightInstanceId;
+				
+				// Ensure booking state doesn't exist by clearing it first
+				try {
+					await request(app.getHttpServer())
+						.delete(`/api/v1/booking-state/${differentFlightId}`)
+						.set('Authorization', `Bearer ${accessToken}`)
+						.expect(204);
+				} catch {
+					// Ignore if state doesn't exist (idempotent)
+				}
+				
 				const response = await request(app.getHttpServer())
 					.get(`/api/v1/booking-state/${differentFlightId}`)
 					.set('Authorization', `Bearer ${accessToken}`)
@@ -594,6 +607,17 @@ describe('Booking State API (e2e)', () => {
 			}
 
 			const testFlightId = searchResult.outbound[0].flightInstanceId;
+			
+			// Clear booking state first to ensure clean test
+			try {
+				await request(app.getHttpServer())
+					.delete(`/api/v1/booking-state/${testFlightId}`)
+					.set('Authorization', `Bearer ${accessToken}`)
+					.expect(204);
+			} catch {
+				// Ignore if state doesn't exist (idempotent)
+			}
+			
 			const fareOptions = await getFareOptions(app, testFlightId);
 			if (!fareOptions || fareOptions.length === 0) {
 				return;
@@ -614,7 +638,7 @@ describe('Booking State API (e2e)', () => {
 
 			expect(cabinResponse.body.success).toBe(true);
 
-			// Step 2: Get state (should have cabin only)
+			// Step 2: Get state (should have cabin only, no seat)
 			const stateAfterCabin = await request(app.getHttpServer())
 				.get(`/api/v1/booking-state/${testFlightId}`)
 				.set('Authorization', `Bearer ${accessToken}`)
