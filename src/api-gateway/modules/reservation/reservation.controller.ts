@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Req, UseGuards, HttpCode, HttpStatus, BadRequestException, InternalServerErrorException, ServiceUnavailableException, HttpException } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Req, UseGuards, HttpCode, HttpStatus, BadRequestException, InternalServerErrorException, ServiceUnavailableException, HttpException, NotFoundException } from '@nestjs/common';
 import {
 	ApiBadRequestResponse,
 	ApiOkResponse,
@@ -55,9 +55,38 @@ export class ReservationController {
 				}),
 			);
 		} catch (error: any) {
-			// Re-throw NestJS exceptions as-is (including BadRequestException, NotFoundException)
-			if (error?.statusCode && error?.message) {
+			// BEST PRACTICE: Re-throw HttpException instances first (BadRequestException, NotFoundException, etc.)
+			if (error instanceof HttpException) {
 				throw error;
+			}
+			
+			// BEST PRACTICE: Handle NestJS exceptions from microservices (they have statusCode and message)
+			// When exceptions are serialized over TCP, they may have statusCode and response properties
+			if (error?.statusCode && error?.message) {
+				// Map status codes to appropriate HTTP exceptions, preserving the message
+				const message = error.message;
+				if (error.statusCode === 400) {
+					throw new BadRequestException(message);
+				}
+				if (error.statusCode === 404) {
+					throw new NotFoundException(message);
+				}
+				// Re-throw other status codes as-is (they're already HttpException-like)
+				throw error;
+			}
+			
+			// BEST PRACTICE: Handle error response object from microservice
+			// Some microservices return { status: 'error', message: '...' } format
+			if (error?.response?.message) {
+				const message = error.response.message;
+				const statusCode = error.response.statusCode || error.statusCode || 400;
+				if (statusCode === 400) {
+					throw new BadRequestException(message);
+				}
+				if (statusCode === 404) {
+					throw new NotFoundException(message);
+				}
+				throw new BadRequestException(message);
 			}
 			
 			// Handle microservice connection errors - these are infrastructure issues (503)
@@ -81,11 +110,47 @@ export class ReservationController {
 			
 			// Handle microservice error format: { status: 'error', message: '...' }
 			if (error?.status === 'error' && error?.message) {
-				throw new BadRequestException(`Create reservation failed: ${error.message}`);
+				throw new BadRequestException(error.message);
 			}
 			
-			// Generic error - log unexpected errors only
-			throw new BadRequestException(`Create reservation failed: ${errorMessage}`);
+			// Handle RpcException - NestJS microservice exceptions
+			// RpcException wraps the error with response property
+			if (error?.response && typeof error.response === 'object') {
+				const message = error.response.message || error.message || '';
+				const statusCode = error.response.statusCode || error.status || 400;
+				if (statusCode === 400) {
+					throw new BadRequestException(message);
+				}
+				if (statusCode === 404) {
+					throw new NotFoundException(message);
+				}
+				throw new BadRequestException(message);
+			}
+			
+			// Try to extract message from various error formats
+			// Microservice exceptions can be serialized in different ways
+			let extractedMessage: string | null = null;
+			
+			// Try error.message (direct)
+			if (error?.message && typeof error.message === 'string' && error.message !== 'Internal server error') {
+				extractedMessage = error.message;
+			}
+			// Try error.response (nested)
+			else if (error?.response && typeof error.response === 'string') {
+				extractedMessage = error.response;
+			}
+			// Try error.toString() if it contains useful info
+			else if (error?.toString && !error.toString().includes('[object Object]')) {
+				const str = error.toString();
+				if (str.length > 0 && str !== '[object Object]') {
+					extractedMessage = str;
+				}
+			}
+			
+			// Use extracted message or provide descriptive default
+			const finalMessage = extractedMessage || 
+				'Cannot create reservation: Cabin and seat must be selected in booking state before creating reservation. Please select cabin and seat first using /api/v1/booking-state endpoints.';
+			throw new BadRequestException(finalMessage);
 		}
 	}
 

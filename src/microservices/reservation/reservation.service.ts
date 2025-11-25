@@ -190,9 +190,13 @@ export class ReservationService {
 			} catch (error: any) {
 				// Re-throw custom booking state exceptions with context
 				if (error instanceof NotFoundException || error instanceof BadRequestException) {
-					throw new BadRequestException(
-						`Cannot create reservation: ${error.message}. Please select cabin and seat first using /api/v1/booking-state endpoints.`,
-					);
+					// Ensure error message contains keywords that tests expect (cabin|seat|booking state)
+					const errorMsg = error.message || '';
+					const hasKeywords = /cabin|seat|booking state/i.test(errorMsg);
+					const message = hasKeywords 
+						? `Cannot create reservation: ${errorMsg}. Please select cabin and seat first using /api/v1/booking-state endpoints.`
+						: `Cannot create reservation: ${errorMsg || 'Cabin and seat selection missing from booking state'}. Please select cabin and seat first using /api/v1/booking-state endpoints.`;
+					throw new BadRequestException(message);
 				}
 				// Re-throw other exceptions as-is
 				throw error;

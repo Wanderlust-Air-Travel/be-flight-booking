@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Delete, Body, Param, Req, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Body, Param, Req, UseGuards, HttpCode, HttpStatus, BadRequestException, NotFoundException } from '@nestjs/common';
 import {
 	ApiBadRequestResponse,
 	ApiOkResponse,
@@ -10,6 +10,8 @@ import {
 	ApiInternalServerErrorResponse,
 	ApiNoContentResponse,
 } from '@nestjs/swagger';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { JwtAuthGuard } from '../auth/guard/jwt-auth.guard';
 import { Request } from 'express';
 import { BookingStateService } from 'src/shared/services/booking-state.service';
@@ -25,13 +27,21 @@ import {
 	InvalidFareClassException,
 } from 'src/shared/exceptions/booking-state.exceptions';
 import { ParseUUIDv7Pipe } from 'src/shared/pipes/parse-uuid-v7.pipe';
+import { FlightSeat } from 'src/shared/entities/flight/flight-seat.entity';
+import { FlightInstance } from 'src/shared/entities/flight/flight-instance.entity';
+import { FareClass } from 'src/shared/entities/fare/fare-class.entity';
 
 @ApiTags('booking-state')
 @Controller('booking-state')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('access-token')
 export class BookingStateController {
-	constructor(private readonly bookingStateService: BookingStateService) {}
+	constructor(
+		private readonly bookingStateService: BookingStateService,
+		@InjectRepository(FlightSeat) private readonly flightSeatRepo: Repository<FlightSeat>,
+		@InjectRepository(FlightInstance) private readonly flightInstanceRepo: Repository<FlightInstance>,
+		@InjectRepository(FareClass) private readonly fareClassRepo: Repository<FareClass>,
+	) {}
 
 	@Post('cabin')
 	@HttpCode(HttpStatus.OK)
@@ -102,14 +112,87 @@ export class BookingStateController {
 	): Promise<{ success: boolean; message: string }> {
 		const userId = req.user.userId;
 		try {
+			// BEST PRACTICE: Validate seat before saving to booking state
+			// This provides early validation feedback to users
+			await this.validateSeatSelection(dto, userId);
+			
 			return await this.bookingStateService.saveSeatSelection(userId, dto);
 		} catch (error) {
-			// Re-throw custom exceptions as-is
-			if (error instanceof BookingStateException) {
+			// Re-throw custom exceptions as-is (including validation errors)
+			if (error instanceof BookingStateException || error instanceof BadRequestException || error instanceof NotFoundException) {
 				throw error;
 			}
 			// Wrap unexpected errors
 			throw new BookingStateStorageException('save seat selection', error instanceof Error ? error.message : String(error));
+		}
+	}
+
+	/**
+	 * Validate seat selection before saving to booking state
+	 * Business logic: Ensures seat exists, is available, belongs to correct flight instance, and matches cabin class
+	 */
+	private async validateSeatSelection(dto: SaveSeatSelectionDto, userId: string): Promise<void> {
+		// 1. Get booking state to check cabin selection
+		const bookingState = await this.bookingStateService.getBookingState(userId, dto.flightInstanceId);
+		if (!bookingState || !bookingState.cabin) {
+			throw new CabinNotSelectedException(dto.flightInstanceId);
+		}
+
+		// 2. Validate flight instance exists
+		const flightInstance = await this.flightInstanceRepo.findOne({
+			where: { flight_instance_id: dto.flightInstanceId },
+		});
+		if (!flightInstance) {
+			throw new NotFoundException(`Flight instance ${dto.flightInstanceId} not found`);
+		}
+
+		// 3. Validate seat exists and load relations
+		const flightSeat = await this.flightSeatRepo.findOne({
+			where: { flight_seat_id: dto.flightSeatId },
+			relations: ['seat_config', 'seat_config.cabin_class', 'flight_instance'],
+		});
+
+		if (!flightSeat) {
+			throw new BadRequestException(`Seat ${dto.flightSeatId} not found. Please select a valid seat.`);
+		}
+
+		// 4. Validate seat belongs to the correct flight instance
+		if (flightSeat.flight_instance_id !== dto.flightInstanceId) {
+			throw new BadRequestException(
+				`Seat ${dto.seatNumber} (${dto.flightSeatId}) does not belong to flight instance ${dto.flightInstanceId}. Please select a seat from the correct flight.`,
+			);
+		}
+
+		// 5. Validate seat number matches
+		if (flightSeat.seat_number !== dto.seatNumber) {
+			throw new BadRequestException(
+				`Seat number mismatch. Expected ${flightSeat.seat_number} for seat ${dto.flightSeatId}, but received ${dto.seatNumber}.`,
+			);
+		}
+
+		// 6. Validate seat is available
+		if (!flightSeat.is_available) {
+			throw new BadRequestException(`Seat ${dto.seatNumber} is not available. Please select another seat.`);
+		}
+
+		// 7. Validate seat matches cabin class from booking state
+		// Get fare class to determine expected cabin class
+		const fareClass = await this.fareClassRepo.findOne({
+			where: { fare_class_code: bookingState.cabin.fareClassCode },
+			relations: ['cabin_class'],
+		});
+
+		if (!fareClass) {
+			throw new BadRequestException(`Fare class ${bookingState.cabin.fareClassCode} not found`);
+		}
+
+		const expectedCabinClassCode = fareClass.cabin_class.cabin_class_code;
+		const actualCabinClassCode = flightSeat.seat_config.cabin_class.cabin_class_code;
+
+		if (actualCabinClassCode !== expectedCabinClassCode) {
+			throw new BadRequestException(
+				`Seat ${dto.seatNumber} is in ${actualCabinClassCode === 'Y' ? 'Economy' : 'Business'} class, but you selected ${expectedCabinClassCode === 'Y' ? 'Economy' : 'Business'} class. Please select a seat from the correct cabin.`,
+			);
 		}
 	}
 

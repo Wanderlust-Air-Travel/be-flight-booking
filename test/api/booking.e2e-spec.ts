@@ -634,7 +634,7 @@ describe('Booking API (e2e)', () => {
 
       // Verify reservation has seat information
       const reservationResponse = await request(app.getHttpServer())
-        .get(`/reservations/${reservation.reservationId}`)
+        .get(`/api/v1/reservations/${reservation.reservationId}`)
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(200);
 

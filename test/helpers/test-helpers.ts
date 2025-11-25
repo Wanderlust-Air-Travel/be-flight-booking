@@ -502,26 +502,47 @@ export async function createReservationOneWay(
 	// New flow: Save cabin and seat to booking state first
 	await saveCabinSelection(app, accessToken, flightInstanceId, 'economy', fareClassCode);
 
+	// BEST PRACTICE: Always select a seat (required for reservation creation)
+	// If flightSeatId is provided, use it; otherwise, find a selectable seat automatically
+	let selectedFlightSeatId = flightSeatId;
+	let selectedSeatNumber: string | null = null;
+
 	if (flightSeatId) {
-		// Get seat number from seat map
+		// Get seat number from seat map for the provided flightSeatId
 		const seatMap = await getSeatMap(app, flightInstanceId, 'economy');
 		validateSeatMapResponse(seatMap, 'economy');
-		let seatNumber: string | null = null;
 
 		// Find seat by flightSeatId in all groups (economy and business)
 		for (const group of seatMap.seats) {
 			if (group.list && group.list.length > 0) {
 				const seat = group.list.find((s: any) => s.flightSeatId === flightSeatId);
 				if (seat) {
-					seatNumber = seat.seatNumber;
+					selectedSeatNumber = seat.seatNumber;
 					break;
 				}
 			}
 		}
 
-		if (seatNumber) {
-			await saveSeatSelection(app, accessToken, flightInstanceId, flightSeatId, seatNumber);
+		if (!selectedSeatNumber) {
+			throw new Error(`Seat with flightSeatId ${flightSeatId} not found in seat map`);
 		}
+	} else {
+		// BEST PRACTICE: Automatically find and select a selectable seat
+		const seatMap = await getSeatMap(app, flightInstanceId, 'economy');
+		validateSeatMapResponse(seatMap, 'economy');
+		
+		const selectableSeat = findSelectableSeat(seatMap, 'economy');
+		if (!selectableSeat) {
+			throw new Error(`No selectable seats available for flight ${flightInstanceId}`);
+		}
+		
+		selectedFlightSeatId = selectableSeat.flightSeatId;
+		selectedSeatNumber = selectableSeat.seatNumber;
+	}
+
+	// Save seat selection to booking state
+	if (selectedFlightSeatId && selectedSeatNumber) {
+		await saveSeatSelection(app, accessToken, flightInstanceId, selectedFlightSeatId, selectedSeatNumber);
 	}
 
 	// Now create reservation (backend will get cabin + seat from Redis)
@@ -564,49 +585,85 @@ export async function createReservationRoundTrip(
 	// New flow: Save cabin and seat for outbound flight
 	await saveCabinSelection(app, accessToken, outboundFlightInstanceId, 'economy', fareClassCode);
 
+	// BEST PRACTICE: Always select a seat for outbound flight (required for reservation creation)
+	let selectedOutboundFlightSeatId = outboundFlightSeatId;
+	let selectedOutboundSeatNumber: string | null = null;
+
 	if (outboundFlightSeatId) {
 		const seatMap = await getSeatMap(app, outboundFlightInstanceId, 'economy');
 		validateSeatMapResponse(seatMap, 'economy');
-		let seatNumber: string | null = null;
 
-		// Find seat by flightSeatId in all groups (economy and business)
 		for (const group of seatMap.seats) {
 			if (group.list && group.list.length > 0) {
 				const seat = group.list.find((s: any) => s.flightSeatId === outboundFlightSeatId);
 				if (seat) {
-					seatNumber = seat.seatNumber;
+					selectedOutboundSeatNumber = seat.seatNumber;
 					break;
 				}
 			}
 		}
 
-		if (seatNumber) {
-			await saveSeatSelection(app, accessToken, outboundFlightInstanceId, outboundFlightSeatId, seatNumber);
+		if (!selectedOutboundSeatNumber) {
+			throw new Error(`Seat with flightSeatId ${outboundFlightSeatId} not found in seat map for outbound flight`);
 		}
+	} else {
+		// BEST PRACTICE: Automatically find and select a selectable seat
+		const seatMap = await getSeatMap(app, outboundFlightInstanceId, 'economy');
+		validateSeatMapResponse(seatMap, 'economy');
+		
+		const selectableSeat = findSelectableSeat(seatMap, 'economy');
+		if (!selectableSeat) {
+			throw new Error(`No selectable seats available for outbound flight ${outboundFlightInstanceId}`);
+		}
+		
+		selectedOutboundFlightSeatId = selectableSeat.flightSeatId;
+		selectedOutboundSeatNumber = selectableSeat.seatNumber;
+	}
+
+	if (selectedOutboundFlightSeatId && selectedOutboundSeatNumber) {
+		await saveSeatSelection(app, accessToken, outboundFlightInstanceId, selectedOutboundFlightSeatId, selectedOutboundSeatNumber);
 	}
 
 	// Save cabin and seat for inbound flight
 	await saveCabinSelection(app, accessToken, inboundFlightInstanceId, 'economy', fareClassCode);
 
+	// BEST PRACTICE: Always select a seat for inbound flight (required for reservation creation)
+	let selectedInboundFlightSeatId = inboundFlightSeatId;
+	let selectedInboundSeatNumber: string | null = null;
+
 	if (inboundFlightSeatId) {
 		const seatMap = await getSeatMap(app, inboundFlightInstanceId, 'economy');
 		validateSeatMapResponse(seatMap, 'economy');
-		let seatNumber: string | null = null;
 
-		// Find seat by flightSeatId in all groups (economy and business)
 		for (const group of seatMap.seats) {
 			if (group.list && group.list.length > 0) {
 				const seat = group.list.find((s: any) => s.flightSeatId === inboundFlightSeatId);
 				if (seat) {
-					seatNumber = seat.seatNumber;
+					selectedInboundSeatNumber = seat.seatNumber;
 					break;
 				}
 			}
 		}
 
-		if (seatNumber) {
-			await saveSeatSelection(app, accessToken, inboundFlightInstanceId, inboundFlightSeatId, seatNumber);
+		if (!selectedInboundSeatNumber) {
+			throw new Error(`Seat with flightSeatId ${inboundFlightSeatId} not found in seat map for inbound flight`);
 		}
+	} else {
+		// BEST PRACTICE: Automatically find and select a selectable seat
+		const seatMap = await getSeatMap(app, inboundFlightInstanceId, 'economy');
+		validateSeatMapResponse(seatMap, 'economy');
+		
+		const selectableSeat = findSelectableSeat(seatMap, 'economy');
+		if (!selectableSeat) {
+			throw new Error(`No selectable seats available for inbound flight ${inboundFlightInstanceId}`);
+		}
+		
+		selectedInboundFlightSeatId = selectableSeat.flightSeatId;
+		selectedInboundSeatNumber = selectableSeat.seatNumber;
+	}
+
+	if (selectedInboundFlightSeatId && selectedInboundSeatNumber) {
+		await saveSeatSelection(app, accessToken, inboundFlightInstanceId, selectedInboundFlightSeatId, selectedInboundSeatNumber);
 	}
 
 	// Now create reservation (backend will get cabin + seat from Redis for each flight)
