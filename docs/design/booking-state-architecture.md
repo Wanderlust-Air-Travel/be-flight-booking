@@ -185,8 +185,34 @@ export interface BookingState {
   - Validation được thực hiện trong `saveCabinSelection()` để đảm bảo data integrity
 - **Cabin Before Seat**: Cabin phải được chọn trước khi chọn seat
 - **State Expiration**: State tự động expire sau 30 phút (TTL)
+- **Seat Validation (NEW - 2025-11-26)**: Comprehensive validation trước khi lưu seat selection:
+  - Validate cabin selection exists
+  - Validate flight instance exists
+  - Validate seat exists và belongs to correct flight instance
+  - Validate seat is available
+  - Validate seat matches cabin class đã chọn (Economy/Business) - **MOST IMPORTANT**
+  - Validation được thực hiện trong `BookingStateController.validateSeatSelection()` (API Gateway layer) để đảm bảo data integrity
 
-### 5. Module Structure (`src/shared/modules/booking-state/booking-state.module.ts`)
+### 5. API Gateway BookingStateModule (`src/api-gateway/modules/booking-state/booking-state.module.ts`)
+
+**Nguyên tắc:** Module riêng cho API Gateway với TypeORM repositories cho validation
+
+```typescript
+@Module({
+  imports: [
+    SharedBookingStateModule,
+    TypeOrmModule.forFeature([FlightSeat, FlightInstance, FareClass]),
+  ],
+  controllers: [BookingStateController],
+})
+```
+
+**Purpose**: 
+- Import shared BookingStateModule cho business logic
+- Import TypeORM repositories để validate seat properties từ database
+- Enable comprehensive seat validation trước khi lưu vào booking state
+
+### 6. Shared Module Structure (`src/shared/modules/booking-state/booking-state.module.ts`)
 
 **Nguyên tắc:** Global module để reuse across microservices
 
@@ -268,11 +294,29 @@ Client → API Gateway → BookingStateController
 
 ```
 Client → API Gateway → BookingStateController
-  → BookingStateService
-    → Validate cabin exists
+  → validateSeatSelection() (NEW - Comprehensive Validation)
+    → Check cabin selection exists
+    → Validate flight instance exists
+    → Validate seat exists in database
+    → Validate seat belongs to correct flight instance
+    → Validate seat number matches
+    → Validate seat is available
+    → Validate seat matches cabin class from booking state
+  → BookingStateService.saveSeatSelection()
     → BookingStateRepository
       → Redis (save)
 ```
+
+**Validation Rules (NEW - 2025-11-26):**
+1. **Cabin Selection Required**: Cabin phải được chọn trước khi chọn seat
+2. **Flight Instance Exists**: Flight instance phải tồn tại trong database
+3. **Seat Exists**: Seat phải tồn tại với `flightSeatId` được cung cấp
+4. **Seat-Flight Match**: Seat phải thuộc về flight instance được chỉ định
+5. **Seat Number Match**: Seat number phải khớp với seat ID
+6. **Seat Availability**: Seat phải có sẵn (`is_available = true`)
+7. **Cabin Class Match**: Seat phải thuộc về cabin class đã chọn (Economy/Business) - **MOST IMPORTANT**
+
+**Best Practice**: Early validation (fail fast) - validate tất cả seat properties trước khi lưu vào booking state
 
 ### 3. Lấy Tất Cả Booking States (Stateless Frontend - No Session Storage)
 

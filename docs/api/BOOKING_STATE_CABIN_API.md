@@ -119,6 +119,7 @@ Sau khi lưu cabin selection, API `GET /api/v1/search/seats` có thể tự đ�
 
 ## Related APIs
 
+- `POST /api/v1/booking-state/seat` - Save seat selection (requires cabin selection first) - See [Seat API Documentation](./BOOKING_STATE_SEAT_API.md)
 - `GET /api/v1/search/seats` - Get seat map (auto-fetches cabinType from booking state)
 - `GET /api/v1/booking-state/:flightInstanceId` - Get booking state
 - `DELETE /api/v1/booking-state/:flightInstanceId` - Clear booking state
@@ -150,4 +151,5 @@ if (cabinType === 'business' && !fareClassCode.startsWith('J')) {
 
 - **2025-11-25**: Added fare class validation to ensure data integrity
 - **2025-11-25**: Integrated with seat map API for auto-fetch cabinType
+- **2025-11-26**: Added link to Seat API documentation for complete booking state flow
 

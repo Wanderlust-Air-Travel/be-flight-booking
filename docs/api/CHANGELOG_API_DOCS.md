@@ -1,5 +1,90 @@
 # API Documentation Changelog
 
+## [2025-11-26] - Seat Validation & Error Handling Improvements
+
+### New Features
+
+#### 1. POST /api/v1/booking-state/seat - Comprehensive Seat Validation
+
+**Added**: Comprehensive seat validation before saving to booking state
+
+**Validation Rules**:
+1. **Cabin Selection Required**: Cabin must be selected before selecting seat
+2. **Flight Instance Validation**: Flight instance must exist in database
+3. **Seat Existence**: Seat must exist with provided `flightSeatId`
+4. **Seat-Flight Match**: Seat must belong to the specified flight instance
+5. **Seat Number Match**: Seat number must match the seat ID
+6. **Seat Availability**: Seat must be available (`is_available = true`)
+7. **Cabin Class Match**: Seat must belong to the selected cabin class (Economy/Business) - **MOST IMPORTANT**
+
+**Error Responses**:
+```json
+{
+  "statusCode": 400,
+  "message": "Seat 10A is in Business class, but you selected Economy class. Please select a seat from the correct cabin.",
+  "error": "Bad Request"
+}
+```
+
+**Related Documentation**: See `docs/api/BOOKING_STATE_SEAT_API.md`
+
+### Improvements
+
+#### 1. Error Handling Improvements
+
+**Reservation Controller**:
+- Improved error handling to preserve error messages from microservice
+- Handle multiple error formats (HttpException, statusCode, response.message)
+- Provide descriptive default messages with keywords (cabin|seat|booking state)
+
+**Payment Controller**:
+- Improved error message extraction from microservice errors
+- Try multiple error formats to extract meaningful messages
+
+**Best Practice**: Infrastructure errors (503) vs Business logic errors (400/404)
+
+### Updated Endpoints
+
+#### POST /api/v1/booking-state/seat
+
+**Updated**: Now includes comprehensive validation before saving to booking state
+
+**Validation Flow**:
+1. Check cabin selection exists
+2. Validate flight instance exists
+3. Validate seat exists
+4. Validate seat belongs to correct flight instance
+5. Validate seat number matches
+6. Validate seat is available
+7. Validate seat matches cabin class from booking state
+
+### Implementation Details
+
+#### Seat Validation Logic
+
+**Location**: `src/api-gateway/modules/booking-state/booking-state.controller.ts`
+
+**Method**: `validateSeatSelection()`
+
+**Dependencies**:
+- `TypeOrmModule.forFeature([FlightSeat, FlightInstance, FareClass])` - Added to booking-state module for database validation
+
+**Best Practices Applied**:
+1. **Early Validation** - Validate before saving (fail fast principle)
+2. **Database-First Validation** - Query database to validate seat properties
+3. **Clear Error Messages** - Specific error messages for each validation failure
+4. **TypeORM Relations** - Load relations efficiently to validate cabin class match
+
+### Breaking Changes
+
+None - All changes are backward compatible. Validation errors return 400 Bad Request with clear messages.
+
+### Migration Guide
+
+No migration required. Existing API calls will continue to work. New validation provides better error messages and data integrity.
+
+---
+
 ## [2025-11-25] - Booking State & Seat Map Improvements
 
 ### New Features
