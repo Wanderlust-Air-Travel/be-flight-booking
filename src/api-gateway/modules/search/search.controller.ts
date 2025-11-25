@@ -1,9 +1,10 @@
-import { Controller, Get, Query, BadRequestException, InternalServerErrorException, NotFoundException, ServiceUnavailableException, Logger, Req, Optional, HttpException } from '@nestjs/common';
+import { Controller, Get, Query, BadRequestException, InternalServerErrorException, NotFoundException, ServiceUnavailableException, Logger, Req, Optional, HttpException, UseGuards } from '@nestjs/common';
 import { ApiBadRequestResponse, ApiOkResponse, ApiOperation, ApiQuery, ApiResponse, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { ClientProxy } from '@nestjs/microservices';
 import { Inject } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
 import { Request } from 'express';
+import { OptionalJwtAuthGuard } from '../auth/guard/optional-jwt-auth.guard';
 import { SearchFlightsDto } from './dto/search-flights.dto';
 import { TripType, CabinType } from 'src/shared/constants/enums';
 import { SearchFlightsResponseDto } from './dto/search-flights-response.dto';
@@ -131,9 +132,11 @@ export class SearchController {
 			}
 			
 			// Validate: departDate must not be in the past
-			const departDate = new Date(query.departDate);
+			// Parse departDate as date-only (YYYY-MM-DD) to avoid timezone issues
+			const departDateStr = query.departDate.split('T')[0]; // Get date part only
+			const departDate = new Date(departDateStr + 'T00:00:00.000Z'); // Use UTC midnight
 			const today = new Date();
-			today.setHours(0, 0, 0, 0);
+			today.setUTCHours(0, 0, 0, 0); // Use UTC to avoid timezone issues
 			if (departDate < today) {
 				throw new BadRequestException('Departure date cannot be in the past');
 			}
@@ -143,7 +146,9 @@ export class SearchController {
 				if (!query.returnDate) {
 					throw new BadRequestException('returnDate is required when tripType is round_trip');
 				}
-				const returnDate = new Date(query.returnDate);
+				// Parse returnDate as date-only (YYYY-MM-DD) to avoid timezone issues
+				const returnDateStr = query.returnDate.split('T')[0]; // Get date part only
+				const returnDate = new Date(returnDateStr + 'T00:00:00.000Z'); // Use UTC midnight
 				if (returnDate <= departDate) {
 					throw new BadRequestException('Return date must be after departure date');
 				}
@@ -233,6 +238,8 @@ export class SearchController {
 	}
 
 	@Get('fare-options')
+	@UseGuards(OptionalJwtAuthGuard)
+	@ApiBearerAuth('access-token')
 	@ApiOperation({
 		summary: 'Get fare options (cabins) for a flight instance',
 		description: 'Get available fare classes (cabins) for a specific flight instance and cabin type (economy or business). Returns list of fare options with prices and available seats.',
@@ -272,6 +279,7 @@ export class SearchController {
 			let cabinType = query.cabinType;
 			
 			if ((!flightInstanceId || !cabinType) && req?.user?.userId) {
+				// req.user is available when OptionalJwtAuthGuard extracts user from token
 				try {
 					const allStates = await this.bookingStateService.getAllBookingStates(req.user.userId);
 					if (allStates.length > 0) {
@@ -404,6 +412,8 @@ export class SearchController {
 	}
 
 	@Get('seats')
+	@UseGuards(OptionalJwtAuthGuard)
+	@ApiBearerAuth('access-token')
 	@ApiOperation({
 		summary: 'Get seat map for a flight instance',
 		description: 'Get available seat map for a specific flight instance and cabin type. Returns seat map grouped by cabin class with seat availability and details.',

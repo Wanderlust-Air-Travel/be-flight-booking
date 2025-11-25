@@ -3,6 +3,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { SEARCH_MS } from 'src/microservices/search/search.messages';
 import { SearchController } from './search.controller';
 import { BookingStateModule } from '../booking-state/booking-state.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
 	imports: [
@@ -17,6 +18,7 @@ import { BookingStateModule } from '../booking-state/booking-state.module';
 			},
 		]),
 		BookingStateModule,
+		AuthModule, // Import AuthModule to use OptionalJwtAuthGuard
 	],
 	controllers: [SearchController],
 })

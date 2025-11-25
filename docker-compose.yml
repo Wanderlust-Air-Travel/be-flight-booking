@@ -52,6 +52,14 @@ services:
       - DB_PORT=1433  # Override: Container port inside Docker network (app.config.ts default: 1433 for local SQL Server)
       # Redis: Use Docker service name
       - REDIS_HOST=redis  # Override: Docker service name (app.config.ts default: localhost)
+      # Microservices: Bind to 0.0.0.0 to accept connections from host machine via port forwarding
+      - SEARCH_MS_HOST=0.0.0.0  # Bind to all interfaces to accept connections from host
+      - SERVICES_MS_HOST=0.0.0.0
+      - ROUTES_MS_HOST=0.0.0.0
+      - BOOKING_MS_HOST=0.0.0.0
+      - RESERVATION_MS_HOST=0.0.0.0
+      - PAYMENT_MS_HOST=0.0.0.0
+      - EMAIL_MS_HOST=0.0.0.0
       # SA password for init scripts (not in app.config.ts)
       - SA_PASSWORD=${SA_PASSWORD:-${DB_PASS:-Passw0rd123!}}
       # All other configs will use defaults from app.config.ts or values from .env file
@@ -75,7 +83,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: sh -c "npm run wait-for-sqlserver && npm run init-db && npm run wait-for-db && (npm run seed-db || true) && npm run start:all"
+    command: sh -c "npm run wait-for-sqlserver && npm run wait-for-db && npm run start:all"
     # Alternative: npm run wait-for-db && npm run init-db && (npm run seed-db || true) && npm run download:deals-images && npm run gmail:auth
     restart: unless-stopped
 
