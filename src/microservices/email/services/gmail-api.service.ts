@@ -169,10 +169,13 @@ export class GmailApiService implements OnModuleInit {
 	private createMessage(to: string, subject: string, htmlBody: string, textBody?: string, replyTo?: string): string {
 		const fromEmail = this.configService.get<string>('GMAIL_FROM_EMAIL') || 'me';
 		
+		// Encode subject to UTF-8 using RFC 2047 format to avoid encoding issues
+		const encodedSubject = this.encodeSubject(subject);
+		
 		const headers = [
 			`To: ${to}`,
 			`From: ${fromEmail}`,
-			`Subject: ${subject}`,
+			`Subject: ${encodedSubject}`,
 			'Content-Type: text/html; charset=utf-8',
 		];
 
@@ -188,6 +191,23 @@ export class GmailApiService implements OnModuleInit {
 
 		// Encode to base64url format
 		return Buffer.from(email).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+	}
+
+	/**
+	 * Encode email subject to UTF-8 using RFC 2047 format
+	 * This prevents encoding issues with Vietnamese characters
+	 */
+	private encodeSubject(subject: string): string {
+		// Check if subject contains non-ASCII characters
+		if (/^[\x00-\x7F]*$/.test(subject)) {
+			// Only ASCII characters, no encoding needed
+			return subject;
+		}
+		
+		// Encode using RFC 2047 format: =?charset?encoding?encoded-text?=
+		// Use base64 encoding for better compatibility
+		const encoded = Buffer.from(subject, 'utf-8').toString('base64');
+		return `=?UTF-8?B?${encoded}?=`;
 	}
 
 	/**

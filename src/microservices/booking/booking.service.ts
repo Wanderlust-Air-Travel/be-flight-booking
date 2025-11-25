@@ -439,7 +439,17 @@ export class BookingService {
 			// Send booking confirmation email (non-blocking)
 			const savedBookingWithRelations = await this.bookingRepo.findOne({
 				where: { booking_id: savedBooking.booking_id },
-				relations: ['currency', 'user'],
+				relations: [
+					'currency', 
+					'user',
+					'booking_segments',
+					'booking_segments.flight_instance',
+					'booking_segments.flight_instance.flight_schedule',
+					'booking_segments.flight_instance.flight_schedule.route',
+					'booking_segments.flight_instance.flight_schedule.route.origin_airport',
+					'booking_segments.flight_instance.flight_schedule.route.destination_airport',
+					'booking_segments.fare_class',
+				],
 			});
 			
 			if (savedBookingWithRelations) {

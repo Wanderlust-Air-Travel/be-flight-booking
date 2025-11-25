@@ -281,7 +281,13 @@ export class EmailTemplateService {
 				<p><strong>Mã đặt chỗ (PNR):</strong> ${pnrCode}</p>
 				<p><strong>Mã booking:</strong> ${bookingId}</p>
 				<p><strong>Chi tiết chuyến bay:</strong></p>
-				<pre style="white-space: pre-wrap;">${flightDetails}</pre>
+				<div style="background-color: #f0f0f0; padding: 15px; border-radius: 5px; margin-top: 10px;">
+					${flightDetails !== 'N/A' ? flightDetails.split('\n\n').map(detail => 
+						`<div style="margin-bottom: 15px; padding: 10px; background-color: white; border-left: 3px solid #007bff; border-radius: 3px;">
+							${detail.split('\n').map(line => `<p style="margin: 5px 0;">${line}</p>`).join('')}
+						</div>`
+					).join('') : '<p>N/A</p>'}
+				</div>
 			</div>
 			<p>Vui lòng thanh toán trong vòng 15 phút để hoàn tất đặt chỗ. Sau khi thanh toán thành công, bạn sẽ nhận được email xác nhận kèm theo vé điện tử.</p>
 			<div class="footer">
