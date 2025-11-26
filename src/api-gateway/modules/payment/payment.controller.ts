@@ -218,15 +218,30 @@ export class PaymentController {
 			if (error instanceof HttpException) {
 				throw error;
 			}
+
+			// RpcException from microservice often comes in error.response
+			const rpcResponse = error?.response;
+			if (rpcResponse?.statusCode && rpcResponse?.message) {
+				// Propagate business errors from Payment MS to client (400/404)
+				if (rpcResponse.statusCode === 400) {
+					throw new BadRequestException(rpcResponse.message);
+				}
+				if (rpcResponse.statusCode === 404) {
+					throw new NotFoundException(rpcResponse.message);
+				}
+			}
 			
-			// Also check for statusCode property for compatibility
+			// Also check for statusCode directly for compatibility
 			if (error?.statusCode && error?.message) {
 				if (error?.statusCode === 404) {
 					throw new NotFoundException(error.message);
 				}
+				if (error?.statusCode === 400) {
+					throw new BadRequestException(error.message);
+				}
 				throw error;
 			}
-
+			
 			// Handle microservice connection errors - these are infrastructure issues (503)
 			const errorMessage = error?.message || error?.toString() || '';
 			const errorCode = error?.code || '';
@@ -661,7 +676,7 @@ export class PaymentController {
 	): Promise<{ success: boolean; message: string }> {
 		try {
 			// Validate gateway name
-			const validGateways = ['vnpay', 'momo', 'stripe', 'mock'];
+			const validGateways = ['vnpay', 'momo', 'stripe', 'mock', 'dev'];
 			if (!validGateways.includes(gateway.toLowerCase())) {
 				throw new BadRequestException(`Invalid gateway. Supported gateways: ${validGateways.join(', ')}`);
 			}

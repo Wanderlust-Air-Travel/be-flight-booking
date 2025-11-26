@@ -1,11 +1,13 @@
-import { Controller, Logger } from '@nestjs/common';
+import { Controller, Logger, UseFilters } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { PAYMENT_MS } from './payment.messages';
 import { PaymentService } from './payment.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { UpdatePaymentStatusDto } from './dto/update-payment-status.dto';
+import { PaymentRpcExceptionFilter } from './filters/payment-rpc-exception.filter';
 
 @Controller()
+@UseFilters(new PaymentRpcExceptionFilter())
 export class PaymentMsController {
 	private readonly logger = new Logger(PaymentMsController.name);
 

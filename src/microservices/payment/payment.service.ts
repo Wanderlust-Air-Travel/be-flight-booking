@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException, Inject, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, QueryFailedError } from 'typeorm';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -24,6 +24,7 @@ import { PaymentGatewayFactory } from './gateways/payment-gateway.factory';
 export class PaymentService {
 	private readonly logger = new Logger(PaymentService.name);
 	private readonly PAYMENT_EXPIRATION_MINUTES = 15; // Payment expires after 15 minutes
+	private readonly DB_TIMEOUT_MESSAGE = 'Timeout: Request failed to complete in 15000ms';
 
 	constructor(
 		@InjectRepository(Payment) private readonly paymentRepo: Repository<Payment>,
@@ -49,13 +50,19 @@ export class PaymentService {
 
 		try {
 			// PHASE 1: Concurrency Control - Lock booking row to prevent concurrent payments
-			const booking = await queryRunner.manager
-				.createQueryBuilder(Booking, 'booking')
-				.setLock('pessimistic_write') // SQL Server: WITH (UPDLOCK, ROWLOCK)
-				.where('booking.booking_id = :bookingId', { bookingId: dto.bookingId })
-				.leftJoinAndSelect('booking.currency', 'currency')
-				.leftJoinAndSelect('booking.user', 'user')
-				.getOne();
+			const booking = await this.executeWithRetry(
+				async () =>
+					await queryRunner.manager
+						.createQueryBuilder(Booking, 'booking')
+						.setLock('pessimistic_write') // SQL Server: WITH (UPDLOCK, ROWLOCK)
+						.where('booking.booking_id = :bookingId', { bookingId: dto.bookingId })
+						.leftJoinAndSelect('booking.currency', 'currency')
+						.leftJoinAndSelect('booking.user', 'user')
+						.getOne(),
+				{
+					operationName: 'lock-booking-for-create-payment',
+				},
+			);
 
 			if (!booking) {
 				throw new NotFoundException(`Booking ${dto.bookingId} not found`);
@@ -178,13 +185,19 @@ export class PaymentService {
 
 		try {
 			// PHASE 1: Concurrency Control - Lock booking row
-			const booking = await queryRunner.manager
-				.createQueryBuilder(Booking, 'booking')
-				.setLock('pessimistic_write')
-				.where('booking.booking_id = :bookingId', { bookingId: dto.bookingId })
-				.leftJoinAndSelect('booking.currency', 'currency')
-				.leftJoinAndSelect('booking.user', 'user')
-				.getOne();
+			const booking = await this.executeWithRetry(
+				async () =>
+					await queryRunner.manager
+						.createQueryBuilder(Booking, 'booking')
+						.setLock('pessimistic_write')
+						.where('booking.booking_id = :bookingId', { bookingId: dto.bookingId })
+						.leftJoinAndSelect('booking.currency', 'currency')
+						.leftJoinAndSelect('booking.user', 'user')
+						.getOne(),
+				{
+					operationName: 'lock-booking-for-process-payment',
+				},
+			);
 
 			if (!booking) {
 				throw new NotFoundException(`Booking ${dto.bookingId} not found`);
@@ -521,10 +534,64 @@ export class PaymentService {
 	}
 
 	/**
+	 * Execute DB operation with retry & backoff for transient SQL timeouts
+	 */
+	private async executeWithRetry<T>(
+		fn: () => Promise<T>,
+		options: { operationName: string; maxRetries?: number; baseDelayMs?: number },
+	): Promise<T> {
+		const { operationName, maxRetries = 3, baseDelayMs = 200 } = options;
+
+		for (let attempt = 1; attempt <= maxRetries; attempt++) {
+			try {
+				return await fn();
+			} catch (error: any) {
+				const isQueryError = error instanceof QueryFailedError;
+				const message: string = error?.message || '';
+				const driverMessage: string = error?.driverError?.message || '';
+				const isTimeout =
+					message.includes(this.DB_TIMEOUT_MESSAGE) ||
+					driverMessage.includes(this.DB_TIMEOUT_MESSAGE);
+
+				if (!isQueryError || !isTimeout) {
+					// Not a transient DB timeout → rethrow immediately
+					throw error;
+				}
+
+				if (attempt >= maxRetries) {
+					this.logger.error(
+						`[${operationName}] Database timeout after ${attempt} attempts: ${message || driverMessage}`,
+					);
+					// Business-friendly error message for callers (Gateway will surface this to FE)
+					throw new BadRequestException(
+						'Payment system is busy at the moment. Please try again in a few seconds.',
+					);
+				}
+
+				const delayMs = baseDelayMs * Math.pow(2, attempt - 1);
+				this.logger.warn(
+					`[${operationName}] Database timeout (attempt ${attempt}/${maxRetries}). Retrying in ${delayMs}ms...`,
+				);
+				await new Promise((resolve) => setTimeout(resolve, delayMs));
+			}
+		}
+
+		// Should never reach here
+		throw new BadRequestException(
+			'Payment system is busy at the moment. Please try again in a few seconds.',
+		);
+	}
+
+	/**
 	 * Get payment method code from gateway name
 	 * Helper method for webhook routing
 	 */
 	private getMethodCodeFromGatewayName(gatewayName: string): string {
+		// In non-production, always route webhooks to DevPaymentGateway
+		if (process.env.NODE_ENV !== 'production') {
+			return 'DEV';
+		}
+
 		const mapping: Record<string, string> = {
 			stripe: 'CREDIT_CARD',
 			momo: 'EWALLET',
@@ -532,6 +599,7 @@ export class PaymentService {
 			bank: 'BANK_TRANSFER',
 			cash: 'CASH',
 			mock: 'CREDIT_CARD', // Default for mock gateway
+			dev: 'DEV',
 		};
 
 		return mapping[gatewayName.toLowerCase()] || 'CREDIT_CARD';

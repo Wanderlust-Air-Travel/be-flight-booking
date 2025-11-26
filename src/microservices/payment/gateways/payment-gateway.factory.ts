@@ -1,10 +1,8 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { IPaymentGateway } from '../interfaces/payment-gateway.interface';
-import { MockPaymentGateway } from './mock-payment.gateway';
-// Import actual payment gateways here when implemented
-// import { VNPayGateway } from './vnpay.gateway';
-// import { MoMoGateway } from './momo.gateway';
-// import { StripeGateway } from './stripe.gateway';
+import { VNPayGateway } from './vnpay.gateway';
+import { MoMoGateway } from './momo.gateway';
+import { DevPaymentGateway } from './dev-payment.gateway';
 
 /**
  * Payment Gateway Factory
@@ -14,7 +12,11 @@ import { MockPaymentGateway } from './mock-payment.gateway';
 export class PaymentGatewayFactory {
 	private readonly logger = new Logger(PaymentGatewayFactory.name);
 
-	constructor(private readonly mockGateway: MockPaymentGateway) {}
+	constructor(
+		private readonly vnpayGateway: VNPayGateway,
+		private readonly momoGateway: MoMoGateway,
+		private readonly devGateway: DevPaymentGateway,
+	) {}
 
 	/**
 	 * Create payment gateway instance based on payment method code
@@ -24,30 +26,34 @@ export class PaymentGatewayFactory {
 	create(methodCode: string): IPaymentGateway {
 		this.logger.log(`Creating payment gateway for method: ${methodCode}`);
 
+		// In development/demo environment, always use DevPaymentGateway
+		if (process.env.NODE_ENV !== 'production') {
+			this.logger.log('[DevPaymentGateway] Using DevPaymentGateway for all methods (non-production)');
+			return this.devGateway;
+		}
+
 		switch (methodCode.toUpperCase()) {
 			case 'CREDIT_CARD':
 			case 'DEBIT_CARD':
-				// In production, return StripeGateway or other card gateway
-				// return new StripeGateway();
-				return this.mockGateway;
-
 			case 'BANK_TRANSFER':
-				// In production, return bank transfer gateway
-				// return new BankTransferGateway();
-				return this.mockGateway;
+				// Use VNPay for card and bank transfer payments
+				return this.vnpayGateway;
 
 			case 'EWALLET':
-				// In production, return e-wallet gateway (MoMo, ZaloPay, etc.)
-				// return new MoMoGateway();
-				return this.mockGateway;
+				// Use MoMo for e-wallet payments
+				return this.momoGateway;
 
 			case 'CASH':
-				// Cash payments don't need gateway, but we can use mock for consistency
-				return this.mockGateway;
+				// CASH is not processed via online gateway
+				throw new BadRequestException(
+					'Payment method CASH is not supported for online payment processing.',
+				);
 
 			default:
-				this.logger.warn(`Unknown payment method: ${methodCode}, using mock gateway`);
-				return this.mockGateway;
+				this.logger.warn(`Unknown payment method: ${methodCode}`);
+				throw new BadRequestException(
+					`Unsupported payment method: ${methodCode}. Please choose a supported method.`,
+				);
 		}
 	}
 
