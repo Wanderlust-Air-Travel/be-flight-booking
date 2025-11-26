@@ -137,6 +137,7 @@ export class EmailTemplateService {
 		const totalAmount = data.totalAmount || 0;
 		const currency = data.currency || 'VND';
 		const passengerName = data.passengerName || 'Quý khách';
+		const seatDetails = data.seatDetails || 'N/A';
 
 		const subject = `Xác nhận thanh toán thành công - Mã đặt chỗ: ${pnrCode}`;
 		const htmlBody = `
@@ -177,8 +178,29 @@ export class EmailTemplateService {
 					<span class="label">Tổng tiền:</span>
 					<span class="value"><strong>${totalAmount.toLocaleString()} ${currency}</strong></span>
 				</div>
+				<div class="info-row">
+					<span class="label">Thông tin chỗ ngồi:</span>
+					<div class="value">
+						${
+							seatDetails !== 'N/A'
+								? seatDetails
+										.split('\n\n')
+										.map(
+											(block) => `
+							<div style="margin: 8px 0; padding: 8px; background-color: #f5f5f5; border-radius: 4px;">
+								${block
+									.split('\n')
+									.map((line) => `<p style="margin: 2px 0;">${line}</p>`)
+									.join('')}
+							</div>`,
+										)
+										.join('')
+								: '<p>Không có thông tin chỗ ngồi.</p>'
+						}
+					</div>
+				</div>
 			</div>
-			<p>Thông tin chi tiết về chuyến bay đã được gửi kèm theo email này. Vui lòng kiểm tra email và lưu lại mã đặt chỗ để sử dụng tại sân bay.</p>
+			<p>Thông tin chi tiết về chuyến bay và chỗ ngồi đã được gửi kèm theo email này. Vui lòng kiểm tra email và lưu lại mã đặt chỗ để sử dụng tại sân bay.</p>
 			<p>Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi qua email hoặc hotline.</p>
 			<div class="footer">
 				<p>Đây là email tự động, vui lòng không trả lời email này.</p>
@@ -190,7 +212,16 @@ export class EmailTemplateService {
 </html>
 		`;
 
-		const textBody = `Thanh toán thành công\n\nMã đặt chỗ (PNR): ${pnrCode}\nMã booking: ${bookingId}\nTổng tiền: ${totalAmount.toLocaleString()} ${currency}\n\nCảm ơn bạn đã sử dụng dịch vụ của chúng tôi.`;
+		const textBody = `Thanh toán thành công
+
+Mã đặt chỗ (PNR): ${pnrCode}
+Mã booking: ${bookingId}
+Tổng tiền: ${totalAmount.toLocaleString()} ${currency}
+
+Thông tin chỗ ngồi:
+${seatDetails}
+
+Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi.`;
 
 		return { subject, htmlBody, textBody };
 	}
