@@ -50,19 +50,31 @@ export class PaymentService {
 
 		try {
 			// PHASE 1: Concurrency Control - Lock booking row to prevent concurrent payments
-			const booking = await this.executeWithRetry(
-				async () =>
-					await queryRunner.manager
-						.createQueryBuilder(Booking, 'booking')
-						.setLock('pessimistic_write') // SQL Server: WITH (UPDLOCK, ROWLOCK)
-						.where('booking.booking_id = :bookingId', { bookingId: dto.bookingId })
-						.leftJoinAndSelect('booking.currency', 'currency')
-						.leftJoinAndSelect('booking.user', 'user')
-						.getOne(),
-				{
-					operationName: 'lock-booking-for-create-payment',
-				},
-			);
+			// DEV/DEMO MODE: không dùng lock + retry để tránh timeout khó chịu cho user
+			let booking: Booking | null;
+			if (process.env.NODE_ENV !== 'production') {
+				booking = await queryRunner.manager
+					.createQueryBuilder(Booking, 'booking')
+					.where('booking.booking_id = :bookingId', { bookingId: dto.bookingId })
+					.leftJoinAndSelect('booking.currency', 'currency')
+					.leftJoinAndSelect('booking.user', 'user')
+					.getOne();
+			} else {
+				// PRODUCTION: giữ nguyên cơ chế lock + retry để đảm bảo chống double-payment
+				booking = await this.executeWithRetry(
+					async () =>
+						await queryRunner.manager
+							.createQueryBuilder(Booking, 'booking')
+							.setLock('pessimistic_write') // SQL Server: WITH (UPDLOCK, ROWLOCK)
+							.where('booking.booking_id = :bookingId', { bookingId: dto.bookingId })
+							.leftJoinAndSelect('booking.currency', 'currency')
+							.leftJoinAndSelect('booking.user', 'user')
+							.getOne(),
+					{
+						operationName: 'lock-booking-for-create-payment',
+					},
+				);
+			}
 
 			if (!booking) {
 				throw new NotFoundException(`Booking ${dto.bookingId} not found`);
@@ -185,19 +197,30 @@ export class PaymentService {
 
 		try {
 			// PHASE 1: Concurrency Control - Lock booking row
-			const booking = await this.executeWithRetry(
-				async () =>
-					await queryRunner.manager
-						.createQueryBuilder(Booking, 'booking')
-						.setLock('pessimistic_write')
-						.where('booking.booking_id = :bookingId', { bookingId: dto.bookingId })
-						.leftJoinAndSelect('booking.currency', 'currency')
-						.leftJoinAndSelect('booking.user', 'user')
-						.getOne(),
-				{
-					operationName: 'lock-booking-for-process-payment',
-				},
-			);
+			let booking: Booking | null;
+			if (process.env.NODE_ENV !== 'production') {
+				// DEV/DEMO: không lock để tránh timeout, chấp nhận rủi ro concurrency trong môi trường demo
+				booking = await queryRunner.manager
+					.createQueryBuilder(Booking, 'booking')
+					.where('booking.booking_id = :bookingId', { bookingId: dto.bookingId })
+					.leftJoinAndSelect('booking.currency', 'currency')
+					.leftJoinAndSelect('booking.user', 'user')
+					.getOne();
+			} else {
+				booking = await this.executeWithRetry(
+					async () =>
+						await queryRunner.manager
+							.createQueryBuilder(Booking, 'booking')
+							.setLock('pessimistic_write')
+							.where('booking.booking_id = :bookingId', { bookingId: dto.bookingId })
+							.leftJoinAndSelect('booking.currency', 'currency')
+							.leftJoinAndSelect('booking.user', 'user')
+							.getOne(),
+					{
+						operationName: 'lock-booking-for-process-payment',
+					},
+				);
+			}
 
 			if (!booking) {
 				throw new NotFoundException(`Booking ${dto.bookingId} not found`);
