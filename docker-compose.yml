@@ -46,6 +46,7 @@ services:
     env_file:
       - .env  # Load environment variables from .env file (app.config.ts will use defaults if not set)
     environment:
+      - NODE_ENV=development
       # Docker-specific overrides only (different from localhost defaults in app.config.ts)
       # Database: Use Docker service name and container port
       - DB_HOST=sqlserver  # Override: Docker service name (app.config.ts default: localhost)
@@ -83,7 +84,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: sh -c "npm run wait-for-sqlserver && npm run wait-for-db && npm run seed:if-empty && npm run start:all"
+    command: sh -c "npm run wait-for-sqlserver && npm run wait-for-db && npm run seed:if-empty && npm run start:all:with-download"
     # Alternative với seed (chỉ seed nếu database trống):
     # npm run wait-for-sqlserver && npm run wait-for-db && npm run init-db && npm run seed:if-empty && npm run start:all:with-download && npm run gmail:auth
     restart: unless-stopped
