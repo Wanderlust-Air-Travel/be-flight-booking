@@ -17,5 +17,6 @@ export enum EmailTemplate {
 	PAYMENT_SUCCESS = 'payment_success',
 	PAYMENT_FAILED = 'payment_failed',
 	BOOKING_CONFIRMATION = 'booking_confirmation',
+	TICKET_CONFIRMATION = 'ticket_confirmation',
 }
 

@@ -1243,6 +1243,39 @@ export class BookingService {
 
 		this.logger.log(`Successfully created ${tickets.length} tickets for booking ${bookingId}`);
 
+		// PHASE 4: Send ticket confirmation email with detailed information
+		// Reload booking with all relations for email
+		const bookingForEmail = await repo.findOne(Booking, {
+			where: { booking_id: bookingId },
+			relations: [
+				'currency',
+				'booking_segments',
+				'booking_segments.booking_passenger',
+				'booking_segments.booking_passenger.passenger',
+				'booking_segments.flight_instance',
+				'booking_segments.flight_instance.flight_schedule',
+				'booking_segments.flight_instance.flight_schedule.route',
+				'booking_segments.flight_instance.flight_schedule.route.origin_airport',
+				'booking_segments.flight_instance.flight_schedule.route.destination_airport',
+				'booking_segments.fare_class',
+				'booking_segments.fare_class.cabin_class',
+				'booking_segments.flight_seat',
+				'user',
+			],
+		});
+
+		if (bookingForEmail) {
+			// Reload tickets with relations
+			const ticketsWithRelations = await repo.find(Ticket, {
+				where: { booking: { booking_id: bookingId } },
+				relations: ['booking_passenger'],
+			});
+
+			await this.notificationService.sendTicketConfirmation(bookingForEmail, ticketsWithRelations).catch((err) => {
+				this.logger.error(`Failed to send ticket confirmation email: ${err.message}`);
+			});
+		}
+
 		return tickets;
 	}
 

@@ -21,6 +21,8 @@ export class EmailTemplateService {
 				return this.renderPaymentFailedTemplate(data);
 			case EmailTemplate.BOOKING_CONFIRMATION:
 				return this.renderBookingConfirmationTemplate(data);
+			case EmailTemplate.TICKET_CONFIRMATION:
+				return this.renderTicketConfirmationTemplate(data);
 			default:
 				throw new Error(`Unknown template: ${template}`);
 		}
@@ -331,6 +333,177 @@ Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi.`;
 		`;
 
 		const textBody = `Xác nhận đặt chỗ\n\nMã đặt chỗ (PNR): ${pnrCode}\nMã booking: ${bookingId}\n\nChi tiết chuyến bay:\n${flightDetails}\n\nVui lòng thanh toán trong vòng 15 phút để hoàn tất đặt chỗ.`;
+
+		return { subject, htmlBody, textBody };
+	}
+
+	/**
+	 * Render Ticket Confirmation template
+	 * Detailed ticket information after successful ticket creation
+	 */
+	private renderTicketConfirmationTemplate(data: Record<string, any>): TemplateResult {
+		const passengerName = data.passengerName || 'Quý khách';
+		const ticketDetails = data.ticketDetails || [];
+		const checkInTime = data.checkInTime || 'N/A';
+
+		const subject = 'Vé máy bay của bạn đã được phát hành thành công';
+		const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<style>
+		body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+		.container { max-width: 700px; margin: 0 auto; padding: 20px; }
+		.header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+		.content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+		.ticket-box { background-color: white; padding: 25px; margin: 20px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 5px solid #667eea; }
+		.ticket-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e0e0e0; }
+		.ticket-number { font-size: 24px; font-weight: bold; color: #667eea; }
+		.flight-info { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0; }
+		.info-section { background-color: #f8f9fa; padding: 15px; border-radius: 5px; }
+		.info-label { font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 5px; }
+		.info-value { font-size: 16px; font-weight: bold; color: #333; }
+		.route-section { text-align: center; margin: 20px 0; }
+		.airport-code { font-size: 32px; font-weight: bold; color: #667eea; }
+		.airport-name { font-size: 14px; color: #666; margin-top: 5px; }
+		.arrow { font-size: 24px; color: #667eea; margin: 10px 0; }
+		.seat-info { background-color: #e8f5e9; padding: 15px; border-radius: 5px; margin: 15px 0; }
+		.checkin-box { background-color: #fff3cd; border: 2px solid #ffc107; padding: 20px; margin: 20px 0; border-radius: 8px; }
+		.checkin-time { font-size: 20px; font-weight: bold; color: #856404; text-align: center; }
+		.footer { margin-top: 30px; font-size: 12px; color: #666; text-align: center; }
+		.divider { height: 1px; background: linear-gradient(to right, transparent, #e0e0e0, transparent); margin: 20px 0; }
+	</style>
+</head>
+<body>
+	<div class="container">
+		<div class="header">
+			<h1 style="margin: 0;">✈️ Vé máy bay của bạn đã sẵn sàng</h1>
+			<p style="margin: 10px 0 0 0; opacity: 0.9;">Chúc bạn có một chuyến bay tuyệt vời!</p>
+		</div>
+		<div class="content">
+			<p>Xin chào <strong>${passengerName}</strong>,</p>
+			<p>Vé máy bay của bạn đã được phát hành thành công. Dưới đây là thông tin chi tiết về chuyến bay của bạn:</p>
+			
+			${ticketDetails.map((ticket: any, index: number) => `
+			<div class="ticket-box">
+				<div class="ticket-header">
+					<div>
+						<div class="info-label">Mã vé</div>
+						<div class="ticket-number">${ticket.ticketNumber || 'N/A'}</div>
+					</div>
+					<div style="text-align: right;">
+						<div class="info-label">Hành khách</div>
+						<div class="info-value">${ticket.passengerName || 'N/A'}</div>
+					</div>
+				</div>
+
+				<div class="route-section">
+					<div>
+						<div class="airport-code">${ticket.originAirport || 'N/A'}</div>
+						<div class="airport-name">${ticket.originAirportName || ''}</div>
+						<div class="airport-name">${ticket.originCity || ''}</div>
+					</div>
+					<div class="arrow">→</div>
+					<div>
+						<div class="airport-code">${ticket.destinationAirport || 'N/A'}</div>
+						<div class="airport-name">${ticket.destinationAirportName || ''}</div>
+						<div class="airport-name">${ticket.destinationCity || ''}</div>
+					</div>
+				</div>
+
+				<div class="flight-info">
+					<div class="info-section">
+						<div class="info-label">Số hiệu chuyến bay</div>
+						<div class="info-value">${ticket.flightNumber || 'N/A'}</div>
+					</div>
+					<div class="info-section">
+						<div class="info-label">Loại vé</div>
+						<div class="info-value">${ticket.fareClassName || 'N/A'}</div>
+					</div>
+					<div class="info-section">
+						<div class="info-label">Giờ khởi hành</div>
+						<div class="info-value">${ticket.departureTime || 'N/A'}</div>
+					</div>
+					<div class="info-section">
+						<div class="info-label">Giờ đến nơi</div>
+						<div class="info-value">${ticket.arrivalTime || 'N/A'}</div>
+					</div>
+				</div>
+
+				<div class="seat-info">
+					<div style="display: flex; justify-content: space-between; align-items: center;">
+						<div>
+							<div class="info-label">Ghế ngồi</div>
+							<div class="info-value" style="font-size: 24px;">${ticket.seatNumber || 'Chưa chọn'}</div>
+						</div>
+						<div style="text-align: right;">
+							<div class="info-label">Hạng ghế</div>
+							<div class="info-value">${ticket.cabinClass === 'economy' ? 'Phổ thông' : ticket.cabinClass === 'business' ? 'Thương gia' : ticket.cabinClass || 'N/A'}</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			${index < ticketDetails.length - 1 ? '<div class="divider"></div>' : ''}
+			`).join('')}
+
+			<div class="checkin-box">
+				<div class="info-label" style="text-align: center; margin-bottom: 10px;">⏰ Thời gian làm thủ tục</div>
+				<div class="checkin-time">${checkInTime}</div>
+				<p style="text-align: center; margin: 10px 0 0 0; color: #856404; font-size: 14px;">
+					Vui lòng có mặt tại sân bay đúng giờ để làm thủ tục check-in. 
+					Đối với chuyến bay nội địa, vui lòng có mặt trước giờ khởi hành ít nhất 2 giờ. 
+					Đối với chuyến bay quốc tế, vui lòng có mặt trước giờ khởi hành ít nhất 3 giờ.
+				</p>
+			</div>
+
+			<div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
+				<h3 style="margin-top: 0; color: #667eea;">📋 Lưu ý quan trọng:</h3>
+				<ul style="line-height: 1.8;">
+					<li>Vui lòng mang theo giấy tờ tùy thân hợp lệ khi đến sân bay</li>
+					<li>Kiểm tra lại thông tin hành lý ký gửi và hành lý xách tay</li>
+					<li>Đến sân bay đúng giờ để tránh bị lỡ chuyến bay</li>
+					<li>Lưu lại email này để tiện tra cứu thông tin</li>
+				</ul>
+			</div>
+
+			<p>Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi qua email hoặc hotline.</p>
+			<div class="footer">
+				<p>Đây là email tự động, vui lòng không trả lời email này.</p>
+				<p>© 2025 Bamboo Airways. All rights reserved.</p>
+			</div>
+		</div>
+	</div>
+</body>
+</html>
+		`;
+
+		const textBody = `Vé máy bay của bạn đã được phát hành thành công
+
+Xin chào ${passengerName},
+
+Vé máy bay của bạn đã được phát hành thành công. Dưới đây là thông tin chi tiết:
+
+${ticketDetails.map((ticket: any) => `
+Mã vé: ${ticket.ticketNumber || 'N/A'}
+Hành khách: ${ticket.passengerName || 'N/A'}
+Chuyến bay: ${ticket.flightNumber || 'N/A'}
+Từ: ${ticket.originAirport || 'N/A'} (${ticket.originAirportName || ''}, ${ticket.originCity || ''})
+Đến: ${ticket.destinationAirport || 'N/A'} (${ticket.destinationAirportName || ''}, ${ticket.destinationCity || ''})
+Giờ khởi hành: ${ticket.departureTime || 'N/A'}
+Giờ đến nơi: ${ticket.arrivalTime || 'N/A'}
+Loại vé: ${ticket.fareClassName || 'N/A'}
+Ghế ngồi: ${ticket.seatNumber || 'Chưa chọn'}
+Hạng ghế: ${ticket.cabinClass === 'economy' ? 'Phổ thông' : ticket.cabinClass === 'business' ? 'Thương gia' : ticket.cabinClass || 'N/A'}
+`).join('\n---\n')}
+
+Thời gian làm thủ tục: ${checkInTime}
+
+Vui lòng có mặt tại sân bay đúng giờ để làm thủ tục check-in.
+Đối với chuyến bay nội địa, vui lòng có mặt trước giờ khởi hành ít nhất 2 giờ.
+Đối với chuyến bay quốc tế, vui lòng có mặt trước giờ khởi hành ít nhất 3 giờ.
+
+Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi.`;
 
 		return { subject, htmlBody, textBody };
 	}

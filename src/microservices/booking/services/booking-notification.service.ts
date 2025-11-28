@@ -123,5 +123,181 @@ export class BookingNotificationService {
 
 		return flightDetails.length > 0 ? flightDetails.join('\n\n') : 'N/A';
 	}
+
+	/**
+	 * Send ticket confirmation email with detailed information
+	 * Called after tickets are successfully created
+	 */
+	async sendTicketConfirmation(booking: Booking, tickets: any[]): Promise<void> {
+		this.logger.log(`Sending ticket confirmation for booking ${booking.booking_id}`);
+
+		try {
+			const emailAddress = booking.contact_email || booking.user?.email;
+			if (!emailAddress) {
+				this.logger.warn(
+					`Cannot send ticket confirmation: No email address found for booking ${booking.booking_id}`,
+				);
+				return;
+			}
+
+			const passengerName = booking.contact_fullname || booking.user?.fullname || 'Quý khách';
+
+			// Format detailed ticket information
+			const ticketDetails = this.formatTicketDetails(booking, tickets);
+
+			// Calculate check-in time (2 hours before departure for domestic, 3 hours for international)
+			const checkInTime = this.calculateCheckInTime(booking);
+
+			// Send email via Email Microservice
+			await firstValueFrom(
+				this.emailClient.send(EMAIL_MS.PATTERN.SEND_EMAIL, {
+					to: emailAddress,
+					template: EmailTemplate.TICKET_CONFIRMATION,
+					templateData: {
+						passengerName,
+						ticketDetails,
+						checkInTime,
+					},
+				}),
+			);
+
+			this.logger.log(
+				`Ticket confirmation sent to ${emailAddress} for booking ${booking.pnr_code} with ${tickets.length} tickets`,
+			);
+		} catch (error: any) {
+			// Log error but don't throw - notification failure shouldn't break ticket creation flow
+			this.logger.error(
+				`Failed to send ticket confirmation: ${error.message}`,
+				error.stack,
+			);
+		}
+	}
+
+	/**
+	 * Format detailed ticket information for email
+	 */
+	private formatTicketDetails(booking: Booking, tickets: any[]): any[] {
+		if (!booking.booking_segments || booking.booking_segments.length === 0) {
+			return [];
+		}
+
+		const ticketDetails: any[] = [];
+
+		// Map tickets to segments
+		for (const segment of booking.booking_segments) {
+			const ticket = tickets.find(
+				(t) => t.booking_passenger.booking_passenger_id === segment.booking_passenger.booking_passenger_id,
+			);
+
+			if (!ticket) continue;
+
+			const flightInstance = segment.flight_instance;
+			if (!flightInstance) continue;
+
+			const schedule = flightInstance.flight_schedule;
+			const route = schedule?.route;
+			const fareClass = segment.fare_class;
+
+			if (!route || !route.origin_airport || !route.destination_airport) continue;
+
+			// Format times
+			const departureTime = flightInstance.departure_datetime_local
+				? new Date(flightInstance.departure_datetime_local).toLocaleString('vi-VN', {
+						weekday: 'long',
+						year: 'numeric',
+						month: 'long',
+						day: 'numeric',
+						hour: '2-digit',
+						minute: '2-digit',
+					})
+				: 'N/A';
+
+			const arrivalTime = flightInstance.arrival_datetime_local
+				? new Date(flightInstance.arrival_datetime_local).toLocaleString('vi-VN', {
+						weekday: 'long',
+						year: 'numeric',
+						month: 'long',
+						day: 'numeric',
+						hour: '2-digit',
+						minute: '2-digit',
+					})
+				: 'N/A';
+
+			// Get fare class name
+			const fareClassName = fareClass?.description || fareClass?.fare_class_code || 'N/A';
+
+			// Get cabin class
+			const cabinClass =
+				fareClass?.cabin_class?.cabin_class_code === 'Y'
+					? 'economy'
+					: fareClass?.cabin_class?.cabin_class_code === 'C'
+						? 'business'
+						: 'economy';
+
+			// Get seat number
+			const seatNumber = segment.flight_seat?.seat_number || 'Chưa chọn';
+
+			// Get passenger name
+			const passengerName =
+				segment.booking_passenger?.passenger?.fullname ||
+				booking.contact_fullname ||
+				booking.user?.fullname ||
+				'Quý khách';
+
+			ticketDetails.push({
+				ticketNumber: ticket.ticket_number,
+				passengerName,
+				flightNumber: schedule?.flight_number || flightInstance.flight_number || 'N/A',
+				originAirport: route.origin_airport.iata_code || 'N/A',
+				originAirportName: route.origin_airport.name || '',
+				originCity: route.origin_airport.city || '',
+				destinationAirport: route.destination_airport.iata_code || 'N/A',
+				destinationAirportName: route.destination_airport.name || '',
+				destinationCity: route.destination_airport.city || '',
+				departureTime,
+				arrivalTime,
+				fareClassName,
+				cabinClass,
+				seatNumber,
+			});
+		}
+
+		return ticketDetails;
+	}
+
+	/**
+	 * Calculate check-in time based on flight departure time and route type
+	 * Domestic: 2 hours before, International: 3 hours before
+	 */
+	private calculateCheckInTime(booking: Booking): string {
+		if (!booking.booking_segments || booking.booking_segments.length === 0) {
+			return 'N/A';
+		}
+
+		// Get first segment to determine check-in time
+		const firstSegment = booking.booking_segments[0];
+		const flightInstance = firstSegment?.flight_instance;
+		const route = flightInstance?.flight_schedule?.route;
+
+		if (!flightInstance?.departure_datetime_local || !route) {
+			return 'N/A';
+		}
+
+		const departureTime = new Date(flightInstance.departure_datetime_local);
+		const isDomestic = route.is_domestic;
+
+		// Calculate check-in time (2 hours for domestic, 3 hours for international)
+		const checkInHours = isDomestic ? 2 : 3;
+		const checkInTime = new Date(departureTime.getTime() - checkInHours * 60 * 60 * 1000);
+
+		return checkInTime.toLocaleString('vi-VN', {
+			weekday: 'long',
+			year: 'numeric',
+			month: 'long',
+			day: 'numeric',
+			hour: '2-digit',
+			minute: '2-digit',
+		});
+	}
 }
 
