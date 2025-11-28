@@ -1152,6 +1152,101 @@ export class BookingService {
 	}
 
 	/**
+	 * Generate unique ticket number
+	 * Format: {AIRLINE_CODE}{6_DIGIT_NUMBER}
+	 * Example: BBO123456, VNA789012
+	 */
+	private async generateUniqueTicketNumber(): Promise<string> {
+		const airlines = ['BBO', 'VNA', 'VJ', 'QH'];
+		let attempts = 0;
+		const maxAttempts = 10;
+
+		while (attempts < maxAttempts) {
+			const airline = airlines[Math.floor(Math.random() * airlines.length)];
+			const number = String(Math.floor(Math.random() * 900000) + 100000); // 100000-999999
+			const ticketNumber = `${airline}${number}`;
+
+			// Check if ticket number already exists
+			const existingTicket = await this.ticketRepo.findOne({
+				where: { ticket_number: ticketNumber },
+			});
+
+			if (!existingTicket) {
+				return ticketNumber;
+			}
+
+			attempts++;
+		}
+
+		// Fallback: use UUID-based ticket number if all attempts fail
+		const airline = airlines[Math.floor(Math.random() * airlines.length)];
+		const uuidPart = uuidv7().replace(/-/g, '').substring(0, 6).toUpperCase();
+		return `${airline}${uuidPart}`;
+	}
+
+	/**
+	 * Create tickets from booking after successful payment
+	 * Each booking segment represents one ticket for one passenger
+	 * This method should be called after payment is confirmed
+	 */
+	async createTicketsFromBooking(bookingId: string, manager?: any): Promise<Ticket[]> {
+		const repo = manager || this.bookingRepo.manager;
+
+		// Get booking with all necessary relations
+		const booking = await repo.findOne(Booking, {
+			where: { booking_id: bookingId },
+			relations: ['booking_segments', 'booking_segments.booking_passenger', 'tickets'],
+		});
+
+		if (!booking) {
+			throw new NotFoundException(`Booking ${bookingId} not found`);
+		}
+
+		// Check if booking is paid
+		if (booking.status !== 'paid') {
+			throw new BadRequestException(
+				`Cannot create tickets for booking ${bookingId}. Booking status is ${booking.status}, expected 'paid'.`,
+			);
+		}
+
+		// Check if tickets already exist
+		if (booking.tickets && booking.tickets.length > 0) {
+			this.logger.log(
+				`Tickets already exist for booking ${bookingId}. Skipping ticket creation. Found ${booking.tickets.length} tickets.`,
+			);
+			return booking.tickets;
+		}
+
+		// Create tickets for each booking segment
+		const tickets: Ticket[] = [];
+
+		for (const segment of booking.booking_segments) {
+			// Generate unique ticket number
+			const ticketNumber = await this.generateUniqueTicketNumber();
+
+			// Create ticket
+			const ticket = repo.create(Ticket, {
+				ticket_id: uuidv7(),
+				booking: booking,
+				booking_passenger: segment.booking_passenger,
+				ticket_number: ticketNumber,
+				status: 'active',
+			});
+
+			const savedTicket = await repo.save(Ticket, ticket);
+			tickets.push(savedTicket);
+
+			this.logger.log(
+				`Created ticket ${savedTicket.ticket_number} (${savedTicket.ticket_id}) for booking ${bookingId}, passenger ${segment.booking_passenger.booking_passenger_id}`,
+			);
+		}
+
+		this.logger.log(`Successfully created ${tickets.length} tickets for booking ${bookingId}`);
+
+		return tickets;
+	}
+
+	/**
 	 * Get user's journey history
 	 * Returns all unique flight journeys (bookings) that the user has made
 	 */

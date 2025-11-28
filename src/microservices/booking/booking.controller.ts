@@ -120,5 +120,18 @@ export class BookingMsController {
 			throw error;
 		}
 	}
+
+	@MessagePattern(BOOKING_MS.PATTERN.CREATE_TICKETS_FROM_BOOKING)
+	async handleCreateTicketsFromBooking(payload: { bookingId: string }): Promise<{ success: boolean; ticketCount: number }> {
+		try {
+			this.logger.log(`Create tickets from booking: ${payload.bookingId}`);
+			const tickets = await this.bookingService.createTicketsFromBooking(payload.bookingId);
+			this.logger.log(`Successfully created ${tickets.length} tickets for booking ${payload.bookingId}`);
+			return { success: true, ticketCount: tickets.length };
+		} catch (error: any) {
+			this.logger.error(`Failed to create tickets for booking ${payload.bookingId}:`, error);
+			throw error;
+		}
+	}
 }
 

@@ -338,6 +338,60 @@ export class PaymentService {
 				await this.notificationService.sendPaymentSuccessNotification(payment, booking).catch((err) => {
 					this.logger.error(`Failed to send payment success notification: ${err.message}`);
 				});
+
+				// PHASE 3: Create tickets after successful payment
+				// This is a critical business step: tickets are only issued after payment confirmation
+				// Note: We call this after transaction commit to avoid blocking payment processing
+				// If ticket creation fails, payment is still successful and tickets can be created later
+				// In production, you might want to use a message queue (RabbitMQ, Kafka, etc.) for this
+				const bookingIdForTickets = payment.booking.booking_id;
+				
+				// Commit transaction first, then create tickets asynchronously
+				await queryRunner.commitTransaction();
+				
+				// Create tickets after commit (non-blocking, fire and forget)
+				// Use setTimeout to ensure this runs after the function returns
+				setTimeout(async () => {
+					try {
+						await firstValueFrom(
+							this.bookingClient.send(BOOKING_MS.PATTERN.CREATE_TICKETS_FROM_BOOKING, {
+								bookingId: bookingIdForTickets,
+							}),
+						);
+						this.logger.log(`Tickets created successfully for booking ${bookingIdForTickets}`);
+					} catch (ticketError: any) {
+						// Log error but don't fail the payment - tickets can be created later via retry mechanism
+						this.logger.error(
+							`Failed to create tickets for booking ${bookingIdForTickets}: ${ticketError?.message || ticketError}`,
+							ticketError?.stack,
+						);
+						// In production, you might want to:
+						// 1. Queue this for retry
+						// 2. Send alert to operations team
+						// 3. Mark booking with a flag for manual ticket creation
+					}
+				}, 0);
+			} else if (gatewayResponse.status === 'failed') {
+				// PHASE 3: Handle payment failure
+				// Booking status remains 'pending' - user can retry payment
+				// In production, you might want to:
+				// 1. Set booking expiration time (e.g., 24 hours)
+				// 2. Send notification to user
+				// 3. Release reserved seats after expiration
+				await this.updatePaymentStatus(
+					userId,
+					{
+						paymentId: payment.payment_id,
+						status: PaymentStatus.FAILED,
+						transactionRef: gatewayResponse.transactionId,
+					},
+					queryRunner,
+				);
+
+				// Booking status remains 'pending' - user can retry payment
+				this.logger.warn(
+					`Payment failed for booking ${payment.booking.booking_id}. Booking status remains 'pending'. User can retry payment.`,
+				);
 			}
 
 			await queryRunner.commitTransaction();
@@ -482,11 +536,48 @@ export class PaymentService {
 				{ status: 'paid', updated_at: new Date() },
 			);
 
+			// PHASE 3: Create tickets after successful payment
+			// This is a critical business step: tickets are only issued after payment confirmation
+			// Note: This is called from updatePaymentStatus which may be called from webhook or direct update
+			// We use non-blocking approach - if ticket creation fails, payment is still successful
+			// Tickets can be created later via retry mechanism or manual intervention
+			// In production, you might want to use a message queue (RabbitMQ, Kafka, etc.) for this
+			try {
+				// Call after transaction commit to avoid blocking payment processing
+				// Note: manager.connection might not have afterTransactionCommit in all contexts
+				// For webhook/direct update, we'll call it directly but handle errors gracefully
+				await firstValueFrom(
+					this.bookingClient.send(BOOKING_MS.PATTERN.CREATE_TICKETS_FROM_BOOKING, {
+						bookingId: payment.booking.booking_id,
+					}),
+				);
+				this.logger.log(`Tickets created successfully for booking ${payment.booking.booking_id}`);
+			} catch (ticketError: any) {
+				// Log error but don't fail the payment - tickets can be created later via retry mechanism
+				this.logger.error(
+					`Failed to create tickets for booking ${payment.booking.booking_id}: ${ticketError?.message || ticketError}`,
+					ticketError?.stack,
+				);
+				// In production, you might want to:
+				// 1. Queue this for retry
+				// 2. Send alert to operations team
+				// 3. Mark booking with a flag for manual ticket creation
+			}
+
 			// PHASE 2: Send success notification
 			await this.notificationService.sendPaymentSuccessNotification(payment, payment.booking).catch((err) => {
 				this.logger.error(`Failed to send payment success notification: ${err.message}`);
 			});
 		} else if (dto.status === PaymentStatus.FAILED && oldStatus !== 'failed') {
+			// PHASE 3: Handle payment failure
+			// Booking status remains 'pending' - user can retry payment
+			// In production, you might want to:
+			// 1. Set booking expiration time (e.g., 24 hours)
+			// 2. Send notification to user
+			// 3. Release reserved seats after expiration
+			this.logger.warn(
+				`Payment failed for booking ${payment.booking.booking_id}. Booking status remains 'pending'. User can retry payment.`,
+			);
 			// PHASE 2: Send failed notification
 			await this.notificationService
 				.sendPaymentFailedNotification(payment, payment.booking, dto.transactionRef || 'Payment failed')

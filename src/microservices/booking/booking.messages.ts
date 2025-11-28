@@ -9,5 +9,6 @@ export const BOOKING_MS = {
 		GET_PAYMENT_INFO: 'booking.get-payment-info',
 		GET_MY_TICKETS: 'booking.get-my-tickets',
 		GET_MY_JOURNEY: 'booking.get-my-journey',
+		CREATE_TICKETS_FROM_BOOKING: 'booking.create-tickets-from-booking',
 	},
 } as const;
