@@ -84,9 +84,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: sh -c "npm run wait-for-sqlserver && npm run wait-for-db && npm run seed:if-empty && npm run start:all:with-download"
-    # Alternative với seed (chỉ seed nếu database trống):
-    # npm run wait-for-sqlserver && npm run wait-for-db && npm run init-db && npm run seed:if-empty && npm run start:all:with-download && npm run gmail:auth
+    command: sh -c "npm run wait-for-sqlserver && npm run init-db && npm run wait-for-db && npm run seed:if-empty && npm run start:all:with-download"
+    # command: sh -c "npm run wait-for-sqlserver && npm run init-db && npm run wait-for-db && npm run seed:if-empty && npm run start:all:with-download"
     restart: unless-stopped
 
 volumes:
