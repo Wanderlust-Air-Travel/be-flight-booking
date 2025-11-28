@@ -15,8 +15,6 @@ import { EMAIL_MS } from '../email/email.messages';
 import { PaymentValidationService } from './services/payment-validation.service';
 import { PaymentNotificationService } from './services/payment-notification.service';
 import { PaymentGatewayFactory } from './gateways/payment-gateway.factory';
-import { VNPayGateway } from './gateways/vnpay.gateway';
-import { MoMoGateway } from './gateways/momo.gateway';
 import { DevPaymentGateway } from './gateways/dev-payment.gateway';
 
 @Module({
@@ -50,8 +48,6 @@ import { DevPaymentGateway } from './gateways/dev-payment.gateway';
 		PaymentService,
 		PaymentValidationService,
 		PaymentNotificationService,
-		VNPayGateway,
-		MoMoGateway,
 		DevPaymentGateway,
 		PaymentGatewayFactory,
 	],

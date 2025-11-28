@@ -610,21 +610,13 @@ export class PaymentService {
 	 * Helper method for webhook routing
 	 */
 	private getMethodCodeFromGatewayName(gatewayName: string): string {
-		// In non-production, always route webhooks to DevPaymentGateway
-		if (process.env.NODE_ENV !== 'production') {
-			return 'DEV';
-		}
-
+		// Always route webhooks to DevPaymentGateway
+		// In the future, if other gateways are added, this can be extended
 		const mapping: Record<string, string> = {
-			stripe: 'CREDIT_CARD',
-			momo: 'EWALLET',
-			vnpay: 'EWALLET',
-			bank: 'BANK_TRANSFER',
-			cash: 'CASH',
+			dev: 'DEV', // Dev gateway
 			mock: 'CREDIT_CARD', // Default for mock gateway
-			dev: 'DEV',
 		};
 
-		return mapping[gatewayName.toLowerCase()] || 'CREDIT_CARD';
+		return mapping[gatewayName.toLowerCase()] || 'DEV';
 	}
 }

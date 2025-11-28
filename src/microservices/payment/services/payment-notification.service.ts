@@ -159,7 +159,7 @@ export class PaymentNotificationService {
 				'Chưa chọn';
 
 			const cabinClass =
-				segment.flight_seat?.seat_config?.cabin_class?.description ||
+				segment.flight_seat?.seat_config?.cabin_class?.name ||
 				segment.flight_seat?.seat_config?.cabin_class?.cabin_class_code ||
 				segment.fare_class?.description ||
 				segment.fare_class?.fare_class_code ||

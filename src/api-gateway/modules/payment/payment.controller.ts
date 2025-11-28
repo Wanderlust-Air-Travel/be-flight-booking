@@ -644,12 +644,12 @@ export class PaymentController {
 	@ApiOperation({
 		summary: 'Handle payment gateway webhook',
 		description:
-			'Webhook endpoint for payment gateways to notify payment status updates. This endpoint does not require JWT authentication as it is called by payment gateways. The gateway name should match the payment gateway (e.g., "vnpay", "momo", "stripe").',
+			'Webhook endpoint for payment gateways to notify payment status updates. This endpoint does not require JWT authentication as it is called by payment gateways. Currently only supports "dev" gateway for development/demo purposes.',
 	})
 	@ApiParam({
 		name: 'gateway',
-		description: 'Payment gateway name (e.g., vnpay, momo, stripe, mock)',
-		example: 'vnpay',
+		description: 'Payment gateway name (currently only "dev" is supported)',
+		example: 'dev',
 	})
 	@ApiHeader({
 		name: 'x-signature',
@@ -676,7 +676,7 @@ export class PaymentController {
 	): Promise<{ success: boolean; message: string }> {
 		try {
 			// Validate gateway name
-			const validGateways = ['vnpay', 'momo', 'stripe', 'mock', 'dev'];
+			const validGateways = ['dev', 'mock'];
 			if (!validGateways.includes(gateway.toLowerCase())) {
 				throw new BadRequestException(`Invalid gateway. Supported gateways: ${validGateways.join(', ')}`);
 			}
