@@ -69,8 +69,25 @@ export class PaymentValidationService {
 		}
 
 		// Check if booking belongs to user
-		if (booking.user?.user_id !== userId) {
-			throw new BadRequestException('Booking does not belong to the current user');
+		// Handle both cases: booking.user is null or booking.user.user_id doesn't match
+		if (!booking.user) {
+			this.logger.warn(
+				`Booking ${bookingId} does not have a user assigned. This should not happen for authenticated users.`,
+			);
+			throw new BadRequestException(
+				'Booking does not belong to any user. Only bookings created by logged-in users can be paid.',
+			);
+		}
+
+		// Normalize UUIDs for comparison (handle case sensitivity and formatting)
+		const bookingUserId = String(booking.user.user_id).toLowerCase().trim();
+		const currentUserId = String(userId).toLowerCase().trim();
+
+		if (bookingUserId !== currentUserId) {
+			this.logger.warn(
+				`Booking ownership mismatch: Booking ${bookingId} belongs to user ${bookingUserId}, but current user is ${currentUserId}`,
+			);
+			throw new BadRequestException('Booking does not belong to the current user. Please check the booking ID and payment details.');
 		}
 
 		// Check if booking is already paid

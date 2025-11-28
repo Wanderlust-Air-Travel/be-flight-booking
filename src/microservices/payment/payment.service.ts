@@ -226,6 +226,28 @@ export class PaymentService {
 				throw new NotFoundException(`Booking ${dto.bookingId} not found`);
 			}
 
+			// Check if booking belongs to user (before processing payment)
+			// This is a security check to prevent unauthorized payment processing
+			if (!booking.user) {
+				this.logger.warn(
+					`Booking ${dto.bookingId} does not have a user assigned. This should not happen for authenticated users.`,
+				);
+				throw new BadRequestException(
+					'Booking does not belong to any user. Only bookings created by logged-in users can be paid.',
+				);
+			}
+
+			// Normalize UUIDs for comparison (handle case sensitivity and formatting)
+			const bookingUserId = String(booking.user.user_id).toLowerCase().trim();
+			const currentUserId = String(userId).toLowerCase().trim();
+
+			if (bookingUserId !== currentUserId) {
+				this.logger.warn(
+					`Booking ownership mismatch: Booking ${dto.bookingId} belongs to user ${bookingUserId}, but current user is ${currentUserId}`,
+				);
+				throw new BadRequestException('Booking does not belong to the current user. Please check the booking ID and payment details.');
+			}
+
 			// Check if already paid (after lock)
 			if (booking.status === 'paid') {
 				throw new BadRequestException('Booking is already paid');
