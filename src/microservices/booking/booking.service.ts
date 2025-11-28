@@ -26,6 +26,14 @@ import { CabinType } from 'src/shared/constants/enums';
 import { ReservationResponseDto } from '../reservation/dto/reservation-response.dto';
 import { RESERVATION_MS } from '../reservation/reservation.messages';
 import { BookingNotificationService } from './services/booking-notification.service';
+import { MyTicketsResponseDto } from './dto/my-tickets-response.dto';
+import { MyTicketItemDto } from './dto/my-ticket-item.dto';
+import { MyJourneyResponseDto } from './dto/my-journey-response.dto';
+import { MyJourneyItemDto } from './dto/my-journey-item.dto';
+import { GetMyTicketsDto } from './dto/get-my-tickets.dto';
+import { Ticket } from 'src/shared/entities/ticket/ticket.entity';
+import { Route } from 'src/shared/entities/route/route.entity';
+import { Airport } from 'src/shared/entities/airport/airport.entity';
 
 @Injectable()
 export class BookingService {
@@ -41,6 +49,9 @@ export class BookingService {
 		@InjectRepository(Currency) private readonly currencyRepo: Repository<Currency>,
 		@InjectRepository(Passenger) private readonly passengerRepo: Repository<Passenger>,
 		@InjectRepository(User) private readonly userRepo: Repository<User>,
+		@InjectRepository(Ticket) private readonly ticketRepo: Repository<Ticket>,
+		@InjectRepository(Route) private readonly routeRepo: Repository<Route>,
+		@InjectRepository(Airport) private readonly airportRepo: Repository<Airport>,
 		@Inject('RESERVATION_CLIENT') private readonly reservationClient: ClientProxy,
 		private readonly dataSource: DataSource,
 		private readonly notificationService: BookingNotificationService,
@@ -1029,6 +1040,229 @@ export class BookingService {
 		} finally {
 			await queryRunner.release();
 		}
+	}
+
+	/**
+	 * Get user's tickets with pagination
+	 * Returns all tickets booked by the user, ordered by issued date (newest first)
+	 */
+	async getMyTickets(userId: string, dto: GetMyTicketsDto): Promise<MyTicketsResponseDto> {
+		const page = dto.page ?? 1;
+		const limit = dto.limit ?? 10;
+		const skip = (page - 1) * limit;
+
+		// Validate user exists
+		const user = await this.userRepo.findOne({ where: { user_id: userId } });
+		if (!user) {
+			throw new NotFoundException(`User ${userId} not found`);
+		}
+
+		// Use QueryBuilder for better control over relations
+		const queryBuilder = this.ticketRepo
+			.createQueryBuilder('ticket')
+			.innerJoin('ticket.booking', 'booking')
+			.innerJoin('booking.user', 'user')
+			.leftJoinAndSelect('ticket.booking', 'booking_full')
+			.leftJoinAndSelect('booking_full.currency', 'currency')
+			.leftJoinAndSelect('ticket.booking_passenger', 'booking_passenger')
+			.leftJoinAndSelect('booking_passenger.passenger', 'passenger')
+			.leftJoinAndSelect('booking_full.booking_segments', 'segments')
+			.leftJoinAndSelect('segments.flight_instance', 'flight_instance')
+			.leftJoinAndSelect('flight_instance.flight_schedule', 'flight_schedule')
+			.leftJoinAndSelect('flight_schedule.route', 'route')
+			.leftJoinAndSelect('route.origin_airport', 'origin_airport')
+			.leftJoinAndSelect('route.destination_airport', 'destination_airport')
+			.leftJoinAndSelect('segments.fare_class', 'fare_class')
+			.leftJoinAndSelect('fare_class.cabin_class', 'cabin_class')
+			.leftJoinAndSelect('segments.flight_seat', 'flight_seat')
+			.where('user.user_id = :userId', { userId })
+			.orderBy('ticket.issued_at', 'DESC')
+			.skip(skip)
+			.take(limit);
+
+		const [tickets, totalItems] = await queryBuilder.getManyAndCount();
+
+		// Transform tickets to DTOs
+		const ticketItems: MyTicketItemDto[] = await Promise.all(
+			tickets.map(async (ticket) => {
+				// Get the first segment for this ticket's passenger
+				const segment = ticket.booking.booking_segments.find(
+					(seg) => seg.booking_passenger.booking_passenger_id === ticket.booking_passenger.booking_passenger_id,
+				);
+
+				if (!segment) {
+					throw new Error(`No segment found for ticket ${ticket.ticket_id}`);
+				}
+
+				const flightInstance = segment.flight_instance;
+				const route = flightInstance.flight_schedule.route;
+				const fareClass = segment.fare_class;
+				const isDomestic = route.is_domestic;
+
+				// Check cancellation eligibility
+				const cancellationInfo = this.checkCancellationEligibility(
+					flightInstance.departure_datetime_local,
+					fareClass.fare_class_code,
+					isDomestic,
+				);
+
+				return {
+					ticketId: ticket.ticket_id,
+					ticketNumber: ticket.ticket_number,
+					bookingId: ticket.booking.booking_id,
+					pnrCode: ticket.booking.pnr_code,
+					passengerName: ticket.booking_passenger.passenger.fullname,
+					flightNumber: flightInstance.flight_number,
+					originAirport: route.origin_airport.iata_code,
+					originAirportName: route.origin_airport.name,
+					originCity: route.origin_airport.city,
+					destinationAirport: route.destination_airport.iata_code,
+					destinationAirportName: route.destination_airport.name,
+					destinationCity: route.destination_airport.city,
+					departureDateTime: flightInstance.departure_datetime_local,
+					arrivalDateTime: flightInstance.arrival_datetime_local,
+					fareClassCode: fareClass.fare_class_code,
+					fareClassName: this.getFareClassName(fareClass.fare_class_code, fareClass.description),
+					cabinClass: fareClass.cabin_class.cabin_class_code === 'Y' ? 'economy' : 'business',
+					seatNumber: segment.flight_seat?.seat_number || null,
+					status: ticket.status,
+					issuedAt: ticket.issued_at,
+					bookingStatus: ticket.booking.status,
+					totalAmount: ticket.booking.total_amount,
+					currencyCode: ticket.booking.currency.currency_code,
+					isDomestic,
+					canCancel: cancellationInfo.canCancel,
+					cancellationDeadline: cancellationInfo.deadline,
+					cannotCancelReason: cancellationInfo.reason,
+				};
+			}),
+		);
+
+		const totalPages = Math.ceil(totalItems / limit);
+
+		return {
+			tickets: ticketItems,
+			currentPage: page,
+			pageSize: limit,
+			totalItems,
+			totalPages,
+			hasNextPage: page < totalPages,
+			hasPreviousPage: page > 1,
+		};
+	}
+
+	/**
+	 * Get user's journey history
+	 * Returns all unique flight journeys (bookings) that the user has made
+	 */
+	async getMyJourney(userId: string): Promise<MyJourneyResponseDto> {
+		// Validate user exists
+		const user = await this.userRepo.findOne({ where: { user_id: userId } });
+		if (!user) {
+			throw new NotFoundException(`User ${userId} not found`);
+		}
+
+		// Use QueryBuilder for better control over relations
+		const bookings = await this.bookingRepo
+			.createQueryBuilder('booking')
+			.innerJoin('booking.user', 'user')
+			.leftJoinAndSelect('booking.currency', 'currency')
+			.leftJoinAndSelect('booking.booking_segments', 'segments')
+			.leftJoinAndSelect('segments.flight_instance', 'flight_instance')
+			.leftJoinAndSelect('flight_instance.flight_schedule', 'flight_schedule')
+			.leftJoinAndSelect('flight_schedule.route', 'route')
+			.leftJoinAndSelect('route.origin_airport', 'origin_airport')
+			.leftJoinAndSelect('route.destination_airport', 'destination_airport')
+			.leftJoinAndSelect('booking.booking_passengers', 'booking_passengers')
+			.where('user.user_id = :userId', { userId })
+			.orderBy('booking.created_at', 'DESC')
+			.getMany();
+
+		// Transform bookings to journey DTOs
+		// For each booking, get the first segment to determine origin/destination
+		const journeyItems: MyJourneyItemDto[] = bookings.map((booking) => {
+			// Get the first segment for the journey
+			const firstSegment = booking.booking_segments[0];
+			if (!firstSegment) {
+				throw new Error(`Booking ${booking.booking_id} has no segments`);
+			}
+
+			const flightInstance = firstSegment.flight_instance;
+			const route = flightInstance.flight_schedule.route;
+
+			return {
+				journeyId: booking.booking_id,
+				pnrCode: booking.pnr_code,
+				originAirport: route.origin_airport.iata_code,
+				originAirportName: route.origin_airport.name,
+				originCity: route.origin_airport.city,
+				destinationAirport: route.destination_airport.iata_code,
+				destinationAirportName: route.destination_airport.name,
+				destinationCity: route.destination_airport.city,
+				departureDateTime: flightInstance.departure_datetime_local,
+				arrivalDateTime: flightInstance.arrival_datetime_local,
+				flightNumber: flightInstance.flight_number,
+				numberOfPassengers: booking.booking_passengers.length,
+				isDomestic: route.is_domestic,
+				bookingDate: booking.created_at,
+				status: booking.status,
+			};
+		});
+
+		return {
+			journeys: journeyItems,
+			totalJourneys: journeyItems.length,
+		};
+	}
+
+	/**
+	 * Check if a ticket can be cancelled based on Bamboo Airways rules
+	 * 
+	 * Rules:
+	 * - Domestic flights: Must cancel at least 3 hours before departure
+	 * - International flights: Must cancel at least 5 hours before departure
+	 * - Economy Saver Max / Economy Saver: Cannot be cancelled
+	 * - Other fare classes: Can be cancelled if within time limit
+	 */
+	private checkCancellationEligibility(
+		departureDateTime: Date,
+		fareClassCode: string,
+		isDomestic: boolean,
+	): { canCancel: boolean; deadline: Date | null; reason: string | null } {
+		const code = fareClassCode.toUpperCase();
+
+		// Check if fare class allows cancellation
+		// Economy Saver Max and Economy Saver cannot be cancelled
+		if (code.includes('SMX') || code.includes('SAVER') || code === 'YSM') {
+			return {
+				canCancel: false,
+				deadline: null,
+				reason: 'Hạng vé này không được phép hoàn/hủy theo quy định của Bamboo Airways',
+			};
+		}
+
+		// Calculate cancellation deadline
+		const now = new Date();
+		const departure = new Date(departureDateTime);
+		const hoursBeforeDeparture = isDomestic ? 3 : 5; // 3 hours for domestic, 5 hours for international
+		const deadline = new Date(departure.getTime() - hoursBeforeDeparture * 60 * 60 * 1000);
+
+		// Check if current time is before deadline
+		if (now >= deadline) {
+			return {
+				canCancel: false,
+				deadline,
+				reason: isDomestic
+					? 'Đã quá thời hạn hủy vé (tối thiểu 3 giờ trước giờ khởi hành cho chặng bay nội địa)'
+					: 'Đã quá thời hạn hủy vé (tối thiểu 5 giờ trước giờ khởi hành cho chặng bay quốc tế)',
+			};
+		}
+
+		return {
+			canCancel: true,
+			deadline,
+			reason: null,
+		};
 	}
 }
 

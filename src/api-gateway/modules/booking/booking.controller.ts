@@ -24,6 +24,9 @@ import { User } from 'src/shared/entities/user/user.entity';
 import { Passenger } from 'src/shared/entities/passenger/passenger.entity';
 import { Request } from 'express';
 import { BOOKING_MS } from 'src/microservices/booking/booking.messages';
+import { MyTicketsResponseDto } from 'src/microservices/booking/dto/my-tickets-response.dto';
+import { MyJourneyResponseDto } from 'src/microservices/booking/dto/my-journey-response.dto';
+import { GetMyTicketsDto } from 'src/microservices/booking/dto/get-my-tickets.dto';
 
 @ApiTags('bookings')
 @Controller('bookings')
@@ -263,6 +266,97 @@ export class BookingController {
 				throw new BadRequestException(`Get booking payment info failed: ${error.message}`);
 			}
 			throw new BadRequestException(`Get booking payment info failed: ${error?.message || 'Unknown error'}`);
+		}
+	}
+
+	@Get('my-tickets')
+	@ApiOperation({
+		summary: 'Get my tickets',
+		description: 'Get all tickets booked by the authenticated user with pagination. Returns ticket details including flight information, cancellation eligibility, and booking status.',
+	})
+	@ApiQuery({
+		name: 'page',
+		required: false,
+		description: 'Page number (1-based)',
+		example: 1,
+		type: Number,
+	})
+	@ApiQuery({
+		name: 'limit',
+		required: false,
+		description: 'Number of items per page (1-100)',
+		example: 10,
+		type: Number,
+	})
+	@ApiOkResponse({
+		description: 'Tickets retrieved successfully',
+		type: MyTicketsResponseDto,
+	})
+	@ApiBadRequestResponse({
+		description: 'Invalid query parameters',
+	})
+	async getMyTickets(
+		@Req() req: Request & { user: { userId: string; email: string } },
+		@Query() query: GetMyTicketsDto,
+	): Promise<MyTicketsResponseDto> {
+		try {
+			const userId = req.user.userId;
+
+			return await firstValueFrom(
+				this.client.send<MyTicketsResponseDto>(BOOKING_MS.PATTERN.GET_MY_TICKETS, {
+					userId,
+					dto: query,
+				}),
+			);
+		} catch (error: any) {
+			console.error('Get my tickets error:', error);
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+				throw new InternalServerErrorException('Booking microservice is not running. Please start it with: npm run start:booking:dev');
+			}
+			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
+				throw new InternalServerErrorException('Booking microservice request timeout. Please check if the service is running.');
+			}
+			if (error?.status === 'error' && error?.message) {
+				throw new BadRequestException(`Get my tickets failed: ${error.message}`);
+			}
+			throw new BadRequestException(`Get my tickets failed: ${error?.message || 'Unknown error'}`);
+		}
+	}
+
+	@Get('my-journey')
+	@ApiOperation({
+		summary: 'Get my journey history',
+		description: 'Get all flight journeys (bookings) made by the authenticated user. Returns journey details including origin, destination, flight information, and booking status.',
+	})
+	@ApiOkResponse({
+		description: 'Journey history retrieved successfully',
+		type: MyJourneyResponseDto,
+	})
+	async getMyJourney(@Req() req: Request & { user: { userId: string; email: string } }): Promise<MyJourneyResponseDto> {
+		try {
+			const userId = req.user.userId;
+
+			return await firstValueFrom(
+				this.client.send<MyJourneyResponseDto>(BOOKING_MS.PATTERN.GET_MY_JOURNEY, userId),
+			);
+		} catch (error: any) {
+			console.error('Get my journey error:', error);
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+				throw new InternalServerErrorException('Booking microservice is not running. Please start it with: npm run start:booking:dev');
+			}
+			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
+				throw new InternalServerErrorException('Booking microservice request timeout. Please check if the service is running.');
+			}
+			if (error?.status === 'error' && error?.message) {
+				throw new BadRequestException(`Get my journey failed: ${error.message}`);
+			}
+			throw new BadRequestException(`Get my journey failed: ${error?.message || 'Unknown error'}`);
 		}
 	}
 }

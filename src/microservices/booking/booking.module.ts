@@ -11,6 +11,9 @@ import { FareClass } from 'src/shared/entities/fare/fare-class.entity';
 import { Currency } from 'src/shared/entities/currency/currency.entity';
 import { Passenger } from 'src/shared/entities/passenger/passenger.entity';
 import { User } from 'src/shared/entities/user/user.entity';
+import { Ticket } from 'src/shared/entities/ticket/ticket.entity';
+import { Route } from 'src/shared/entities/route/route.entity';
+import { Airport } from 'src/shared/entities/airport/airport.entity';
 import { EmailClientModule } from 'src/shared/modules/email-client/email-client.module';
 import { BookingService } from './booking.service';
 import { BookingMsController } from './booking.controller';
@@ -33,6 +36,9 @@ import { EMAIL_MS } from '../email/email.messages';
 			Currency,
 			Passenger,
 			User,
+			Ticket,
+			Route,
+			Airport,
 		]),
 		EmailClientModule, // Add Email Client module for sending email notifications
 		ClientsModule.register([

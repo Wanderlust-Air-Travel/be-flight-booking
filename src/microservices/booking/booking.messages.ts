@@ -7,5 +7,7 @@ export const BOOKING_MS = {
 		GET_FARE_DETAILS: 'booking.get-fare-details',
 		UPDATE_PASSENGERS: 'booking.update-passengers',
 		GET_PAYMENT_INFO: 'booking.get-payment-info',
+		GET_MY_TICKETS: 'booking.get-my-tickets',
+		GET_MY_JOURNEY: 'booking.get-my-journey',
 	},
 } as const;

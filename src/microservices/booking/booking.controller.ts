@@ -8,6 +8,9 @@ import { CreateBookingResponseDto } from './dto/create-booking-response.dto';
 import { UpdateBookingPassengersDto } from './dto/update-booking-passengers.dto';
 import { BookingFareDetailsResponseDto } from './dto/booking-fare-details-response.dto';
 import { BookingPaymentInfoResponseDto } from './dto/booking-payment-info-response.dto';
+import { MyTicketsResponseDto } from './dto/my-tickets-response.dto';
+import { MyJourneyResponseDto } from './dto/my-journey-response.dto';
+import { GetMyTicketsDto } from './dto/get-my-tickets.dto';
 
 @Controller()
 export class BookingMsController {
@@ -88,6 +91,32 @@ export class BookingMsController {
 			return result;
 		} catch (error: any) {
 			this.logger.error('Get booking payment info error:', error);
+			throw error;
+		}
+	}
+
+	@MessagePattern(BOOKING_MS.PATTERN.GET_MY_TICKETS)
+	async handleGetMyTickets(payload: { userId: string; dto: GetMyTicketsDto }): Promise<MyTicketsResponseDto> {
+		try {
+			this.logger.log(`Get my tickets: userId=${payload.userId}, page=${payload.dto.page}, limit=${payload.dto.limit}`);
+			const result = await this.bookingService.getMyTickets(payload.userId, payload.dto);
+			this.logger.log(`Found ${result.totalItems} tickets for user ${payload.userId}`);
+			return result;
+		} catch (error: any) {
+			this.logger.error('Get my tickets error:', error);
+			throw error;
+		}
+	}
+
+	@MessagePattern(BOOKING_MS.PATTERN.GET_MY_JOURNEY)
+	async handleGetMyJourney(userId: string): Promise<MyJourneyResponseDto> {
+		try {
+			this.logger.log(`Get my journey: userId=${userId}`);
+			const result = await this.bookingService.getMyJourney(userId);
+			this.logger.log(`Found ${result.totalJourneys} journeys for user ${userId}`);
+			return result;
+		} catch (error: any) {
+			this.logger.error('Get my journey error:', error);
 			throw error;
 		}
 	}
