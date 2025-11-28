@@ -447,27 +447,7 @@ export class BookingService {
 
 			await queryRunner.commitTransaction();
 
-			// Send booking confirmation email (non-blocking)
-			const savedBookingWithRelations = await this.bookingRepo.findOne({
-				where: { booking_id: savedBooking.booking_id },
-				relations: [
-					'currency', 
-					'user',
-					'booking_segments',
-					'booking_segments.flight_instance',
-					'booking_segments.flight_instance.flight_schedule',
-					'booking_segments.flight_instance.flight_schedule.route',
-					'booking_segments.flight_instance.flight_schedule.route.origin_airport',
-					'booking_segments.flight_instance.flight_schedule.route.destination_airport',
-					'booking_segments.fare_class',
-				],
-			});
-			
-			if (savedBookingWithRelations) {
-				this.notificationService.sendBookingConfirmation(savedBookingWithRelations).catch((err) => {
-					this.logger.error(`Failed to send booking confirmation: ${err.message}`);
-				});
-			}
+			// Booking confirmation email removed - tickets will be sent after payment success
 
 			return {
 				bookingId: savedBooking.booking_id,
@@ -1005,17 +985,7 @@ export class BookingService {
 			// Commit transaction
 			await queryRunner.commitTransaction();
 
-			// Send booking confirmation email (non-blocking)
-			const savedBookingWithRelations = await this.bookingRepo.findOne({
-				where: { booking_id: savedBooking.booking_id },
-				relations: ['currency', 'user'],
-			});
-			
-			if (savedBookingWithRelations) {
-				this.notificationService.sendBookingConfirmation(savedBookingWithRelations).catch((err) => {
-					this.logger.error(`Failed to send booking confirmation: ${err.message}`);
-				});
-			}
+			// Booking confirmation email removed - tickets will be sent after payment success
 
 			return {
 				bookingId: savedBooking.booking_id,
