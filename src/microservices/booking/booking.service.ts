@@ -1028,6 +1028,7 @@ export class BookingService {
 		}
 
 		// Use QueryBuilder for better control over relations
+		// Load all necessary relations including booking_segments with full nested relations
 		const queryBuilder = this.ticketRepo
 			.createQueryBuilder('ticket')
 			.innerJoin('ticket.booking', 'booking')
@@ -1037,6 +1038,7 @@ export class BookingService {
 			.leftJoinAndSelect('ticket.booking_passenger', 'booking_passenger')
 			.leftJoinAndSelect('booking_passenger.passenger', 'passenger')
 			.leftJoinAndSelect('booking_full.booking_segments', 'segments')
+			.leftJoinAndSelect('segments.booking_passenger', 'segment_booking_passenger')
 			.leftJoinAndSelect('segments.flight_instance', 'flight_instance')
 			.leftJoinAndSelect('flight_instance.flight_schedule', 'flight_schedule')
 			.leftJoinAndSelect('flight_schedule.route', 'route')
@@ -1052,60 +1054,164 @@ export class BookingService {
 
 		const [tickets, totalItems] = await queryBuilder.getManyAndCount();
 
+		// If no tickets found, return empty result
+		if (!tickets || tickets.length === 0) {
+			return {
+				tickets: [],
+				currentPage: page,
+				pageSize: limit,
+				totalItems: 0,
+				totalPages: 0,
+				hasNextPage: false,
+				hasPreviousPage: false,
+			};
+		}
+
 		// Transform tickets to DTOs
-		const ticketItems: MyTicketItemDto[] = await Promise.all(
+		// Filter out null results (tickets that couldn't be processed)
+		const ticketItemsRaw = await Promise.all(
 			tickets.map(async (ticket) => {
-				// Get the first segment for this ticket's passenger
-				const segment = ticket.booking.booking_segments.find(
-					(seg) => seg.booking_passenger.booking_passenger_id === ticket.booking_passenger.booking_passenger_id,
-				);
+				try {
+					// Get segments for this ticket's passenger
+					// A passenger can have multiple segments (e.g., round trip), so we get the first one
+					// If booking_segments is not loaded, reload the booking with segments
+					let segments = ticket.booking?.booking_segments;
+					
+					if (!segments || segments.length === 0) {
+						// Reload booking with segments if not loaded
+						this.logger.warn(
+							`Booking segments not loaded for ticket ${ticket.ticket_id}, reloading booking...`,
+						);
+						const reloadedBooking = await this.bookingRepo.findOne({
+							where: { booking_id: ticket.booking.booking_id },
+							relations: [
+								'booking_segments',
+								'booking_segments.booking_passenger',
+								'booking_segments.flight_instance',
+								'booking_segments.flight_instance.flight_schedule',
+								'booking_segments.flight_instance.flight_schedule.route',
+								'booking_segments.flight_instance.flight_schedule.route.origin_airport',
+								'booking_segments.flight_instance.flight_schedule.route.destination_airport',
+								'booking_segments.fare_class',
+								'booking_segments.fare_class.cabin_class',
+								'booking_segments.flight_seat',
+							],
+						});
+						segments = reloadedBooking?.booking_segments || [];
+						if (reloadedBooking) {
+							ticket.booking = reloadedBooking;
+						}
+					}
 
-				if (!segment) {
-					throw new Error(`No segment found for ticket ${ticket.ticket_id}`);
+					// Find segment(s) for this ticket's passenger
+					// A ticket is typically for one segment, but a passenger can have multiple segments
+					const passengerSegments = segments.filter(
+						(seg) => seg.booking_passenger?.booking_passenger_id === ticket.booking_passenger?.booking_passenger_id,
+					);
+
+					if (!passengerSegments || passengerSegments.length === 0) {
+						this.logger.error(
+							`No segment found for ticket ${ticket.ticket_id}, passenger ${ticket.booking_passenger?.booking_passenger_id}, booking ${ticket.booking?.booking_id}`,
+						);
+						// Skip this ticket instead of throwing error
+						this.logger.warn(`Skipping ticket ${ticket.ticket_id} due to missing segment`);
+						return null;
+					}
+
+					// Use the first segment (for one-way) or the segment with earliest departure (for round trip)
+					const segment = passengerSegments.sort((a, b) => {
+						const aTime = a.flight_instance?.departure_datetime_local
+							? new Date(a.flight_instance.departure_datetime_local).getTime()
+							: 0;
+						const bTime = b.flight_instance?.departure_datetime_local
+							? new Date(b.flight_instance.departure_datetime_local).getTime()
+							: 0;
+						return aTime - bTime;
+					})[0];
+
+					const flightInstance = segment.flight_instance;
+					if (!flightInstance) {
+						this.logger.error(`Flight instance not found for segment ${segment.booking_segment_id}`);
+						throw new Error(`Flight instance not found for ticket ${ticket.ticket_id}`);
+					}
+
+					const schedule = flightInstance.flight_schedule;
+					if (!schedule) {
+						this.logger.error(`Flight schedule not found for flight instance ${flightInstance.flight_instance_id}`);
+						throw new Error(`Flight schedule not found for ticket ${ticket.ticket_id}`);
+					}
+
+					const route = schedule.route;
+					if (!route) {
+						this.logger.error(`Route not found for flight schedule ${schedule.flight_schedule_id}`);
+						throw new Error(`Route not found for ticket ${ticket.ticket_id}`);
+					}
+
+					if (!route.origin_airport || !route.destination_airport) {
+						this.logger.error(`Airports not found for route ${route.route_id}`);
+						throw new Error(`Airports not found for ticket ${ticket.ticket_id}`);
+					}
+
+					const fareClass = segment.fare_class;
+					if (!fareClass) {
+						this.logger.error(`Fare class not found for segment ${segment.booking_segment_id}`);
+						throw new Error(`Fare class not found for ticket ${ticket.ticket_id}`);
+					}
+
+					const isDomestic = route.is_domestic;
+
+					// Check cancellation eligibility
+					const cancellationInfo = this.checkCancellationEligibility(
+						flightInstance.departure_datetime_local,
+						fareClass.fare_class_code,
+						isDomestic,
+					);
+
+					return {
+						ticketId: ticket.ticket_id,
+						ticketNumber: ticket.ticket_number,
+						bookingId: ticket.booking?.booking_id || '',
+						pnrCode: ticket.booking?.pnr_code || '',
+						passengerName: ticket.booking_passenger?.passenger?.fullname || 'N/A',
+						flightNumber: flightInstance.flight_number || 'N/A',
+						originAirport: route.origin_airport.iata_code || 'N/A',
+						originAirportName: route.origin_airport.name || '',
+						originCity: route.origin_airport.city || '',
+						destinationAirport: route.destination_airport.iata_code || 'N/A',
+						destinationAirportName: route.destination_airport.name || '',
+						destinationCity: route.destination_airport.city || '',
+						departureDateTime: flightInstance.departure_datetime_local,
+						arrivalDateTime: flightInstance.arrival_datetime_local,
+						fareClassCode: fareClass.fare_class_code || 'N/A',
+						fareClassName: this.getFareClassName(fareClass.fare_class_code, fareClass.description),
+						cabinClass:
+							fareClass.cabin_class?.cabin_class_code === 'Y'
+								? 'economy'
+								: fareClass.cabin_class?.cabin_class_code === 'C'
+									? 'business'
+									: 'economy',
+						seatNumber: segment.flight_seat?.seat_number || null,
+						status: ticket.status || 'active',
+						issuedAt: ticket.issued_at,
+						bookingStatus: ticket.booking?.status || 'pending',
+						totalAmount: ticket.booking?.total_amount || 0,
+						currencyCode: ticket.booking?.currency?.currency_code || 'VND',
+						isDomestic,
+						canCancel: cancellationInfo.canCancel,
+						cancellationDeadline: cancellationInfo.deadline,
+						cannotCancelReason: cancellationInfo.reason,
+					};
+				} catch (error: any) {
+					this.logger.error(`Error transforming ticket ${ticket.ticket_id}: ${error.message}`, error.stack);
+					// Return null instead of throwing to allow other tickets to be processed
+					return null;
 				}
-
-				const flightInstance = segment.flight_instance;
-				const route = flightInstance.flight_schedule.route;
-				const fareClass = segment.fare_class;
-				const isDomestic = route.is_domestic;
-
-				// Check cancellation eligibility
-				const cancellationInfo = this.checkCancellationEligibility(
-					flightInstance.departure_datetime_local,
-					fareClass.fare_class_code,
-					isDomestic,
-				);
-
-				return {
-					ticketId: ticket.ticket_id,
-					ticketNumber: ticket.ticket_number,
-					bookingId: ticket.booking.booking_id,
-					pnrCode: ticket.booking.pnr_code,
-					passengerName: ticket.booking_passenger.passenger.fullname,
-					flightNumber: flightInstance.flight_number,
-					originAirport: route.origin_airport.iata_code,
-					originAirportName: route.origin_airport.name,
-					originCity: route.origin_airport.city,
-					destinationAirport: route.destination_airport.iata_code,
-					destinationAirportName: route.destination_airport.name,
-					destinationCity: route.destination_airport.city,
-					departureDateTime: flightInstance.departure_datetime_local,
-					arrivalDateTime: flightInstance.arrival_datetime_local,
-					fareClassCode: fareClass.fare_class_code,
-					fareClassName: this.getFareClassName(fareClass.fare_class_code, fareClass.description),
-					cabinClass: fareClass.cabin_class.cabin_class_code === 'Y' ? 'economy' : 'business',
-					seatNumber: segment.flight_seat?.seat_number || null,
-					status: ticket.status,
-					issuedAt: ticket.issued_at,
-					bookingStatus: ticket.booking.status,
-					totalAmount: ticket.booking.total_amount,
-					currencyCode: ticket.booking.currency.currency_code,
-					isDomestic,
-					canCancel: cancellationInfo.canCancel,
-					cancellationDeadline: cancellationInfo.deadline,
-					cannotCancelReason: cancellationInfo.reason,
-				};
 			}),
+		);
+
+		// Filter out null results (tickets that couldn't be processed)
+		const ticketItems: MyTicketItemDto[] = ticketItemsRaw.filter(
+			(item): item is MyTicketItemDto => item !== null,
 		);
 
 		const totalPages = Math.ceil(totalItems / limit);

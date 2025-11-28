@@ -1,4 +1,4 @@
-import { Controller, Logger } from '@nestjs/common';
+import { Controller, Logger, BadRequestException } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
 import { BOOKING_MS } from './booking.messages';
 import { BookingService } from './booking.service';
@@ -98,12 +98,27 @@ export class BookingMsController {
 	@MessagePattern(BOOKING_MS.PATTERN.GET_MY_TICKETS)
 	async handleGetMyTickets(payload: { userId: string; dto: GetMyTicketsDto }): Promise<MyTicketsResponseDto> {
 		try {
-			this.logger.log(`Get my tickets: userId=${payload.userId}, page=${payload.dto.page}, limit=${payload.dto.limit}`);
+			this.logger.log(`Get my tickets: userId=${payload.userId}, page=${payload.dto?.page}, limit=${payload.dto?.limit}`);
+			
+			// Validate payload
+			if (!payload.userId) {
+				throw new BadRequestException('User ID is required');
+			}
+			
+			if (!payload.dto) {
+				payload.dto = { page: 1, limit: 10 };
+			}
+			
 			const result = await this.bookingService.getMyTickets(payload.userId, payload.dto);
 			this.logger.log(`Found ${result.totalItems} tickets for user ${payload.userId}`);
 			return result;
 		} catch (error: any) {
-			this.logger.error('Get my tickets error:', error);
+			this.logger.error('Get my tickets error:', {
+				message: error?.message,
+				stack: error?.stack,
+				userId: payload?.userId,
+				dto: payload?.dto,
+			});
 			throw error;
 		}
 	}
