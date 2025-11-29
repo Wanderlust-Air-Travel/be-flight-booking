@@ -433,10 +433,17 @@ sequenceDiagram
     Database-->>Booking MS: Booking data
     
     Booking MS->>Booking MS: Validate ownership (userId matches)
-    Booking MS->>Booking MS: Check booking status (must be pending/confirmed)
-    Booking MS->>Booking MS: Check cancellation eligibility
-    Note over Booking MS: - Check fare class (Economy Saver Max/Saver cannot cancel)
-    Note over Booking MS: - Check time limit (3h domestic, 5h international)
+    Booking MS->>Booking MS: Check booking status FIRST (must be pending/confirmed)
+    Note over Booking MS: Status check priority: paid/cancelled/completed → cannot cancel
+    alt Booking Status Allows Cancellation (pending/confirmed)
+        Booking MS->>Booking MS: Check cancellation eligibility
+        Note over Booking MS: - Check fare class (Economy Saver Max/Saver cannot cancel)
+        Note over Booking MS: - Check time limit (3h domestic, 5h international)
+    else Booking Status Does Not Allow Cancellation
+        Booking MS-->>API Gateway: 400 Bad Request (status: paid/cancelled/completed)
+        API Gateway-->>Frontend: 400 Bad Request
+        Frontend-->>User: Show error: "Cannot cancel booking with status: {status}"
+    end
     
     alt Cancellation Allowed
         Booking MS->>Database: Start transaction

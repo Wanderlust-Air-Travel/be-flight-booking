@@ -4,6 +4,19 @@ Lịch sử các thay đổi quan trọng của dự án.
 
 ## [Unreleased]
 
+### Bug Fixes (2025-12-XX)
+
+- **Fixed Booking Cancellation Logic - Booking Status Check (2025-12-XX)**
+  - **Issue**: Frontend hiển thị "Có thể hủy" nhưng backend từ chối hủy với lỗi "Cannot cancel booking with status: paid"
+  - **Root Cause**: Logic `getMyTickets` tính `canCancel` dựa trên fare class và thời hạn, nhưng không kiểm tra booking status trước
+  - **Fix**:
+    - Cập nhật `getMyTickets` trong `BookingService` để kiểm tra booking status trước khi tính `canCancel`
+    - Booking với status `paid`, `cancelled`, hoặc `completed` → `canCancel: false` với lý do rõ ràng
+    - Chỉ booking với status `pending` hoặc `confirmed` mới được kiểm tra fare class và thời hạn
+  - **Impact**: Frontend và backend đã đồng bộ về logic hủy vé, tránh lỗi khi user click hủy
+  - **Files Changed**:
+    - `src/microservices/booking/booking.service.ts` - Updated `getMyTickets()` method to check booking status first
+
 ### Tính năng mới (2025-12-XX)
 
 - **Booking Cancellation Feature (2025-12-XX)**

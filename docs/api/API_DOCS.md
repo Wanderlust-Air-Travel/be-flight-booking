@@ -628,6 +628,97 @@ Có thể dùng `reservationId` (UUID) hoặc `reservationCode` (6 ký tự)
 
 ---
 
+### Xem vé của tôi
+**GET** `/api/v1/bookings/my-tickets`
+
+**Cần đăng nhập:** Có
+
+**Query Parameters:**
+- `page`: Số trang (mặc định: 1)
+- `limit`: Số vé mỗi trang (mặc định: 10)
+
+**Trả về:** Danh sách vé đã đặt với phân trang, bao gồm:
+- Thông tin vé: `ticketId`, `ticketNumber`, `pnrCode`
+- Thông tin chuyến bay: `flightNumber`, `originAirport`, `destinationAirport`, `departureDateTime`, `arrivalDateTime`
+- Thông tin hành khách: `passengerName`, `seatNumber`
+- Thông tin giá: `fareClassName`, `totalAmount`, `currencyCode`
+- **Thông tin hủy vé:**
+  - `canCancel`: `true` nếu có thể hủy, `false` nếu không thể hủy
+  - `cancellationDeadline`: Hạn hủy (nếu có thể hủy)
+  - `cannotCancelReason`: Lý do không thể hủy (nếu không thể hủy)
+  - `bookingStatus`: Trạng thái booking (`pending`, `confirmed`, `paid`, `cancelled`, `completed`)
+
+**Logic kiểm tra `canCancel`:**
+1. **Kiểm tra booking status trước:** Chỉ booking với status `pending` hoặc `confirmed` mới có thể hủy
+   - Booking với status `paid`, `cancelled`, hoặc `completed` → `canCancel: false`
+   - Lý do: "Không thể hủy booking với trạng thái: {status}. Chỉ có thể hủy booking với trạng thái 'pending' hoặc 'confirmed'."
+2. **Kiểm tra fare class:** Economy Saver Max/Saver/Eco không được phép hủy
+3. **Kiểm tra thời hạn:** 
+   - Chặng bay nội địa: Tối thiểu 03 tiếng trước giờ khởi hành
+   - Chặng bay quốc tế: Tối thiểu 05 tiếng trước giờ khởi hành
+
+**Lưu ý:**
+- `canCancel` được tính dựa trên booking status, fare class, và thời hạn hủy
+- Frontend nên hiển thị đúng trạng thái dựa trên `canCancel` để tránh user click hủy nhưng backend từ chối
+- Booking với status `paid` không thể hủy (đã thanh toán thành công)
+
+---
+
+### Xem hành trình của tôi
+**GET** `/api/v1/bookings/my-journey`
+
+**Cần đăng nhập:** Có
+
+**Query Parameters:**
+- `page`: Số trang (mặc định: 1)
+- `limit`: Số hành trình mỗi trang (mặc định: 10)
+
+**Trả về:** Danh sách hành trình đã đi với phân trang, bao gồm thông tin booking và chuyến bay
+
+---
+
+### Hủy booking
+**PATCH** `/api/v1/bookings/:id/cancel`
+
+**Cần đăng nhập:** Có
+
+**Mô tả:** Hủy booking theo quy định Bamboo Airways. Chỉ booking với status `pending` hoặc `confirmed` mới có thể hủy.
+
+**Validation:**
+- Booking phải thuộc về user đang đăng nhập
+- **Booking status phải là `pending` hoặc `confirmed`** - Booking với status `paid`, `cancelled`, hoặc `completed` không thể hủy
+- Phải kiểm tra điều kiện hủy vé (fare class, thời hạn)
+- Guest bookings không thể hủy qua API (phải liên hệ support)
+
+**Quy định hủy vé Bamboo Airways:**
+- **Chặng bay nội địa:** Hoàn thiện thủ tục hoàn vé trước giờ khởi hành tối thiểu **03 tiếng**
+- **Chặng bay quốc tế:** Thực hiện thủ tục hoàn vé trước giờ khởi hành ít nhất **05 tiếng**
+- **Hạng vé được phép hoàn:** Economy Smart, Economy Flex, Premium Smart, Premium Flex, Business Smart, Business Flex
+- **Hạng vé KHÔNG được phép hoàn:** Economy Saver Max (YSM, SMX), Economy Saver / Bamboo Eco (ECO, YS)
+
+**Trả về:**
+```json
+{
+  "success": true,
+  "message": "Booking cancelled successfully"
+}
+```
+
+**Lỗi có thể xảy ra:**
+- `400 Bad Request`: "Cannot cancel booking with status: {status}" - Booking status không cho phép hủy
+- `400 Bad Request`: "Booking is already cancelled" - Booking đã bị hủy trước đó
+- `400 Bad Request`: "Cannot cancel booking: {reason}" - Không đáp ứng điều kiện hủy (fare class hoặc thời hạn)
+- `404 Not Found`: "Booking not found" - Không tìm thấy booking
+- `403 Forbidden`: "Booking does not belong to the current user" - Booking không thuộc về user
+
+**Lưu ý quan trọng:**
+- **Booking status check:** Logic hủy vé kiểm tra booking status trước tiên. Chỉ booking với status `pending` hoặc `confirmed` mới có thể hủy.
+- **Consistency với My Tickets API:** Logic kiểm tra `canCancel` trong `GET /api/v1/bookings/my-tickets` đã được cập nhật để kiểm tra booking status trước khi tính `canCancel`, đảm bảo frontend hiển thị đúng trạng thái và tránh lỗi khi user click hủy.
+- **Error handling:** Nếu booking có status không cho phép hủy, API sẽ trả về error message rõ ràng: "Cannot cancel booking with status: {status}"
+- **Transaction-based:** Hủy booking và tickets được thực hiện trong một transaction để đảm bảo tính nhất quán
+
+---
+
 ## Payments (Thanh toán)
 
 ### Tạo thanh toán
