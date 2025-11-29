@@ -1590,6 +1590,7 @@ export class BookingService {
 		}
 
 		// Use QueryBuilder for better control over relations
+		// Filter out cancelled bookings - only show active/completed journeys
 		const bookings = await this.bookingRepo
 			.createQueryBuilder('booking')
 			.innerJoin('booking.user', 'user')
@@ -1602,6 +1603,7 @@ export class BookingService {
 			.leftJoinAndSelect('route.destination_airport', 'destination_airport')
 			.leftJoinAndSelect('booking.booking_passengers', 'booking_passengers')
 			.where('user.user_id = :userId', { userId })
+			.andWhere('booking.status != :cancelledStatus', { cancelledStatus: 'cancelled' })
 			.orderBy('booking.created_at', 'DESC')
 			.getMany();
 
