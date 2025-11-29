@@ -1341,8 +1341,49 @@ export class BookingService {
 					}
 
 					const isDomestic = route.is_domestic;
+					const bookingStatus = ticket.booking?.status || 'pending';
 
 					// Check cancellation eligibility
+					// First check if booking status allows cancellation (must be pending or confirmed)
+					// Bookings with status 'paid', 'cancelled', 'completed' cannot be cancelled
+					if (bookingStatus !== 'pending' && bookingStatus !== 'confirmed') {
+						return {
+							ticketId: ticket.ticket_id,
+							ticketNumber: ticket.ticket_number,
+							bookingId: ticket.booking?.booking_id || '',
+							pnrCode: ticket.booking?.pnr_code || '',
+							passengerName: ticket.booking_passenger?.passenger?.fullname || 'N/A',
+							flightNumber: flightInstance.flight_number || 'N/A',
+							originAirport: route.origin_airport.iata_code || 'N/A',
+							originAirportName: route.origin_airport.name || '',
+							originCity: route.origin_airport.city || '',
+							destinationAirport: route.destination_airport.iata_code || 'N/A',
+							destinationAirportName: route.destination_airport.name || '',
+							destinationCity: route.destination_airport.city || '',
+							departureDateTime: flightInstance.departure_datetime_local,
+							arrivalDateTime: flightInstance.arrival_datetime_local,
+							fareClassCode: fareClass.fare_class_code || 'N/A',
+							fareClassName: this.getFareClassName(fareClass.fare_class_code, fareClass.description),
+							cabinClass:
+								fareClass.cabin_class?.cabin_class_code === 'Y'
+									? 'economy'
+									: fareClass.cabin_class?.cabin_class_code === 'C'
+										? 'business'
+										: 'economy',
+							seatNumber: segment.flight_seat?.seat_number || null,
+							status: ticket.status || 'active',
+							issuedAt: ticket.issued_at,
+							bookingStatus,
+							totalAmount: ticket.booking?.total_amount || 0,
+							currencyCode: ticket.booking?.currency?.currency_code || 'VND',
+							isDomestic,
+							canCancel: false,
+							cancellationDeadline: null,
+							cannotCancelReason: `Không thể hủy booking với trạng thái: ${bookingStatus}. Chỉ có thể hủy booking với trạng thái 'pending' hoặc 'confirmed'.`,
+						};
+					}
+
+					// If booking status allows cancellation, check fare class and time limits
 					const cancellationInfo = this.checkCancellationEligibility(
 						flightInstance.departure_datetime_local,
 						fareClass.fare_class_code,
@@ -1375,7 +1416,7 @@ export class BookingService {
 						seatNumber: segment.flight_seat?.seat_number || null,
 						status: ticket.status || 'active',
 						issuedAt: ticket.issued_at,
-						bookingStatus: ticket.booking?.status || 'pending',
+						bookingStatus,
 						totalAmount: ticket.booking?.total_amount || 0,
 						currencyCode: ticket.booking?.currency?.currency_code || 'VND',
 						isDomestic,
