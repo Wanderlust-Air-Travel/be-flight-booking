@@ -70,18 +70,18 @@ async createBooking(@Req() req: Request & { user?: { userId: string } }) {
 
 ### Guest Bookings
 
-- ✅ Contact information (fullname, email, phone) là **BẮT BUỘC**
-- ✅ Passenger information phải được cung cấp đầy đủ (không thể dùng `passengerId`)
-- ✅ Booking được tạo với `user_id = null`
-- ✅ Passengers được tạo với `user_id = null`
-- ❌ Không thể tái sử dụng passenger đã lưu (vì không có user account)
+- Contact information (fullname, email, phone) là **BẮT BUỘC**
+- Passenger information phải được cung cấp đầy đủ (không thể dùng `passengerId`)
+- Booking được tạo với `user_id = null`
+- Passengers được tạo với `user_id = null`
+- Không thể tái sử dụng passenger đã lưu (vì không có user account)
 
 ### Authenticated Bookings
 
-- ✅ Contact information là **OPTIONAL** (sẽ dùng user info nếu không có)
-- ✅ Có thể dùng `passengerId` để tái sử dụng passenger đã lưu
-- ✅ Booking được liên kết với user account (`user_id`)
-- ✅ Passengers được liên kết với user account (`user_id`)
+- Contact information là **OPTIONAL** (sẽ dùng user info nếu không có)
+- Có thể dùng `passengerId` để tái sử dụng passenger đã lưu
+- Booking được liên kết với user account (`user_id`)
+- Passengers được liên kết với user account (`user_id`)
 
 ## API Endpoints
 
