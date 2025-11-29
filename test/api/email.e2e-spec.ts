@@ -12,6 +12,20 @@ import {
   verifyRequestIdHeaders,
 } from '../helpers/test-helpers';
 
+/**
+ * Email API E2E Tests
+ * 
+ * **RabbitMQ Integration:**
+ * - Emails are sent asynchronously via RabbitMQ queue (`email_notifications`)
+ * - Non-blocking: Email sending doesn't block API responses
+ * - Fallback: If RabbitMQ is unavailable, system falls back to TCP communication
+ * - Message persistence: Durable queues ensure emails are not lost
+ * 
+ * **Test Notes:**
+ * - Email microservice may not be available in test environment (503 status)
+ * - Tests skip gracefully if email service is unavailable
+ * - Email status can be: 'queued', 'sending', 'sent', 'failed'
+ */
 describe('Email API (e2e)', () => {
   let app: INestApplication;
   let accessToken: string;

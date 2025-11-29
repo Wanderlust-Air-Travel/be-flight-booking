@@ -77,9 +77,19 @@ describe('Booking API (e2e)', () => {
     await app.close();
   });
 
-  // Note: Booking tests automatically trigger email confirmation notifications
-  // Email confirmations are sent non-blocking after successful booking creation
-  // Email notifications are sent via Email Microservice and won't block booking creation if email service fails
+  /**
+   * **RabbitMQ Integration:**
+   * - Ticket creation after payment is processed asynchronously via RabbitMQ queue (`ticket_creation`)
+   * - Email confirmations are sent asynchronously via RabbitMQ queue (`email_notifications`)
+   * - Non-blocking: Email and ticket creation don't block booking/payment operations
+   * - Fallback: If RabbitMQ is unavailable, system falls back to direct TCP communication
+   * 
+   * **Test Notes:**
+   * - Booking tests automatically trigger email confirmation notifications (async, non-blocking)
+   * - Email confirmations are sent after successful booking creation via RabbitMQ
+   * - Email notifications won't block booking creation if email service fails
+   * - Ticket creation happens asynchronously after payment success (via RabbitMQ)
+   */
 
   describe('POST /bookings (Create from Reservation)', () => {
     it('should create booking from reservation successfully (happy case)', async () => {

@@ -96,9 +96,24 @@ describe('Payment API (e2e)', () => {
     await app.close();
   });
 
-  // Note: Payment tests automatically trigger email notifications (success/failed)
-  // Email notifications are sent non-blocking, so test failures won't occur if email service is unavailable
-  // Email notifications are sent via Email Microservice when payment status changes
+  /**
+   * **RabbitMQ Integration:**
+   * - Ticket creation after successful payment is processed asynchronously via RabbitMQ queue (`ticket_creation`)
+   * - Email notifications (success/failed) are sent asynchronously via RabbitMQ queue (`email_notifications`)
+   * - Non-blocking: Email and ticket creation don't block payment operations
+   * - Fallback: If RabbitMQ is unavailable, system falls back to direct TCP communication
+   * 
+   * **Payment Flow Improvements:**
+   * - Guest payment support: Payment endpoints support optional authentication
+   * - Already paid handling: Frontend automatically redirects to confirmation page if booking is already paid
+   * - Better error messages: Improved user experience with clear error messages
+   * 
+   * **Test Notes:**
+   * - Payment tests automatically trigger email notifications (success/failed) - async, non-blocking
+   * - Email notifications are sent via RabbitMQ when payment status changes
+   * - Test failures won't occur if email service is unavailable (non-blocking)
+   * - Ticket creation happens asynchronously after payment success (via RabbitMQ)
+   */
 
   // Skip all tests if microservices are not available
   const describeOrSkip = microservicesAvailable ? describe : describe.skip;
@@ -256,7 +271,9 @@ describe('Payment API (e2e)', () => {
       verifyErrorResponseFormat(response, 400);
     });
 
-    it('should fail without authentication (unhappy case)', async () => {
+    it('should fail without authentication for authenticated booking (unhappy case)', async () => {
+      // Note: This test uses bookingId from authenticated user
+      // Guest bookings support optional auth, but authenticated bookings require auth
       const response = await request(app.getHttpServer())
         .post(`/api/v1/payments/bookings/${bookingId}/process`)
         .send({
@@ -450,7 +467,9 @@ describe('Payment API (e2e)', () => {
       verifyErrorResponseFormat(response, 400);
     });
 
-    it('should fail without authentication (unhappy case)', async () => {
+    it('should fail without authentication for authenticated booking (unhappy case)', async () => {
+      // Note: This test uses booking from authenticated user
+      // Guest bookings support optional auth, but authenticated bookings require auth
       const searchResult = await trySearchFlightsOneWay(app);
       if (!searchResult || !searchResult.outbound || searchResult.outbound.length === 0) {
         console.warn('Skipping test: Search microservice not available');
@@ -587,7 +606,9 @@ describe('Payment API (e2e)', () => {
       verifyErrorResponseFormat(response, 400);
     });
     
-    it('should fail without authentication (unhappy case)', async () => {
+    it('should fail without authentication for authenticated booking (unhappy case)', async () => {
+      // Note: This test uses bookingId from authenticated user
+      // Guest bookings support optional auth, but authenticated bookings require auth
       // Use a valid UUID v7 format for this test even if bookingId is not set
       const testBookingId = bookingId || '01900000-0000-7000-8000-000000000000';
       const response = await request(app.getHttpServer())
@@ -653,6 +674,8 @@ describe('Payment API (e2e)', () => {
     });
 
     it('should fail without authentication (unhappy case)', async () => {
+      // Note: Payment status update requires authentication
+      // This endpoint doesn't support guest payments (admin/system operation)
       if (!paymentId) {
         console.warn('Skipping test: paymentId not available');
         return;
