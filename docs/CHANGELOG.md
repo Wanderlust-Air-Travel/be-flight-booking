@@ -6,6 +6,42 @@ Lịch sử các thay đổi quan trọng của dự án.
 
 ### Tính năng mới (2025-12-XX)
 
+- **Booking Cancellation Feature (2025-12-XX)**
+  - **Feature**: Cho phép user hủy booking theo quy định Bamboo Airways
+  - **Implementation**:
+    - Endpoint `PATCH /api/v1/bookings/:id/cancel` - Hủy booking (chỉ authenticated users)
+    - Validation ownership: Chỉ user sở hữu booking mới có thể hủy
+    - Validation status: Chỉ booking `pending` hoặc `confirmed` mới có thể hủy
+    - Cancellation eligibility check: Kiểm tra fare class và thời hạn hủy
+    - Transaction-based: Đảm bảo tính nhất quán khi hủy booking và tickets
+  - **Business Rules (Quy định Bamboo Airways)**:
+    - **Chặng bay nội địa:** Hoàn thiện thủ tục hoàn vé trước giờ khởi hành tối thiểu **03 tiếng**
+    - **Chặng bay quốc tế:** Thực hiện thủ tục hoàn vé trước giờ khởi hành ít nhất **05 tiếng**
+    - **Hạng vé được phép hoàn:** Economy Smart, Economy Flex, Premium Smart, Premium Flex, Business Smart, Business Flex
+    - **Hạng vé KHÔNG được phép hoàn:** Economy Saver Max (YSM, SMX), Economy Saver / Bamboo Eco
+  - **Frontend Implementation**:
+    - UI button "Hủy đặt chỗ" trong "Vé của tôi" page
+    - UI button "Hủy đặt chỗ" trong "Hành trình của tôi" page
+    - Hiển thị điều khoản hủy vé chi tiết cho từng ticket
+    - Confirm dialog trước khi hủy
+    - Auto-refresh sau khi hủy thành công
+    - Hiển thị cancellation deadline và reason nếu không thể hủy
+  - **Files Changed**:
+    - `src/microservices/booking/booking.service.ts` - Method `cancelBooking()`, improved `checkCancellationEligibility()`
+    - `src/microservices/booking/booking.controller.ts` - Handler `handleCancelBooking()`
+    - `src/microservices/booking/booking.messages.ts` - Added `CANCEL_BOOKING` pattern
+    - `src/api-gateway/modules/booking/booking.controller.ts` - Endpoint `PATCH /api/v1/bookings/:id/cancel`
+    - `booking/app/api/bookings/[bookingId]/cancel/route.ts` - Frontend API route (new)
+    - `booking/app/(page)/my-tickets/page.tsx` - Cancel button và cancellation terms display
+    - `booking/app/(page)/my-journey/page.tsx` - Cancel button
+  - **Documentation**:
+    - Updated `docs/api/API_DOCS.md` - Added cancel booking endpoint documentation
+    - Updated `docs/api/API_SEQUENCE_DIAGRAMS.md` - Added cancel booking flow diagrams
+    - Updated `docs/CHANGELOG.md` - Added cancellation feature details
+    - Updated Postman collection - Added cancel booking request
+
+### Tính năng mới (2025-12-XX)
+
 - **RabbitMQ Integration (2025-12-XX)**
   - **Feature**: Tích hợp RabbitMQ cho asynchronous messaging và event-driven architecture
   - **Implementation**:

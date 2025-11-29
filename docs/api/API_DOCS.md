@@ -15,7 +15,7 @@ http://localhost:3000
 ## Lưu ý quan trọng
 
 ### Xác thực
-- **Required Authentication**: Một số API bắt buộc đăng nhập (ví dụ: `GET /api/v1/bookings/my-tickets`, `GET /api/v1/bookings/my-journey`, `POST /api/v1/booking-state/cabin`, `POST /api/v1/booking-state/seat`)
+- **Required Authentication**: Một số API bắt buộc đăng nhập (ví dụ: `GET /api/v1/bookings/my-tickets`, `GET /api/v1/bookings/my-journey`, `PATCH /api/v1/bookings/:id/cancel`, `POST /api/v1/booking-state/cabin`, `POST /api/v1/booking-state/seat`)
 - **Optional Authentication**: Một số API hỗ trợ optional authentication (có thể gọi với hoặc không có token):
   - `POST /api/v1/reservations` - Guest bookings được hỗ trợ
   - `POST /api/v1/bookings` - Guest bookings được hỗ trợ (contact info bắt buộc cho guest)

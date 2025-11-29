@@ -395,3 +395,96 @@ sequenceDiagram
     
     Frontend-->>User: Redirected to confirmation page
 ```
+
+## Cancel Booking Flow
+
+### Flow: User Cancels a Booking
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant API Gateway
+    participant Booking MS
+    participant Database
+    participant Ticket MS
+
+    User->>Frontend: View "My Tickets" page
+    Frontend->>API Gateway: GET /api/v1/bookings/my-tickets
+    API Gateway->>Booking MS: Get my tickets
+    Booking MS->>Database: Query tickets with cancellation eligibility
+    Database-->>Booking MS: Tickets with canCancel, cancellationDeadline, reason
+    Booking MS-->>API Gateway: Tickets list
+    API Gateway-->>Frontend: Tickets with cancellation info
+    Frontend-->>User: Display tickets with cancel button (if canCancel=true)
+
+    User->>Frontend: Click "Cancel Booking"
+    Frontend->>Frontend: Show confirmation dialog
+    User->>Frontend: Confirm cancellation
+    
+    Frontend->>API Gateway: PATCH /api/v1/bookings/:id/cancel
+    Note over Frontend,API Gateway: Authorization: Bearer <token>
+    
+    API Gateway->>API Gateway: Validate JWT token
+    API Gateway->>Booking MS: Cancel booking
+    Note over API Gateway,Booking MS: {bookingId, userId}
+    
+    Booking MS->>Database: Find booking with relations
+    Database-->>Booking MS: Booking data
+    
+    Booking MS->>Booking MS: Validate ownership (userId matches)
+    Booking MS->>Booking MS: Check booking status (must be pending/confirmed)
+    Booking MS->>Booking MS: Check cancellation eligibility
+    Note over Booking MS: - Check fare class (Economy Saver Max/Saver cannot cancel)
+    Note over Booking MS: - Check time limit (3h domestic, 5h international)
+    
+    alt Cancellation Allowed
+        Booking MS->>Database: Start transaction
+        Booking MS->>Database: Update booking status = 'cancelled'
+        Booking MS->>Database: Update related tickets status = 'cancelled'
+        Booking MS->>Database: Commit transaction
+        Booking MS-->>API Gateway: {success: true, message: "Booking cancelled successfully"}
+        API Gateway-->>Frontend: 200 OK
+        Frontend->>Frontend: Refresh tickets list
+        Frontend-->>User: Show success message
+    else Cancellation Not Allowed
+        Booking MS-->>API Gateway: 400 Bad Request (reason: fare class or time limit)
+        API Gateway-->>Frontend: 400 Bad Request
+        Frontend-->>User: Show error message with reason
+    end
+```
+
+### Cancellation Eligibility Check
+
+```mermaid
+sequenceDiagram
+    participant Booking MS
+    participant Database
+    participant Check Logic
+
+    Booking MS->>Database: Get booking segments with fare class and route
+    Database-->>Booking MS: Booking segments data
+    
+    loop For each segment
+        Booking MS->>Check Logic: checkCancellationEligibility()
+        Note over Check Logic: Input: departureDateTime, fareClassCode, isDomestic
+        
+        Check Logic->>Check Logic: Check fare class code
+        alt Economy Saver Max/Saver/Eco
+            Check Logic-->>Booking MS: {canCancel: false, reason: "Fare class not allowed"}
+        else Allowed fare class
+            Check Logic->>Check Logic: Calculate deadline
+            Note over Check Logic: 3 hours (domestic) or 5 hours (international)
+            Check Logic->>Check Logic: Compare current time with deadline
+            
+            alt Current time >= deadline
+                Check Logic-->>Booking MS: {canCancel: false, reason: "Time limit exceeded"}
+            else Current time < deadline
+                Check Logic-->>Booking MS: {canCancel: true, deadline: Date}
+            end
+        end
+    end
+    
+    Booking MS->>Booking MS: All segments must be cancellable
+    Booking MS-->>API Gateway: Cancellation eligibility result
+```

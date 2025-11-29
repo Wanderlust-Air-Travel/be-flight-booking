@@ -1424,6 +1424,34 @@
 						"description": "Get payment information for a booking including total amount, currency, and contact details. Requires Booking Microservice running on port 4004.\n\n**Path parameter:**\n- `bookingId`: Booking ID (UUID v7)\n\n**Response:**\n- `bookingId`, `pnrCode`\n- `totalAmount`, `currencyCode`\n- `contactFullname`, `contactEmail`, `contactPhone`\n- `status`: Booking status (pending/confirmed/cancelled/completed)"
 					},
 					"response": []
+				},
+				{
+					"name": "Cancel Booking",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/bookings/{{bookingId}}/cancel",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"bookings",
+								"{{bookingId}}",
+								"cancel"
+							]
+						},
+						"description": "Cancel a booking. Only authenticated users can cancel their own bookings. System validates cancellation eligibility based on Bamboo Airways rules. Requires JWT authentication and Booking Microservice running on port 4004.\n\n**Quy định hủy vé Bamboo Airways:**\n- **Chặng bay nội địa:** Hoàn thiện thủ tục hoàn vé trước giờ khởi hành tối thiểu **03 tiếng**\n- **Chặng bay quốc tế:** Thực hiện thủ tục hoàn vé trước giờ khởi hành ít nhất **05 tiếng**\n\n**Các hạng vé được phép hoàn:**\n- Economy Smart, Economy Flex\n- Premium Smart, Premium Flex\n- Business Smart, Business Flex\n\n**Các hạng vé KHÔNG được phép hoàn/hủy:**\n- Economy Saver Max (YSM, SMX)\n- Economy Saver / Bamboo Eco\n- Lưu ý: Các hạng vé siêu tiết kiệm thông thường không được phép hoàn/hủy vé\n\n**Path parameter:**\n- `bookingId`: Booking ID (UUID v7)\n\n**Authentication:**\n- Requires JWT Bearer Token in header: `Authorization: Bearer {{access_token}}`\n- Only authenticated users can cancel bookings (guest bookings cannot be cancelled via API)\n- `userId` is automatically extracted from JWT token\n\n**Validation:**\n- Booking must belong to the authenticated user\n- Booking status must be `pending` or `confirmed`\n- Cancellation eligibility is checked (fare class, time limit)\n- All segments must be cancellable\n\n**Response (Success):**\n```json\n{\n  \"success\": true,\n  \"message\": \"Booking cancelled successfully\"\n}\n```\n\n**Error Responses:**\n- `400 Bad Request`: Booking cannot be cancelled (time limit exceeded, fare class not allowed, or already cancelled)\n- `401 Unauthorized`: Not authenticated\n- `403 Forbidden`: Booking does not belong to current user\n- `404 Not Found`: Booking not found\n\n**Lưu ý:**\n- After successful cancellation, booking status is updated to `cancelled`\n- Related tickets (if any) are also updated to `cancelled` status\n- Transaction is used to ensure data consistency\n- User should check specific Fare Rules for their ticket to know exact cancellation policy"
+					},
+					"response": []
 				}
 			],
 			"description": "Booking APIs - Create and manage flight bookings. Requires Booking Microservice running on port 4004.\n\n**IMPORTANT CHANGES:**\n- `reservationId` query parameter is now **REQUIRED** for creating bookings\n- Direct booking without reservation is deprecated and **will return error** (đã xóa backward compatibility code)\n- All bookings must be created from a reservation to ensure backend-managed state\n- Supports multi-segment reservations (round-trip): Backend automatically creates booking segments from all reservation segments\n- Backend chỉ chấp nhận reservation có `segments[]` array (validation sẽ throw error nếu reservation không có segments)\n\n**JWT Authentication:**\n- `userId` tự động extract từ JWT token tại Gateway (không cần gửi trong request body)\n- Gateway validate JWT một lần, extract `userId`, gửi `userId` đến microservices (NOT JWT token)\n- Microservices trust Gateway - không validate JWT\n\n**Passenger Reuse (Best Practice):**\n- Backend tự động detect và reuse passenger với cùng `documentNumber` và `userId`\n- Validate thông tin khớp (`fullname`, `dob`, `gender`) - log warning nếu không khớp\n- Benefits: Tránh duplicates, cải thiện UX\n\n**Reservation Expiration Validation (Best Practice):**\n- Primary: Check `expiresAt` timestamp (source of truth) - real-time accuracy\n- Secondary: Check `status` field (optimization & business logic)\n- Prevents race conditions, không phụ thuộc vào background jobs"
