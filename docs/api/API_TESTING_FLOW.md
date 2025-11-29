@@ -1,6 +1,6 @@
 # API Testing Flow - Hướng dẫn Test API theo Flow
 
-Tài liệu này hướng dẫn test API theo flow đầy đủ từ đầu đến cuối, bao gồm cả one-way và round-trip booking.
+Tài liệu này hướng dẫn test API theo flow đầy đủ từ đầu đến cuối, bao gồm cả one-way, round-trip booking, và guest booking (không cần đăng nhập).
 
 ---
 
@@ -1069,6 +1069,227 @@ Sau khi chạy các requests, Postman collection sẽ tự động set các vari
 
 ---
 
+## Flow 4: Guest Booking (Đặt vé không cần đăng nhập)
+
+**Lưu ý:** Guest booking hiện tại vẫn cần đăng nhập để lưu booking state (cabin/seat). Trong tương lai có thể mở rộng để hỗ trợ guest booking state.
+
+### Step 1: Search Flights (Public - không cần đăng nhập)
+
+**Request:**
+```http
+GET {{base_url}}/api/v1/search/flights?origin=HAN&destination=SGN&departDate={{departDate}}&adults=1&minors=0
+```
+
+**Response:** Tương tự Flow 1
+
+**Lưu ý:** Lưu `flightInstanceId` vào Postman variable
+
+---
+
+### Step 2: Login (Tạm thời cần để lưu booking state)
+
+**Request:**
+```http
+POST {{base_url}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "Password123!"
+}
+```
+
+**Lưu ý:** Hiện tại guest booking state (cabin/seat) vẫn cần authentication. Trong tương lai có thể mở rộng.
+
+---
+
+### Step 3: Save Cabin Selection (Cần đăng nhập)
+
+**Request:**
+```http
+POST {{base_url}}/api/v1/booking-state/cabin
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "flightInstanceId": "{{flightInstanceId}}",
+  "cabinType": "economy",
+  "fareClassCode": "YS"
+}
+```
+
+---
+
+### Step 4: Save Seat Selection (Cần đăng nhập)
+
+**Request:**
+```http
+POST {{base_url}}/api/v1/booking-state/seat
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "flightInstanceId": "{{flightInstanceId}}",
+  "flightSeatId": "{{flightSeatId}}",
+  "seatNumber": "12A"
+}
+```
+
+---
+
+### Step 5: Create Reservation (Không cần đăng nhập - Optional auth)
+
+**Request (Guest - không có token):**
+```http
+POST {{base_url}}/api/v1/reservations
+Content-Type: application/json
+
+{
+  "segments": [
+    {
+      "flightInstanceId": "{{flightInstanceId}}",
+      "segmentType": "outbound"
+    }
+  ],
+  "numberOfPassengers": 1,
+  "currencyCode": "VND"
+}
+```
+
+**Request (Authenticated - có token):**
+```http
+POST {{base_url}}/api/v1/reservations
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "segments": [
+    {
+      "flightInstanceId": "{{flightInstanceId}}",
+      "segmentType": "outbound"
+    }
+  ],
+  "numberOfPassengers": 1,
+  "currencyCode": "VND"
+}
+```
+
+**Response:**
+```json
+{
+  "reservationId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "reservationCode": "ABC123",
+  "totalAmount": 1577000,
+  "expiresAt": "2025-11-20T15:30:00Z",
+  "ttl": 900
+}
+```
+
+**Lưu ý:** 
+- Lưu `reservationId` vào Postman variable
+- Reservation có thể được tạo với hoặc không có `userId` (tùy vào có token hay không)
+
+---
+
+### Step 6: Create Booking (Không cần đăng nhập - Optional auth)
+
+**Request (Guest - không có token, contact info BẮT BUỘC):**
+```http
+POST {{base_url}}/api/v1/bookings?reservationId={{reservationId}}
+Content-Type: application/json
+
+{
+  "passengers": [
+    {
+      "passengerType": "ADT",
+      "fullname": "Nguyen Van A",
+      "dob": "1990-01-15",
+      "gender": "Male",
+      "documentNumber": "001234567890"
+    }
+  ],
+  "contactFullname": "Nguyen Van A",
+  "contactEmail": "guest@example.com",
+  "contactPhone": "0912345678",
+  "channel": "web"
+}
+```
+
+**Request (Authenticated - có token, contact info OPTIONAL):**
+```http
+POST {{base_url}}/api/v1/bookings?reservationId={{reservationId}}
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "passengers": [
+    {
+      "passengerId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+      "passengerType": "ADT"
+    }
+  ],
+  "channel": "web"
+}
+```
+
+**Response:**
+```json
+{
+  "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "pnrCode": "ABC123",
+  "totalAmount": 1577000,
+  "currencyCode": "VND",
+  "status": "pending"
+}
+```
+
+**Lưu ý:**
+- **Guest bookings**: Contact info là BẮT BUỘC, không thể dùng `passengerId`
+- **Authenticated bookings**: Contact info là OPTIONAL, có thể dùng `passengerId`
+- Lưu `bookingId` vào Postman variable
+
+---
+
+### Step 7: Process Payment (Optional auth)
+
+**Request (Guest - không có token):**
+```http
+POST {{base_url}}/api/v1/payments/bookings/{{bookingId}}/process
+Content-Type: application/json
+
+{
+  "paymentMethodCode": "dev",
+  "amount": 1577000
+}
+```
+
+**Request (Authenticated - có token):**
+```http
+POST {{base_url}}/api/v1/payments/bookings/{{bookingId}}/process
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "paymentMethodCode": "dev",
+  "amount": 1577000
+}
+```
+
+**Response:**
+```json
+{
+  "paymentId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "status": "completed",
+  "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71"
+}
+```
+
+**Lưu ý:**
+- Sau khi thanh toán thành công, tickets được tạo tự động
+- Email ticket confirmation được gửi tự động đến `contact_email` trong booking
+
+---
+
 ## Next Steps
 
 Sau khi test thành công:
@@ -1077,4 +1298,6 @@ Sau khi test thành công:
 3. Check reservation status transitions
 4. Test error cases (expired, cancelled, not found)
 5. Test Hybrid Approach (Redis down scenario)
+6. **Test Guest Booking**: Verify booking và passengers có `user_id = null`
+7. **Test Authenticated Booking**: Verify booking và passengers có `user_id` được set đúng
 

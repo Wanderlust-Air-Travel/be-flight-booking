@@ -8,7 +8,8 @@ Tài liệu dự án Flight Booking Backend được tổ chức theo các danh 
 - **[README.md](../README.md)** - Hướng dẫn cài đặt và chạy dự án (ở root)
 
 ### API
-- **[API_DOCS.md](./api/API_DOCS.md)** - Tài liệu về tất cả API endpoints
+- **[API_DOCS.md](./api/API_DOCS.md)** - Tài liệu về tất cả API endpoints (bao gồm guest booking)
+- **[API_SEQUENCE_DIAGRAMS.md](./api/API_SEQUENCE_DIAGRAMS.md)** - Sequence diagrams cho các flows (bao gồm guest booking)
 - **[API_TESTING_FLOW.md](./api/API_TESTING_FLOW.md)** - Hướng dẫn test API theo từng bước
 - **[EMAIL_SERVICE_OTP_TESTING.md](./EMAIL_SERVICE_OTP_TESTING.md)** - Hướng dẫn test Email và OTP
 
@@ -20,6 +21,9 @@ Tài liệu dự án Flight Booking Backend được tổ chức theo các danh 
 - **[ERD.md](./database/ERD.md)** - Sơ đồ cơ sở dữ liệu
 - **[SEED-README.md](./database/SEED-README.md)** - Hướng dẫn tạo dữ liệu mẫu
 - **[DOCKER_INITIALIZATION.md](./database/DOCKER_INITIALIZATION.md)** - Chi tiết về flow khởi tạo database trong Docker
+
+### Design
+- **[GUEST_BOOKING_FLOW.md](./design/GUEST_BOOKING_FLOW.md)** - Design document cho guest booking flow
 
 ### Cài đặt
 - **[REDIS_SETUP.md](./setup/REDIS_SETUP.md)** - Hướng dẫn cài đặt Redis

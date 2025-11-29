@@ -13,29 +13,47 @@ http://localhost:3000
 ## Lưu ý quan trọng
 
 ### Xác thực
-- Một số API cần đăng nhập trước
-- Sau khi đăng nhập, gửi token trong header: `Authorization: Bearer <access_token>`
-- Token có hiệu lực 15 phút, dùng `refresh_token` để lấy token mới
+- **Required Authentication**: Một số API bắt buộc đăng nhập (ví dụ: `GET /api/v1/bookings/my-tickets`, `GET /api/v1/bookings/my-journey`, `POST /api/v1/booking-state/cabin`, `POST /api/v1/booking-state/seat`)
 - **Optional Authentication**: Một số API hỗ trợ optional authentication (có thể gọi với hoặc không có token):
+  - `POST /api/v1/reservations` - Guest bookings được hỗ trợ
+  - `POST /api/v1/bookings` - Guest bookings được hỗ trợ (contact info bắt buộc cho guest)
   - `GET /api/v1/search/fare-options` - Tự động lấy `flightInstanceId` và `cabinType` từ booking state nếu user đã đăng nhập
   - `GET /api/v1/search/seats` - Tự động lấy `cabinType` từ booking state nếu user đã đăng nhập
-  - Nếu không có token hoặc không có booking state, phải truyền đầy đủ query parameters
+  - `GET /api/v1/bookings/:id/fare-details` - Public endpoint
+  - `GET /api/v1/bookings/:id/payment-info` - Public endpoint
+- **Guest Bookings**: Người dùng chưa đăng nhập có thể đặt chuyến bay, nhưng phải cung cấp đầy đủ contact information
+- Sau khi đăng nhập, gửi token trong header: `Authorization: Bearer <access_token>`
+- Token có hiệu lực 15 phút, dùng `refresh_token` để lấy token mới
+- Nếu không có token hoặc không có booking state, phải truyền đầy đủ query parameters
 
 ### Định dạng
 - ID: Tất cả ID là mã UUID dạng `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx`
 - Ngày: Format `YYYY-MM-DD` (ví dụ: `2025-11-17`)
 
 ### Luồng đặt vé
+
+**Authenticated Flow (Có đăng nhập):**
 1. Tìm kiếm chuyến bay
 2. Chọn loại vé (cabin) → Lưu cabin vào Redis (`POST /api/v1/booking-state/cabin`)
-   - **Validation (Updated 2025-11-25)**: Fare class code phải match với cabin type (Economy: 'Y*', Business: 'J*')
+   - **Validation**: Fare class code phải match với cabin type (Economy: 'Y*', Business: 'J*')
 3. **Chọn ghế ngồi (BẮT BUỘC)** → Lưu seat vào Redis (`POST /api/v1/booking-state/seat`)
-   - **Auto-fetch (Updated 2025-11-25)**: `GET /api/v1/search/seats` có thể tự động lấy `cabinType` từ booking state nếu user đã đăng nhập
+   - **Auto-fetch**: `GET /api/v1/search/seats` có thể tự động lấy `cabinType` từ booking state nếu user đã đăng nhập
 4. **Verify state (Optional - Recommended)** → Kiểm tra state trước khi tạo reservation (`GET /api/v1/booking-state/:flightInstanceId`)
 5. Giữ chỗ 15 phút (reservation) - Backend tự động lấy cabin + seat từ Redis, lưu reservation vào Redis, tự động clear booking state sau khi thành công
-6. Điền thông tin hành khách
-7. Tạo booking
+6. Điền thông tin hành khách (contact info optional - sẽ dùng user info nếu không có)
+7. Tạo booking (có thể dùng `passengerId` để tái sử dụng passenger đã lưu)
 8. Thanh toán
+
+**Guest Flow (Không cần đăng nhập):**
+1. Tìm kiếm chuyến bay
+2. Chọn loại vé (cabin) → Lưu cabin vào Redis (`POST /api/v1/booking-state/cabin`) - **Cần đăng nhập**
+3. **Chọn ghế ngồi (BẮT BUỘC)** → Lưu seat vào Redis (`POST /api/v1/booking-state/seat`) - **Cần đăng nhập**
+4. Giữ chỗ 15 phút (reservation) - **Có thể gọi không cần token** (reservation sẽ không có userId)
+5. Điền thông tin hành khách và contact info (**BẮT BUỘC** cho guest bookings)
+6. Tạo booking (**Không cần token**, nhưng contact info là bắt buộc)
+7. Thanh toán
+
+**Lưu ý:** Guest bookings hiện tại vẫn cần đăng nhập để lưu booking state (cabin/seat). Trong tương lai có thể mở rộng để hỗ trợ guest booking state.
 
 **Lưu ý:** 
 - Backend tự quản lý state trong Redis. Frontend chỉ cần fetch và gọi API.
@@ -468,7 +486,7 @@ GET /api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&retu
 ### Tạo reservation (giữ chỗ 15 phút)
 **POST** `/api/v1/reservations`
 
-**Cần đăng nhập:** Có
+**Cần đăng nhập:** Không (Optional - Guest bookings được hỗ trợ)
 
 ```json
 {
@@ -516,8 +534,20 @@ Có thể dùng `reservationId` (UUID) hoặc `reservationCode` (6 ký tự)
 ### Tạo booking từ reservation
 **POST** `/api/v1/bookings?reservationId=xxx`
 
-**Cần đăng nhập:** Có
+**Cần đăng nhập:** Không (Optional - Guest bookings được hỗ trợ)
 
+**Guest Booking (Không cần đăng nhập):**
+- Contact information (fullname, email, phone) là **BẮT BUỘC**
+- Passenger information phải được cung cấp đầy đủ (không thể dùng `passengerId`)
+- Booking sẽ được tạo với `user_id = null`
+- Passenger sẽ được tạo với `user_id = null`
+
+**Authenticated Booking (Có đăng nhập):**
+- Contact information là **OPTIONAL** (sẽ dùng thông tin user nếu không cung cấp)
+- Có thể dùng `passengerId` để tái sử dụng passenger đã lưu
+- Booking sẽ được liên kết với user account
+
+**Guest Booking (Không cần đăng nhập):**
 ```json
 {
   "passengers": [
@@ -531,11 +561,31 @@ Có thể dùng `reservationId` (UUID) hoặc `reservationCode` (6 ký tự)
   ],
   "contactFullname": "Nguyen Van A",
   "contactEmail": "nguyenvana@example.com",
-  "contactPhone": "0912345678"
+  "contactPhone": "0912345678",
+  "channel": "web"
 }
 ```
 
-**Hoặc dùng hành khách đã lưu:**
+**Authenticated Booking (Có đăng nhập):**
+```json
+{
+  "passengers": [
+    {
+      "passengerType": "ADT",
+      "fullname": "Nguyen Van A",
+      "dob": "1990-01-15",
+      "gender": "Male",
+      "documentNumber": "001234567890"
+    }
+  ],
+  "contactFullname": "Nguyen Van A",  // Optional - sẽ dùng user info nếu không có
+  "contactEmail": "nguyenvana@example.com",  // Optional
+  "contactPhone": "0912345678",  // Optional
+  "channel": "web"
+}
+```
+
+**Hoặc dùng hành khách đã lưu (chỉ cho authenticated users):**
 ```json
 {
   "passengers": [
@@ -552,12 +602,16 @@ Có thể dùng `reservationId` (UUID) hoặc `reservationCode` (6 ký tự)
 **Lưu ý:**
 - Phải tạo từ reservation (bắt buộc có `reservationId`)
 - Reservation sẽ tự động hủy sau khi tạo booking thành công
-- Email xác nhận đặt chỗ được gửi tự động
+- **Guest bookings**: Contact info là bắt buộc, không thể dùng `passengerId`
+- **Authenticated bookings**: Contact info là optional, có thể dùng `passengerId` để tái sử dụng
+- Email xác nhận ticket được gửi tự động sau khi thanh toán thành công (không gửi email booking confirmation)
 
 ---
 
 ### Xem chi tiết fare
 **GET** `/api/v1/bookings/:id/fare-details`
+
+**Cần đăng nhập:** Không (Public endpoint)
 
 **Trả về:** Thông tin loại vé đã chọn, điều kiện/quyền lợi, giá
 
@@ -565,6 +619,8 @@ Có thể dùng `reservationId` (UUID) hoặc `reservationCode` (6 ký tự)
 
 ### Xem thông tin thanh toán
 **GET** `/api/v1/bookings/:id/payment-info`
+
+**Cần đăng nhập:** Không (Public endpoint)
 
 **Trả về:** `bookingId`, `pnrCode`, `totalAmount`, thông tin liên hệ, `status`
 
@@ -800,23 +856,38 @@ const bookingResponse = await fetch('http://localhost:3000/api/v1/bookings?reser
 
 ## Luồng đặt vé hoàn chỉnh
 
+### Authenticated Flow (Có đăng nhập)
+
 1. **Tìm kiếm** → `GET /api/v1/search/flights`
 2. **Chọn chuyến bay** → Lấy `flightInstanceId`
 3. **Xem loại vé** → `GET /api/v1/search/fare-options?flightInstanceId=xxx&cabinType=economy` (cả 2 đều optional)
    - **Lần đầu**: Truyền `flightInstanceId` (từ search results - component state) và `cabinType` (user selection)
    - **Lần sau**: Nếu đã save cabin selection, có thể gọi lại mà không cần truyền (backend tự động lấy từ booking state)
-4. **Lưu cabin selection** → `POST /api/v1/booking-state/cabin` (Backend lưu vào Redis)
+4. **Lưu cabin selection** → `POST /api/v1/booking-state/cabin` (Backend lưu vào Redis) - **Cần đăng nhập**
 5. **Xem ghế** → `GET /api/v1/search/seats` → Lấy `flightSeatId` và `seatNumber`
-6. **Lưu seat selection** → `POST /api/v1/booking-state/seat` (Backend lưu vào Redis)
+6. **Lưu seat selection** → `POST /api/v1/booking-state/seat` (Backend lưu vào Redis) - **Cần đăng nhập**
 7. **Verify state (Optional - Recommended)** → `GET /api/v1/booking-state/:flightInstanceId` (Best practice: verify trước khi tạo reservation)
-8. **Giữ chỗ 15 phút** → `POST /api/v1/reservations` (Backend tự động lấy cabin + seat từ Redis, lưu reservation vào Redis với TTL 15 phút, tự động clear booking state sau khi thành công)
-9. **Điền thông tin** → Tạo booking → `POST /api/v1/bookings?reservationId=xxx`
+8. **Giữ chỗ 15 phút** → `POST /api/v1/reservations` (Backend tự động lấy cabin + seat từ Redis, lưu reservation vào Redis với TTL 15 phút, tự động clear booking state sau khi thành công) - **Optional auth**
+9. **Điền thông tin** → Tạo booking → `POST /api/v1/bookings?reservationId=xxx` (Contact info optional - sẽ dùng user info) - **Optional auth**
 10. **Thanh toán** → `POST /api/v1/payments/bookings/:bookingId/process`
 
-**Lưu ý:** Backend tự quản lý toàn bộ state trong Redis. Frontend chỉ cần gọi API để lưu và fetch, không cần gửi lại cabin/seat trong request tạo reservation.
+### Guest Flow (Không cần đăng nhập)
 
-**Lưu ý:**
-- Email xác nhận đặt chỗ được gửi tự động sau khi tạo booking
+1. **Tìm kiếm** → `GET /api/v1/search/flights` (Public)
+2. **Chọn chuyến bay** → Lấy `flightInstanceId`
+3. **Xem loại vé** → `GET /api/v1/search/fare-options?flightInstanceId=xxx&cabinType=economy` (Phải truyền đầy đủ params)
+4. **Lưu cabin selection** → `POST /api/v1/booking-state/cabin` - **Cần đăng nhập** (Hiện tại guest chưa hỗ trợ booking state)
+5. **Xem ghế** → `GET /api/v1/search/seats?flightInstanceId=xxx&cabinType=economy` (Phải truyền đầy đủ params)
+6. **Lưu seat selection** → `POST /api/v1/booking-state/seat` - **Cần đăng nhập** (Hiện tại guest chưa hỗ trợ booking state)
+7. **Giữ chỗ 15 phút** → `POST /api/v1/reservations` (Không cần token, nhưng cần có booking state - hiện tại vẫn cần đăng nhập để tạo state)
+8. **Điền thông tin** → Tạo booking → `POST /api/v1/bookings?reservationId=xxx` (Contact info **BẮT BUỘC**) - **Không cần token**
+9. **Thanh toán** → `POST /api/v1/payments/bookings/:bookingId/process`
+
+**Lưu ý:** 
+- Backend tự quản lý toàn bộ state trong Redis. Frontend chỉ cần gọi API để lưu và fetch, không cần gửi lại cabin/seat trong request tạo reservation.
+- **Guest bookings**: Contact information là bắt buộc, không thể dùng `passengerId`
+- **Authenticated bookings**: Contact information là optional, có thể dùng `passengerId` để tái sử dụng passenger đã lưu
+- Email xác nhận ticket được gửi tự động sau khi thanh toán thành công (không gửi email booking confirmation)
 - Email xác nhận thanh toán được gửi tự động khi thanh toán thành công/thất bại
 - Reservation tự động hủy sau khi tạo booking
 - Payment tự động hết hạn sau 15 phút

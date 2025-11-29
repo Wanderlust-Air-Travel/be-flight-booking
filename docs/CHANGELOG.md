@@ -4,6 +4,38 @@ Lịch sử các thay đổi quan trọng của dự án.
 
 ## [Unreleased]
 
+### Tính năng mới (2025-11-28)
+
+- **Guest Booking Support (2025-11-28)**
+  - **Feature**: Hệ thống hỗ trợ guest bookings - người dùng chưa đăng nhập có thể đặt chuyến bay
+  - **Implementation**:
+    - Sử dụng `OptionalJwtAuthGuard` cho booking và reservation APIs
+    - `POST /api/v1/reservations` - Optional authentication (guest bookings được hỗ trợ)
+    - `POST /api/v1/bookings` - Optional authentication (guest bookings được hỗ trợ)
+    - `GET /api/v1/bookings/:id/fare-details` - Public endpoint
+    - `GET /api/v1/bookings/:id/payment-info` - Public endpoint
+  - **Guest Booking Rules**:
+    - Contact information (fullname, email, phone) là **BẮT BUỘC** cho guest bookings
+    - Passenger information phải được cung cấp đầy đủ (không thể dùng `passengerId`)
+    - Booking được tạo với `user_id = null`
+    - Passengers được tạo với `user_id = null`
+  - **Authenticated Booking Rules**:
+    - Contact information là **OPTIONAL** (sẽ dùng user info nếu không có)
+    - Có thể dùng `passengerId` để tái sử dụng passenger đã lưu
+  - **Files Changed**:
+    - `src/api-gateway/modules/booking/booking.controller.ts` - Sử dụng `OptionalJwtAuthGuard`, validate contact info cho guest
+    - `src/microservices/booking/booking.service.ts` - Xử lý `userId = null`, validate contact info cho guest
+    - `src/microservices/booking/booking.controller.ts` - Type update để nhận `userId: string | null`
+    - `booking/app/api/bookings/route.ts` - Authorization header là optional
+    - `booking/app/api/reservations/route.ts` - Authorization header là optional
+    - `booking/app/(page)/booking/info/page.tsx` - Bỏ yêu cầu login, hỗ trợ guest booking
+  - **Documentation**: 
+    - Added `docs/design/GUEST_BOOKING_FLOW.md` - Design document cho guest booking
+    - Updated `docs/api/API_DOCS.md` - Thêm guest booking flow và validation rules
+    - Updated `docs/api/API_SEQUENCE_DIAGRAMS.md` - Thêm sequence diagrams cho guest và authenticated booking flows
+    - Updated `booking/docs/README.md` - Thêm guest booking documentation
+    - Updated `README.md` - Thêm guest booking feature
+
 ### Cải tiến quan trọng (2025-11-26)
 
 - **Payment Microservice Timeout Configuration (2025-11-26)**

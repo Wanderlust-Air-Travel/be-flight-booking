@@ -102,6 +102,11 @@ Tất cả tài liệu trong thư mục [`docs/`](./docs/):
   - 20 sân bay nội địa Việt Nam (HAN, SGN, DAD, CXR, PQC, HUI, VCA, HPH, VDO, THD, VII, DIN, VCL, UIH, TBB, PXU, BMV, DLI, CAH, VKG)
   - Tất cả routes đều là domestic routes (is_domestic = true)
   - Không hỗ trợ bay quốc tế
+- **Guest Booking Support**: Người dùng chưa đăng nhập có thể đặt chuyến bay
+  - Optional authentication cho booking và reservation APIs
+  - Contact information bắt buộc cho guest bookings
+  - Passenger được tạo với `user_id = null` cho guest bookings
+  - Booking được tạo với `user_id = null` cho guest bookings
 - **Microservices Architecture**: Tách biệt Search, Services, Routes, Booking, Reservation, Payment, Email
 - **Backend-managed State**: Reservation Service quản lý state trong Redis (Hybrid: Database + Redis)
 - **Seat Selection**: Tích hợp tính năng chọn ghế ngồi vào reservation và booking flow
@@ -118,9 +123,10 @@ Tất cả tài liệu trong thư mục [`docs/`](./docs/):
 - **Email Service**: Gmail API integration với queue management
   - Gmail API với OAuth 2.0
   - Email queue với retry logic và rate limiting (100 emails/phút)
-  - 5 email templates (OTP payment, OTP password reset, payment success/failed, booking confirmation)
+  - 6 email templates (OTP payment, OTP password reset, payment success/failed, ticket confirmation)
   - Async processing và health check
+  - Ticket confirmation email với chi tiết đầy đủ (seat, cabin class, flight details, check-in time)
 - **UUID v7**: Tất cả IDs sử dụng UUID v7 (time-ordered)
-- **JWT Authentication**: Tự động extract userId từ token tại Gateway
-- **Passenger Creation**: Tự động tạo passenger khi booking (với reuse logic)
+- **JWT Authentication**: Optional authentication cho một số APIs, required cho các APIs khác
+- **Passenger Creation**: Tự động tạo passenger khi booking (với reuse logic cho authenticated users)
 - **Transaction Safety**: Booking & Payment creation với transaction rollback

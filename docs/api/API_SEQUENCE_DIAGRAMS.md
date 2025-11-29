@@ -152,3 +152,159 @@ sequenceDiagram
         API Gateway-->>Frontend: 400 Bad Request (cabinType required)
     end
 ```
+
+## Guest Booking Flow
+
+### Flow: Guest User Creates Booking (No Authentication Required)
+
+```mermaid
+sequenceDiagram
+    participant Guest
+    participant Frontend
+    participant API Gateway
+    participant OptionalJwtAuthGuard
+    participant Reservation MS
+    participant Booking MS
+    participant Payment MS
+    participant Email MS
+    participant Database
+
+    Note over Guest,Database: Guest Booking Flow (No Login Required)
+
+    Guest->>Frontend: Search flights
+    Frontend->>API Gateway: GET /api/v1/search/flights
+    API Gateway-->>Frontend: Flight results
+    Frontend-->>Guest: Display flights
+
+    Guest->>Frontend: Select flight & cabin
+    Note over Guest,Frontend: Guest must login to save booking state
+    Frontend->>API Gateway: POST /api/v1/booking-state/cabin
+    Note over Frontend,API Gateway: Requires authentication
+    API Gateway-->>Frontend: 401 Unauthorized (or guest logs in)
+
+    alt Guest Logs In
+        Guest->>Frontend: Login
+        Frontend->>API Gateway: POST /api/v1/auth/login
+        API Gateway-->>Frontend: {access_token}
+        Frontend->>API Gateway: POST /api/v1/booking-state/cabin
+        Note over Frontend,API Gateway: With Authorization header
+        API Gateway-->>Frontend: Success
+    end
+
+    Guest->>Frontend: Select seat
+    Frontend->>API Gateway: POST /api/v1/booking-state/seat
+    Note over Frontend,API Gateway: With Authorization header
+    API Gateway-->>Frontend: Success
+
+    Guest->>Frontend: Create reservation
+    Frontend->>API Gateway: POST /api/v1/reservations
+    Note over Frontend,API Gateway: Optional auth - no token
+    API Gateway->>OptionalJwtAuthGuard: Extract user from JWT
+    OptionalJwtAuthGuard-->>API Gateway: null (no user)
+    API Gateway->>Reservation MS: Create reservation (userId=null)
+    Reservation MS->>Database: Save reservation (user_id=null)
+    Reservation MS-->>API Gateway: {reservationId, reservationCode}
+    API Gateway-->>Frontend: Reservation created
+
+    Guest->>Frontend: Fill passenger & contact info
+    Note over Guest,Frontend: Contact info REQUIRED for guest
+    Guest->>Frontend: Submit booking form
+    Frontend->>API Gateway: POST /api/v1/bookings?reservationId=xxx
+    Note over Frontend,API Gateway: Optional auth - no token, contact info required
+    API Gateway->>OptionalJwtAuthGuard: Extract user from JWT
+    OptionalJwtAuthGuard-->>API Gateway: null (no user)
+    API Gateway->>Booking MS: Create booking (userId=null, contact info required)
+    Booking MS->>Database: Create booking (user_id=null)
+    Booking MS->>Database: Create passengers (user_id=null)
+    Booking MS->>Database: Create booking segments
+    Booking MS-->>API Gateway: {bookingId, pnrCode}
+    API Gateway-->>Frontend: Booking created
+
+    Guest->>Frontend: Process payment
+    Frontend->>API Gateway: POST /api/v1/payments/bookings/:bookingId/process
+    Note over Frontend,API Gateway: Optional auth
+    API Gateway->>Payment MS: Process payment
+    Payment MS->>Database: Create payment
+    Payment MS->>Database: Update booking status = 'paid'
+    Payment MS->>Booking MS: Create tickets from booking
+    Booking MS->>Database: Create tickets
+    Booking MS->>Email MS: Send ticket confirmation email
+    Email MS-->>Guest: Email with ticket details
+    Payment MS-->>API Gateway: Payment success
+    API Gateway-->>Frontend: Payment completed
+    Frontend-->>Guest: Booking confirmed
+```
+
+## Authenticated Booking Flow
+
+### Flow: Authenticated User Creates Booking
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant API Gateway
+    participant OptionalJwtAuthGuard
+    participant Reservation MS
+    participant Booking MS
+    participant Payment MS
+    participant Email MS
+    participant Database
+
+    Note over User,Database: Authenticated Booking Flow
+
+    User->>Frontend: Search flights (logged in)
+    Frontend->>API Gateway: GET /api/v1/search/flights
+    API Gateway-->>Frontend: Flight results
+
+    User->>Frontend: Select cabin
+    Frontend->>API Gateway: POST /api/v1/booking-state/cabin
+    Note over Frontend,API Gateway: With Authorization: Bearer token
+    API Gateway->>OptionalJwtAuthGuard: Validate JWT
+    OptionalJwtAuthGuard-->>API Gateway: {userId}
+    API Gateway-->>Frontend: Success
+
+    User->>Frontend: Select seat
+    Frontend->>API Gateway: POST /api/v1/booking-state/seat
+    Note over Frontend,API Gateway: With Authorization: Bearer token
+    API Gateway-->>Frontend: Success
+
+    User->>Frontend: Create reservation
+    Frontend->>API Gateway: POST /api/v1/reservations
+    Note over Frontend,API Gateway: With Authorization: Bearer token
+    API Gateway->>OptionalJwtAuthGuard: Extract user from JWT
+    OptionalJwtAuthGuard-->>API Gateway: {userId}
+    API Gateway->>Reservation MS: Create reservation (userId)
+    Reservation MS->>Database: Save reservation (user_id)
+    Reservation MS-->>API Gateway: {reservationId}
+    API Gateway-->>Frontend: Reservation created
+
+    User->>Frontend: Fill passenger info (contact optional)
+    Note over User,Frontend: Contact info optional - will use user info
+    User->>Frontend: Submit booking form
+    Frontend->>API Gateway: POST /api/v1/bookings?reservationId=xxx
+    Note over Frontend,API Gateway: With Authorization: Bearer token
+    API Gateway->>OptionalJwtAuthGuard: Extract user from JWT
+    OptionalJwtAuthGuard-->>API Gateway: {userId}
+    API Gateway->>Booking MS: Create booking (userId, contact info optional)
+    Booking MS->>Database: Get user info
+    Booking MS->>Database: Create booking (user_id)
+    Booking MS->>Database: Create/reuse passengers (user_id)
+    Booking MS->>Database: Create booking segments
+    Booking MS-->>API Gateway: {bookingId, pnrCode}
+    API Gateway-->>Frontend: Booking created
+
+    User->>Frontend: Process payment
+    Frontend->>API Gateway: POST /api/v1/payments/bookings/:bookingId/process
+    Note over Frontend,API Gateway: With Authorization: Bearer token
+    API Gateway->>Payment MS: Process payment
+    Payment MS->>Database: Create payment
+    Payment MS->>Database: Update booking status = 'paid'
+    Payment MS->>Booking MS: Create tickets from booking
+    Booking MS->>Database: Create tickets
+    Booking MS->>Email MS: Send ticket confirmation email
+    Email MS-->>User: Email with ticket details
+    Payment MS-->>API Gateway: Payment success
+    API Gateway-->>Frontend: Payment completed
+    Frontend-->>User: Booking confirmed
+```
