@@ -144,23 +144,40 @@ export class BookingStateController {
 		@Body() dto: SaveSeatSelectionDto,
 	): Promise<{ success: boolean; message: string; sessionId?: string }> {
 		const userId = req.user?.userId || null;
-		const isGuest = !userId;
+		const sessionId = sessionIdHeader || null;
 		
-		// For guest users, get session ID from header (required)
-		let sessionId: string | null = null;
-		if (isGuest) {
-			if (!sessionIdHeader) {
+		// BEST PRACTICE: Try to find booking state with both userId and sessionId
+		// This handles cases where JWT token expires between cabin and seat selection
+		// Priority: userId (authenticated) > sessionId (guest)
+		let identifier: string;
+		let isGuest: boolean;
+		let fallbackIdentifier: string | undefined;
+		let fallbackIsGuest: boolean | undefined;
+		
+		if (userId) {
+			// User is authenticated - try with userId first
+			identifier = userId;
+			isGuest = false;
+			
+			// If have sessionId, use it as fallback
+			if (sessionId) {
+				fallbackIdentifier = sessionId;
+				fallbackIsGuest = true;
+			}
+		} else {
+			// User is guest - sessionId is required
+			if (!sessionId) {
 				throw new BadRequestException('X-Session-Id header is required for guest users. Please provide the session ID from the cabin selection response.');
 			}
-			sessionId = sessionIdHeader;
+			identifier = sessionId;
+			isGuest = true;
 		}
-		
-		const identifier = userId || sessionId!;
 		
 		try {
 			// BEST PRACTICE: Validate seat before saving to booking state
 			// This provides early validation feedback to users
-			await this.validateSeatSelection(dto, identifier, isGuest);
+			// Pass fallback identifier to try both userId and sessionId if needed
+			await this.validateSeatSelection(dto, identifier, isGuest, fallbackIdentifier, fallbackIsGuest);
 			
 			const result = await this.bookingStateService.saveSeatSelection(identifier, dto, isGuest);
 			
@@ -184,9 +201,23 @@ export class BookingStateController {
 	 * Validate seat selection before saving to booking state
 	 * Business logic: Ensures seat exists, is available, belongs to correct flight instance, and matches cabin class
 	 */
-	private async validateSeatSelection(dto: SaveSeatSelectionDto, identifier: string, isGuest: boolean = false): Promise<void> {
+	private async validateSeatSelection(
+		dto: SaveSeatSelectionDto, 
+		identifier: string, 
+		isGuest: boolean = false,
+		fallbackIdentifier?: string,
+		fallbackIsGuest?: boolean
+	): Promise<void> {
 		// 1. Get booking state to check cabin selection
-		const bookingState = await this.bookingStateService.getBookingState(identifier, dto.flightInstanceId, isGuest);
+		// Try with primary identifier first
+		let bookingState = await this.bookingStateService.getBookingState(identifier, dto.flightInstanceId, isGuest);
+		
+		// If not found and have fallback identifier, try with fallback
+		// This handles cases where cabin was saved with different identifier (e.g., userId vs sessionId)
+		if ((!bookingState || !bookingState.cabin) && fallbackIdentifier && fallbackIsGuest !== undefined) {
+			bookingState = await this.bookingStateService.getBookingState(fallbackIdentifier, dto.flightInstanceId, fallbackIsGuest);
+		}
+		
 		if (!bookingState || !bookingState.cabin) {
 			throw new CabinNotSelectedException(dto.flightInstanceId);
 		}
