@@ -15,6 +15,8 @@ export class EmailTemplateService {
 				return this.renderOtpPaymentTemplate(data);
 			case EmailTemplate.OTP_PASSWORD_RESET:
 				return this.renderOtpPasswordResetTemplate(data);
+			case EmailTemplate.OTP_CANCELLATION:
+				return this.renderOtpCancellationTemplate(data);
 			case EmailTemplate.PAYMENT_SUCCESS:
 				return this.renderPaymentSuccessTemplate(data);
 			case EmailTemplate.PAYMENT_FAILED:
@@ -23,6 +25,8 @@ export class EmailTemplateService {
 				return this.renderBookingConfirmationTemplate(data);
 			case EmailTemplate.TICKET_CONFIRMATION:
 				return this.renderTicketConfirmationTemplate(data);
+			case EmailTemplate.BOOKING_CANCELLATION:
+				return this.renderBookingCancellationTemplate(data);
 			default:
 				throw new Error(`Unknown template: ${template}`);
 		}
@@ -504,6 +508,197 @@ Vui lòng có mặt tại sân bay đúng giờ để làm thủ tục check-in.
 Đối với chuyến bay quốc tế, vui lòng có mặt trước giờ khởi hành ít nhất 3 giờ.
 
 Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi.`;
+
+		return { subject, htmlBody, textBody };
+	}
+
+	/**
+	 * Render OTP Cancellation template
+	 */
+	private renderOtpCancellationTemplate(data: Record<string, any>): TemplateResult {
+		const otp = data.otp || 'N/A';
+		const expiresIn = data.expiresIn || '15 minutes';
+
+		const subject = 'Xác thực hủy vé - OTP Code';
+		const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<style>
+		body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+		.container { max-width: 600px; margin: 0 auto; padding: 20px; }
+		.header { background-color: #dc3545; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+		.content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
+		.otp-box { background-color: white; border: 2px solid #dc3545; padding: 20px; text-align: center; margin: 20px 0; border-radius: 5px; }
+		.otp-code { font-size: 32px; font-weight: bold; color: #dc3545; letter-spacing: 5px; }
+		.warning { color: #dc3545; font-weight: bold; }
+		.footer { margin-top: 20px; font-size: 12px; color: #666; text-align: center; }
+	</style>
+</head>
+<body>
+	<div class="container">
+		<div class="header">
+			<h1>Xác thực hủy vé</h1>
+		</div>
+		<div class="content">
+			<p>Xin chào,</p>
+			<p>Bạn đang thực hiện thao tác hủy vé máy bay. Vui lòng sử dụng mã OTP sau để xác thực:</p>
+			<div class="otp-box">
+				<div class="otp-code">${otp}</div>
+			</div>
+			<p class="warning">⚠️ Mã OTP này có hiệu lực trong ${expiresIn}. Vui lòng không chia sẻ mã này với bất kỳ ai.</p>
+			<p>Nếu bạn không thực hiện thao tác hủy vé này, vui lòng bỏ qua email này.</p>
+			<div class="footer">
+				<p>Đây là email tự động, vui lòng không trả lời email này.</p>
+			</div>
+		</div>
+	</div>
+</body>
+</html>
+		`;
+
+		const textBody = `Xác thực hủy vé\n\nMã OTP của bạn là: ${otp}\n\nMã này có hiệu lực trong ${expiresIn}. Vui lòng không chia sẻ mã này với bất kỳ ai.`;
+
+		return { subject, htmlBody, textBody };
+	}
+
+	/**
+	 * Render Booking Cancellation template with refund information
+	 */
+	private renderBookingCancellationTemplate(data: Record<string, any>): TemplateResult {
+		const passengerName = data.passengerName || 'Quý khách';
+		const pnrCode = data.pnrCode || 'N/A';
+		const bookingId = data.bookingId || 'N/A';
+		const totalAmount = data.totalAmount || 0;
+		const refundAmount = data.refundAmount || 0;
+		const cancellationFee = data.cancellationFee || 0;
+		const currency = data.currency || 'VND';
+		const flightDetails = data.flightDetails || 'N/A';
+
+		const subject = `Xác nhận hủy vé - Mã đặt chỗ: ${pnrCode}`;
+		const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<style>
+		body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+		.container { max-width: 600px; margin: 0 auto; padding: 20px; }
+		.header { background-color: #dc3545; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+		.content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
+		.info-box { background-color: white; padding: 20px; margin: 20px 0; border-radius: 5px; border-left: 4px solid #dc3545; }
+		.info-row { margin: 10px 0; display: flex; justify-content: space-between; }
+		.label { font-weight: bold; color: #666; }
+		.value { color: #333; }
+		.refund-box { background-color: #d4edda; border: 2px solid #28a745; padding: 20px; margin: 20px 0; border-radius: 5px; }
+		.refund-amount { font-size: 24px; font-weight: bold; color: #28a745; text-align: center; margin: 10px 0; }
+		.fee-box { background-color: #fff3cd; border: 1px solid #ffc107; padding: 15px; margin: 15px 0; border-radius: 5px; }
+		.footer { margin-top: 20px; font-size: 12px; color: #666; text-align: center; }
+	</style>
+</head>
+<body>
+	<div class="container">
+		<div class="header">
+			<h1>✓ Đã hủy vé thành công</h1>
+		</div>
+		<div class="content">
+			<p>Xin chào <strong>${passengerName}</strong>,</p>
+			<p>Yêu cầu hủy vé của bạn đã được xử lý thành công. Dưới đây là thông tin chi tiết:</p>
+			
+			<div class="info-box">
+				<div class="info-row">
+					<span class="label">Mã đặt chỗ (PNR):</span>
+					<span class="value"><strong>${pnrCode}</strong></span>
+				</div>
+				<div class="info-row">
+					<span class="label">Mã booking:</span>
+					<span class="value">${bookingId}</span>
+				</div>
+				<div class="info-row">
+					<span class="label">Chi tiết chuyến bay:</span>
+				</div>
+				<div style="background-color: #f0f0f0; padding: 15px; border-radius: 5px; margin-top: 10px;">
+					${flightDetails !== 'N/A' ? flightDetails.split('\n\n').map(detail => 
+						`<div style="margin-bottom: 15px; padding: 10px; background-color: white; border-left: 3px solid #dc3545; border-radius: 3px;">
+							${detail.split('\n').map(line => `<p style="margin: 5px 0;">${line}</p>`).join('')}
+						</div>`
+					).join('') : '<p>N/A</p>'}
+				</div>
+			</div>
+
+			<div class="refund-box">
+				<h3 style="margin-top: 0; text-align: center; color: #28a745;">💰 Thông tin hoàn tiền</h3>
+				<div class="info-row">
+					<span class="label">Tổng tiền đã thanh toán:</span>
+					<span class="value">${totalAmount.toLocaleString('vi-VN')} ${currency}</span>
+				</div>
+				<div class="fee-box">
+					<div class="info-row">
+						<span class="label">Phí hủy vé:</span>
+						<span class="value" style="color: #856404;">- ${cancellationFee.toLocaleString('vi-VN')} ${currency}</span>
+					</div>
+					<div class="info-row">
+						<span class="label">Phí dịch vụ & thuế không hoàn:</span>
+						<span class="value" style="color: #856404;">- ${(totalAmount - refundAmount - cancellationFee).toLocaleString('vi-VN')} ${currency}</span>
+					</div>
+				</div>
+				<div class="refund-amount">
+					Số tiền hoàn lại: ${refundAmount.toLocaleString('vi-VN')} ${currency}
+				</div>
+				<p style="text-align: center; margin: 15px 0 0 0; color: #155724; font-size: 14px;">
+					💰 Số tiền hoàn lại sẽ được chuyển về tài khoản thanh toán của bạn trong vòng 5-7 ngày làm việc.
+				</p>
+			</div>
+
+			<div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
+				<h3 style="margin-top: 0; color: #dc3545;">📋 Lưu ý:</h3>
+				<ul style="line-height: 1.8;">
+					<li>Vé đã được hủy thành công và không thể khôi phục</li>
+					<li>Số tiền hoàn lại sẽ được chuyển về tài khoản thanh toán ban đầu</li>
+					<li>Thời gian xử lý hoàn tiền: 5-7 ngày làm việc</li>
+					<li>Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi</li>
+				</ul>
+			</div>
+
+			<p>Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi. Chúng tôi hy vọng được phục vụ bạn trong các chuyến bay tiếp theo.</p>
+			<div class="footer">
+				<p>Đây là email tự động, vui lòng không trả lời email này.</p>
+				<p>© 2025 Bamboo Airways. All rights reserved.</p>
+			</div>
+		</div>
+	</div>
+</body>
+</html>
+		`;
+
+		const textBody = `Đã hủy vé thành công
+
+Xin chào ${passengerName},
+
+Yêu cầu hủy vé của bạn đã được xử lý thành công.
+
+Mã đặt chỗ (PNR): ${pnrCode}
+Mã booking: ${bookingId}
+
+Chi tiết chuyến bay:
+${flightDetails}
+
+Thông tin hoàn tiền:
+Tổng tiền đã thanh toán: ${totalAmount.toLocaleString('vi-VN')} ${currency}
+Phí hủy vé: - ${cancellationFee.toLocaleString('vi-VN')} ${currency}
+Phí dịch vụ & thuế không hoàn: - ${(totalAmount - refundAmount - cancellationFee).toLocaleString('vi-VN')} ${currency}
+─────────────────────────────
+Số tiền hoàn lại: ${refundAmount.toLocaleString('vi-VN')} ${currency}
+
+💰 Số tiền hoàn lại sẽ được chuyển về tài khoản thanh toán của bạn trong vòng 5-7 ngày làm việc.
+
+Lưu ý:
+- Vé đã được hủy thành công và không thể khôi phục
+- Số tiền hoàn lại sẽ được chuyển về tài khoản thanh toán ban đầu
+- Thời gian xử lý hoàn tiền: 5-7 ngày làm việc
+
+Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi.`;
 
 		return { subject, htmlBody, textBody };
 	}
