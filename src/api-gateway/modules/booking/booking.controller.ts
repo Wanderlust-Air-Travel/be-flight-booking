@@ -20,6 +20,7 @@ import { UpdateBookingPassengersDto } from './dto/update-booking-passengers.dto'
 import { BookingFareDetailsResponseDto } from './dto/booking-fare-details-response.dto';
 import { BookingPaymentInfoResponseDto } from './dto/booking-payment-info-response.dto';
 import { JwtAuthGuard } from '../auth/guard/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/guard/optional-jwt-auth.guard';
 import { User } from 'src/shared/entities/user/user.entity';
 import { Passenger } from 'src/shared/entities/passenger/passenger.entity';
 import { Request } from 'express';
@@ -30,8 +31,6 @@ import { GetMyTicketsDto } from 'src/microservices/booking/dto/get-my-tickets.dt
 
 @ApiTags('bookings')
 @Controller('bookings')
-@UseGuards(JwtAuthGuard)
-@ApiBearerAuth('access-token')
 export class BookingController {
 	constructor(
 		@Inject('BOOKING_CLIENT') private readonly client: ClientProxy,
@@ -40,10 +39,11 @@ export class BookingController {
 	) {}
 
 	@Post()
+	@UseGuards(OptionalJwtAuthGuard)
 	@ApiOperation({
-		summary: 'Create a new booking from reservation',
+		summary: 'Create a new booking from reservation (Guest or Authenticated)',
 		description:
-			'Create a new flight booking from an existing reservation. This is the recommended and only supported flow. Reservation ID is REQUIRED. Returns booking ID and PNR code. Requires JWT authentication. User ID is extracted from JWT token. Contact info is optional - if not provided, will use user info from database. Direct booking without reservation is deprecated and will be removed in a future version.',
+			'Create a new flight booking from an existing reservation. Supports both guest bookings (no authentication required) and authenticated bookings. Reservation ID is REQUIRED. Returns booking ID and PNR code. If JWT token is provided, user ID is extracted from token. If no token, booking is created as guest (user_id = null). Contact info is required for guest bookings, optional for authenticated users (will use user info from database if not provided).',
 		deprecated: false,
 	})
 	@ApiQuery({
@@ -60,15 +60,14 @@ export class BookingController {
 		description: 'Invalid request parameters, reservation not found, or validation failed',
 	})
 	async createBooking(
-		@Req() req: Request & { user: { userId: string; email: string } },
+		@Req() req: Request & { user?: { userId: string; email: string } },
 		@Query('reservationId') reservationId: string,
 		@Body() dto: CreateBookingFromReservationDto,
 	): Promise<CreateBookingResponseDto> {
 		try {
-			// Extract userId from JWT token (validated by JwtAuthGuard)
-			// JWT token is validated at Gateway level, userId is extracted and sent to microservice
-			// Microservice trusts Gateway - no need to forward JWT token
-			const userId = req.user.userId;
+			// Extract userId from JWT token if available (OptionalJwtAuthGuard allows requests without token)
+			// For guest bookings, userId will be undefined/null
+			const userId = req.user?.userId || null;
 
 			// Validate reservationId is provided
 			if (!reservationId) {
@@ -80,12 +79,17 @@ export class BookingController {
 				throw new BadRequestException('Request body is required when creating booking from reservation');
 			}
 
-			// Send userId to microservice (NOT JWT token) - Best Practice: Option 2
-			// Gateway validates JWT once, extracts userId, microservice trusts Gateway
+			// For guest bookings, ensure contact info is provided
+			if (!userId && (!dto.contactFullname || !dto.contactEmail || !dto.contactPhone)) {
+				throw new BadRequestException('Contact information (fullname, email, phone) is required for guest bookings.');
+			}
+
+			// Send userId to microservice (null for guest bookings)
+			// Gateway validates JWT if present, extracts userId, microservice trusts Gateway
 			return await firstValueFrom(
 				this.client.send<CreateBookingResponseDto>(BOOKING_MS.PATTERN.CREATE_BOOKING_FROM_RESERVATION, {
 					reservationId,
-					userId, // ✅ Send userId (extracted from JWT), NOT token
+					userId, // ✅ Send userId (extracted from JWT if available), or null for guest bookings
 					dto,
 				}),
 			);
@@ -119,9 +123,10 @@ export class BookingController {
 	}
 
 	@Get(':id/fare-details')
+	@UseGuards(OptionalJwtAuthGuard)
 	@ApiOperation({
 		summary: 'Get fare details for a booking',
-		description: 'Get detailed fare information including descriptions and pricing for a specific booking.',
+		description: 'Get detailed fare information including descriptions and pricing for a specific booking. Public endpoint - no authentication required.',
 	})
 	@ApiParam({
 		name: 'id',
@@ -224,9 +229,10 @@ export class BookingController {
 	}
 
 	@Get(':id/payment-info')
+	@UseGuards(OptionalJwtAuthGuard)
 	@ApiOperation({
 		summary: 'Get payment information for a booking',
-		description: 'Get payment-related information including total amount, currency, and contact details for a booking.',
+		description: 'Get payment-related information including total amount, currency, and contact details for a booking. Public endpoint - no authentication required.',
 	})
 	@ApiParam({
 		name: 'id',
@@ -270,9 +276,11 @@ export class BookingController {
 	}
 
 	@Get('my-tickets')
+	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth('access-token')
 	@ApiOperation({
 		summary: 'Get my tickets',
-		description: 'Get all tickets booked by the authenticated user with pagination. Returns ticket details including flight information, cancellation eligibility, and booking status.',
+		description: 'Get all tickets booked by the authenticated user with pagination. Returns ticket details including flight information, cancellation eligibility, and booking status. Requires authentication.',
 	})
 	@ApiQuery({
 		name: 'page',
@@ -327,9 +335,11 @@ export class BookingController {
 	}
 
 	@Get('my-journey')
+	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth('access-token')
 	@ApiOperation({
 		summary: 'Get my journey history',
-		description: 'Get all flight journeys (bookings) made by the authenticated user. Returns journey details including origin, destination, flight information, and booking status.',
+		description: 'Get all flight journeys (bookings) made by the authenticated user. Returns journey details including origin, destination, flight information, and booking status. Requires authentication.',
 	})
 	@ApiOkResponse({
 		description: 'Journey history retrieved successfully',

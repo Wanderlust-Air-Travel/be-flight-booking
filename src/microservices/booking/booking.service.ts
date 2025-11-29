@@ -630,7 +630,7 @@ export class BookingService {
 	 */
 	async createBookingFromReservation(
 		reservationId: string,
-		userId: string,
+		userId: string | null, // null for guest bookings
 		dto: CreateBookingFromReservationDto,
 	): Promise<CreateBookingResponseDto> {
 		const queryRunner = this.dataSource.createQueryRunner();
@@ -681,7 +681,9 @@ export class BookingService {
 			}
 
 			// Step 3.5: Validate reservation ownership (if userId is stored in reservation)
-			if (reservation.userId && reservation.userId !== userId) {
+			// For guest bookings (userId is null), skip ownership validation
+			// For authenticated bookings, validate ownership
+			if (userId && reservation.userId && reservation.userId !== userId) {
 				throw new BadRequestException(
 					'Reservation does not belong to the current user. You can only create bookings from your own reservations.',
 				);
@@ -694,36 +696,52 @@ export class BookingService {
 				);
 			}
 
-			// Step 5: Get user info
-			const user = await queryRunner.manager.findOne(User, { where: { user_id: userId } });
-			if (!user) {
-				throw new NotFoundException(`User ${userId} not found`);
+			// Step 5: Get user info (if userId is provided - for authenticated bookings)
+			// For guest bookings, userId will be null/undefined
+			let user: User | null = null;
+			if (userId) {
+				user = await queryRunner.manager.findOne(User, { where: { user_id: userId } });
+				if (!user) {
+					throw new NotFoundException(`User ${userId} not found`);
+				}
 			}
 
-			// Step 6: Determine contact info (same logic as createBooking)
+			// Step 6: Determine contact info
+			// For guest bookings, contact info is REQUIRED in DTO
+			// For authenticated bookings, contact info is optional (will use user info if not provided)
 			let contactFullname = dto.contactFullname;
 			let contactEmail = dto.contactEmail;
 			let contactPhone = dto.contactPhone;
 
-			if (!contactFullname || !contactEmail || !contactPhone) {
-				if (dto.passengers && dto.passengers.length === 1 && dto.passengers[0].passengerId) {
-					const passenger = await queryRunner.manager.findOne(Passenger, {
-						where: { passenger_id: dto.passengers[0].passengerId },
-					});
+			// For guest bookings, contact info must be provided
+			if (!user) {
+				if (!contactFullname || !contactEmail || !contactPhone) {
+					throw new BadRequestException(
+						'Contact information (fullname, email, phone) is required for guest bookings.',
+					);
+				}
+			} else {
+				// For authenticated bookings, use user info as fallback
+				if (!contactFullname || !contactEmail || !contactPhone) {
+					if (dto.passengers && dto.passengers.length === 1 && dto.passengers[0].passengerId) {
+						const passenger = await queryRunner.manager.findOne(Passenger, {
+							where: { passenger_id: dto.passengers[0].passengerId },
+						});
 
-					if (passenger && passenger.user_id === userId) {
-						contactFullname = contactFullname || passenger.fullname;
-						contactEmail = contactEmail || user.email;
-						contactPhone = contactPhone || user.phone || '';
+						if (passenger && passenger.user_id === userId) {
+							contactFullname = contactFullname || passenger.fullname;
+							contactEmail = contactEmail || user.email;
+							contactPhone = contactPhone || user.phone || '';
+						} else {
+							contactFullname = contactFullname || user.fullname;
+							contactEmail = contactEmail || user.email;
+							contactPhone = contactPhone || user.phone || '';
+						}
 					} else {
 						contactFullname = contactFullname || user.fullname;
 						contactEmail = contactEmail || user.email;
 						contactPhone = contactPhone || user.phone || '';
 					}
-				} else {
-					contactFullname = contactFullname || user.fullname;
-					contactEmail = contactEmail || user.email;
-					contactPhone = contactPhone || user.phone || '';
 				}
 			}
 
@@ -822,6 +840,13 @@ export class BookingService {
 				let passenger: Passenger | null = null;
 
 				if (passengerDto.passengerId) {
+					// For guest bookings, passengerId should not be provided (passengers are created fresh)
+					if (!user) {
+						throw new BadRequestException(
+							'Cannot use existing passenger ID for guest bookings. Please provide passenger information.',
+						);
+					}
+					
 					passenger = await queryRunner.manager.findOne(Passenger, {
 						where: { passenger_id: passengerDto.passengerId },
 					});
@@ -890,9 +915,11 @@ export class BookingService {
 						passenger = existingPassenger;
 					} else {
 						// Create new passenger
+						// For guest bookings (user = null), passenger is created without user_id
+						// For authenticated bookings, passenger is linked to user
 						passenger = this.passengerRepo.create({
 							passenger_id: uuidv7(),
-							user: user,
+							user: user || null, // null for guest bookings
 							fullname: passengerDto.fullname,
 							dob: dobDate,
 							gender: passengerDto.gender,
@@ -901,7 +928,7 @@ export class BookingService {
 						});
 						passenger = await queryRunner.manager.save(passenger);
 						console.log(
-							`Created new passenger: ${passenger.passenger_id} (${passenger.fullname}, ${passenger.document_number})`,
+							`Created new passenger: ${passenger.passenger_id} (${passenger.fullname}, ${passenger.document_number}) ${user ? `for user ${user.user_id}` : 'as guest'}`,
 						);
 					}
 				}

@@ -34,9 +34,10 @@ export class BookingMsController {
 	@MessagePattern(BOOKING_MS.PATTERN.CREATE_BOOKING_FROM_RESERVATION)
 	// BEST PRACTICE: Receive userId from Gateway (NOT JWT token)
 	// Gateway validates JWT and extracts userId, microservice trusts Gateway
+	// For guest bookings, userId will be null
 	async handleCreateBookingFromReservation(payload: {
 		reservationId: string;
-		userId: string; // Receive userId (extracted by Gateway), NOT token
+		userId: string | null; // Receive userId (extracted by Gateway), or null for guest bookings
 		dto: CreateBookingFromReservationDto;
 	}): Promise<CreateBookingResponseDto> {
 		try {
