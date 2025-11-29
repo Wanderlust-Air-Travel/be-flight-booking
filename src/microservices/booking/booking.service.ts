@@ -1604,11 +1604,20 @@ export class BookingService {
 	/**
 	 * Check if a ticket can be cancelled based on Bamboo Airways rules
 	 * 
-	 * Rules:
-	 * - Domestic flights: Must cancel at least 3 hours before departure
-	 * - International flights: Must cancel at least 5 hours before departure
-	 * - Economy Saver Max / Economy Saver: Cannot be cancelled
-	 * - Other fare classes: Can be cancelled if within time limit
+	 * Quy định về thời gian hủy vé của Bamboo Airways:
+	 * - Chặng bay nội địa: Hoàn thiện thủ tục hoàn vé trước giờ khởi hành tối thiểu 03 tiếng
+	 * - Chặng bay quốc tế: Thực hiện thủ tục hoàn vé trước giờ khởi hành ít nhất 05 tiếng
+	 * 
+	 * Các hạng vé được phép hoàn (thường là):
+	 * - Economy Smart, Economy Flex
+	 * - Premium Smart, Premium Flex
+	 * - Business Smart, Business Flex
+	 * 
+	 * Các hạng vé KHÔNG được phép hoàn/hủy:
+	 * - Economy Saver Max (YSM, SMX)
+	 * - Economy Saver / Bamboo Eco
+	 * Lưu ý: Các hạng vé rẻ nhất như Economy Saver Max hoặc Economy Saver (Bamboo Eco) 
+	 * thông thường không được phép hoàn/hủy vé.
 	 */
 	private checkCancellationEligibility(
 		departureDateTime: Date,
@@ -1618,14 +1627,27 @@ export class BookingService {
 		const code = fareClassCode.toUpperCase();
 
 		// Check if fare class allows cancellation
-		// Economy Saver Max and Economy Saver cannot be cancelled
-		if (code.includes('SMX') || code.includes('SAVER') || code === 'YSM') {
+		// Economy Saver Max and Economy Saver (Bamboo Eco) cannot be cancelled
+		// These are the cheapest fare classes and typically do not allow refunds
+		if (
+			code.includes('SMX') || 
+			code.includes('SAVER') || 
+			code === 'YSM' ||
+			code.includes('ECO') ||
+			code === 'YS' // Economy Saver
+		) {
 			return {
 				canCancel: false,
 				deadline: null,
-				reason: 'Hạng vé này không được phép hoàn/hủy theo quy định của Bamboo Airways',
+				reason: 'Hạng vé này (Economy Saver Max / Economy Saver / Bamboo Eco) không được phép hoàn/hủy theo quy định của Bamboo Airways. Các hạng vé siêu tiết kiệm thông thường không được phép hoàn/hủy vé.',
 			};
 		}
+
+		// Allowed fare classes for cancellation:
+		// - Economy Smart (YS), Economy Flex (YF, YFLX)
+		// - Premium Smart (JS), Premium Flex (JF, JFLX)
+		// - Business Smart (JS), Business Flex (JF, JFLX)
+		// If fare class code doesn't match any of the non-cancellable ones above, it's allowed
 
 		// Calculate cancellation deadline
 		const now = new Date();
@@ -1639,8 +1661,8 @@ export class BookingService {
 				canCancel: false,
 				deadline,
 				reason: isDomestic
-					? 'Đã quá thời hạn hủy vé (tối thiểu 3 giờ trước giờ khởi hành cho chặng bay nội địa)'
-					: 'Đã quá thời hạn hủy vé (tối thiểu 5 giờ trước giờ khởi hành cho chặng bay quốc tế)',
+					? 'Đã quá thời hạn hủy vé. Chặng bay nội địa: Hoàn thiện thủ tục hoàn vé trước giờ khởi hành tối thiểu 03 tiếng.'
+					: 'Đã quá thời hạn hủy vé. Chặng bay quốc tế: Thực hiện thủ tục hoàn vé trước giờ khởi hành ít nhất 05 tiếng.',
 			};
 		}
 
