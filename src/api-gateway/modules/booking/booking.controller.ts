@@ -479,19 +479,35 @@ export class BookingController {
 			);
 		} catch (error: any) {
 			console.error('Cancel booking error:', error);
+			
+			// Handle NestJS exceptions (they have statusCode and message)
 			if (error?.statusCode && error?.message) {
+				// Re-throw the original exception to preserve status code and message
 				throw error;
 			}
+			
+			// Handle connection errors
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
 				throw new InternalServerErrorException('Booking microservice is not running. Please start it with: npm run start:booking:dev');
 			}
 			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
 				throw new InternalServerErrorException('Booking microservice request timeout. Please check if the service is running.');
 			}
+			
+			// Handle microservice error format (status: 'error')
 			if (error?.status === 'error' && error?.message) {
-				throw new BadRequestException(`Cancel booking failed: ${error.message}`);
+				// Extract the actual error message from microservice response
+				const errorMessage = error.message;
+				// If it's a BadRequestException from microservice, preserve the message
+				if (errorMessage.includes('Cannot cancel') || errorMessage.includes('already cancelled') || errorMessage.includes('does not belong')) {
+					throw new BadRequestException(errorMessage);
+				}
+				throw new BadRequestException(`Cancel booking failed: ${errorMessage}`);
 			}
-			throw new BadRequestException(`Cancel booking failed: ${error?.message || 'Unknown error'}`);
+			
+			// Fallback: try to extract message from error object
+			const errorMessage = error?.message || error?.error?.message || 'Unknown error';
+			throw new BadRequestException(`Cancel booking failed: ${errorMessage}`);
 		}
 	}
 }
