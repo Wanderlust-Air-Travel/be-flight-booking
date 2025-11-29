@@ -4,6 +4,54 @@ Lịch sử các thay đổi quan trọng của dự án.
 
 ## [Unreleased]
 
+### Tính năng mới (2025-12-XX)
+
+- **RabbitMQ Integration (2025-12-XX)**
+  - **Feature**: Tích hợp RabbitMQ cho asynchronous messaging và event-driven architecture
+  - **Implementation**:
+    - RabbitMQ service với automatic reconnection và connection pooling
+    - Email notifications qua RabbitMQ queue (non-blocking)
+    - Ticket creation sau payment qua RabbitMQ queue (async processing)
+    - Hybrid email client: RabbitMQ preferred, TCP fallback
+    - Management UI tại `http://localhost:15672` (admin/admin123)
+  - **Benefits**:
+    - Improved performance: Non-blocking email và ticket creation
+    - Better scalability: Message queue cho high-volume operations
+    - Resilience: Automatic reconnection và fallback mechanisms
+    - Message persistence: Durable queues với TTL
+  - **Configuration**:
+    - Environment variables: `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USER`, `RABBITMQ_PASS`
+    - Queues: `email_notifications`, `ticket_creation`
+    - Prefetch count: 10 messages per consumer
+  - **Files Changed**:
+    - `src/shared/modules/rabbitmq/` - Core RabbitMQ modules (new)
+    - `src/microservices/email/consumers/email-rabbitmq.consumer.ts` - Email consumer (new)
+    - `src/microservices/booking/consumers/ticket-rabbitmq.consumer.ts` - Ticket consumer (new)
+    - `src/shared/modules/email-client/hybrid-email-client.service.ts` - Hybrid email client (new)
+    - `src/microservices/payment/payment.service.ts` - Publish ticket creation to RabbitMQ
+    - `docker-compose.yml` - Added RabbitMQ service
+    - `package.json` - Added `amqplib` dependency
+  - **Documentation**: 
+    - Added `docs/design/RABBITMQ_INTEGRATION.md` - Comprehensive RabbitMQ integration guide
+    - Updated `README.md` - Added RabbitMQ to tech stack and features
+
+- **Payment Flow Improvements (2025-12-XX)**
+  - **Error Handling**: Cải thiện xử lý lỗi "Booking is already paid"
+    - Frontend tự động redirect đến confirmation page thay vì hiển thị error
+    - User-friendly error messages
+    - Better validation và error detection
+  - **API Route Fixes**: Sửa lỗi "paymentId path parameter is required"
+    - Hỗ trợ cả Next.js 13-14 (sync params) và Next.js 15+ (async params)
+    - Fallback: Extract paymentId từ URL path nếu params không có
+    - Improved error messages
+  - **Files Changed**:
+    - `booking/app/(page)/booking/payment/page.tsx` - Improved error handling, auto-redirect
+    - `booking/app/api/payments/[paymentId]/route.ts` - Fixed parameter extraction
+  - **User Experience**: 
+    - Seamless flow khi booking đã paid
+    - Better error messages
+    - Automatic redirects
+
 ### Tính năng mới (2025-11-28)
 
 - **Guest Booking Support (2025-11-28)**

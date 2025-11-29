@@ -10,6 +10,8 @@ http://localhost:3000
 
 **Swagger UI**: `http://localhost:3000/api-docs`
 
+**RabbitMQ Management UI**: `http://localhost:15672` (admin/admin123)
+
 ## Lưu ý quan trọng
 
 ### Xác thực
@@ -651,20 +653,30 @@ Có thể dùng `reservationId` (UUID) hoặc `reservationCode` (6 ký tự)
 ### Xử lý thanh toán
 **POST** `/api/v1/payments/bookings/:bookingId/process`
 
-**Cần đăng nhập:** Có
+**Cần đăng nhập:** Không (Optional - Guest bookings được hỗ trợ)
 
 Tạo payment và xử lý thanh toán ngay. Có thể trả về `paymentUrl` để redirect đến cổng thanh toán.
 
 **Lưu ý:**
-- Email xác nhận thanh toán được gửi tự động khi thành công/thất bại
-- Booking status tự động cập nhật thành `paid` khi thanh toán thành công
+- **Guest Bookings**: Hỗ trợ thanh toán cho guest users (không cần đăng nhập)
+- **Already Paid Handling**: Nếu booking đã được thanh toán, frontend sẽ tự động redirect đến confirmation page
+- **Email Notifications**: Email xác nhận thanh toán được gửi tự động qua RabbitMQ (async, non-blocking)
+- **Ticket Creation**: Tickets được tạo tự động sau khi payment thành công qua RabbitMQ queue (async processing)
+- **Booking Status**: Booking status tự động cập nhật thành `paid` khi thanh toán thành công
+- **Error Handling**: 
+  - "Booking is already paid" → Frontend tự động redirect đến confirmation
+  - Improved error messages cho better user experience
 
 ---
 
 ### Xem thông tin payment
 **GET** `/api/v1/payments/:id`
 
-**Cần đăng nhập:** Có
+**Cần đăng nhập:** Không (Optional - Guest bookings được hỗ trợ)
+
+**Lưu ý:**
+- Guest users có thể xem payment details của booking của họ (không cần đăng nhập)
+- Payment ownership được validate dựa trên booking ownership
 
 ---
 
@@ -685,6 +697,44 @@ Tạo payment và xử lý thanh toán ngay. Có thể trả về `paymentUrl` �
 **Lưu ý:**
 - Bao gồm cả one-way và round-trip deals
 - Giá được tính từ dữ liệu booking có sẵn
+
+---
+
+## RabbitMQ Integration
+
+### Overview
+Hệ thống sử dụng RabbitMQ cho asynchronous messaging và event-driven architecture.
+
+**Benefits:**
+- **Non-blocking Operations**: Email notifications và ticket creation được xử lý async
+- **Better Performance**: Payment và booking operations không bị block bởi email/ticket creation
+- **Scalability**: Message queue cho phép xử lý high-volume operations
+- **Resilience**: Automatic reconnection và fallback mechanisms
+
+**Configuration:**
+- **Management UI**: `http://localhost:15672` (admin/admin123)
+- **Environment Variables**:
+  - `RABBITMQ_HOST`: RabbitMQ host (default: localhost)
+  - `RABBITMQ_PORT`: RabbitMQ port (default: 5672)
+  - `RABBITMQ_USER`: RabbitMQ username (default: admin)
+  - `RABBITMQ_PASS`: RabbitMQ password (default: admin123)
+  - `RABBITMQ_QUEUE_EMAIL`: Email notifications queue (default: email_notifications)
+  - `RABBITMQ_QUEUE_TICKET`: Ticket creation queue (default: ticket_creation)
+
+**Queues:**
+- `email_notifications`: Durable queue cho email notifications (payment success/failed, ticket confirmation)
+- `ticket_creation`: Durable queue cho ticket creation sau payment thành công
+
+**Flow:**
+1. Payment thành công → Publish message to `ticket_creation` queue
+2. Payment thành công/thất bại → Publish message to `email_notifications` queue
+3. Consumers xử lý messages async (non-blocking)
+4. Fallback: Nếu RabbitMQ không available, hệ thống tự động fallback sang TCP communication
+
+**Lưu ý:**
+- RabbitMQ integration là transparent cho frontend - API contracts không thay đổi
+- Email và ticket creation vẫn hoạt động bình thường, chỉ cải thiện performance
+- RabbitMQ service tự động reconnect nếu connection bị mất
 
 ---
 
@@ -712,7 +762,13 @@ Tạo payment và xử lý thanh toán ngay. Có thể trả về `paymentUrl` �
 - `otp_password_reset` - OTP đặt lại mật khẩu
 - `payment_success` - Xác nhận thanh toán thành công
 - `payment_failed` - Thông báo thanh toán thất bại
-- `booking_confirmation` - Xác nhận đặt chỗ
+- `ticket_confirmation` - Xác nhận vé với chi tiết đầy đủ (seat, cabin class, flight details, check-in time)
+
+**Lưu ý:**
+- **RabbitMQ Integration**: Emails được gửi qua RabbitMQ queue (async, non-blocking)
+- **Fallback Mechanism**: Nếu RabbitMQ không available, hệ thống tự động fallback sang TCP communication
+- **Email Queue**: `email_notifications` queue với durable messages và automatic retry
+- **Performance**: Non-blocking email sending cải thiện response time cho payment và booking operations
 
 ---
 

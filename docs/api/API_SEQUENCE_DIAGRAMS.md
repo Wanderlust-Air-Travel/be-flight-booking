@@ -296,15 +296,102 @@ sequenceDiagram
 
     User->>Frontend: Process payment
     Frontend->>API Gateway: POST /api/v1/payments/bookings/:bookingId/process
-    Note over Frontend,API Gateway: With Authorization: Bearer token
+    Note over Frontend,API Gateway: With Authorization: Bearer token (optional for guest)
     API Gateway->>Payment MS: Process payment
     Payment MS->>Database: Create payment
     Payment MS->>Database: Update booking status = 'paid'
-    Payment MS->>Booking MS: Create tickets from booking
-    Booking MS->>Database: Create tickets
-    Booking MS->>Email MS: Send ticket confirmation email
-    Email MS-->>User: Email with ticket details
-    Payment MS-->>API Gateway: Payment success
+    
+    Note over Payment MS,RabbitMQ: Async processing via RabbitMQ
+    Payment MS->>RabbitMQ: Publish ticket creation message
+    Payment MS->>RabbitMQ: Publish email notification
+    Payment MS-->>API Gateway: Payment success (non-blocking)
     API Gateway-->>Frontend: Payment completed
+    
+    RabbitMQ->>Booking MS: Consume ticket creation message
+    Booking MS->>Database: Create tickets
+    
+    RabbitMQ->>Email MS: Consume email notification
+    Email MS-->>User: Email with ticket details (async)
+    
     Frontend-->>User: Booking confirmed
+```
+
+## Payment Flow with RabbitMQ (Async Processing)
+
+### Flow: Payment Processing with RabbitMQ Integration
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant API Gateway
+    participant Payment MS
+    participant RabbitMQ
+    participant Booking MS
+    participant Email MS
+    participant Database
+
+    User->>Frontend: Click "Pay Now"
+    Frontend->>API Gateway: POST /api/v1/payments/bookings/:bookingId/process
+    Note over Frontend,API Gateway: Optional auth (guest/authenticated)
+    
+    API Gateway->>Payment MS: Process payment (userId or null)
+    Payment MS->>Database: Begin transaction
+    Payment MS->>Database: Create payment record
+    Payment MS->>Database: Update booking status = 'paid'
+    Payment MS->>Database: Commit transaction
+    
+    Note over Payment MS,RabbitMQ: Async processing (non-blocking)
+    Payment MS->>RabbitMQ: Publish ticket creation message
+    Note over Payment MS,RabbitMQ: Queue: ticket_creation
+    Payment MS->>RabbitMQ: Publish email notification
+    Note over Payment MS,RabbitMQ: Queue: email_notifications
+    
+    Payment MS-->>API Gateway: Payment success (immediate response)
+    API Gateway-->>Frontend: {paymentId, status: 'success'}
+    Frontend-->>User: Payment successful
+    
+    Note over RabbitMQ,Booking MS: Background processing
+    RabbitMQ->>Booking MS: Consume ticket creation message
+    Booking MS->>Database: Create tickets from booking
+    Booking MS->>Database: Update ticket status
+    
+    Note over RabbitMQ,Email MS: Background processing
+    RabbitMQ->>Email MS: Consume email notification
+    Email MS->>Email MS: Render email template
+    Email MS->>Email MS: Send via Gmail API
+    Email MS-->>User: Ticket confirmation email (async)
+    
+    Note over User,Database: Benefits: Non-blocking, better performance, scalability
+```
+
+## Payment Flow - Already Paid Handling
+
+### Flow: Payment Attempt for Already Paid Booking
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant API Gateway
+    participant Payment MS
+    participant Database
+
+    User->>Frontend: Click "Pay Now" (booking already paid)
+    Frontend->>API Gateway: POST /api/v1/payments/bookings/:bookingId/process
+    
+    API Gateway->>Payment MS: Process payment
+    Payment MS->>Database: Check booking status
+    Database-->>Payment MS: Booking status = 'paid'
+    
+    Payment MS-->>API Gateway: Error: "Booking is already paid"
+    API Gateway-->>Frontend: 400 Bad Request
+    
+    Note over Frontend: Smart error handling
+    Frontend->>Frontend: Detect "already paid" error
+    Frontend->>Frontend: Set status = "success"
+    Frontend->>Frontend: Show message: "Already paid, redirecting..."
+    Frontend->>Frontend: Redirect to confirmation page
+    
+    Frontend-->>User: Redirected to confirmation page
 ```
