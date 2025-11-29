@@ -1,20 +1,23 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Injectable, Logger, Inject, Optional } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import { Booking } from 'src/shared/entities/booking/booking.entity';
 import { EMAIL_MS } from 'src/microservices/email/email.messages';
 import { EmailTemplate } from 'src/shared/constants/enums';
+import { RabbitMQPublisherService } from 'src/shared/modules/rabbitmq/rabbitmq-publisher.service';
 
 /**
  * Booking Notification Service
  * Handles sending notifications for booking events via Email Microservice
+ * Uses RabbitMQ (preferred) or TCP (fallback) for async email sending
  */
 @Injectable()
 export class BookingNotificationService {
 	private readonly logger = new Logger(BookingNotificationService.name);
 
 	constructor(
-		@Inject('EMAIL_CLIENT') private readonly emailClient: ClientProxy,
+		@Optional() private readonly rabbitMQPublisher: RabbitMQPublisherService | null,
+		@Optional() @Inject('EMAIL_CLIENT') private readonly emailClient: ClientProxy | null,
 	) {}
 
 	/**
@@ -37,25 +40,42 @@ export class BookingNotificationService {
 		// Format flight details from booking segments
 		const flightDetails = this.formatFlightDetails(booking);
 
-		// Send email via Email Microservice
-		await firstValueFrom(
-			this.emailClient.send(EMAIL_MS.PATTERN.SEND_EMAIL, {
-				to: emailAddress,
-				template: EmailTemplate.BOOKING_CONFIRMATION,
-				templateData: {
-					pnrCode: booking.pnr_code,
-					bookingId: booking.booking_id,
-					totalAmount: booking.total_amount,
-					currency: booking.currency.currency_code,
-					passengerName,
-					flightDetails,
-				},
-			}),
-		);
+		// Send email via RabbitMQ (preferred) or TCP (fallback)
+		const emailDto = {
+			to: emailAddress,
+			template: EmailTemplate.TICKET_CONFIRMATION,
+			templateData: {
+				pnrCode: booking.pnr_code,
+				bookingId: booking.booking_id,
+				totalAmount: booking.total_amount,
+				currency: booking.currency.currency_code,
+				passengerName,
+				flightDetails,
+			},
+		};
 
+		// Try RabbitMQ first (preferred)
+		if (this.rabbitMQPublisher) {
+			try {
+				await this.rabbitMQPublisher.publishEmail(emailDto);
+				this.logger.log(
+					`Booking confirmation queued via RabbitMQ to ${emailAddress} for booking ${booking.pnr_code}`,
+				);
+				return;
+			} catch (error: any) {
+				this.logger.warn(`RabbitMQ email publishing failed, falling back to TCP: ${error.message}`);
+			}
+		}
+
+		// Fallback to TCP
+		if (this.emailClient) {
+			await firstValueFrom(this.emailClient.send(EMAIL_MS.PATTERN.SEND_EMAIL, emailDto));
 			this.logger.log(
-				`Booking confirmation sent to ${emailAddress} for booking ${booking.pnr_code}`,
+				`Booking confirmation sent via TCP to ${emailAddress} for booking ${booking.pnr_code}`,
 			);
+		} else {
+			this.logger.error('No email client available (neither RabbitMQ nor TCP)');
+		}
 		} catch (error: any) {
 			// Log error but don't throw - notification failure shouldn't break booking flow
 			this.logger.error(
@@ -148,22 +168,39 @@ export class BookingNotificationService {
 			// Calculate check-in time (2 hours before departure for domestic, 3 hours for international)
 			const checkInTime = this.calculateCheckInTime(booking);
 
-			// Send email via Email Microservice
-			await firstValueFrom(
-				this.emailClient.send(EMAIL_MS.PATTERN.SEND_EMAIL, {
-					to: emailAddress,
-					template: EmailTemplate.TICKET_CONFIRMATION,
-					templateData: {
-						passengerName,
-						ticketDetails,
-						checkInTime,
-					},
-				}),
-			);
+			// Send email via RabbitMQ (preferred) or TCP (fallback)
+			const emailDto = {
+				to: emailAddress,
+				template: EmailTemplate.TICKET_CONFIRMATION,
+				templateData: {
+					passengerName,
+					ticketDetails,
+					checkInTime,
+				},
+			};
 
-			this.logger.log(
-				`Ticket confirmation sent to ${emailAddress} for booking ${booking.pnr_code} with ${tickets.length} tickets`,
-			);
+			// Try RabbitMQ first (preferred)
+			if (this.rabbitMQPublisher) {
+				try {
+					await this.rabbitMQPublisher.publishEmail(emailDto);
+					this.logger.log(
+						`Ticket confirmation queued via RabbitMQ to ${emailAddress} for booking ${booking.pnr_code} with ${tickets.length} tickets`,
+					);
+					return;
+				} catch (error: any) {
+					this.logger.warn(`RabbitMQ email publishing failed, falling back to TCP: ${error.message}`);
+				}
+			}
+
+			// Fallback to TCP
+			if (this.emailClient) {
+				await firstValueFrom(this.emailClient.send(EMAIL_MS.PATTERN.SEND_EMAIL, emailDto));
+				this.logger.log(
+					`Ticket confirmation sent via TCP to ${emailAddress} for booking ${booking.pnr_code} with ${tickets.length} tickets`,
+				);
+			} else {
+				this.logger.error('No email client available (neither RabbitMQ nor TCP)');
+			}
 		} catch (error: any) {
 			// Log error but don't throw - notification failure shouldn't break ticket creation flow
 			this.logger.error(

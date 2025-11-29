@@ -19,6 +19,7 @@ import { BOOKING_MS } from '../booking/booking.messages';
 import { PaymentValidationService } from './services/payment-validation.service';
 import { PaymentNotificationService } from './services/payment-notification.service';
 import { PaymentGatewayFactory } from './gateways/payment-gateway.factory';
+import { RabbitMQPublisherService } from 'src/shared/modules/rabbitmq/rabbitmq-publisher.service';
 
 @Injectable()
 export class PaymentService {
@@ -36,6 +37,7 @@ export class PaymentService {
 		private readonly validationService: PaymentValidationService,
 		private readonly notificationService: PaymentNotificationService,
 		private readonly gatewayFactory: PaymentGatewayFactory,
+		private readonly rabbitMQPublisher: RabbitMQPublisherService,
 	) {}
 
 	/**
@@ -43,7 +45,7 @@ export class PaymentService {
 	 * Phase 1: Idempotency, Amount Validation, Concurrency Control
 	 * Phase 2: Payment Expiration, Payment Method Availability
 	 */
-	async createPayment(userId: string, dto: CreatePaymentDto): Promise<PaymentResponseDto> {
+	async createPayment(userId: string | null, dto: CreatePaymentDto): Promise<PaymentResponseDto> {
 		const queryRunner = this.dataSource.createQueryRunner();
 		await queryRunner.connect();
 		await queryRunner.startTransaction();
@@ -190,7 +192,7 @@ export class PaymentService {
 	 * Process payment (integrate with payment gateway)
 	 * Phase 1: Payment Gateway Integration Structure
 	 */
-	async processPayment(userId: string, dto: CreatePaymentDto): Promise<PaymentResponseDto> {
+	async processPayment(userId: string | null, dto: CreatePaymentDto): Promise<PaymentResponseDto> {
 		const queryRunner = this.dataSource.createQueryRunner();
 		await queryRunner.connect();
 		await queryRunner.startTransaction();
@@ -228,24 +230,36 @@ export class PaymentService {
 
 			// Check if booking belongs to user (before processing payment)
 			// This is a security check to prevent unauthorized payment processing
-			if (!booking.user) {
-				this.logger.warn(
-					`Booking ${dto.bookingId} does not have a user assigned. This should not happen for authenticated users.`,
-				);
-				throw new BadRequestException(
-					'Booking does not belong to any user. Only bookings created by logged-in users can be paid.',
-				);
-			}
+			// Support both authenticated users and guest users
+			if (userId) {
+				// For authenticated users, booking must have a user and match userId
+				if (!booking.user) {
+					this.logger.warn(
+						`Booking ${dto.bookingId} does not have a user assigned, but userId was provided. This should not happen.`,
+					);
+					throw new BadRequestException(
+						'Booking does not belong to any user. Please check the booking ID and payment details.',
+					);
+				}
 
-			// Normalize UUIDs for comparison (handle case sensitivity and formatting)
-			const bookingUserId = String(booking.user.user_id).toLowerCase().trim();
-			const currentUserId = String(userId).toLowerCase().trim();
+				// Normalize UUIDs for comparison (handle case sensitivity and formatting)
+				const bookingUserId = String(booking.user.user_id).toLowerCase().trim();
+				const currentUserId = String(userId).toLowerCase().trim();
 
-			if (bookingUserId !== currentUserId) {
-				this.logger.warn(
-					`Booking ownership mismatch: Booking ${dto.bookingId} belongs to user ${bookingUserId}, but current user is ${currentUserId}`,
-				);
-				throw new BadRequestException('Booking does not belong to the current user. Please check the booking ID and payment details.');
+				if (bookingUserId !== currentUserId) {
+					this.logger.warn(
+						`Booking ownership mismatch: Booking ${dto.bookingId} belongs to user ${bookingUserId}, but current user is ${currentUserId}`,
+					);
+					throw new BadRequestException('Booking does not belong to the current user. Please check the booking ID and payment details.');
+				}
+			} else {
+				// For guest users, booking should not have a user (user_id should be null)
+				if (booking.user) {
+					this.logger.warn(
+						`Booking ${dto.bookingId} belongs to user ${booking.user.user_id}, but payment request is from guest user.`,
+					);
+					throw new BadRequestException('This booking belongs to a registered user. Please log in to process payment.');
+				}
 			}
 
 			// Check if already paid (after lock)
@@ -341,36 +355,36 @@ export class PaymentService {
 
 				// PHASE 3: Create tickets after successful payment
 				// This is a critical business step: tickets are only issued after payment confirmation
-				// Note: We call this after transaction commit to avoid blocking payment processing
-				// If ticket creation fails, payment is still successful and tickets can be created later
-				// In production, you might want to use a message queue (RabbitMQ, Kafka, etc.) for this
+				// We use RabbitMQ for async ticket creation to avoid blocking payment processing
 				const bookingIdForTickets = payment.booking.booking_id;
 				
-				// Commit transaction first, then create tickets asynchronously
+				// Commit transaction first, then publish ticket creation message to RabbitMQ
 				await queryRunner.commitTransaction();
 				
-				// Create tickets after commit (non-blocking, fire and forget)
-				// Use setTimeout to ensure this runs after the function returns
-				setTimeout(async () => {
-					try {
-						await firstValueFrom(
-							this.bookingClient.send(BOOKING_MS.PATTERN.CREATE_TICKETS_FROM_BOOKING, {
-								bookingId: bookingIdForTickets,
-							}),
-						);
-						this.logger.log(`Tickets created successfully for booking ${bookingIdForTickets}`);
-					} catch (ticketError: any) {
-						// Log error but don't fail the payment - tickets can be created later via retry mechanism
-						this.logger.error(
-							`Failed to create tickets for booking ${bookingIdForTickets}: ${ticketError?.message || ticketError}`,
-							ticketError?.stack,
-						);
-						// In production, you might want to:
-						// 1. Queue this for retry
-						// 2. Send alert to operations team
-						// 3. Mark booking with a flag for manual ticket creation
-					}
-				}, 0);
+				// Publish ticket creation message to RabbitMQ (non-blocking, fire and forget)
+				// If RabbitMQ is unavailable, fallback to direct TCP call
+				try {
+					await this.rabbitMQPublisher.publishTicketCreation({ bookingId: bookingIdForTickets });
+					this.logger.log(`Ticket creation message published to RabbitMQ for booking ${bookingIdForTickets}`);
+				} catch (rabbitMQError: any) {
+					this.logger.warn(`RabbitMQ not available, falling back to direct TCP call: ${rabbitMQError.message}`);
+					// Fallback to direct TCP call
+					setTimeout(async () => {
+						try {
+							await firstValueFrom(
+								this.bookingClient.send(BOOKING_MS.PATTERN.CREATE_TICKETS_FROM_BOOKING, {
+									bookingId: bookingIdForTickets,
+								}),
+							);
+							this.logger.log(`Tickets created successfully for booking ${bookingIdForTickets}`);
+						} catch (ticketError: any) {
+							this.logger.error(
+								`Failed to create tickets for booking ${bookingIdForTickets}: ${ticketError?.message || ticketError}`,
+								ticketError?.stack,
+							);
+						}
+					}, 0);
+				}
 			} else if (gatewayResponse.status === 'failed') {
 				// PHASE 3: Handle payment failure
 				// Booking status remains 'pending' - user can retry payment
@@ -442,7 +456,7 @@ export class PaymentService {
 	/**
 	 * Get payment by ID
 	 */
-	async getPayment(userId: string, paymentId: string): Promise<PaymentResponseDto> {
+	async getPayment(userId: string | null, paymentId: string): Promise<PaymentResponseDto> {
 		const payment = await this.paymentRepo.findOne({
 			where: { payment_id: paymentId },
 			relations: ['payment_method', 'currency', 'booking', 'booking.user'],
@@ -453,8 +467,17 @@ export class PaymentService {
 		}
 
 		// Check if payment belongs to user's booking
-		if (payment.booking.user?.user_id !== userId) {
-			throw new BadRequestException('Payment does not belong to the current user');
+		// Support both authenticated users and guest users
+		if (userId) {
+			// For authenticated users, booking must have a user and match userId
+			if (!payment.booking.user || payment.booking.user.user_id !== userId) {
+				throw new BadRequestException('Payment does not belong to the current user');
+			}
+		} else {
+			// For guest users, booking should not have a user (user_id should be null)
+			if (payment.booking.user) {
+				throw new BadRequestException('This payment belongs to a registered user. Please log in to view payment details.');
+			}
 		}
 
 		return this.mapToPaymentResponseDto(payment, payment.booking.pnr_code, payment.payment_method.name);
@@ -493,7 +516,7 @@ export class PaymentService {
 	 * Update payment status
 	 */
 	async updatePaymentStatus(
-		userId: string,
+		userId: string | null,
 		dto: UpdatePaymentStatusDto,
 		queryRunner?: any,
 	): Promise<PaymentResponseDto> {
@@ -508,10 +531,19 @@ export class PaymentService {
 			throw new NotFoundException(`Payment ${dto.paymentId} not found`);
 		}
 
-		// Check if payment belongs to user's booking (skip if called from webhook)
-		if (userId !== 'system' && payment.booking.user?.user_id !== userId) {
-			throw new BadRequestException('Payment does not belong to the current user');
+		// Check if payment belongs to user's booking (skip if called from webhook or guest user)
+		if (userId && userId !== 'system') {
+			// For authenticated users, check ownership
+			if (!payment.booking.user || payment.booking.user.user_id !== userId) {
+				throw new BadRequestException('Payment does not belong to the current user');
+			}
+		} else if (userId === null) {
+			// For guest users, booking should not have a user
+			if (payment.booking.user) {
+				throw new BadRequestException('This payment belongs to a registered user. Please log in to update payment status.');
+			}
 		}
+		// If userId === 'system', skip ownership check (webhook calls)
 
 		const oldStatus = payment.status;
 
@@ -538,30 +570,31 @@ export class PaymentService {
 
 			// PHASE 3: Create tickets after successful payment
 			// This is a critical business step: tickets are only issued after payment confirmation
-			// Note: This is called from updatePaymentStatus which may be called from webhook or direct update
-			// We use non-blocking approach - if ticket creation fails, payment is still successful
-			// Tickets can be created later via retry mechanism or manual intervention
-			// In production, you might want to use a message queue (RabbitMQ, Kafka, etc.) for this
+			// We use RabbitMQ for async ticket creation to avoid blocking payment processing
 			try {
-				// Call after transaction commit to avoid blocking payment processing
-				// Note: manager.connection might not have afterTransactionCommit in all contexts
-				// For webhook/direct update, we'll call it directly but handle errors gracefully
-				await firstValueFrom(
-					this.bookingClient.send(BOOKING_MS.PATTERN.CREATE_TICKETS_FROM_BOOKING, {
-						bookingId: payment.booking.booking_id,
-					}),
-				);
-				this.logger.log(`Tickets created successfully for booking ${payment.booking.booking_id}`);
-			} catch (ticketError: any) {
-				// Log error but don't fail the payment - tickets can be created later via retry mechanism
-				this.logger.error(
-					`Failed to create tickets for booking ${payment.booking.booking_id}: ${ticketError?.message || ticketError}`,
-					ticketError?.stack,
-				);
-				// In production, you might want to:
-				// 1. Queue this for retry
-				// 2. Send alert to operations team
-				// 3. Mark booking with a flag for manual ticket creation
+				await this.rabbitMQPublisher.publishTicketCreation({ bookingId: payment.booking.booking_id });
+				this.logger.log(`Ticket creation message published to RabbitMQ for booking ${payment.booking.booking_id}`);
+			} catch (rabbitMQError: any) {
+				this.logger.warn(`RabbitMQ not available, falling back to direct TCP call: ${rabbitMQError.message}`);
+				// Fallback to direct TCP call
+				try {
+					await firstValueFrom(
+						this.bookingClient.send(BOOKING_MS.PATTERN.CREATE_TICKETS_FROM_BOOKING, {
+							bookingId: payment.booking.booking_id,
+						}),
+					);
+					this.logger.log(`Tickets created successfully for booking ${payment.booking.booking_id}`);
+				} catch (ticketError: any) {
+					// Log error but don't fail the payment - tickets can be created later via retry mechanism
+					this.logger.error(
+						`Failed to create tickets for booking ${payment.booking.booking_id}: ${ticketError?.message || ticketError}`,
+						ticketError?.stack,
+					);
+					// In production, you might want to:
+					// 1. Queue this for retry
+					// 2. Send alert to operations team
+					// 3. Mark booking with a flag for manual ticket creation
+				}
 			}
 
 			// PHASE 2: Send success notification

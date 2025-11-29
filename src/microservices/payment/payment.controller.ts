@@ -27,9 +27,9 @@ export class PaymentMsController {
 	}
 
 	@MessagePattern(PAYMENT_MS.PATTERN.PROCESS_PAYMENT)
-	async handleProcessPayment(@Payload() payload: { userId: string; dto: CreatePaymentDto }) {
+	async handleProcessPayment(@Payload() payload: { userId: string | null; dto: CreatePaymentDto }) {
 		try {
-			this.logger.log(`Process payment for booking ${payload.dto.bookingId}`);
+			this.logger.log(`Process payment for booking ${payload.dto.bookingId} (${payload.userId ? 'user' : 'guest'})`);
 			const result = await this.paymentService.processPayment(payload.userId, payload.dto);
 			this.logger.log(`Payment ${result.paymentId} processed successfully`);
 			return result;
@@ -40,9 +40,9 @@ export class PaymentMsController {
 	}
 
 	@MessagePattern(PAYMENT_MS.PATTERN.GET_PAYMENT)
-	async handleGetPayment(@Payload() payload: { userId: string; paymentId: string }) {
+	async handleGetPayment(@Payload() payload: { userId: string | null; paymentId: string }) {
 		try {
-			this.logger.log(`Get payment ${payload.paymentId}`);
+			this.logger.log(`Get payment ${payload.paymentId} (${payload.userId ? 'user' : 'guest'})`);
 			const result = await this.paymentService.getPayment(payload.userId, payload.paymentId);
 			return result;
 		} catch (error: any) {

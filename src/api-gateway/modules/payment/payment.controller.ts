@@ -16,9 +16,10 @@ import { throwError } from 'rxjs';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { PaymentResponseDto } from './dto/payment-response.dto';
 import { UpdatePaymentStatusDto } from './dto/update-payment-status.dto';
-import { JwtAuthGuard } from '../auth/guard/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/guard/optional-jwt-auth.guard';
 import { Request } from 'express';
 import { PAYMENT_MS } from 'src/microservices/payment/payment.messages';
+import { JwtAuthGuard } from '../auth/guard/jwt-auth.guard';
 
 @ApiTags('payments')
 @Controller('payments')
@@ -158,12 +159,12 @@ export class PaymentController {
 	}
 
 	@Post('bookings/:bookingId/process')
-	@UseGuards(JwtAuthGuard)
+	@UseGuards(OptionalJwtAuthGuard)
 	@ApiBearerAuth('access-token')
 	@ApiOperation({
 		summary: 'Process payment for a booking',
 		description:
-			'Create and process a payment for a booking immediately. This will create a payment record and update the booking status to paid if successful. In production, this would integrate with a payment gateway. Requires JWT authentication.',
+			'Create and process a payment for a booking immediately. This will create a payment record and update the booking status to paid if successful. In production, this would integrate with a payment gateway. Supports both authenticated users and guest users.',
 	})
 	@ApiParam({
 		name: 'bookingId',
@@ -178,7 +179,7 @@ export class PaymentController {
 		description: 'Invalid request parameters, booking not found, or validation failed',
 	})
 	async processPayment(
-		@Req() req: Request & { user: { userId: string; email: string } },
+		@Req() req: Request & { user?: { userId: string; email: string } },
 		@Param('bookingId') bookingId: string,
 		@Body() dto: CreatePaymentDto,
 	): Promise<PaymentResponseDto> {
@@ -189,13 +190,15 @@ export class PaymentController {
 				throw new BadRequestException('Invalid booking ID format. Expected UUID v7.');
 			}
 			
-			const userId = req.user.userId;
+			// userId can be null for guest users
+			const userId = req.user?.userId || null;
 
 			// BEST PRACTICE: Payment processing can be slow due to payment gateway integration and database transactions
 			// Set timeout to 60 seconds (payment processing is more complex)
+			// userId can be null for guest users
 			return await firstValueFrom(
 				this.client.send<PaymentResponseDto>(PAYMENT_MS.PATTERN.PROCESS_PAYMENT, {
-					userId,
+					userId, // null for guest users
 					dto: {
 						...dto,
 						bookingId,
@@ -296,11 +299,11 @@ export class PaymentController {
 	}
 
 	@Get(':id')
-	@UseGuards(JwtAuthGuard)
+	@UseGuards(OptionalJwtAuthGuard)
 	@ApiBearerAuth('access-token')
 	@ApiOperation({
 		summary: 'Get payment by ID',
-		description: 'Get payment details by payment ID. Requires JWT authentication.',
+		description: 'Get payment details by payment ID. Supports both authenticated users and guest users.',
 	})
 	@ApiParam({
 		name: 'id',
@@ -315,7 +318,7 @@ export class PaymentController {
 		description: 'Invalid payment ID or payment not found',
 	})
 	async getPayment(
-		@Req() req: Request & { user: { userId: string; email: string } },
+		@Req() req: Request & { user?: { userId: string; email: string } },
 		@Param('id') paymentId: string,
 	): Promise<PaymentResponseDto> {
 		try {
@@ -325,7 +328,8 @@ export class PaymentController {
 				throw new BadRequestException('Invalid payment ID format. Expected UUID v7.');
 			}
 			
-			const userId = req.user.userId;
+			// userId can be null for guest users
+			const userId = req.user?.userId || null;
 
 			// BEST PRACTICE: Get payment can be slow if database is under load
 			// Set timeout to 30 seconds (read operations should be faster)

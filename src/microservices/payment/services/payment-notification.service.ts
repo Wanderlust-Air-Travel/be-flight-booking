@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Injectable, Logger, Inject, Optional } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import { Payment } from 'src/shared/entities/payment/payment.entity';
@@ -7,17 +7,20 @@ import { EMAIL_MS } from 'src/microservices/email/email.messages';
 import { EmailTemplate } from 'src/shared/constants/enums';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { RabbitMQPublisherService } from 'src/shared/modules/rabbitmq/rabbitmq-publisher.service';
 
 /**
  * Payment Notification Service
  * Handles sending notifications for payment events via Email Microservice
+ * Uses RabbitMQ (preferred) or TCP (fallback) for async email sending
  */
 @Injectable()
 export class PaymentNotificationService {
 	private readonly logger = new Logger(PaymentNotificationService.name);
 
 	constructor(
-		@Inject('EMAIL_CLIENT') private readonly emailClient: ClientProxy,
+		@Optional() private readonly rabbitMQPublisher: RabbitMQPublisherService | null,
+		@Optional() @Inject('EMAIL_CLIENT') private readonly emailClient: ClientProxy | null,
 		@InjectRepository(Booking) private readonly bookingRepo: Repository<Booking>,
 	) {}
 
@@ -64,27 +67,44 @@ export class PaymentNotificationService {
 			// Build cabin & seat details per segment/passenger
 			const seatDetails = this.formatSeatDetails(detailedBooking);
 
-			// Send email via Email Microservice
-			await firstValueFrom(
-				this.emailClient.send(EMAIL_MS.PATTERN.SEND_EMAIL, {
-					to: emailAddress,
-					template: EmailTemplate.PAYMENT_SUCCESS,
-					templateData: {
-						pnrCode: detailedBooking.pnr_code,
-						bookingId: detailedBooking.booking_id,
-						totalAmount: payment.amount,
-						currency: payment.currency.currency_code,
-						passengerName,
-						paymentMethod: payment.payment_method.name,
-						transactionRef: payment.transaction_ref,
-						seatDetails,
-					},
-				}),
-			);
+			// Send email via RabbitMQ (preferred) or TCP (fallback)
+			const emailDto = {
+				to: emailAddress,
+				template: EmailTemplate.PAYMENT_SUCCESS,
+				templateData: {
+					pnrCode: detailedBooking.pnr_code,
+					bookingId: detailedBooking.booking_id,
+					totalAmount: payment.amount,
+					currency: payment.currency.currency_code,
+					passengerName,
+					paymentMethod: payment.payment_method.name,
+					transactionRef: payment.transaction_ref,
+					seatDetails,
+				},
+			};
 
-			this.logger.log(
-				`Payment success notification sent to ${emailAddress} for booking ${booking.pnr_code}`,
-			);
+			// Try RabbitMQ first (preferred)
+			if (this.rabbitMQPublisher) {
+				try {
+					await this.rabbitMQPublisher.publishEmail(emailDto);
+					this.logger.log(
+						`Payment success notification queued via RabbitMQ to ${emailAddress} for booking ${booking.pnr_code}`,
+					);
+					return;
+				} catch (error: any) {
+					this.logger.warn(`RabbitMQ email publishing failed, falling back to TCP: ${error.message}`);
+				}
+			}
+
+			// Fallback to TCP
+			if (this.emailClient) {
+				await firstValueFrom(this.emailClient.send(EMAIL_MS.PATTERN.SEND_EMAIL, emailDto));
+				this.logger.log(
+					`Payment success notification sent via TCP to ${emailAddress} for booking ${booking.pnr_code}`,
+				);
+			} else {
+				this.logger.error('No email client available (neither RabbitMQ nor TCP)');
+			}
 		} catch (error: any) {
 			// Log error but don't throw - notification failure shouldn't break payment flow
 			this.logger.error(
@@ -109,24 +129,41 @@ export class PaymentNotificationService {
 				return;
 			}
 
-			// Send email via Email Microservice
-			await firstValueFrom(
-				this.emailClient.send(EMAIL_MS.PATTERN.SEND_EMAIL, {
-					to: emailAddress,
-					template: EmailTemplate.PAYMENT_FAILED,
-					templateData: {
-						bookingId: booking.booking_id,
-						pnrCode: booking.pnr_code,
-						amount: payment.amount,
-						paymentMethod: payment.payment_method.name,
-						reason: reason || 'Payment processing failed',
-					},
-				}),
-			);
+			// Send email via RabbitMQ (preferred) or TCP (fallback)
+			const emailDto = {
+				to: emailAddress,
+				template: EmailTemplate.PAYMENT_FAILED,
+				templateData: {
+					bookingId: booking.booking_id,
+					pnrCode: booking.pnr_code,
+					amount: payment.amount,
+					paymentMethod: payment.payment_method.name,
+					reason: reason || 'Payment processing failed',
+				},
+			};
 
-			this.logger.log(
-				`Payment failed notification sent to ${emailAddress} for booking ${booking.pnr_code}. Reason: ${reason || 'Unknown'}`,
-			);
+			// Try RabbitMQ first (preferred)
+			if (this.rabbitMQPublisher) {
+				try {
+					await this.rabbitMQPublisher.publishEmail(emailDto);
+					this.logger.log(
+						`Payment failed notification queued via RabbitMQ to ${emailAddress} for booking ${booking.pnr_code}. Reason: ${reason || 'Unknown'}`,
+					);
+					return;
+				} catch (error: any) {
+					this.logger.warn(`RabbitMQ email publishing failed, falling back to TCP: ${error.message}`);
+				}
+			}
+
+			// Fallback to TCP
+			if (this.emailClient) {
+				await firstValueFrom(this.emailClient.send(EMAIL_MS.PATTERN.SEND_EMAIL, emailDto));
+				this.logger.log(
+					`Payment failed notification sent via TCP to ${emailAddress} for booking ${booking.pnr_code}. Reason: ${reason || 'Unknown'}`,
+				);
+			} else {
+				this.logger.error('No email client available (neither RabbitMQ nor TCP)');
+			}
 		} catch (error: any) {
 			// Log error but don't throw - notification failure shouldn't break payment flow
 			this.logger.error(

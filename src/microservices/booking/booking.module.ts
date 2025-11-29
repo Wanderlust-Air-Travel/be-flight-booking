@@ -15,9 +15,11 @@ import { Ticket } from 'src/shared/entities/ticket/ticket.entity';
 import { Route } from 'src/shared/entities/route/route.entity';
 import { Airport } from 'src/shared/entities/airport/airport.entity';
 import { EmailClientModule } from 'src/shared/modules/email-client/email-client.module';
+import { RabbitMQModule } from 'src/shared/modules/rabbitmq/rabbitmq.module';
 import { BookingService } from './booking.service';
 import { BookingMsController } from './booking.controller';
 import { BookingNotificationService } from './services/booking-notification.service';
+import { TicketRabbitMQConsumer } from './consumers/ticket-rabbitmq.consumer';
 import { RESERVATION_MS } from '../reservation/reservation.messages';
 import { EMAIL_MS } from '../email/email.messages';
 
@@ -41,6 +43,7 @@ import { EMAIL_MS } from '../email/email.messages';
 			Airport,
 		]),
 		EmailClientModule, // Add Email Client module for sending email notifications
+		RabbitMQModule, // Add RabbitMQ module for async messaging
 		ClientsModule.register([
 			{
 				name: 'RESERVATION_CLIENT',
@@ -60,7 +63,7 @@ import { EMAIL_MS } from '../email/email.messages';
 			},
 		]),
 	],
-	providers: [BookingService, BookingNotificationService],
+	providers: [BookingService, BookingNotificationService, TicketRabbitMQConsumer],
 	controllers: [BookingMsController],
 	exports: [BookingService],
 })

@@ -53,7 +53,7 @@ export class PaymentValidationService {
 	 * Validate booking for payment creation
 	 */
 	async validateBookingForPayment(
-		userId: string,
+		userId: string | null,
 		bookingId: string,
 		manager?: any,
 	): Promise<Booking> {
@@ -69,25 +69,36 @@ export class PaymentValidationService {
 		}
 
 		// Check if booking belongs to user
-		// Handle both cases: booking.user is null or booking.user.user_id doesn't match
-		if (!booking.user) {
-			this.logger.warn(
-				`Booking ${bookingId} does not have a user assigned. This should not happen for authenticated users.`,
-			);
-			throw new BadRequestException(
-				'Booking does not belong to any user. Only bookings created by logged-in users can be paid.',
-			);
-		}
+		// Support both authenticated users and guest users
+		if (userId) {
+			// For authenticated users, booking must have a user and match userId
+			if (!booking.user) {
+				this.logger.warn(
+					`Booking ${bookingId} does not have a user assigned, but userId was provided. This should not happen.`,
+				);
+				throw new BadRequestException(
+					'Booking does not belong to any user. Please check the booking ID and payment details.',
+				);
+			}
 
-		// Normalize UUIDs for comparison (handle case sensitivity and formatting)
-		const bookingUserId = String(booking.user.user_id).toLowerCase().trim();
-		const currentUserId = String(userId).toLowerCase().trim();
+			// Normalize UUIDs for comparison (handle case sensitivity and formatting)
+			const bookingUserId = String(booking.user.user_id).toLowerCase().trim();
+			const currentUserId = String(userId).toLowerCase().trim();
 
-		if (bookingUserId !== currentUserId) {
-			this.logger.warn(
-				`Booking ownership mismatch: Booking ${bookingId} belongs to user ${bookingUserId}, but current user is ${currentUserId}`,
-			);
-			throw new BadRequestException('Booking does not belong to the current user. Please check the booking ID and payment details.');
+			if (bookingUserId !== currentUserId) {
+				this.logger.warn(
+					`Booking ownership mismatch: Booking ${bookingId} belongs to user ${bookingUserId}, but current user is ${currentUserId}`,
+				);
+				throw new BadRequestException('Booking does not belong to the current user. Please check the booking ID and payment details.');
+			}
+		} else {
+			// For guest users, booking should not have a user (user_id should be null)
+			if (booking.user) {
+				this.logger.warn(
+					`Booking ${bookingId} belongs to user ${booking.user.user_id}, but payment request is from guest user.`,
+				);
+				throw new BadRequestException('This booking belongs to a registered user. Please log in to process payment.');
+			}
 		}
 
 		// Check if booking is already paid
@@ -308,7 +319,7 @@ export class PaymentValidationService {
 	 * Comprehensive validation for payment creation
 	 */
 	async validateCreatePayment(
-		userId: string,
+		userId: string | null,
 		dto: CreatePaymentDto,
 		manager?: any,
 	): Promise<{ booking: Booking; paymentMethod: PaymentMethod; amount: number }> {
