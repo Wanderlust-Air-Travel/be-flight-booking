@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Delete, Body, Param, Req, UseGuards, HttpCode, HttpStatus, BadRequestException, NotFoundException, Headers } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Body, Param, Req, UseGuards, HttpCode, HttpStatus, BadRequestException, NotFoundException, Headers, Logger } from '@nestjs/common';
 import {
 	ApiBadRequestResponse,
 	ApiOkResponse,
@@ -38,6 +38,8 @@ import { SessionHelper } from 'src/shared/utils/session-helper';
 @UseGuards(OptionalJwtAuthGuard)
 @ApiBearerAuth('access-token')
 export class BookingStateController {
+	private readonly logger = new Logger(BookingStateController.name);
+
 	constructor(
 		private readonly bookingStateService: BookingStateService,
 		@InjectRepository(FlightSeat) private readonly flightSeatRepo: Repository<FlightSeat>,
@@ -146,6 +148,9 @@ export class BookingStateController {
 		const userId = req.user?.userId || null;
 		const sessionId = sessionIdHeader || null;
 		
+		// Log for debugging
+		this.logger.log(`[saveSeatSelection] userId: ${userId}, sessionId: ${sessionId}, flightInstanceId: ${dto.flightInstanceId}`);
+		
 		// BEST PRACTICE: Try to find booking state with both userId and sessionId
 		// This handles cases where JWT token expires between cabin and seat selection
 		// Priority: userId (authenticated) > sessionId (guest)
@@ -163,14 +168,17 @@ export class BookingStateController {
 			if (sessionId) {
 				fallbackIdentifier = sessionId;
 				fallbackIsGuest = true;
+				this.logger.log(`[saveSeatSelection] Authenticated user with sessionId fallback: ${sessionId}`);
 			}
 		} else {
 			// User is guest - sessionId is required
 			if (!sessionId) {
+				this.logger.error(`[saveSeatSelection] Guest user without sessionId for flight ${dto.flightInstanceId}`);
 				throw new BadRequestException('X-Session-Id header is required for guest users. Please provide the session ID from the cabin selection response.');
 			}
 			identifier = sessionId;
 			isGuest = true;
+			this.logger.log(`[saveSeatSelection] Guest user with sessionId: ${sessionId}`);
 		}
 		
 		try {
@@ -210,17 +218,22 @@ export class BookingStateController {
 	): Promise<void> {
 		// 1. Get booking state to check cabin selection
 		// Try with primary identifier first
+		this.logger.log(`[validateSeatSelection] Trying with identifier: ${identifier}, isGuest: ${isGuest}, flightInstanceId: ${dto.flightInstanceId}`);
 		let bookingState = await this.bookingStateService.getBookingState(identifier, dto.flightInstanceId, isGuest);
 		
 		// If not found and have fallback identifier, try with fallback
 		// This handles cases where cabin was saved with different identifier (e.g., userId vs sessionId)
 		if ((!bookingState || !bookingState.cabin) && fallbackIdentifier && fallbackIsGuest !== undefined) {
+			this.logger.log(`[validateSeatSelection] Not found with primary identifier, trying fallback: ${fallbackIdentifier}, isGuest: ${fallbackIsGuest}`);
 			bookingState = await this.bookingStateService.getBookingState(fallbackIdentifier, dto.flightInstanceId, fallbackIsGuest);
 		}
 		
 		if (!bookingState || !bookingState.cabin) {
+			this.logger.error(`[validateSeatSelection] Cabin not found for identifier: ${identifier}, isGuest: ${isGuest}, flightInstanceId: ${dto.flightInstanceId}, fallback: ${fallbackIdentifier}`);
 			throw new CabinNotSelectedException(dto.flightInstanceId);
 		}
+		
+		this.logger.log(`[validateSeatSelection] Found cabin selection: ${bookingState.cabin.cabinType}, fareClass: ${bookingState.cabin.fareClassCode}`);
 
 		// 2. Validate flight instance exists
 		const flightInstance = await this.flightInstanceRepo.findOne({
