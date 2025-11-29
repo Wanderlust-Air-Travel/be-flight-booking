@@ -400,4 +400,18 @@ export class AuthService {
 			message: 'OTP verified successfully',
 		};
 	}
+
+	/**
+	 * Check if cancellation OTP has been verified
+	 */
+	async isCancellationOtpVerified(userId: string, bookingId: string): Promise<boolean> {
+		return await this.otpStorageService.isCancellationOtpVerified(userId, bookingId);
+	}
+
+	/**
+	 * Delete cancellation verification token (after successful cancellation)
+	 */
+	async deleteCancellationVerificationToken(userId: string, bookingId: string): Promise<void> {
+		await this.otpStorageService.deleteCancellationVerificationToken(userId, bookingId);
+	}
 }

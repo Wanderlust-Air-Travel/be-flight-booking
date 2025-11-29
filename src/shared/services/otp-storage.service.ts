@@ -179,6 +179,11 @@ export class OtpStorageService {
 			if (isValid) {
 				// Delete OTP after successful verification (one-time use)
 				await this.redisService.del(key);
+				
+				// Store verification token (valid for 10 minutes) to allow cancellation
+				const verificationTokenKey = `otp:cancellation:verified:${userId}:${bookingId}`;
+				await this.redisService.set(verificationTokenKey, 'verified', 10 * 60); // 10 minutes
+				
 				this.logger.log(`OTP verified successfully for cancellation: userId=${userId}, bookingId=${bookingId}`);
 			} else {
 				this.logger.warn(`Invalid OTP for cancellation: userId=${userId}, bookingId=${bookingId}`);
@@ -187,6 +192,39 @@ export class OtpStorageService {
 		} catch (error: any) {
 			this.logger.error(`Failed to verify cancellation OTP: ${error.message}`);
 			return false;
+		}
+	}
+
+	/**
+	 * Check if cancellation OTP has been verified for a booking
+	 * @param userId User ID
+	 * @param bookingId Booking ID
+	 * @returns true if OTP was verified, false otherwise
+	 */
+	async isCancellationOtpVerified(userId: string, bookingId: string): Promise<boolean> {
+		const verificationTokenKey = `otp:cancellation:verified:${userId}:${bookingId}`;
+		try {
+			const verified = await this.redisService.get<string>(verificationTokenKey);
+			return verified === 'verified';
+		} catch (error: any) {
+			this.logger.error(`Failed to check cancellation OTP verification: ${error.message}`);
+			return false;
+		}
+	}
+
+	/**
+	 * Delete cancellation verification token (after successful cancellation)
+	 * @param userId User ID
+	 * @param bookingId Booking ID
+	 */
+	async deleteCancellationVerificationToken(userId: string, bookingId: string): Promise<void> {
+		const verificationTokenKey = `otp:cancellation:verified:${userId}:${bookingId}`;
+		try {
+			await this.redisService.del(verificationTokenKey);
+			this.logger.log(`Cancellation verification token deleted: userId=${userId}, bookingId=${bookingId}`);
+		} catch (error: any) {
+			this.logger.error(`Failed to delete cancellation verification token: ${error.message}`);
+			// Don't throw - deletion is best effort
 		}
 	}
 

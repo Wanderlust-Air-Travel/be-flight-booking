@@ -488,32 +488,27 @@ export class BookingController {
 
 			// If booking is paid, OTP verification is required
 			if (booking.status === 'paid') {
-				if (!dto.otp) {
-					throw new BadRequestException('OTP is required for cancelling paid bookings. Please send OTP first using POST /api/v1/auth/otp/cancellation/send');
-				}
-
-				// Verify OTP
-				try {
-					await this.authService.verifyOtpCancellation({
-						userId,
-						bookingId,
-						otp: dto.otp,
-					});
-				} catch (otpError: any) {
-					if (otpError instanceof UnauthorizedException) {
-						throw new UnauthorizedException('Invalid or expired OTP. Please request a new OTP.');
-					}
-					throw otpError;
+				// Check if OTP has been verified (via verify endpoint)
+				const isOtpVerified = await this.authService.isCancellationOtpVerified(userId, bookingId);
+				if (!isOtpVerified) {
+					throw new BadRequestException('OTP verification is required for cancelling paid bookings. Please verify OTP first using POST /api/v1/auth/otp/cancellation/verify');
 				}
 			}
 
 			// Proceed with cancellation
-			return await firstValueFrom(
+			const result = await firstValueFrom(
 				this.client.send<{ success: boolean; message: string; refundAmount?: number; cancellationFee?: number }>(BOOKING_MS.PATTERN.CANCEL_BOOKING, {
 					bookingId,
 					userId,
 				}),
 			);
+
+			// Delete verification token after successful cancellation
+			if (booking.status === 'paid') {
+				await this.authService.deleteCancellationVerificationToken(userId, bookingId);
+			}
+
+			return result;
 		} catch (error: any) {
 			console.error('Cancel booking error:', error);
 			
