@@ -90,7 +90,7 @@ export class BookingController {
 			return await firstValueFrom(
 				this.client.send<CreateBookingResponseDto>(BOOKING_MS.PATTERN.CREATE_BOOKING_FROM_RESERVATION, {
 					reservationId,
-					userId, // ✅ Send userId (extracted from JWT if available), or null for guest bookings
+					userId, // Send userId (extracted from JWT if available), or null for guest bookings
 					dto,
 				}),
 			);
@@ -276,62 +276,8 @@ export class BookingController {
 		}
 	}
 
-	@Get(':id')
-	@UseGuards(OptionalJwtAuthGuard)
-	@ApiOperation({
-		summary: 'Get booking details by ID',
-		description: 'Get full booking details including segments, passengers, and flight information. Supports both guest and authenticated bookings. Optional authentication - guest bookings can access their bookings without login.',
-	})
-	@ApiParam({
-		name: 'id',
-		description: 'Booking ID (UUID v7)',
-		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
-	})
-	@ApiOkResponse({
-		description: 'Booking details retrieved successfully',
-		type: GetBookingResponseDto,
-	})
-	@ApiBadRequestResponse({
-		description: 'Invalid booking ID or booking not found',
-	})
-	async getBooking(
-		@Req() req: Request & { user?: { userId: string; email: string } },
-		@Param('id') bookingId: string,
-	): Promise<GetBookingResponseDto> {
-		try {
-			// Validate UUID v7 format
-			const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-			if (!uuidRegex.test(bookingId)) {
-				throw new BadRequestException('Invalid booking ID format. Expected UUID v7.');
-			}
-
-			// Extract userId from JWT token if available (OptionalJwtAuthGuard allows requests without token)
-			const userId = req.user?.userId || null;
-
-			return await firstValueFrom(
-				this.client.send<GetBookingResponseDto>(BOOKING_MS.PATTERN.GET_BOOKING, {
-					bookingId,
-					userId,
-				}),
-			);
-		} catch (error: any) {
-			console.error('Get booking error:', error);
-			if (error?.statusCode && error?.message) {
-				throw error;
-			}
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException('Booking microservice is not running. Please start it with: npm run start:booking:dev');
-			}
-			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException('Booking microservice request timeout. Please check if the service is running.');
-			}
-			if (error?.status === 'error' && error?.message) {
-				throw new BadRequestException(`Get booking failed: ${error.message}`);
-			}
-			throw new BadRequestException(`Get booking failed: ${error?.message || 'Unknown error'}`);
-		}
-	}
-
+	// IMPORTANT: Specific routes (my-tickets, my-journey) must be placed BEFORE the generic :id route
+	// to prevent routing conflicts. NestJS matches routes in order, so :id would catch "my-tickets" and "my-journey"
 	@Get('my-tickets')
 	@UseGuards(JwtAuthGuard)
 	@ApiBearerAuth('access-token')
@@ -391,6 +337,8 @@ export class BookingController {
 		}
 	}
 
+	// IMPORTANT: Specific routes (my-tickets, my-journey) must be placed BEFORE the generic :id route
+	// to prevent routing conflicts. NestJS matches routes in order, so :id would catch "my-tickets" and "my-journey"
 	@Get('my-journey')
 	@UseGuards(JwtAuthGuard)
 	@ApiBearerAuth('access-token')
@@ -424,6 +372,64 @@ export class BookingController {
 				throw new BadRequestException(`Get my journey failed: ${error.message}`);
 			}
 			throw new BadRequestException(`Get my journey failed: ${error?.message || 'Unknown error'}`);
+		}
+	}
+
+	// IMPORTANT: Generic :id route must be placed AFTER all specific routes (my-tickets, my-journey)
+	// to prevent routing conflicts. NestJS matches routes in order.
+	@Get(':id')
+	@UseGuards(OptionalJwtAuthGuard)
+	@ApiOperation({
+		summary: 'Get booking details by ID',
+		description: 'Get full booking details including segments, passengers, and flight information. Supports both guest and authenticated bookings. Optional authentication - guest bookings can access their bookings without login.',
+	})
+	@ApiParam({
+		name: 'id',
+		description: 'Booking ID (UUID v7)',
+		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+	})
+	@ApiOkResponse({
+		description: 'Booking details retrieved successfully',
+		type: GetBookingResponseDto,
+	})
+	@ApiBadRequestResponse({
+		description: 'Invalid booking ID or booking not found',
+	})
+	async getBooking(
+		@Req() req: Request & { user?: { userId: string; email: string } },
+		@Param('id') bookingId: string,
+	): Promise<GetBookingResponseDto> {
+		try {
+			// Validate UUID v7 format
+			const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+			if (!uuidRegex.test(bookingId)) {
+				throw new BadRequestException('Invalid booking ID format. Expected UUID v7.');
+			}
+
+			// Extract userId from JWT token if available (OptionalJwtAuthGuard allows requests without token)
+			const userId = req.user?.userId || null;
+
+			return await firstValueFrom(
+				this.client.send<GetBookingResponseDto>(BOOKING_MS.PATTERN.GET_BOOKING, {
+					bookingId,
+					userId,
+				}),
+			);
+		} catch (error: any) {
+			console.error('Get booking error:', error);
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+				throw new InternalServerErrorException('Booking microservice is not running. Please start it with: npm run start:booking:dev');
+			}
+			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
+				throw new InternalServerErrorException('Booking microservice request timeout. Please check if the service is running.');
+			}
+			if (error?.status === 'error' && error?.message) {
+				throw new BadRequestException(`Get booking failed: ${error.message}`);
+			}
+			throw new BadRequestException(`Get booking failed: ${error?.message || 'Unknown error'}`);
 		}
 	}
 }

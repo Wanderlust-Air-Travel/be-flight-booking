@@ -36,13 +36,27 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
 	private eventEmitter = new EventEmitter();
 
 	constructor(private readonly configService: ConfigService) {
+		// Parse prefetchCount safely to ensure it's always a valid number
+		const prefetchCountRaw = this.configService.get<string | number>('RABBITMQ_PREFETCH_COUNT', '10');
+		let prefetchCount: number;
+		if (typeof prefetchCountRaw === 'number') {
+			prefetchCount = isNaN(prefetchCountRaw) ? 10 : prefetchCountRaw;
+		} else {
+			const parsed = parseInt(prefetchCountRaw, 10);
+			prefetchCount = isNaN(parsed) ? 10 : parsed;
+		}
+		// Ensure prefetchCount is positive
+		if (prefetchCount <= 0) {
+			prefetchCount = 10;
+		}
+
 		this.config = {
 			host: this.configService.get<string>('RABBITMQ_HOST', 'localhost'),
 			port: this.configService.get<number>('RABBITMQ_PORT', 5672),
 			username: this.configService.get<string>('RABBITMQ_USER', 'admin'),
 			password: this.configService.get<string>('RABBITMQ_PASS', 'admin123'),
 			vhost: this.configService.get<string>('RABBITMQ_VHOST', '/'),
-			prefetchCount: this.configService.get<number>('RABBITMQ_PREFETCH_COUNT', 10),
+			prefetchCount,
 		};
 	}
 
@@ -160,7 +174,16 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
 		}
 
 		const channel = await (this.connection as any).createChannel();
-		await channel.prefetch(this.config.prefetchCount);
+		
+		// Ensure prefetchCount is a valid positive number before calling prefetch
+		const prefetchCount = Number(this.config.prefetchCount);
+		if (isNaN(prefetchCount) || prefetchCount <= 0) {
+			this.logger.warn(`Invalid prefetchCount: ${this.config.prefetchCount}, using default: 10`);
+			await channel.prefetch(10);
+		} else {
+			await channel.prefetch(prefetchCount);
+		}
+		
 		this.channels.set(channelName, channel);
 
 		channel.on('error', (err) => {
