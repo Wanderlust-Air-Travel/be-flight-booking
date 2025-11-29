@@ -162,5 +162,18 @@ export class BookingMsController {
 			throw error;
 		}
 	}
+
+	@MessagePattern(BOOKING_MS.PATTERN.CANCEL_BOOKING)
+	async handleCancelBooking(payload: { bookingId: string; userId: string }): Promise<{ success: boolean; message: string }> {
+		try {
+			this.logger.log(`Cancel booking: ${payload.bookingId}, userId: ${payload.userId}`);
+			const result = await this.bookingService.cancelBooking(payload.bookingId, payload.userId);
+			this.logger.log(`Booking ${payload.bookingId} cancelled successfully`);
+			return result;
+		} catch (error: any) {
+			this.logger.error('Cancel booking error:', error);
+			throw error;
+		}
+	}
 }
 

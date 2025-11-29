@@ -432,5 +432,67 @@ export class BookingController {
 			throw new BadRequestException(`Get booking failed: ${error?.message || 'Unknown error'}`);
 		}
 	}
+
+	@Patch(':id/cancel')
+	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth('access-token')
+	@ApiOperation({
+		summary: 'Cancel a booking',
+		description: 'Cancel a confirmed or pending booking. Only authenticated users can cancel their own bookings. Checks cancellation eligibility based on fare class and time limits. Requires authentication.',
+	})
+	@ApiParam({
+		name: 'id',
+		description: 'Booking ID (UUID v7)',
+		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+	})
+	@ApiOkResponse({
+		description: 'Booking cancelled successfully',
+		schema: {
+			type: 'object',
+			properties: {
+				success: { type: 'boolean', example: true },
+				message: { type: 'string', example: 'Booking cancelled successfully' },
+			},
+		},
+	})
+	@ApiBadRequestResponse({
+		description: 'Invalid booking ID, booking cannot be cancelled, or cancellation deadline passed',
+	})
+	async cancelBooking(
+		@Req() req: Request & { user: { userId: string; email: string } },
+		@Param('id') bookingId: string,
+	): Promise<{ success: boolean; message: string }> {
+		try {
+			// Validate UUID v7 format
+			const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+			if (!uuidRegex.test(bookingId)) {
+				throw new BadRequestException('Invalid booking ID format. Expected UUID v7.');
+			}
+
+			const userId = req.user.userId;
+
+			return await firstValueFrom(
+				this.client.send<{ success: boolean; message: string }>(BOOKING_MS.PATTERN.CANCEL_BOOKING, {
+					bookingId,
+					userId,
+				}),
+			);
+		} catch (error: any) {
+			console.error('Cancel booking error:', error);
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+				throw new InternalServerErrorException('Booking microservice is not running. Please start it with: npm run start:booking:dev');
+			}
+			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
+				throw new InternalServerErrorException('Booking microservice request timeout. Please check if the service is running.');
+			}
+			if (error?.status === 'error' && error?.message) {
+				throw new BadRequestException(`Cancel booking failed: ${error.message}`);
+			}
+			throw new BadRequestException(`Cancel booking failed: ${error?.message || 'Unknown error'}`);
+		}
+	}
 }
 

@@ -1650,5 +1650,111 @@ export class BookingService {
 			reason: null,
 		};
 	}
+
+	/**
+	 * Cancel a booking
+	 * 
+	 * Rules:
+	 * - Only authenticated users can cancel their own bookings
+	 * - Guest bookings cannot be cancelled (need to contact support)
+	 * - Booking must be in 'confirmed' or 'pending' status
+	 * - Must check cancellation eligibility before cancelling
+	 * - Updates booking status to 'cancelled'
+	 */
+	async cancelBooking(bookingId: string, userId: string): Promise<{ success: boolean; message: string }> {
+		const queryRunner = this.dataSource.createQueryRunner();
+		await queryRunner.connect();
+		await queryRunner.startTransaction();
+
+		try {
+			// Find booking with relations
+			const booking = await queryRunner.manager.findOne(Booking, {
+				where: { booking_id: bookingId },
+				relations: ['user', 'booking_segments', 'booking_segments.flight_instance', 'booking_segments.fare_class', 'booking_segments.flight_instance.flight_schedule', 'booking_segments.flight_instance.flight_schedule.route'],
+			});
+
+			if (!booking) {
+				throw new NotFoundException(`Booking ${bookingId} not found`);
+			}
+
+			// Validate ownership - only authenticated users can cancel
+			if (!userId) {
+				throw new BadRequestException('Only authenticated users can cancel bookings. Guest bookings must contact support.');
+			}
+
+			if (!booking.user || booking.user.user_id !== userId) {
+				throw new BadRequestException('Booking does not belong to the current user');
+			}
+
+			// Check if booking is already cancelled
+			if (booking.status === 'cancelled') {
+				throw new BadRequestException('Booking is already cancelled');
+			}
+
+			// Check if booking can be cancelled (must be pending or confirmed)
+			if (booking.status !== 'pending' && booking.status !== 'confirmed') {
+				throw new BadRequestException(`Cannot cancel booking with status: ${booking.status}`);
+			}
+
+			// Check cancellation eligibility for each segment
+			if (booking.booking_segments && booking.booking_segments.length > 0) {
+				for (const segment of booking.booking_segments) {
+					const flightInstance = segment.flight_instance;
+					const fareClass = segment.fare_class;
+					const route = flightInstance?.flight_schedule?.route;
+
+					if (!flightInstance || !fareClass || !route) {
+						this.logger.warn(`Incomplete data for segment ${segment.booking_segment_id}, skipping eligibility check`);
+						continue;
+					}
+
+					const isDomestic = route.is_domestic;
+					const cancellationInfo = this.checkCancellationEligibility(
+						flightInstance.departure_datetime_local,
+						fareClass.fare_class_code,
+						isDomestic,
+					);
+
+					if (!cancellationInfo.canCancel) {
+						throw new BadRequestException(
+							cancellationInfo.reason || 'This booking cannot be cancelled due to fare class restrictions or time limits',
+						);
+					}
+				}
+			}
+
+			// Update booking status to cancelled
+			booking.status = 'cancelled';
+			booking.updated_at = new Date();
+			await queryRunner.manager.save(Booking, booking);
+
+			// Also cancel related tickets if they exist
+			const tickets = await queryRunner.manager.find(Ticket, {
+				where: { booking: { booking_id: bookingId } },
+			});
+
+			if (tickets.length > 0) {
+				for (const ticket of tickets) {
+					ticket.status = 'cancelled';
+					await queryRunner.manager.save(Ticket, ticket);
+				}
+			}
+
+			await queryRunner.commitTransaction();
+
+			this.logger.log(`Booking ${bookingId} cancelled successfully by user ${userId}`);
+
+			return {
+				success: true,
+				message: 'Booking cancelled successfully',
+			};
+		} catch (error: any) {
+			await queryRunner.rollbackTransaction();
+			this.logger.error(`Failed to cancel booking ${bookingId}: ${error.message}`, error.stack);
+			throw error;
+		} finally {
+			await queryRunner.release();
+		}
+	}
 }
 
