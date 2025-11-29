@@ -26,18 +26,27 @@ export class BookingStateRepository {
 
 	/**
 	 * Generate Redis key for booking state
-	 * Format: booking:state:{userId}:{flightInstanceId}
+	 * Format: booking:state:{userId|sessionId}:{flightInstanceId}
+	 * For authenticated users: booking:state:{userId}:{flightInstanceId}
+	 * For guest users: booking:state:guest:{sessionId}:{flightInstanceId}
 	 */
-	private generateKey(userId: string, flightInstanceId: string): string {
-		return `${this.keyPrefix}:${userId}:${flightInstanceId}`;
+	private generateKey(identifier: string, flightInstanceId: string, isGuest: boolean = false): string {
+		if (isGuest) {
+			return `${this.keyPrefix}:guest:${identifier}:${flightInstanceId}`;
+		}
+		return `${this.keyPrefix}:${identifier}:${flightInstanceId}`;
 	}
 
 	/**
 	 * Save booking state to Redis
+	 * @param identifier - User ID (authenticated) or session ID (guest)
+	 * @param flightInstanceId - Flight instance ID
+	 * @param state - Booking state to save
+	 * @param isGuest - Whether this is a guest session
 	 * @throws BookingStateStorageException if save fails
 	 */
-	async save(userId: string, flightInstanceId: string, state: BookingState): Promise<void> {
-		const key = this.generateKey(userId, flightInstanceId);
+	async save(identifier: string, flightInstanceId: string, state: BookingState, isGuest: boolean = false): Promise<void> {
+		const key = this.generateKey(identifier, flightInstanceId, isGuest);
 		
 		try {
 			const saved = await this.redisService.set(key, state, this.stateTtl);
@@ -59,10 +68,13 @@ export class BookingStateRepository {
 
 	/**
 	 * Get booking state from Redis
+	 * @param identifier - User ID (authenticated) or session ID (guest)
+	 * @param flightInstanceId - Flight instance ID
+	 * @param isGuest - Whether this is a guest session
 	 * @returns BookingState or null if not found
 	 */
-	async findOne(userId: string, flightInstanceId: string): Promise<BookingState | null> {
-		const key = this.generateKey(userId, flightInstanceId);
+	async findOne(identifier: string, flightInstanceId: string, isGuest: boolean = false): Promise<BookingState | null> {
+		const key = this.generateKey(identifier, flightInstanceId, isGuest);
 		
 		try {
 			const state = await this.redisService.get<BookingState>(key);
@@ -76,10 +88,13 @@ export class BookingStateRepository {
 
 	/**
 	 * Delete booking state from Redis
+	 * @param identifier - User ID (authenticated) or session ID (guest)
+	 * @param flightInstanceId - Flight instance ID
+	 * @param isGuest - Whether this is a guest session
 	 * @returns true if deleted, false if not found
 	 */
-	async delete(userId: string, flightInstanceId: string): Promise<boolean> {
-		const key = this.generateKey(userId, flightInstanceId);
+	async delete(identifier: string, flightInstanceId: string, isGuest: boolean = false): Promise<boolean> {
+		const key = this.generateKey(identifier, flightInstanceId, isGuest);
 		
 		try {
 			const deleted = await this.redisService.del(key);
@@ -94,11 +109,15 @@ export class BookingStateRepository {
 	}
 
 	/**
-	 * Delete all booking states for a user
+	 * Delete all booking states for a user or guest session
+	 * @param identifier - User ID (authenticated) or session ID (guest)
+	 * @param isGuest - Whether this is a guest session
 	 * @returns number of deleted keys
 	 */
-	async deleteAllByUserId(userId: string): Promise<number> {
-		const pattern = `${this.keyPrefix}:${userId}:*`;
+	async deleteAllByIdentifier(identifier: string, isGuest: boolean = false): Promise<number> {
+		const pattern = isGuest 
+			? `${this.keyPrefix}:guest:${identifier}:*`
+			: `${this.keyPrefix}:${identifier}:*`;
 		
 		try {
 			const keys = await this.redisService.keys(pattern);
@@ -110,41 +129,59 @@ export class BookingStateRepository {
 				}
 			}
 
-			this.logger.debug(`Deleted ${deleted} booking states for user: ${userId}`);
+			this.logger.debug(`Deleted ${deleted} booking states for ${isGuest ? 'guest session' : 'user'}: ${identifier}`);
 			return deleted;
 		} catch (error) {
-			this.logger.error(`Error deleting all booking states for user: ${userId}`, error instanceof Error ? error.stack : '');
+			this.logger.error(`Error deleting all booking states for ${isGuest ? 'guest session' : 'user'}: ${identifier}`, error instanceof Error ? error.stack : '');
 			return 0;
 		}
 	}
 
 	/**
-	 * Check if booking state exists
+	 * Delete all booking states for a user (backward compatibility)
+	 * @returns number of deleted keys
 	 */
-	async exists(userId: string, flightInstanceId: string): Promise<boolean> {
-		const key = this.generateKey(userId, flightInstanceId);
+	async deleteAllByUserId(userId: string): Promise<number> {
+		return this.deleteAllByIdentifier(userId, false);
+	}
+
+	/**
+	 * Check if booking state exists
+	 * @param identifier - User ID (authenticated) or session ID (guest)
+	 * @param flightInstanceId - Flight instance ID
+	 * @param isGuest - Whether this is a guest session
+	 */
+	async exists(identifier: string, flightInstanceId: string, isGuest: boolean = false): Promise<boolean> {
+		const key = this.generateKey(identifier, flightInstanceId, isGuest);
 		return await this.redisService.exists(key);
 	}
 
 	/**
 	 * Get TTL for booking state
+	 * @param identifier - User ID (authenticated) or session ID (guest)
+	 * @param flightInstanceId - Flight instance ID
+	 * @param isGuest - Whether this is a guest session
 	 * @returns TTL in seconds, -1 if no TTL, -2 if key doesn't exist
 	 */
-	async getTtl(userId: string, flightInstanceId: string): Promise<number> {
-		const key = this.generateKey(userId, flightInstanceId);
+	async getTtl(identifier: string, flightInstanceId: string, isGuest: boolean = false): Promise<number> {
+		const key = this.generateKey(identifier, flightInstanceId, isGuest);
 		return await this.redisService.ttl(key);
 	}
 
 	/**
-	 * Get all booking states for a user
+	 * Get all booking states for a user or guest session
+	 * @param identifier - User ID (authenticated) or session ID (guest)
+	 * @param isGuest - Whether this is a guest session
 	 * @returns Array of {flightInstanceId, state} pairs
 	 */
-	async findAllByUserId(userId: string): Promise<Array<{ flightInstanceId: string; state: BookingState }>> {
-		// Pattern should match: booking:state:{userId}:*
+	async findAllByIdentifier(identifier: string, isGuest: boolean = false): Promise<Array<{ flightInstanceId: string; state: BookingState }>> {
+		// Pattern should match: booking:state:{userId|guest:sessionId}:*
 		// ioredis with keyPrefix 'flight-booking:' automatically prepends it to keys
 		// But keys() pattern matching doesn't work correctly with keyPrefix, so we use raw Redis client
-		// Actual key format in Redis: flight-booking:booking:state:{userId}:{flightInstanceId}
-		const pattern = `${this.keyPrefix}:${userId}:*`;
+		// Actual key format in Redis: flight-booking:booking:state:{userId|guest:sessionId}:{flightInstanceId}
+		const pattern = isGuest
+			? `${this.keyPrefix}:guest:${identifier}:*`
+			: `${this.keyPrefix}:${identifier}:*`;
 		const fullPattern = `flight-booking:${pattern}`;
 		
 		try {
@@ -168,12 +205,20 @@ export class BookingStateRepository {
 				}
 			}
 
-			this.logger.debug(`Found ${results.length} booking states for user: ${userId}`);
+			this.logger.debug(`Found ${results.length} booking states for ${isGuest ? 'guest session' : 'user'}: ${identifier}`);
 			return results;
 		} catch (error) {
-			this.logger.error(`Error finding all booking states for user: ${userId}`, error instanceof Error ? error.stack : '');
+			this.logger.error(`Error finding all booking states for ${isGuest ? 'guest session' : 'user'}: ${identifier}`, error instanceof Error ? error.stack : '');
 			return [];
 		}
+	}
+
+	/**
+	 * Get all booking states for a user (backward compatibility)
+	 * @returns Array of {flightInstanceId, state} pairs
+	 */
+	async findAllByUserId(userId: string): Promise<Array<{ flightInstanceId: string; state: BookingState }>> {
+		return this.findAllByIdentifier(userId, false);
 	}
 }
 

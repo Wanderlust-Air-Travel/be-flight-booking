@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Req, UseGuards, HttpCode, HttpStatus, BadRequestException, InternalServerErrorException, ServiceUnavailableException, HttpException, NotFoundException } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Req, UseGuards, HttpCode, HttpStatus, BadRequestException, InternalServerErrorException, ServiceUnavailableException, HttpException, NotFoundException, Headers } from '@nestjs/common';
 import {
 	ApiBadRequestResponse,
 	ApiOkResponse,
@@ -6,20 +6,21 @@ import {
 	ApiParam,
 	ApiTags,
 	ApiBearerAuth,
+	ApiHeader,
 } from '@nestjs/swagger';
 import { ClientProxy } from '@nestjs/microservices';
 import { Inject } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { ReservationResponseDto } from './dto/reservation-response.dto';
-import { JwtAuthGuard } from '../auth/guard/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/guard/optional-jwt-auth.guard';
 import { Request } from 'express';
 import { RESERVATION_MS } from 'src/microservices/reservation/reservation.messages';
 import { ParseUUIDv7Pipe } from 'src/shared/pipes/parse-uuid-v7.pipe';
 
 @ApiTags('reservations')
 @Controller('reservations')
-@UseGuards(JwtAuthGuard)
+@UseGuards(OptionalJwtAuthGuard)
 @ApiBearerAuth('access-token')
 export class ReservationController {
 	constructor(@Inject('RESERVATION_CLIENT') private readonly client: ClientProxy) {}
@@ -29,7 +30,12 @@ export class ReservationController {
 	@ApiOperation({
 		summary: 'Create a new reservation',
 		description:
-			'Create a reservation to temporarily hold seats. Supports multi-segment for round-trip bookings. Backend stores segments array in Redis. Reservation expires after 15 minutes (configurable). Requires JWT authentication.',
+			'Create a reservation to temporarily hold seats. Supports multi-segment for round-trip bookings. Backend stores segments array in Redis. Reservation expires after 15 minutes (configurable). Supports both authenticated users and guest users (via X-Session-Id header).',
+	})
+	@ApiHeader({
+		name: 'X-Session-Id',
+		description: 'Session ID for guest users (optional, required if not authenticated)',
+		required: false,
 	})
 	@ApiOkResponse({
 		description: 'Reservation created successfully',
@@ -39,18 +45,25 @@ export class ReservationController {
 		description: 'Invalid request parameters, flight not found, or not enough seats',
 	})
 	async createReservation(
-		@Req() req: Request & { user: { userId: string; email: string } },
+		@Req() req: Request & { user?: { userId: string; email: string } },
+		@Headers('x-session-id') sessionIdHeader: string | undefined,
 		@Body() dto: CreateReservationDto,
 	): Promise<ReservationResponseDto> {
 		try {
-			// Extract userId from JWT token (validated by JwtAuthGuard)
-			// JWT token is validated at Gateway level, userId is extracted and sent to microservice
-			const userId = req.user.userId;
+			// Extract userId from JWT token (if authenticated) or use sessionId for guest users
+			const userId = req.user?.userId || null;
+			const isGuest = !userId;
 			
-			// Send userId to microservice (NOT JWT token)
+			// For guest users, sessionId is required
+			if (isGuest && !sessionIdHeader) {
+				throw new BadRequestException('X-Session-Id header is required for guest users. Please provide the session ID from the booking state response.');
+			}
+			
+			// Send userId (null for guests) and sessionId to microservice
 			return await firstValueFrom(
 				this.client.send<ReservationResponseDto>(RESERVATION_MS.PATTERN.CREATE_RESERVATION, {
-					userId, // Send userId (extracted from JWT), NOT token
+					userId, // null for guest users
+					sessionId: isGuest ? sessionIdHeader : undefined, // sessionId for guest users
 					dto,
 				}),
 			);

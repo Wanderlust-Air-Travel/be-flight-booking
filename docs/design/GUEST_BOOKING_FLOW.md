@@ -130,4 +130,3 @@ Sau khi thanh toán thành công, hệ thống tự động:
 1. **Guest Booking State**: Hỗ trợ lưu booking state (cabin/seat) cho guest users (có thể dùng session-based hoặc temporary token)
 2. **Guest Account Linking**: Cho phép guest users liên kết booking với account sau khi đăng ký
 3. **Guest Booking Lookup**: Cho phép guest users tra cứu booking bằng PNR code và email
-

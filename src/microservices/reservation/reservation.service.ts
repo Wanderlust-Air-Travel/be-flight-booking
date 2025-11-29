@@ -148,7 +148,7 @@ export class ReservationService {
 	 * 1. Save to Database (persistent)
 	 * 2. Save to Redis (cache)
 	 */
-	async createReservation(userId: string | null, dto: CreateReservationDto): Promise<ReservationResponseDto> {
+	async createReservation(userId: string | null, dto: CreateReservationDto, sessionId?: string): Promise<ReservationResponseDto> {
 		// Validate all segments
 		const validatedSegments: Array<{
 			segmentId: string;
@@ -174,16 +174,22 @@ export class ReservationService {
 			}
 
 			// Get cabin and seat selection from Redis (Backend manages state)
-			if (!userId) {
-				throw new BadRequestException('User ID is required to retrieve booking state from Redis');
+			const isGuest = !userId;
+			
+			// For guest users, sessionId is required
+			if (isGuest && !sessionId) {
+				throw new BadRequestException('Session ID is required for guest users to retrieve booking state from Redis');
 			}
-
+			
 			// Get cabin and seat selection from Redis (Backend manages state)
 			let cabinSelection, seatSelection;
 			try {
+				const identifier = userId || sessionId!;
+				
 				const selections = await this.bookingStateService.getSelectionsForReservation(
-					userId,
+					identifier,
 					segmentDto.flightInstanceId,
+					isGuest,
 				);
 				cabinSelection = selections.cabin;
 				seatSelection = selections.seat;
@@ -345,9 +351,11 @@ export class ReservationService {
 		await this.redisService.set(codeKey, reservationId, this.reservationTtl); // Map code -> id
 
 		// 4. Clear booking state from Redis after successful reservation (cleanup)
-		if (userId) {
+		if (userId || sessionId) {
+			const identifier = userId || sessionId!;
+			const isGuestUser = !userId;
 			for (const segment of validatedSegments) {
-				await this.bookingStateService.clearBookingState(userId, segment.flightInstanceId);
+				await this.bookingStateService.clearBookingState(identifier, segment.flightInstanceId, isGuestUser);
 			}
 		}
 

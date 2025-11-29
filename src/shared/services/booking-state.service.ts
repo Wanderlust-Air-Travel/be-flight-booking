@@ -7,6 +7,7 @@ import {
 	SeatNotSelectedException,
 	InvalidFareClassException,
 } from '../exceptions/booking-state.exceptions';
+import { SessionHelper } from '../utils/session-helper';
 
 /**
  * Service for managing booking state (cabin and seat selections)
@@ -23,16 +24,18 @@ export class BookingStateService {
 	 * Save cabin selection to Redis
 	 * Business logic: Validates fare class matches cabin type, then updates or creates booking state
 	 * 
-	 * @param userId - User ID
+	 * @param identifier - User ID (authenticated) or session ID (guest)
 	 * @param cabinSelection - Cabin selection data
+	 * @param isGuest - Whether this is a guest session
 	 * @returns Success response
 	 * @throws InvalidFareClassException if fare class code doesn't match cabin type
 	 */
 	async saveCabinSelection(
-		userId: string,
+		identifier: string,
 		cabinSelection: CabinSelection,
+		isGuest: boolean = false,
 	): Promise<{ success: boolean; message: string }> {
-		this.logger.log(`Saving cabin selection for user ${userId}, flight ${cabinSelection.flightInstanceId}`);
+		this.logger.log(`Saving cabin selection for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${cabinSelection.flightInstanceId}`);
 
 		// Business rule: Validate fare class code matches cabin type
 		// Economy fare classes start with 'Y' (e.g., 'YS', 'YF', 'YSM')
@@ -42,13 +45,13 @@ export class BookingStateService {
 		
 		if (!fareClassCode.startsWith(expectedPrefix)) {
 			this.logger.warn(
-				`Invalid fare class code '${fareClassCode}' for cabin type '${cabinSelection.cabinType}' for user ${userId}, flight ${cabinSelection.flightInstanceId}`
+				`Invalid fare class code '${fareClassCode}' for cabin type '${cabinSelection.cabinType}' for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${cabinSelection.flightInstanceId}`
 			);
 			throw new InvalidFareClassException(fareClassCode, cabinSelection.cabinType);
 		}
 
 		// Get existing state or create new
-		let state = await this.bookingStateRepository.findOne(userId, cabinSelection.flightInstanceId);
+		let state = await this.bookingStateRepository.findOne(identifier, cabinSelection.flightInstanceId, isGuest);
 		
 		if (!state) {
 			state = {
@@ -62,9 +65,9 @@ export class BookingStateService {
 		state.updatedAt = new Date();
 
 		// Save to Redis via repository
-		await this.bookingStateRepository.save(userId, cabinSelection.flightInstanceId, state);
+		await this.bookingStateRepository.save(identifier, cabinSelection.flightInstanceId, state, isGuest);
 
-		this.logger.log(`Cabin selection saved successfully for user ${userId}, flight ${cabinSelection.flightInstanceId}`);
+		this.logger.log(`Cabin selection saved successfully for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${cabinSelection.flightInstanceId}`);
 		
 		return {
 			success: true,
@@ -76,19 +79,21 @@ export class BookingStateService {
 	 * Save seat selection to Redis
 	 * Business logic: Validates cabin is selected first, then updates seat selection
 	 * 
-	 * @param userId - User ID
+	 * @param identifier - User ID (authenticated) or session ID (guest)
 	 * @param seatSelection - Seat selection data
+	 * @param isGuest - Whether this is a guest session
 	 * @returns Success response
 	 * @throws CabinNotSelectedException if cabin is not selected
 	 */
 	async saveSeatSelection(
-		userId: string,
+		identifier: string,
 		seatSelection: SeatSelection,
+		isGuest: boolean = false,
 	): Promise<{ success: boolean; message: string }> {
-		this.logger.log(`Saving seat selection for user ${userId}, flight ${seatSelection.flightInstanceId}`);
+		this.logger.log(`Saving seat selection for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${seatSelection.flightInstanceId}`);
 
 		// Get existing state or create new
-		let state = await this.bookingStateRepository.findOne(userId, seatSelection.flightInstanceId);
+		let state = await this.bookingStateRepository.findOne(identifier, seatSelection.flightInstanceId, isGuest);
 		
 		if (!state) {
 			state = {
@@ -99,7 +104,7 @@ export class BookingStateService {
 
 		// Business rule: Cabin must be selected before seat
 		if (!state.cabin) {
-			this.logger.warn(`Attempted to save seat without cabin for user ${userId}, flight ${seatSelection.flightInstanceId}`);
+			this.logger.warn(`Attempted to save seat without cabin for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${seatSelection.flightInstanceId}`);
 			throw new CabinNotSelectedException(seatSelection.flightInstanceId);
 		}
 
@@ -108,9 +113,9 @@ export class BookingStateService {
 		state.updatedAt = new Date();
 
 		// Save to Redis via repository
-		await this.bookingStateRepository.save(userId, seatSelection.flightInstanceId, state);
+		await this.bookingStateRepository.save(identifier, seatSelection.flightInstanceId, state, isGuest);
 
-		this.logger.log(`Seat selection saved successfully for user ${userId}, flight ${seatSelection.flightInstanceId}`);
+		this.logger.log(`Seat selection saved successfully for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${seatSelection.flightInstanceId}`);
 		
 		return {
 			success: true,
@@ -121,49 +126,52 @@ export class BookingStateService {
 	/**
 	 * Get current booking state from Redis
 	 * 
-	 * @param userId - User ID
+	 * @param identifier - User ID (authenticated) or session ID (guest)
 	 * @param flightInstanceId - Flight instance ID
+	 * @param isGuest - Whether this is a guest session
 	 * @returns BookingState or null if not found
 	 */
-	async getBookingState(userId: string, flightInstanceId: string): Promise<BookingState | null> {
-		return await this.bookingStateRepository.findOne(userId, flightInstanceId);
+	async getBookingState(identifier: string, flightInstanceId: string, isGuest: boolean = false): Promise<BookingState | null> {
+		return await this.bookingStateRepository.findOne(identifier, flightInstanceId, isGuest);
 	}
 
 	/**
 	 * Get cabin and seat selection for creating reservation
 	 * Business logic: Validates both cabin and seat are selected
 	 * 
-	 * @param userId - User ID
+	 * @param identifier - User ID (authenticated) or session ID (guest)
 	 * @param flightInstanceId - Flight instance ID
+	 * @param isGuest - Whether this is a guest session
 	 * @returns Cabin and seat selections
 	 * @throws BookingStateNotFoundException if state not found
 	 * @throws CabinNotSelectedException if cabin not selected
 	 * @throws SeatNotSelectedException if seat not selected
 	 */
 	async getSelectionsForReservation(
-		userId: string,
+		identifier: string,
 		flightInstanceId: string,
+		isGuest: boolean = false,
 	): Promise<{ cabin: CabinSelection; seat: SeatSelection }> {
-		this.logger.log(`Getting selections for reservation: user ${userId}, flight ${flightInstanceId}`);
+		this.logger.log(`Getting selections for reservation: ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${flightInstanceId}`);
 
-		const state = await this.getBookingState(userId, flightInstanceId);
+		const state = await this.getBookingState(identifier, flightInstanceId, isGuest);
 		
 		if (!state) {
-			this.logger.warn(`Booking state not found for user ${userId}, flight ${flightInstanceId}`);
+			this.logger.warn(`Booking state not found for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${flightInstanceId}`);
 			throw new BookingStateNotFoundException(flightInstanceId);
 		}
 
 		if (!state.cabin) {
-			this.logger.warn(`Cabin not selected for user ${userId}, flight ${flightInstanceId}`);
+			this.logger.warn(`Cabin not selected for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${flightInstanceId}`);
 			throw new CabinNotSelectedException(flightInstanceId);
 		}
 
 		if (!state.seat) {
-			this.logger.warn(`Seat not selected for user ${userId}, flight ${flightInstanceId}`);
+			this.logger.warn(`Seat not selected for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${flightInstanceId}`);
 			throw new SeatNotSelectedException(flightInstanceId);
 		}
 
-		this.logger.log(`Selections retrieved successfully for user ${userId}, flight ${flightInstanceId}`);
+		this.logger.log(`Selections retrieved successfully for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${flightInstanceId}`);
 		
 		return {
 			cabin: state.cabin,
@@ -174,50 +182,63 @@ export class BookingStateService {
 	/**
 	 * Clear booking state (after successful reservation or cancellation)
 	 * 
-	 * @param userId - User ID
+	 * @param identifier - User ID (authenticated) or session ID (guest)
 	 * @param flightInstanceId - Flight instance ID
+	 * @param isGuest - Whether this is a guest session
 	 * @returns true if deleted, false if not found
 	 */
-	async clearBookingState(userId: string, flightInstanceId: string): Promise<boolean> {
-		this.logger.log(`Clearing booking state for user ${userId}, flight ${flightInstanceId}`);
-		return await this.bookingStateRepository.delete(userId, flightInstanceId);
+	async clearBookingState(identifier: string, flightInstanceId: string, isGuest: boolean = false): Promise<boolean> {
+		this.logger.log(`Clearing booking state for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${flightInstanceId}`);
+		return await this.bookingStateRepository.delete(identifier, flightInstanceId, isGuest);
 	}
 
 	/**
-	 * Clear all booking states for a user (cleanup)
+	 * Clear all booking states for a user or guest session (cleanup)
+	 * 
+	 * @param identifier - User ID (authenticated) or session ID (guest)
+	 * @param isGuest - Whether this is a guest session
+	 * @returns Number of deleted states
+	 */
+	async clearAllStates(identifier: string, isGuest: boolean = false): Promise<number> {
+		this.logger.log(`Clearing all booking states for ${isGuest ? 'guest session' : 'user'} ${identifier}`);
+		return await this.bookingStateRepository.deleteAllByIdentifier(identifier, isGuest);
+	}
+
+	/**
+	 * Clear all booking states for a user (backward compatibility)
 	 * 
 	 * @param userId - User ID
 	 * @returns Number of deleted states
 	 */
 	async clearAllUserStates(userId: string): Promise<number> {
-		this.logger.log(`Clearing all booking states for user ${userId}`);
-		return await this.bookingStateRepository.deleteAllByUserId(userId);
+		return this.clearAllStates(userId, false);
 	}
 
 	/**
 	 * Check if booking state exists
 	 */
-	async exists(userId: string, flightInstanceId: string): Promise<boolean> {
-		return await this.bookingStateRepository.exists(userId, flightInstanceId);
+	async exists(identifier: string, flightInstanceId: string, isGuest: boolean = false): Promise<boolean> {
+		return await this.bookingStateRepository.exists(identifier, flightInstanceId, isGuest);
 	}
 
 	/**
 	 * Get TTL for booking state
 	 */
-	async getTtl(userId: string, flightInstanceId: string): Promise<number> {
-		return await this.bookingStateRepository.getTtl(userId, flightInstanceId);
+	async getTtl(identifier: string, flightInstanceId: string, isGuest: boolean = false): Promise<number> {
+		return await this.bookingStateRepository.getTtl(identifier, flightInstanceId, isGuest);
 	}
 
 	/**
-	 * Get all booking states for a user
+	 * Get all booking states for a user or guest session
 	 * Useful for frontend to get flightInstanceId without storing in session
 	 * 
-	 * @param userId - User ID
+	 * @param identifier - User ID (authenticated) or session ID (guest)
+	 * @param isGuest - Whether this is a guest session
 	 * @returns Array of booking states with flightInstanceId
 	 */
-	async getAllBookingStates(userId: string): Promise<Array<{ flightInstanceId: string; state: BookingState }>> {
-		this.logger.log(`Getting all booking states for user ${userId}`);
-		return await this.bookingStateRepository.findAllByUserId(userId);
+	async getAllBookingStates(identifier: string, isGuest: boolean = false): Promise<Array<{ flightInstanceId: string; state: BookingState }>> {
+		this.logger.log(`Getting all booking states for ${isGuest ? 'guest session' : 'user'} ${identifier}`);
+		return await this.bookingStateRepository.findAllByIdentifier(identifier, isGuest);
 	}
 }
 

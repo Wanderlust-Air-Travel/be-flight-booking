@@ -14,8 +14,10 @@ export class ReservationMsController {
 	@MessagePattern(RESERVATION_MS.PATTERN.CREATE_RESERVATION)
 	// Receive userId from Gateway (NOT JWT token)
 	// Gateway validates JWT and extracts userId, microservice trusts Gateway
+	// For guest users, sessionId is provided instead of userId
 	async handleCreateReservation(payload: {
-		userId: string | null; // Receive userId (extracted by Gateway), NOT token
+		userId: string | null; // Receive userId (extracted by Gateway), null for guest users
+		sessionId?: string; // Session ID for guest users
 		dto: CreateReservationDto;
 	}): Promise<ReservationResponseDto> {
 		try {
@@ -23,9 +25,9 @@ export class ReservationMsController {
 				.map((seg) => `${seg.flightInstanceId} (${seg.segmentType})`)
 				.join(', ');
 			this.logger.log(
-				`Create reservation: ${payload.dto.segments.length} segment(s) - ${segmentsInfo}, passengers: ${payload.dto.numberOfPassengers}`,
+				`Create reservation: ${payload.dto.segments.length} segment(s) - ${segmentsInfo}, passengers: ${payload.dto.numberOfPassengers}, ${payload.userId ? 'user' : 'guest'}`,
 			);
-			const result = await this.reservationService.createReservation(payload.userId, payload.dto);
+			const result = await this.reservationService.createReservation(payload.userId, payload.dto, payload.sessionId);
 			this.logger.log(`Reservation created: ${result.reservationId} (Code: ${result.reservationCode})`);
 			return result;
 		} catch (error: any) {
