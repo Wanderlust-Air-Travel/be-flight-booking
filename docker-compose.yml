@@ -37,6 +37,28 @@ services:
       timeout: 3s
       retries: 3
 
+  # RabbitMQ Message Broker
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: rabbitmq
+    hostname: rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-admin}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS:-admin123}
+      - RABBITMQ_DEFAULT_VHOST=${RABBITMQ_VHOST:-/}
+    ports:
+      - "5672:5672"   # AMQP port
+      - "15672:15672" # Management UI port
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
   # Backend Application
   backend:
     build:
@@ -53,6 +75,11 @@ services:
       - DB_PORT=1433  # Override: Container port inside Docker network (app.config.ts default: 1433 for local SQL Server)
       # Redis: Use Docker service name
       - REDIS_HOST=redis  # Override: Docker service name (app.config.ts default: localhost)
+      # RabbitMQ: Use Docker service name
+      - RABBITMQ_HOST=rabbitmq  # Override: Docker service name (app.config.ts default: localhost)
+      - RABBITMQ_PORT=5672  # AMQP port
+      - RABBITMQ_USER=${RABBITMQ_USER:-admin}
+      - RABBITMQ_PASS=${RABBITMQ_PASS:-admin123}
       # Microservices: Bind to 0.0.0.0 to accept connections from host machine via port forwarding
       - SEARCH_MS_HOST=0.0.0.0  # Bind to all interfaces to accept connections from host
       - SERVICES_MS_HOST=0.0.0.0
@@ -84,7 +111,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: sh -c "npm run wait-for-sqlserver && npm run init-db && npm run wait-for-db && npm run seed:if-empty && npm run start:all:with-download"
+      rabbitmq:
+        condition: service_healthy
+    command: sh -c "npm run wait-for-sqlserver && npm run wait-for-rabbitmq && npm run init-db && npm run wait-for-db && npm run seed:if-empty && npm run start:all:with-download"
     # command: sh -c "npm run wait-for-sqlserver && npm run init-db && npm run wait-for-db && npm run seed:if-empty && npm run start:all:with-download"
     restart: unless-stopped
 
@@ -93,4 +122,6 @@ volumes:
   sqlserver-data:
   # Redis data persistence
   redis-data:
+  # RabbitMQ data persistence
+  rabbitmq-data:
 

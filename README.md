@@ -8,6 +8,7 @@ Backend cho hệ thống đặt vé máy bay nội địa Việt Nam, sử dụn
 - **npm**: v9.x+ (nếu chạy local)
 - **SQL Server**: 2019+ (Local hoặc Azure) - hoặc dùng Docker
 - **Docker**: Để chạy toàn bộ hệ thống hoặc chỉ Redis
+- **RabbitMQ**: Message broker cho async messaging (tự động setup trong Docker)
 - **Git**: Để clone repository
 
 ## Cài đặt nhanh
@@ -27,6 +28,7 @@ docker-compose -f docker-compose-full-services.yml up --build
 
 Hệ thống sẽ tự động:
 - Đợi SQL Server sẵn sàng (`docker/wait-for-sqlserver.ts`)
+- Đợi RabbitMQ sẵn sàng (`docker/wait-for-rabbitmq.ts`)
 - Tạo database và chạy TypeORM migrations (`docker/init-database.ts`)
 - Verify database sẵn sàng (`docker/wait-for-database.ts`)
 - Seed database với dữ liệu mẫu
@@ -91,10 +93,11 @@ Tất cả tài liệu trong thư mục [`docs/`](./docs/):
 - **Framework**: NestJS 11.x
 - **Database**: Microsoft SQL Server
 - **ORM**: TypeORM
-- **Cache**: Redis (Reservation Service)
+- **Cache**: Redis (Reservation Service, Idempotency, Booking State)
+- **Message Broker**: RabbitMQ (Async messaging, Event-driven communication)
 - **Authentication**: JWT (Passport)
 - **API Docs**: Swagger/OpenAPI
-- **Microservices**: TCP-based communication
+- **Microservices**: TCP-based communication (synchronous) + RabbitMQ (asynchronous)
 
 ## Features
 
@@ -126,6 +129,12 @@ Tất cả tài liệu trong thư mục [`docs/`](./docs/):
   - 6 email templates (OTP payment, OTP password reset, payment success/failed, ticket confirmation)
   - Async processing và health check
   - Ticket confirmation email với chi tiết đầy đủ (seat, cabin class, flight details, check-in time)
+- **RabbitMQ Integration**: Async messaging và event-driven architecture
+  - Email notifications qua RabbitMQ queue (non-blocking)
+  - Ticket creation sau payment qua RabbitMQ queue
+  - Automatic reconnection và message persistence
+  - Fallback to TCP nếu RabbitMQ không available
+  - Management UI tại `http://localhost:15672` (admin/admin123)
 - **UUID v7**: Tất cả IDs sử dụng UUID v7 (time-ordered)
 - **JWT Authentication**: Optional authentication cho một số APIs, required cho các APIs khác
 - **Passenger Creation**: Tự động tạo passenger khi booking (với reuse logic cho authenticated users)
