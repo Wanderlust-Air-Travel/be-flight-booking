@@ -12,5 +12,7 @@ export const BOOKING_MS = {
 		GET_MY_JOURNEY: 'booking.get-my-journey',
 		CREATE_TICKETS_FROM_BOOKING: 'booking.create-tickets-from-booking',
 		CANCEL_BOOKING: 'booking.cancel',
+		CANCEL_TICKET: 'booking.cancel-ticket',
+		GET_TICKET_INFO: 'booking.get-ticket-info',
 	},
 } as const;

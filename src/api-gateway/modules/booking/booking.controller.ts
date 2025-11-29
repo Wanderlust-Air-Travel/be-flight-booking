@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Patch, Body, Param, Query, Req, UseGuards, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Param, Query, Req, UseGuards, BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
 import {
 	ApiBadRequestResponse,
 	ApiOkResponse,
@@ -30,12 +30,15 @@ import { MyJourneyResponseDto } from 'src/microservices/booking/dto/my-journey-r
 import { GetMyTicketsDto } from 'src/microservices/booking/dto/get-my-tickets.dto';
 import { GetBookingResponseDto } from 'src/microservices/booking/dto/get-booking-response.dto';
 import { CancelBookingDto } from './dto/cancel-booking.dto';
+import { CancelTicketDto } from './dto/cancel-ticket.dto';
 import { AuthService } from '../auth/auth.service';
 import { UnauthorizedException } from '@nestjs/common';
 
 @ApiTags('bookings')
 @Controller('bookings')
 export class BookingController {
+	private readonly logger = new Logger(BookingController.name);
+
 	constructor(
 		@Inject('BOOKING_CLIENT') private readonly client: ClientProxy,
 		@InjectRepository(User) private readonly userRepo: Repository<User>,
@@ -540,6 +543,180 @@ export class BookingController {
 			// Fallback: try to extract message from error object
 			const errorMessage = error?.message || error?.error?.message || 'Unknown error';
 			throw new BadRequestException(`Cancel booking failed: ${errorMessage}`);
+		}
+	}
+
+	@Get('tickets/:ticketId/info')
+	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth('access-token')
+	@ApiOperation({
+		summary: 'Get ticket information',
+		description: 'Get ticket information including bookingId and bookingStatus. Used for OTP verification flow.',
+	})
+	@ApiParam({
+		name: 'ticketId',
+		description: 'Ticket ID (UUID v7)',
+		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+	})
+	@ApiOkResponse({
+		description: 'Ticket information retrieved successfully',
+		schema: {
+			type: 'object',
+			properties: {
+				ticketId: { type: 'string', example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71' },
+				bookingId: { type: 'string', example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71' },
+				bookingStatus: { type: 'string', example: 'paid', enum: ['pending', 'confirmed', 'paid', 'cancelled', 'completed'] },
+			},
+		},
+	})
+	async getTicketInfo(
+		@Req() req: Request & { user: { userId: string; email: string } },
+		@Param('ticketId') ticketId: string,
+	): Promise<{ ticketId: string; bookingId: string; bookingStatus: string }> {
+		try {
+			// Validate UUID v7 format
+			const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+			if (!uuidRegex.test(ticketId)) {
+				throw new BadRequestException('Invalid ticket ID format. Expected UUID v7.');
+			}
+
+			const userId = req.user.userId;
+
+			// Get ticket info from microservice
+			const result = await firstValueFrom(
+				this.client.send<{ ticketId: string; bookingId: string; bookingStatus: string }>(BOOKING_MS.PATTERN.GET_TICKET_INFO, {
+					ticketId,
+					userId,
+				}),
+			);
+
+			return result;
+		} catch (error: any) {
+			this.logger.error('Get ticket info error:', error);
+
+			// Handle NestJS exceptions
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+
+			// Handle connection errors
+			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+				throw new InternalServerErrorException('Booking microservice is not running. Please start it with: npm run start:booking:dev');
+			}
+			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
+				throw new InternalServerErrorException('Booking microservice request timeout. Please check if the service is running.');
+			}
+
+			// Fallback
+			const errorMessage = error?.message || error?.error?.message || 'Unknown error';
+			throw new BadRequestException(`Get ticket info failed: ${errorMessage}`);
+		}
+	}
+
+	@Patch('tickets/:ticketId/cancel')
+	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth('access-token')
+	@ApiOperation({
+		summary: 'Cancel a single ticket (partial cancellation)',
+		description: 'Cancel a single ticket from a booking. If all tickets in the booking are cancelled, the booking will be automatically cancelled. For paid bookings, OTP verification is required. Only authenticated users can cancel their own tickets. Returns refund amount for paid bookings.',
+	})
+	@ApiParam({
+		name: 'ticketId',
+		description: 'Ticket ID (UUID v7)',
+		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+	})
+	@ApiOkResponse({
+		description: 'Ticket cancelled successfully',
+		schema: {
+			type: 'object',
+			properties: {
+				success: { type: 'boolean', example: true },
+				message: { type: 'string', example: 'Ticket cancelled successfully.' },
+				refundAmount: { type: 'number', example: 600000, description: 'Refund amount (only for paid bookings)' },
+				cancellationFee: { type: 'number', example: 300000, description: 'Cancellation fee (only for paid bookings)' },
+				bookingCancelled: { type: 'boolean', example: false, description: 'Whether the booking was auto-cancelled (all tickets cancelled)' },
+			},
+		},
+	})
+	@ApiBadRequestResponse({
+		description: 'Invalid ticket ID, ticket cannot be cancelled, cancellation deadline passed, or OTP required but not provided/invalid',
+	})
+	async cancelTicket(
+		@Req() req: Request & { user: { userId: string; email: string } },
+		@Param('ticketId') ticketId: string,
+		@Body() dto: CancelTicketDto,
+	): Promise<{ success: boolean; message: string; refundAmount?: number; cancellationFee?: number; bookingCancelled?: boolean }> {
+		try {
+			// Validate UUID v7 format
+			const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+			if (!uuidRegex.test(ticketId)) {
+				throw new BadRequestException('Invalid ticket ID format. Expected UUID v7.');
+			}
+
+			const userId = req.user.userId;
+
+			// Get ticket info to check booking status (for OTP verification)
+			const ticketInfo = await firstValueFrom(
+				this.client.send<{ ticketId: string; bookingId: string; bookingStatus: string }>(BOOKING_MS.PATTERN.GET_TICKET_INFO, {
+					ticketId,
+					userId,
+				}),
+			);
+
+			// If booking is paid, OTP verification is required
+			if (ticketInfo.bookingStatus === 'paid') {
+				// Check if OTP has been verified (via verify endpoint)
+				const isOtpVerified = await this.authService.isCancellationOtpVerified(userId, ticketInfo.bookingId);
+				if (!isOtpVerified) {
+					throw new BadRequestException('OTP verification is required for cancelling tickets from paid bookings. Please verify OTP first using POST /api/v1/auth/otp/cancellation/verify');
+				}
+			}
+
+			// Proceed with ticket cancellation
+			const result = await firstValueFrom(
+				this.client.send<{ success: boolean; message: string; refundAmount?: number; cancellationFee?: number; bookingCancelled?: boolean }>(
+					BOOKING_MS.PATTERN.CANCEL_TICKET,
+					{
+						ticketId,
+						userId,
+					},
+				),
+			);
+
+			// Delete verification token after successful cancellation (if booking was paid)
+			if (ticketInfo.bookingStatus === 'paid') {
+				await this.authService.deleteCancellationVerificationToken(userId, ticketInfo.bookingId);
+			}
+
+			return result;
+		} catch (error: any) {
+			this.logger.error('Cancel ticket error:', error);
+
+			// Handle NestJS exceptions
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+
+			// Handle connection errors
+			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+				throw new InternalServerErrorException('Booking microservice is not running. Please start it with: npm run start:booking:dev');
+			}
+			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
+				throw new InternalServerErrorException('Booking microservice request timeout. Please check if the service is running.');
+			}
+
+			// Handle microservice error format
+			if (error?.status === 'error' && error?.message) {
+				const errorMessage = error.message;
+				if (errorMessage.includes('Cannot cancel') || errorMessage.includes('already cancelled') || errorMessage.includes('does not belong')) {
+					throw new BadRequestException(errorMessage);
+				}
+				throw new BadRequestException(`Cancel ticket failed: ${errorMessage}`);
+			}
+
+			// Fallback
+			const errorMessage = error?.message || error?.error?.message || 'Unknown error';
+			throw new BadRequestException(`Cancel ticket failed: ${errorMessage}`);
 		}
 	}
 }

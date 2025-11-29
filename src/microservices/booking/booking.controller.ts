@@ -164,7 +164,9 @@ export class BookingMsController {
 	}
 
 	@MessagePattern(BOOKING_MS.PATTERN.CANCEL_BOOKING)
-	async handleCancelBooking(payload: { bookingId: string; userId: string }): Promise<{ success: boolean; message: string }> {
+	async handleCancelBooking(
+		payload: { bookingId: string; userId: string },
+	): Promise<{ success: boolean; message: string; refundAmount?: number; cancellationFee?: number }> {
 		try {
 			this.logger.log(`Cancel booking: ${payload.bookingId}, userId: ${payload.userId}`);
 			const result = await this.bookingService.cancelBooking(payload.bookingId, payload.userId);
@@ -172,6 +174,35 @@ export class BookingMsController {
 			return result;
 		} catch (error: any) {
 			this.logger.error('Cancel booking error:', error);
+			throw error;
+		}
+	}
+
+	@MessagePattern(BOOKING_MS.PATTERN.CANCEL_TICKET)
+	async handleCancelTicket(
+		payload: { ticketId: string; userId: string },
+	): Promise<{ success: boolean; message: string; refundAmount?: number; cancellationFee?: number; bookingCancelled?: boolean }> {
+		try {
+			this.logger.log(`Cancel ticket: ${payload.ticketId}, userId: ${payload.userId}`);
+			const result = await this.bookingService.cancelTicket(payload.ticketId, payload.userId);
+			this.logger.log(`Ticket ${payload.ticketId} cancelled successfully${result.bookingCancelled ? ', booking auto-cancelled' : ''}`);
+			return result;
+		} catch (error: any) {
+			this.logger.error('Cancel ticket error:', error);
+			throw error;
+		}
+	}
+
+	@MessagePattern(BOOKING_MS.PATTERN.GET_TICKET_INFO)
+	async handleGetTicketInfo(
+		payload: { ticketId: string; userId: string },
+	): Promise<{ ticketId: string; bookingId: string; bookingStatus: string }> {
+		try {
+			this.logger.log(`Get ticket info: ${payload.ticketId}, userId: ${payload.userId}`);
+			const result = await this.bookingService.getTicketInfo(payload.ticketId, payload.userId);
+			return result;
+		} catch (error: any) {
+			this.logger.error('Get ticket info error:', error);
 			throw error;
 		}
 	}

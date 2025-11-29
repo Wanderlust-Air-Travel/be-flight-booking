@@ -1715,22 +1715,35 @@ export class BookingService {
 	}
 
 	/**
-	 * Calculate refund amount for cancelled booking
-	 * Formula: Refund = Total Amount - Cancellation Fee - Non-refundable Fees
+	 * Calculate refund amount for cancelled segments
+	 * Formula: Refund = Segment Amount - Cancellation Fee - Non-refundable Fees (proportional)
 	 * 
-	 * Cancellation fees (per passenger per segment):
+	 * Cancellation fees (per segment):
 	 * - Business Flex/Smart: 300,000 - 450,000 VND
 	 * - Economy Flex/Smart: 300,000 - 600,000 VND
 	 * - Economy Saver/Saver Max: Not applicable (non-refundable)
 	 * 
-	 * Non-refundable fees: 10% of total amount (service fees, taxes)
+	 * Non-refundable fees: 10% of segment amount (service fees, taxes)
+	 * 
+	 * @param segments Segments to calculate refund for (can be subset for partial cancellation)
+	 * @param bookingTotalAmount Total booking amount (for proportional non-refundable fee calculation)
+	 * @param allSegments All segments in booking (to calculate proportional non-refundable fee)
 	 */
-	private calculateRefundAmount(
-		booking: Booking,
+	private calculateRefundAmountForSegments(
 		segments: BookingSegment[],
-	): { refundAmount: number; cancellationFee: number; nonRefundableFee: number } {
-		const totalAmount = Number(booking.total_amount);
-		
+		bookingTotalAmount: number,
+		allSegments: BookingSegment[],
+	): { refundAmount: number; cancellationFee: number; nonRefundableFee: number; segmentAmount: number } {
+		if (!segments || segments.length === 0) {
+			return { refundAmount: 0, cancellationFee: 0, nonRefundableFee: 0, segmentAmount: 0 };
+		}
+
+		// Calculate total segment amount (base_fare + tax_amount + fee_amount)
+		let segmentAmount = 0;
+		for (const segment of segments) {
+			segmentAmount += Number(segment.base_fare || 0) + Number(segment.tax_amount || 0) + Number(segment.fee_amount || 0);
+		}
+
 		// Calculate cancellation fee based on fare classes
 		let cancellationFee = 0;
 		const cancellationFeePerSegment: Record<string, number> = {
@@ -1746,15 +1759,6 @@ export class BookingService {
 			'Y': 400000, // Economy Standard
 		};
 
-		// Count unique passengers (each passenger may have multiple segments)
-		const uniquePassengers = new Set<string>();
-		for (const segment of segments) {
-			if (segment.booking_passenger?.passenger?.passenger_id) {
-				uniquePassengers.add(segment.booking_passenger.passenger.passenger_id);
-			}
-		}
-		const passengerCount = uniquePassengers.size || 1;
-
 		// Calculate cancellation fee per segment
 		for (const segment of segments) {
 			const fareClassCode = segment.fare_class?.fare_class_code?.toUpperCase();
@@ -1763,16 +1767,43 @@ export class BookingService {
 			}
 		}
 
-		// Non-refundable fees: 10% of total amount (service fees, taxes, etc.)
-		const nonRefundableFee = Math.round(totalAmount * 0.1);
+		// Calculate proportional non-refundable fees
+		// If cancelling all segments, use 10% of total
+		// If cancelling partial, calculate proportional amount
+		let nonRefundableFee = 0;
+		if (segments.length === allSegments.length) {
+			// Cancelling all segments - use 10% of total booking amount
+			nonRefundableFee = Math.round(bookingTotalAmount * 0.1);
+		} else {
+			// Partial cancellation - calculate proportional non-refundable fee
+			// Non-refundable fee = 10% of segment amount
+			nonRefundableFee = Math.round(segmentAmount * 0.1);
+		}
 
-		// Refund amount = Total - Cancellation Fee - Non-refundable Fees
-		const refundAmount = Math.max(0, totalAmount - cancellationFee - nonRefundableFee);
+		// Refund amount = Segment Amount - Cancellation Fee - Non-refundable Fees
+		const refundAmount = Math.max(0, segmentAmount - cancellationFee - nonRefundableFee);
 
 		return {
 			refundAmount,
 			cancellationFee,
 			nonRefundableFee,
+			segmentAmount,
+		};
+	}
+
+	/**
+	 * Calculate refund amount for cancelled booking (all segments)
+	 * @deprecated Use calculateRefundAmountForSegments for better flexibility
+	 */
+	private calculateRefundAmount(
+		booking: Booking,
+		segments: BookingSegment[],
+	): { refundAmount: number; cancellationFee: number; nonRefundableFee: number } {
+		const result = this.calculateRefundAmountForSegments(segments, Number(booking.total_amount), segments);
+		return {
+			refundAmount: result.refundAmount,
+			cancellationFee: result.cancellationFee,
+			nonRefundableFee: result.nonRefundableFee,
 		};
 	}
 
@@ -1850,6 +1881,19 @@ export class BookingService {
 				}
 			}
 
+			// Store original status for refund calculation
+			const originalStatus = booking.status;
+			const wasPaid = originalStatus === 'paid';
+
+			// Calculate refund amount if booking was paid (before updating status)
+			let refundAmount: number | undefined;
+			let cancellationFee: number | undefined;
+			if (wasPaid) {
+				const refundInfo = this.calculateRefundAmount(booking, booking.booking_segments || []);
+				refundAmount = refundInfo.refundAmount;
+				cancellationFee = refundInfo.cancellationFee;
+			}
+
 			// Update booking status to cancelled
 			booking.status = 'cancelled';
 			booking.updated_at = new Date();
@@ -1867,19 +1911,20 @@ export class BookingService {
 				}
 			}
 
-			// Calculate refund amount if booking was paid
-			let refundAmount: number | undefined;
-			let cancellationFee: number | undefined;
-			if (booking.status === 'paid') {
-				const refundInfo = this.calculateRefundAmount(booking, booking.booking_segments || []);
-				refundAmount = refundInfo.refundAmount;
-				cancellationFee = refundInfo.cancellationFee;
+			// Also cancel related segments
+			if (booking.booking_segments && booking.booking_segments.length > 0) {
+				for (const segment of booking.booking_segments) {
+					segment.status = 'cancelled';
+					await queryRunner.manager.save(BookingSegment, segment);
+				}
+			}
 
-				// Send cancellation notification with refund information
+			// Send cancellation notification with refund information (if was paid)
+			if (wasPaid && refundAmount !== undefined) {
 				await this.notificationService.sendCancellationNotification(
 					booking,
 					refundAmount,
-					cancellationFee,
+					cancellationFee || 0,
 				);
 			}
 
@@ -1900,6 +1945,224 @@ export class BookingService {
 		} finally {
 			await queryRunner.release();
 		}
+	}
+
+	/**
+	 * Cancel a single ticket (partial cancellation)
+	 * 
+	 * Flow:
+	 * 1. Validate ticket ownership and cancellation eligibility
+	 * 2. Cancel ticket and related segment
+	 * 3. Recalculate booking.total_amount
+	 * 4. Check if all tickets cancelled → auto cancel booking
+	 * 5. Calculate and return refund amount (if booking was paid)
+	 * 
+	 * @param ticketId Ticket ID to cancel
+	 * @param userId User ID (must own the booking)
+	 * @returns Refund information if applicable
+	 */
+	async cancelTicket(
+		ticketId: string,
+		userId: string,
+	): Promise<{ success: boolean; message: string; refundAmount?: number; cancellationFee?: number; bookingCancelled?: boolean }> {
+		const queryRunner = this.dataSource.createQueryRunner();
+		await queryRunner.connect();
+		await queryRunner.startTransaction();
+
+		try {
+			// Find ticket with all relations
+			const ticket = await queryRunner.manager.findOne(Ticket, {
+				where: { ticket_id: ticketId },
+				relations: [
+					'booking',
+					'booking.user',
+					'booking.currency',
+					'booking.booking_segments',
+					'booking.booking_segments.fare_class',
+					'booking.booking_segments.flight_instance',
+					'booking.booking_segments.flight_instance.flight_schedule',
+					'booking.booking_segments.flight_instance.flight_schedule.route',
+					'booking.booking_segments.booking_passenger',
+					'booking.tickets',
+					'booking_passenger',
+				],
+			});
+
+			if (!ticket) {
+				throw new NotFoundException(`Ticket ${ticketId} not found`);
+			}
+
+			// Validate ownership
+			if (!ticket.booking.user || ticket.booking.user.user_id !== userId) {
+				throw new BadRequestException('Ticket does not belong to the current user');
+			}
+
+			// Check if ticket is already cancelled
+			if (ticket.status === 'cancelled') {
+				throw new BadRequestException('Ticket is already cancelled');
+			}
+
+			// Check if booking can be partially cancelled
+			const booking = ticket.booking;
+			if (booking.status === 'cancelled') {
+				throw new BadRequestException('Booking is already cancelled');
+			}
+
+			if (booking.status !== 'pending' && booking.status !== 'confirmed' && booking.status !== 'paid') {
+				throw new BadRequestException(`Cannot cancel ticket for booking with status: ${booking.status}`);
+			}
+
+			// Find related segment for this ticket
+			const relatedSegment = booking.booking_segments?.find(
+				(seg) => seg.booking_passenger?.booking_passenger_id === ticket.booking_passenger?.booking_passenger_id,
+			);
+
+			if (!relatedSegment) {
+				this.logger.warn(`No segment found for ticket ${ticketId}, proceeding with ticket cancellation only`);
+			}
+
+			// Check cancellation eligibility for the segment
+			if (relatedSegment) {
+				const flightInstance = relatedSegment.flight_instance;
+				const fareClass = relatedSegment.fare_class;
+				const route = flightInstance?.flight_schedule?.route;
+
+				if (flightInstance && fareClass && route) {
+					const isDomestic = route.is_domestic;
+					const cancellationInfo = this.checkCancellationEligibility(
+						flightInstance.departure_datetime_local,
+						fareClass.fare_class_code,
+						isDomestic,
+					);
+
+					if (!cancellationInfo.canCancel) {
+						throw new BadRequestException(
+							cancellationInfo.reason || 'This ticket cannot be cancelled due to fare class restrictions or time limits',
+						);
+					}
+				}
+			}
+
+			// Store original booking status and amount for refund calculation
+			const originalBookingStatus = booking.status;
+			const wasPaid = originalBookingStatus === 'paid';
+			const originalTotalAmount = Number(booking.total_amount);
+
+			// Cancel ticket
+			ticket.status = 'cancelled';
+			await queryRunner.manager.save(Ticket, ticket);
+
+			// Cancel related segment if exists
+			if (relatedSegment) {
+				relatedSegment.status = 'cancelled';
+				await queryRunner.manager.save(BookingSegment, relatedSegment);
+			}
+
+			// Calculate refund for cancelled segments
+			let refundAmount: number | undefined;
+			let cancellationFee: number | undefined;
+			if (wasPaid && relatedSegment) {
+				const cancelledSegments = [relatedSegment];
+				const refundInfo = this.calculateRefundAmountForSegments(
+					cancelledSegments,
+					originalTotalAmount,
+					booking.booking_segments || [],
+				);
+				refundAmount = refundInfo.refundAmount;
+				cancellationFee = refundInfo.cancellationFee;
+			}
+
+			// Recalculate booking.total_amount (subtract cancelled segment amount)
+			if (relatedSegment) {
+				const cancelledSegmentAmount =
+					Number(relatedSegment.base_fare || 0) +
+					Number(relatedSegment.tax_amount || 0) +
+					Number(relatedSegment.fee_amount || 0);
+
+				const newTotalAmount = Math.max(0, originalTotalAmount - cancelledSegmentAmount);
+				booking.total_amount = newTotalAmount;
+				booking.updated_at = new Date();
+				await queryRunner.manager.save(Booking, booking);
+			}
+
+			// Check if all tickets are cancelled → auto cancel booking
+			const allTickets = booking.tickets || [];
+			const activeTickets = allTickets.filter((t) => t.status !== 'cancelled');
+			const bookingCancelled = activeTickets.length === 0;
+
+			if (bookingCancelled) {
+				booking.status = 'cancelled';
+				booking.updated_at = new Date();
+				await queryRunner.manager.save(Booking, booking);
+
+				// Cancel all remaining segments
+				if (booking.booking_segments) {
+					for (const segment of booking.booking_segments) {
+						if (segment.status !== 'cancelled') {
+							segment.status = 'cancelled';
+							await queryRunner.manager.save(BookingSegment, segment);
+						}
+					}
+				}
+
+				this.logger.log(`All tickets cancelled for booking ${booking.booking_id}, booking automatically cancelled`);
+			}
+
+			await queryRunner.commitTransaction();
+
+			const message = bookingCancelled
+				? 'Ticket cancelled successfully. All tickets in this booking have been cancelled, booking is now cancelled.'
+				: 'Ticket cancelled successfully.';
+
+			this.logger.log(
+				`Ticket ${ticketId} cancelled successfully by user ${userId}${refundAmount ? `, refund amount: ${refundAmount} ${booking.currency.currency_code}` : ''}${bookingCancelled ? ', booking auto-cancelled' : ''}`,
+			);
+
+			return {
+				success: true,
+				message,
+				refundAmount,
+				cancellationFee,
+				bookingCancelled,
+			};
+		} catch (error: any) {
+			await queryRunner.rollbackTransaction();
+			this.logger.error(`Failed to cancel ticket ${ticketId}: ${error.message}`, error.stack);
+			throw error;
+		} finally {
+			await queryRunner.release();
+		}
+	}
+
+	/**
+	 * Get ticket info with booking details (for API Gateway to check OTP requirement)
+	 * @param ticketId Ticket ID
+	 * @param userId User ID (for ownership validation)
+	 * @returns Ticket info with bookingId and bookingStatus
+	 */
+	async getTicketInfo(
+		ticketId: string,
+		userId: string,
+	): Promise<{ ticketId: string; bookingId: string; bookingStatus: string }> {
+		const ticket = await this.ticketRepo.findOne({
+			where: { ticket_id: ticketId },
+			relations: ['booking', 'booking.user'],
+		});
+
+		if (!ticket) {
+			throw new NotFoundException(`Ticket ${ticketId} not found`);
+		}
+
+		// Validate ownership
+		if (!ticket.booking.user || ticket.booking.user.user_id !== userId) {
+			throw new BadRequestException('Ticket does not belong to the current user');
+		}
+
+		return {
+			ticketId: ticket.ticket_id,
+			bookingId: ticket.booking.booking_id,
+			bookingStatus: ticket.booking.status,
+		};
 	}
 }
 
