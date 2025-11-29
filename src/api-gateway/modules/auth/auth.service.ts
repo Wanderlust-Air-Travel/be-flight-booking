@@ -11,6 +11,8 @@ import { SendOtpPaymentDto } from "./dto/send-otp-payment.dto";
 import { VerifyOtpPaymentDto } from "./dto/verify-otp-payment.dto";
 import { SendOtpPasswordResetDto } from "./dto/send-otp-password-reset.dto";
 import { VerifyOtpPasswordResetDto } from "./dto/verify-otp-password-reset.dto";
+import { SendOtpCancellationDto } from "./dto/send-otp-cancellation.dto";
+import { VerifyOtpCancellationDto } from "./dto/verify-otp-cancellation.dto";
 import * as bcrypt from 'bcrypt';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - uuid package is ESM but works fine with CommonJS
@@ -308,6 +310,94 @@ export class AuthService {
 		return {
 			success: true,
 			message: 'Password reset successfully',
+		};
+	}
+
+	/**
+	 * Send OTP for cancellation verification
+	 */
+	async sendOtpCancellation(dto: SendOtpCancellationDto): Promise<{ success: boolean; message: string; expiresIn: number }> {
+		// Validate user exists
+		const user = await this.usersRepo.findOne({ where: { user_id: dto.userId } });
+		if (!user) {
+			throw new NotFoundException(`User ${dto.userId} not found`);
+		}
+
+		// Generate OTP
+		const otp = this.otpStorageService.generateOtp();
+		const expiresIn = 15 * 60; // 15 minutes
+
+		// Store OTP in Redis
+		await this.otpStorageService.storeCancellationOtp(dto.userId, dto.bookingId, otp, expiresIn);
+
+		// Send OTP email via Email Microservice
+		try {
+			await firstValueFrom(
+				this.emailClient.send(EMAIL_MS.PATTERN.SEND_EMAIL, {
+					to: user.email,
+					template: EmailTemplate.OTP_CANCELLATION,
+					templateData: {
+						otp,
+						expiresIn: `${Math.floor(expiresIn / 60)} minutes`,
+					},
+				}),
+			);
+
+			this.logger.log(`OTP sent for cancellation: userId=${dto.userId}, bookingId=${dto.bookingId}`);
+			return {
+				success: true,
+				message: 'OTP sent successfully',
+				expiresIn,
+			};
+		} catch (error: any) {
+			this.logger.error(`Failed to send OTP email: ${error.message}`);
+			// Delete OTP if email sending fails
+			await this.otpStorageService.deleteOtp('cancellation', `${dto.userId}:${dto.bookingId}`);
+			
+			// Handle microservice connection errors - these are infrastructure issues (503)
+			const errorMessage = error?.message || error?.toString() || '';
+			const errorCode = error?.code || '';
+			
+			// Connection refused - microservice is not running
+			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
+				throw new ServiceUnavailableException('Email microservice is not available. Please ensure the service is running.');
+			}
+			
+			// Connection closed - microservice disconnected
+			if (errorMessage.includes('Connection closed')) {
+				throw new ServiceUnavailableException('Email microservice connection was closed. Please ensure the service is running.');
+			}
+			
+			// Timeout errors - microservice not responding
+			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+				throw new ServiceUnavailableException('Email microservice request timeout. The service may be unavailable or overloaded.');
+			}
+			
+			// For other errors, throw BadRequestException
+			throw new BadRequestException('Failed to send OTP email. Please try again.');
+		}
+	}
+
+	/**
+	 * Verify OTP for cancellation
+	 */
+	async verifyOtpCancellation(dto: VerifyOtpCancellationDto): Promise<{ success: boolean; message: string }> {
+		// Validate user exists
+		const user = await this.usersRepo.findOne({ where: { user_id: dto.userId } });
+		if (!user) {
+			throw new NotFoundException(`User ${dto.userId} not found`);
+		}
+
+		// Verify OTP
+		const isValid = await this.otpStorageService.verifyCancellationOtp(dto.userId, dto.bookingId, dto.otp);
+		if (!isValid) {
+			throw new UnauthorizedException('Invalid or expired OTP');
+		}
+
+		this.logger.log(`OTP verified for cancellation: userId=${dto.userId}, bookingId=${dto.bookingId}`);
+		return {
+			success: true,
+			message: 'OTP verified successfully',
 		};
 	}
 }

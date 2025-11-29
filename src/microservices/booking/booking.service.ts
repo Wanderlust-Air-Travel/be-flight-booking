@@ -1344,9 +1344,9 @@ export class BookingService {
 					const bookingStatus = ticket.booking?.status || 'pending';
 
 					// Check cancellation eligibility
-					// First check if booking status allows cancellation (must be pending or confirmed)
-					// Bookings with status 'paid', 'cancelled', 'completed' cannot be cancelled
-					if (bookingStatus !== 'pending' && bookingStatus !== 'confirmed') {
+					// First check if booking status allows cancellation (must be pending, confirmed, or paid)
+					// Bookings with status 'cancelled' or 'completed' cannot be cancelled
+					if (bookingStatus !== 'pending' && bookingStatus !== 'confirmed' && bookingStatus !== 'paid') {
 						return {
 							ticketId: ticket.ticket_id,
 							ticketNumber: ticket.ticket_number,
@@ -1379,7 +1379,7 @@ export class BookingService {
 							isDomestic,
 							canCancel: false,
 							cancellationDeadline: null,
-							cannotCancelReason: `Không thể hủy booking với trạng thái: ${bookingStatus}. Chỉ có thể hủy booking với trạng thái 'pending' hoặc 'confirmed'.`,
+							cannotCancelReason: `Không thể hủy booking với trạng thái: ${bookingStatus}. Chỉ có thể hủy booking với trạng thái 'pending', 'confirmed', hoặc 'paid'.`,
 						};
 					}
 
@@ -1715,16 +1715,80 @@ export class BookingService {
 	}
 
 	/**
+	 * Calculate refund amount for cancelled booking
+	 * Formula: Refund = Total Amount - Cancellation Fee - Non-refundable Fees
+	 * 
+	 * Cancellation fees (per passenger per segment):
+	 * - Business Flex/Smart: 300,000 - 450,000 VND
+	 * - Economy Flex/Smart: 300,000 - 600,000 VND
+	 * - Economy Saver/Saver Max: Not applicable (non-refundable)
+	 * 
+	 * Non-refundable fees: 10% of total amount (service fees, taxes)
+	 */
+	private calculateRefundAmount(
+		booking: Booking,
+		segments: BookingSegment[],
+	): { refundAmount: number; cancellationFee: number; nonRefundableFee: number } {
+		const totalAmount = Number(booking.total_amount);
+		
+		// Calculate cancellation fee based on fare classes
+		let cancellationFee = 0;
+		const cancellationFeePerSegment: Record<string, number> = {
+			// Business fare classes
+			'JF': 300000, // Business Flex
+			'JFLX': 300000,
+			'JS': 450000, // Business Smart
+			'J': 400000, // Business Standard
+			// Economy fare classes
+			'YF': 300000, // Economy Flex
+			'YFLX': 300000,
+			'YS': 450000, // Economy Smart
+			'Y': 400000, // Economy Standard
+		};
+
+		// Count unique passengers (each passenger may have multiple segments)
+		const uniquePassengers = new Set<string>();
+		for (const segment of segments) {
+			if (segment.booking_passenger?.passenger?.passenger_id) {
+				uniquePassengers.add(segment.booking_passenger.passenger.passenger_id);
+			}
+		}
+		const passengerCount = uniquePassengers.size || 1;
+
+		// Calculate cancellation fee per segment
+		for (const segment of segments) {
+			const fareClassCode = segment.fare_class?.fare_class_code?.toUpperCase();
+			if (fareClassCode && cancellationFeePerSegment[fareClassCode]) {
+				cancellationFee += cancellationFeePerSegment[fareClassCode];
+			}
+		}
+
+		// Non-refundable fees: 10% of total amount (service fees, taxes, etc.)
+		const nonRefundableFee = Math.round(totalAmount * 0.1);
+
+		// Refund amount = Total - Cancellation Fee - Non-refundable Fees
+		const refundAmount = Math.max(0, totalAmount - cancellationFee - nonRefundableFee);
+
+		return {
+			refundAmount,
+			cancellationFee,
+			nonRefundableFee,
+		};
+	}
+
+	/**
 	 * Cancel a booking
 	 * 
 	 * Rules:
 	 * - Only authenticated users can cancel their own bookings
 	 * - Guest bookings cannot be cancelled (need to contact support)
-	 * - Booking must be in 'confirmed' or 'pending' status
+	 * - Booking can be in 'pending', 'confirmed', or 'paid' status
+	 * - For 'paid' bookings, OTP verification is required (handled at API Gateway)
 	 * - Must check cancellation eligibility before cancelling
 	 * - Updates booking status to 'cancelled'
+	 * - Calculates and returns refund amount for paid bookings
 	 */
-	async cancelBooking(bookingId: string, userId: string): Promise<{ success: boolean; message: string }> {
+	async cancelBooking(bookingId: string, userId: string): Promise<{ success: boolean; message: string; refundAmount?: number; cancellationFee?: number }> {
 		const queryRunner = this.dataSource.createQueryRunner();
 		await queryRunner.connect();
 		await queryRunner.startTransaction();
@@ -1754,8 +1818,8 @@ export class BookingService {
 				throw new BadRequestException('Booking is already cancelled');
 			}
 
-			// Check if booking can be cancelled (must be pending or confirmed)
-			if (booking.status !== 'pending' && booking.status !== 'confirmed') {
+			// Check if booking can be cancelled (must be pending, confirmed, or paid)
+			if (booking.status !== 'pending' && booking.status !== 'confirmed' && booking.status !== 'paid') {
 				throw new BadRequestException(`Cannot cancel booking with status: ${booking.status}`);
 			}
 
@@ -1803,13 +1867,31 @@ export class BookingService {
 				}
 			}
 
+			// Calculate refund amount if booking was paid
+			let refundAmount: number | undefined;
+			let cancellationFee: number | undefined;
+			if (booking.status === 'paid') {
+				const refundInfo = this.calculateRefundAmount(booking, booking.booking_segments || []);
+				refundAmount = refundInfo.refundAmount;
+				cancellationFee = refundInfo.cancellationFee;
+
+				// Send cancellation notification with refund information
+				await this.notificationService.sendCancellationNotification(
+					booking,
+					refundAmount,
+					cancellationFee,
+				);
+			}
+
 			await queryRunner.commitTransaction();
 
-			this.logger.log(`Booking ${bookingId} cancelled successfully by user ${userId}`);
+			this.logger.log(`Booking ${bookingId} cancelled successfully by user ${userId}${refundAmount ? `, refund amount: ${refundAmount} ${booking.currency.currency_code}` : ''}`);
 
 			return {
 				success: true,
-				message: 'Booking cancelled successfully',
+				message: refundAmount ? `Booking cancelled successfully. Refund amount: ${refundAmount.toLocaleString('vi-VN')} ${booking.currency.currency_code}` : 'Booking cancelled successfully',
+				refundAmount,
+				cancellationFee,
 			};
 		} catch (error: any) {
 			await queryRunner.rollbackTransaction();

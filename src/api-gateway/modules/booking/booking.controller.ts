@@ -29,6 +29,9 @@ import { MyTicketsResponseDto } from 'src/microservices/booking/dto/my-tickets-r
 import { MyJourneyResponseDto } from 'src/microservices/booking/dto/my-journey-response.dto';
 import { GetMyTicketsDto } from 'src/microservices/booking/dto/get-my-tickets.dto';
 import { GetBookingResponseDto } from 'src/microservices/booking/dto/get-booking-response.dto';
+import { CancelBookingDto } from './dto/cancel-booking.dto';
+import { AuthService } from '../auth/auth.service';
+import { UnauthorizedException } from '@nestjs/common';
 
 @ApiTags('bookings')
 @Controller('bookings')
@@ -37,6 +40,7 @@ export class BookingController {
 		@Inject('BOOKING_CLIENT') private readonly client: ClientProxy,
 		@InjectRepository(User) private readonly userRepo: Repository<User>,
 		@InjectRepository(Passenger) private readonly passengerRepo: Repository<Passenger>,
+		private readonly authService: AuthService,
 	) {}
 
 	@Post()
@@ -438,7 +442,7 @@ export class BookingController {
 	@ApiBearerAuth('access-token')
 	@ApiOperation({
 		summary: 'Cancel a booking',
-		description: 'Cancel a confirmed or pending booking. Only authenticated users can cancel their own bookings. Checks cancellation eligibility based on fare class and time limits. Requires authentication.',
+		description: 'Cancel a booking (pending, confirmed, or paid). For paid bookings, OTP verification is required. Only authenticated users can cancel their own bookings. Checks cancellation eligibility based on fare class and time limits. Returns refund amount for paid bookings.',
 	})
 	@ApiParam({
 		name: 'id',
@@ -451,17 +455,20 @@ export class BookingController {
 			type: 'object',
 			properties: {
 				success: { type: 'boolean', example: true },
-				message: { type: 'string', example: 'Booking cancelled successfully' },
+				message: { type: 'string', example: 'Booking cancelled successfully. Refund amount: 1,200,000 VND' },
+				refundAmount: { type: 'number', example: 1200000, description: 'Refund amount (only for paid bookings)' },
+				cancellationFee: { type: 'number', example: 300000, description: 'Cancellation fee (only for paid bookings)' },
 			},
 		},
 	})
 	@ApiBadRequestResponse({
-		description: 'Invalid booking ID, booking cannot be cancelled, or cancellation deadline passed',
+		description: 'Invalid booking ID, booking cannot be cancelled, cancellation deadline passed, or OTP required but not provided/invalid',
 	})
 	async cancelBooking(
 		@Req() req: Request & { user: { userId: string; email: string } },
 		@Param('id') bookingId: string,
-	): Promise<{ success: boolean; message: string }> {
+		@Body() dto: CancelBookingDto,
+	): Promise<{ success: boolean; message: string; refundAmount?: number; cancellationFee?: number }> {
 		try {
 			// Validate UUID v7 format
 			const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -471,8 +478,38 @@ export class BookingController {
 
 			const userId = req.user.userId;
 
+			// Check booking status first to determine if OTP is required
+			const booking = await firstValueFrom(
+				this.client.send<GetBookingResponseDto>(BOOKING_MS.PATTERN.GET_BOOKING, {
+					bookingId,
+					userId,
+				}),
+			);
+
+			// If booking is paid, OTP verification is required
+			if (booking.status === 'paid') {
+				if (!dto.otp) {
+					throw new BadRequestException('OTP is required for cancelling paid bookings. Please send OTP first using POST /api/v1/auth/otp/cancellation/send');
+				}
+
+				// Verify OTP
+				try {
+					await this.authService.verifyOtpCancellation({
+						userId,
+						bookingId,
+						otp: dto.otp,
+					});
+				} catch (otpError: any) {
+					if (otpError instanceof UnauthorizedException) {
+						throw new UnauthorizedException('Invalid or expired OTP. Please request a new OTP.');
+					}
+					throw otpError;
+				}
+			}
+
+			// Proceed with cancellation
 			return await firstValueFrom(
-				this.client.send<{ success: boolean; message: string }>(BOOKING_MS.PATTERN.CANCEL_BOOKING, {
+				this.client.send<{ success: boolean; message: string; refundAmount?: number; cancellationFee?: number }>(BOOKING_MS.PATTERN.CANCEL_BOOKING, {
 					bookingId,
 					userId,
 				}),

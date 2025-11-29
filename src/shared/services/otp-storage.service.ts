@@ -11,6 +11,7 @@ export class OtpStorageService {
 	private readonly OTP_EXPIRY_SECONDS = {
 		PAYMENT: 15 * 60, // 15 minutes
 		PASSWORD_RESET: 10 * 60, // 10 minutes
+		CANCELLATION: 15 * 60, // 15 minutes
 	};
 
 	constructor(
@@ -133,11 +134,68 @@ export class OtpStorageService {
 	}
 
 	/**
-	 * Delete OTP (useful for cleanup or manual invalidation)
-	 * @param type OTP type: 'payment' or 'password-reset'
-	 * @param identifier User ID or email
+	 * Store OTP for cancellation verification
+	 * @param userId User ID
+	 * @param bookingId Booking ID
+	 * @param otp OTP code
+	 * @param expiresIn Optional expiry time in seconds (default: 15 minutes)
+	 * @returns Promise resolving when OTP is stored
 	 */
-	async deleteOtp(type: 'payment' | 'password-reset', identifier: string): Promise<void> {
+	async storeCancellationOtp(
+		userId: string,
+		bookingId: string,
+		otp: string,
+		expiresIn: number = this.OTP_EXPIRY_SECONDS.CANCELLATION,
+	): Promise<void> {
+		const key = `otp:cancellation:${userId}:${bookingId}`;
+		try {
+			await this.redisService.set(key, otp, expiresIn);
+			this.logger.log(`OTP stored for cancellation: userId=${userId}, bookingId=${bookingId}, expiresIn=${expiresIn}s`);
+		} catch (error: any) {
+			this.logger.error(`Failed to store cancellation OTP: ${error.message}`);
+			throw error;
+		}
+	}
+
+	/**
+	 * Verify OTP for cancellation
+	 * @param userId User ID
+	 * @param bookingId Booking ID
+	 * @param otp OTP code to verify
+	 * @returns true if OTP is valid, false otherwise
+	 */
+	async verifyCancellationOtp(userId: string, bookingId: string, otp: string): Promise<boolean> {
+		const key = `otp:cancellation:${userId}:${bookingId}`;
+		try {
+			const storedOtp = await this.redisService.get<string>(key);
+			if (!storedOtp) {
+				this.logger.warn(`No OTP found for cancellation: userId=${userId}, bookingId=${bookingId}`);
+				return false;
+			}
+
+			// OTP is stored as JSON string, so we need to parse it
+			const parsedOtp = typeof storedOtp === 'string' ? storedOtp : String(storedOtp);
+			const isValid = parsedOtp === otp;
+			if (isValid) {
+				// Delete OTP after successful verification (one-time use)
+				await this.redisService.del(key);
+				this.logger.log(`OTP verified successfully for cancellation: userId=${userId}, bookingId=${bookingId}`);
+			} else {
+				this.logger.warn(`Invalid OTP for cancellation: userId=${userId}, bookingId=${bookingId}`);
+			}
+			return isValid;
+		} catch (error: any) {
+			this.logger.error(`Failed to verify cancellation OTP: ${error.message}`);
+			return false;
+		}
+	}
+
+	/**
+	 * Delete OTP (useful for cleanup or manual invalidation)
+	 * @param type OTP type: 'payment', 'password-reset', or 'cancellation'
+	 * @param identifier User ID or email (for cancellation, use format 'userId:bookingId')
+	 */
+	async deleteOtp(type: 'payment' | 'password-reset' | 'cancellation', identifier: string): Promise<void> {
 		const key = `otp:${type}:${identifier}`;
 		try {
 			await this.redisService.del(key);

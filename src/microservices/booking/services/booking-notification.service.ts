@@ -336,5 +336,76 @@ export class BookingNotificationService {
 			minute: '2-digit',
 		});
 	}
+
+	/**
+	 * Send booking cancellation email with refund information
+	 */
+	async sendCancellationNotification(
+		booking: Booking,
+		refundAmount: number,
+		cancellationFee: number,
+	): Promise<void> {
+		this.logger.log(`Sending cancellation notification for booking ${booking.booking_id}`);
+
+		try {
+			const emailAddress = booking.contact_email || booking.user?.email;
+			if (!emailAddress) {
+				this.logger.warn(
+					`Cannot send cancellation notification: No email address found for booking ${booking.booking_id}`,
+				);
+				return;
+			}
+
+			const passengerName = booking.contact_fullname || booking.user?.fullname || 'Quý khách';
+
+			// Format flight details from booking segments
+			const flightDetails = this.formatFlightDetails(booking);
+
+			// Send email via RabbitMQ (preferred) or TCP (fallback)
+			const emailDto = {
+				to: emailAddress,
+				template: EmailTemplate.BOOKING_CANCELLATION,
+				templateData: {
+					passengerName,
+					pnrCode: booking.pnr_code,
+					bookingId: booking.booking_id,
+					totalAmount: booking.total_amount,
+					refundAmount,
+					cancellationFee,
+					currency: booking.currency.currency_code,
+					flightDetails,
+				},
+			};
+
+			// Try RabbitMQ first (preferred)
+			if (this.rabbitMQPublisher) {
+				try {
+					await this.rabbitMQPublisher.publishEmail(emailDto);
+					this.logger.log(
+						`Cancellation notification queued via RabbitMQ to ${emailAddress} for booking ${booking.pnr_code}`,
+					);
+					return;
+				} catch (error: any) {
+					this.logger.warn(`RabbitMQ email publishing failed, falling back to TCP: ${error.message}`);
+				}
+			}
+
+			// Fallback to TCP
+			if (this.emailClient) {
+				await firstValueFrom(this.emailClient.send(EMAIL_MS.PATTERN.SEND_EMAIL, emailDto));
+				this.logger.log(
+					`Cancellation notification sent via TCP to ${emailAddress} for booking ${booking.pnr_code}`,
+				);
+			} else {
+				this.logger.error('No email client available (neither RabbitMQ nor TCP)');
+			}
+		} catch (error: any) {
+			// Log error but don't throw - notification failure shouldn't break cancellation flow
+			this.logger.error(
+				`Failed to send cancellation notification: ${error.message}`,
+				error.stack,
+			);
+		}
+	}
 }
 

@@ -5,6 +5,7 @@ import { BOOKING_MS } from 'src/microservices/booking/booking.messages';
 import { BookingController } from './booking.controller';
 import { User } from 'src/shared/entities/user/user.entity';
 import { Passenger } from 'src/shared/entities/passenger/passenger.entity';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
 	imports: [
@@ -19,6 +20,7 @@ import { Passenger } from 'src/shared/entities/passenger/passenger.entity';
 			},
 		]),
 		TypeOrmModule.forFeature([User, Passenger]), // For accessing User and Passenger repositories
+		AuthModule, // Import AuthModule to use AuthService for OTP verification
 	],
 	controllers: [BookingController],
 })

@@ -9,6 +9,8 @@ import { SendOtpPaymentDto } from "./dto/send-otp-payment.dto";
 import { VerifyOtpPaymentDto } from "./dto/verify-otp-payment.dto";
 import { SendOtpPasswordResetDto } from "./dto/send-otp-password-reset.dto";
 import { VerifyOtpPasswordResetDto } from "./dto/verify-otp-password-reset.dto";
+import { SendOtpCancellationDto } from "./dto/send-otp-cancellation.dto";
+import { VerifyOtpCancellationDto } from "./dto/verify-otp-cancellation.dto";
 import type { Request } from 'express';
 import { ApiBearerAuth, ApiBody, ApiCreatedResponse, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import { CreateUserResponse } from "src/shared/types/auth/create-user-response";
@@ -208,5 +210,67 @@ export class AuthController{
     })
     verifyOtpPasswordReset(@Body() dto: VerifyOtpPasswordResetDto) {
         return this.auth.verifyOtpPasswordReset(dto);
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @ApiBearerAuth('access-token')
+    @Post('otp/cancellation/send')
+    @HttpCode(HttpStatus.OK)
+    @ApiBody({
+        type: SendOtpCancellationDto,
+        examples: {
+            default: {
+                summary: 'Send OTP for cancellation',
+                value: {
+                    userId: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+                    bookingId: '019a8f4a-bb0e-7402-a0c4-27647b89dc72'
+                }
+            }
+        }
+    })
+    @ApiOkResponse({
+        description: 'OTP sent successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                success: { type: 'boolean', example: true },
+                message: { type: 'string', example: 'OTP sent successfully' },
+                expiresIn: { type: 'number', example: 900 }
+            }
+        }
+    })
+    sendOtpCancellation(@Body() dto: SendOtpCancellationDto) {
+        return this.auth.sendOtpCancellation(dto);
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @ApiBearerAuth('access-token')
+    @Post('otp/cancellation/verify')
+    @HttpCode(HttpStatus.OK)
+    @ApiBody({
+        type: VerifyOtpCancellationDto,
+        examples: {
+            default: {
+                summary: 'Verify OTP for cancellation',
+                value: {
+                    userId: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+                    bookingId: '019a8f4a-bb0e-7402-a0c4-27647b89dc72',
+                    otp: '123456'
+                }
+            }
+        }
+    })
+    @ApiOkResponse({
+        description: 'OTP verified successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                success: { type: 'boolean', example: true },
+                message: { type: 'string', example: 'OTP verified successfully' }
+            }
+        }
+    })
+    verifyOtpCancellation(@Body() dto: VerifyOtpCancellationDto) {
+        return this.auth.verifyOtpCancellation(dto);
     }
 }
