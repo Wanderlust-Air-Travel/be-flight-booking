@@ -15,7 +15,7 @@ http://localhost:3000
 ## Lưu ý quan trọng
 
 ### Xác thực
-- **Required Authentication**: Một số API bắt buộc đăng nhập (ví dụ: `GET /api/v1/bookings/my-tickets`, `GET /api/v1/bookings/my-journey`, `PATCH /api/v1/bookings/:id/cancel`, `POST /api/v1/booking-state/cabin`, `POST /api/v1/booking-state/seat`)
+- **Required Authentication**: Một số API bắt buộc đăng nhập (ví dụ: `GET /api/v1/bookings/my-tickets`, `GET /api/v1/bookings/my-journey`, `PATCH /api/v1/bookings/:id/cancel`, `PATCH /api/v1/bookings/tickets/:ticketId/cancel`, `GET /api/v1/bookings/tickets/:ticketId/info`, `POST /api/v1/booking-state/cabin`, `POST /api/v1/booking-state/seat`)
 - **Optional Authentication**: Một số API hỗ trợ optional authentication (có thể gọi với hoặc không có token):
   - `POST /api/v1/reservations` - Guest bookings được hỗ trợ
   - `POST /api/v1/bookings` - Guest bookings được hỗ trợ (contact info bắt buộc cho guest)
@@ -197,6 +197,85 @@ Khi `access_token` hết hạn, dùng `refresh_token` để lấy token mới.
   "newPassword": "NewStrongP@ssw0rd"
 }
 ```
+
+---
+
+### Gửi OTP hủy vé
+**POST** `/api/v1/auth/otp/cancellation/send`
+
+**Cần đăng nhập:** Có
+
+**Mô tả:** Gửi OTP đến email của user để xác thực việc hủy booking/ticket đã thanh toán.
+
+```json
+{
+  "userId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72"
+}
+```
+
+**Validation:**
+- `userId`: Bắt buộc, phải là UUID v7 hợp lệ
+- `bookingId`: Bắt buộc, phải là UUID v7 hợp lệ
+
+**Trả về:**
+```json
+{
+  "success": true,
+  "message": "OTP sent successfully",
+  "expiresIn": 300
+}
+```
+
+- OTP được gửi đến email của user
+- Hết hạn sau 5 phút (300 giây)
+- OTP được lưu trong Redis với key: `otp:cancellation:{userId}:{bookingId}`
+
+**Lỗi có thể xảy ra:**
+- `400 Bad Request`: "Invalid UUID format" - UUID không hợp lệ
+- `404 Not Found`: "User not found" - User không tồn tại
+- `503 Service Unavailable`: "Email service is not available" - Email service không available
+
+---
+
+### Xác thực OTP hủy vé
+**POST** `/api/v1/auth/otp/cancellation/verify`
+
+**Cần đăng nhập:** Có
+
+**Mô tả:** Xác thực OTP để cho phép hủy booking/ticket đã thanh toán. Sau khi verify thành công, một verification token được lưu trong Redis (10 phút) để cho phép cancel request tiếp theo.
+
+```json
+{
+  "userId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
+  "otp": "123456"
+}
+```
+
+**Validation:**
+- `userId`: Bắt buộc, phải là UUID v7 hợp lệ
+- `bookingId`: Bắt buộc, phải là UUID v7 hợp lệ
+- `otp`: Bắt buộc, phải là 6 ký tự số
+
+**Trả về:**
+```json
+{
+  "success": true,
+  "message": "OTP verified successfully"
+}
+```
+
+**Flow:**
+1. Verify OTP từ Redis
+2. Nếu hợp lệ, tạo verification token trong Redis (TTL: 10 phút)
+3. Xóa OTP gốc (one-time use)
+4. Cancel request tiếp theo sẽ check verification token thay vì OTP
+
+**Lỗi có thể xảy ra:**
+- `400 Bad Request`: "Invalid UUID format" hoặc "OTP must be exactly 6 digits" - Validation error
+- `401 Unauthorized`: "Invalid or expired OTP" - OTP không hợp lệ hoặc đã hết hạn
+- `404 Not Found`: "User not found" - User không tồn tại
 
 ---
 
@@ -675,20 +754,30 @@ Có thể dùng `reservationId` (UUID) hoặc `reservationCode` (6 ký tự)
 
 **Trả về:** Danh sách hành trình đã đi với phân trang, bao gồm thông tin booking và chuyến bay
 
+**Lưu ý quan trọng:**
+- **Filter cancelled bookings:** API tự động loại bỏ các booking có status `cancelled` khỏi kết quả
+- Chỉ hiển thị các hành trình chưa bị hủy (pending, confirmed, paid, completed)
+
 ---
 
-### Hủy booking
+### Hủy booking (Full Cancellation)
 **PATCH** `/api/v1/bookings/:id/cancel`
 
 **Cần đăng nhập:** Có
 
-**Mô tả:** Hủy booking theo quy định Bamboo Airways. Chỉ booking với status `pending` hoặc `confirmed` mới có thể hủy.
+**Mô tả:** Hủy toàn bộ booking theo quy định Bamboo Airways. Hỗ trợ hủy booking với status `pending`, `confirmed`, hoặc `paid` (với OTP verification cho paid bookings).
 
 **Validation:**
 - Booking phải thuộc về user đang đăng nhập
-- **Booking status phải là `pending` hoặc `confirmed`** - Booking với status `paid`, `cancelled`, hoặc `completed` không thể hủy
+- **Booking status:** `pending`, `confirmed`, hoặc `paid` (với OTP verification)
 - Phải kiểm tra điều kiện hủy vé (fare class, thời hạn)
 - Guest bookings không thể hủy qua API (phải liên hệ support)
+
+**OTP Verification (cho paid bookings):**
+- Nếu booking status là `paid`, cần verify OTP trước khi hủy:
+  1. Gửi OTP: `POST /api/v1/auth/otp/cancellation/send` với `userId` và `bookingId`
+  2. Verify OTP: `POST /api/v1/auth/otp/cancellation/verify` với `userId`, `bookingId`, và `otp`
+  3. Sau khi verify thành công, gọi `PATCH /api/v1/bookings/:id/cancel` (không cần OTP trong body)
 
 **Quy định hủy vé Bamboo Airways:**
 - **Chặng bay nội địa:** Hoàn thiện thủ tục hoàn vé trước giờ khởi hành tối thiểu **03 tiếng**
@@ -696,11 +785,19 @@ Có thể dùng `reservationId` (UUID) hoặc `reservationCode` (6 ký tự)
 - **Hạng vé được phép hoàn:** Economy Smart, Economy Flex, Premium Smart, Premium Flex, Business Smart, Business Flex
 - **Hạng vé KHÔNG được phép hoàn:** Economy Saver Max (YSM, SMX), Economy Saver / Bamboo Eco (ECO, YS)
 
+**Refund Calculation (cho paid bookings):**
+- **Formula:** `Refund = Total Amount - Cancellation Fee - Non-refundable Fees`
+- **Cancellation Fee:** Tính theo fare class (300,000 - 600,000 VND per segment)
+- **Non-refundable Fees:** 10% của total amount (service fees, taxes)
+- Refund amount được trả về trong response
+
 **Trả về:**
 ```json
 {
   "success": true,
-  "message": "Booking cancelled successfully"
+  "message": "Booking cancelled successfully. Refund amount: 1,200,000 VND",
+  "refundAmount": 1200000,
+  "cancellationFee": 300000
 }
 ```
 
@@ -708,14 +805,112 @@ Có thể dùng `reservationId` (UUID) hoặc `reservationCode` (6 ký tự)
 - `400 Bad Request`: "Cannot cancel booking with status: {status}" - Booking status không cho phép hủy
 - `400 Bad Request`: "Booking is already cancelled" - Booking đã bị hủy trước đó
 - `400 Bad Request`: "Cannot cancel booking: {reason}" - Không đáp ứng điều kiện hủy (fare class hoặc thời hạn)
+- `400 Bad Request`: "OTP verification is required for cancelling paid bookings" - Cần verify OTP cho paid bookings
+- `401 Unauthorized`: "Invalid or expired OTP" - OTP không hợp lệ hoặc đã hết hạn
 - `404 Not Found`: "Booking not found" - Không tìm thấy booking
 - `403 Forbidden`: "Booking does not belong to the current user" - Booking không thuộc về user
 
 **Lưu ý quan trọng:**
-- **Booking status check:** Logic hủy vé kiểm tra booking status trước tiên. Chỉ booking với status `pending` hoặc `confirmed` mới có thể hủy.
-- **Consistency với My Tickets API:** Logic kiểm tra `canCancel` trong `GET /api/v1/bookings/my-tickets` đã được cập nhật để kiểm tra booking status trước khi tính `canCancel`, đảm bảo frontend hiển thị đúng trạng thái và tránh lỗi khi user click hủy.
-- **Error handling:** Nếu booking có status không cho phép hủy, API sẽ trả về error message rõ ràng: "Cannot cancel booking with status: {status}"
-- **Transaction-based:** Hủy booking và tickets được thực hiện trong một transaction để đảm bảo tính nhất quán
+- **Transaction-based:** Hủy booking, tickets, và segments được thực hiện trong một transaction để đảm bảo tính nhất quán
+- **Email notification:** Tự động gửi email xác nhận hủy với thông tin refund (nếu có)
+
+---
+
+### Lấy thông tin ticket
+**GET** `/api/v1/bookings/tickets/:ticketId/info`
+
+**Cần đăng nhập:** Có
+
+**Mô tả:** Lấy thông tin ticket bao gồm `bookingId` và `bookingStatus`. Dùng cho OTP verification flow khi cancel ticket.
+
+**Trả về:**
+```json
+{
+  "ticketId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
+  "bookingStatus": "paid"
+}
+```
+
+---
+
+### Hủy ticket (Partial Cancellation)
+**PATCH** `/api/v1/bookings/tickets/:ticketId/cancel`
+
+**Cần đăng nhập:** Có
+
+**Mô tả:** Hủy một ticket riêng lẻ từ booking (partial cancellation). Nếu tất cả tickets trong booking đều bị hủy, booking sẽ tự động được hủy.
+
+**Hybrid Cancellation Approach:**
+- **Level 1: Cancel individual ticket** - Hủy từng ticket riêng lẻ
+- **Level 2: Cancel entire booking** - Hủy toàn bộ booking (sử dụng `PATCH /api/v1/bookings/:id/cancel`)
+
+**Flow:**
+1. Validate ticket ownership và cancellation eligibility
+2. Cancel ticket và related segment
+3. Recalculate `booking.total_amount` (trừ segment amount đã hủy)
+4. Check nếu tất cả tickets cancelled → auto cancel booking
+5. Calculate và return refund amount (nếu booking was paid)
+
+**Validation:**
+- Ticket phải thuộc về user đang đăng nhập
+- Ticket chưa bị hủy (`status !== 'cancelled'`)
+- Booking status: `pending`, `confirmed`, hoặc `paid` (với OTP verification)
+- Phải kiểm tra điều kiện hủy vé (fare class, thời hạn) cho segment liên quan
+
+**OTP Verification (cho paid bookings):**
+- Nếu booking status là `paid`, cần verify OTP trước khi hủy:
+  1. Lấy ticket info: `GET /api/v1/bookings/tickets/:ticketId/info` để lấy `bookingId`
+  2. Gửi OTP: `POST /api/v1/auth/otp/cancellation/send` với `userId` và `bookingId`
+  3. Verify OTP: `POST /api/v1/auth/otp/cancellation/verify` với `userId`, `bookingId`, và `otp`
+  4. Sau khi verify thành công, gọi `PATCH /api/v1/bookings/tickets/:ticketId/cancel` (không cần OTP trong body)
+
+**Refund Calculation (cho paid bookings):**
+- **Formula:** `Refund = Segment Amount - Cancellation Fee - Non-refundable Fees (proportional)`
+- **Segment Amount:** `base_fare + tax_amount + fee_amount` của segment bị hủy
+- **Cancellation Fee:** Tính theo fare class của segment
+- **Non-refundable Fees:** 10% của segment amount (proportional)
+- Refund amount được trả về trong response
+
+**Auto-cancel Booking:**
+- Nếu sau khi hủy ticket, tất cả tickets trong booking đều cancelled → booking tự động cancelled
+- Response sẽ có `bookingCancelled: true` nếu booking được auto-cancel
+
+**Trả về:**
+```json
+{
+  "success": true,
+  "message": "Ticket cancelled successfully.",
+  "refundAmount": 600000,
+  "cancellationFee": 300000,
+  "bookingCancelled": false
+}
+```
+
+**Nếu booking được auto-cancel:**
+```json
+{
+  "success": true,
+  "message": "Ticket cancelled successfully. All tickets in this booking have been cancelled, booking is now cancelled.",
+  "refundAmount": 600000,
+  "cancellationFee": 300000,
+  "bookingCancelled": true
+}
+```
+
+**Lỗi có thể xảy ra:**
+- `400 Bad Request`: "Ticket is already cancelled" - Ticket đã bị hủy
+- `400 Bad Request`: "Cannot cancel ticket for booking with status: {status}" - Booking status không cho phép hủy
+- `400 Bad Request`: "This ticket cannot be cancelled due to fare class restrictions or time limits" - Không đáp ứng điều kiện hủy
+- `400 Bad Request`: "OTP verification is required for cancelling tickets from paid bookings" - Cần verify OTP cho paid bookings
+- `401 Unauthorized`: "Invalid or expired OTP" - OTP không hợp lệ hoặc đã hết hạn
+- `404 Not Found`: "Ticket not found" - Không tìm thấy ticket
+- `403 Forbidden`: "Ticket does not belong to the current user" - Ticket không thuộc về user
+
+**Lưu ý quan trọng:**
+- **Transaction-based:** Hủy ticket, segment, và recalculate booking amount được thực hiện trong một transaction
+- **State consistency:** `booking.total_amount` được recalculate sau khi hủy ticket
+- **Email notification:** Tự động gửi email xác nhận hủy với thông tin refund (nếu có)
 
 ---
 

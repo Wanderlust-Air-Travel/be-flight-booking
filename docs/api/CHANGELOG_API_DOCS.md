@@ -1,5 +1,56 @@
 # API Documentation Changelog
 
+## [2025-12-XX] - Hybrid Cancellation Approach (Partial & Full Cancellation)
+
+### Tính năng mới
+
+#### 1. Hybrid Cancellation Approach (2025-12-XX)
+
+**Feature**: Hỗ trợ hủy từng ticket riêng lẻ (partial cancellation) và hủy toàn bộ booking (full cancellation)
+
+**New Endpoints**:
+- `GET /api/v1/bookings/tickets/:ticketId/info` - Get ticket info (bookingId, bookingStatus)
+- `PATCH /api/v1/bookings/tickets/:ticketId/cancel` - Cancel individual ticket
+- `POST /api/v1/auth/otp/cancellation/send` - Send OTP for cancellation verification
+- `POST /api/v1/auth/otp/cancellation/verify` - Verify OTP and create verification token
+
+**Enhanced Endpoints**:
+- `PATCH /api/v1/bookings/:id/cancel` - Enhanced với paid booking support và refund calculation
+
+**Key Features**:
+- **Level 1: Cancel Individual Ticket** - Hủy từng ticket riêng lẻ
+  - Recalculate `booking.total_amount` sau khi hủy ticket
+  - Auto-cancel booking nếu tất cả tickets cancelled
+  - Refund calculation theo segment (proportional)
+- **Level 2: Cancel Entire Booking** - Hủy toàn bộ booking
+  - Refund calculation cho toàn bộ booking
+  - Cancel tất cả tickets và segments
+- **OTP Verification for Paid Bookings**:
+  - OTP expiry: 5 minutes
+  - Verification token expiry: 10 minutes
+  - One-time use OTP (deleted after verification)
+- **Refund Calculation**:
+  - Full cancellation: `Refund = Total Amount - Cancellation Fee - Non-refundable Fees (10%)`
+  - Partial cancellation: `Refund = Segment Amount - Cancellation Fee - Non-refundable Fees (proportional 10%)`
+  - Cancellation fee: 300,000 - 600,000 VND per segment (based on fare class)
+
+**Business Rules**:
+- Paid bookings có thể hủy (với OTP verification)
+- Pending/Confirmed bookings có thể hủy trực tiếp (không cần OTP)
+- Auto-cancel booking khi tất cả tickets cancelled
+- Booking status check được ưu tiên trước fare class/time limit check
+
+**My Journey Filter**:
+- Tự động loại bỏ cancelled bookings khỏi "Hành trình của tôi"
+- Chỉ hiển thị active/completed journeys
+
+**Documentation Updates**:
+- Updated `docs/api/API_DOCS.md` với hybrid cancellation endpoints
+- Updated `docs/api/API_SEQUENCE_DIAGRAMS.md` với cancellation flows
+- Updated Postman collection với cancel ticket requests và OTP cancellation endpoints
+
+---
+
 ## [2025-11-26] - Seat Validation, Error Handling & Payment Timeout Fix
 
 ### Bug Fixes

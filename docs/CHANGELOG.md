@@ -4,6 +4,83 @@ Lịch sử các thay đổi quan trọng của dự án.
 
 ## [Unreleased]
 
+### Tính năng mới (2025-12-XX)
+
+- **Hybrid Cancellation Approach - Partial & Full Cancellation (2025-12-XX)**
+  - **Feature**: Hỗ trợ hủy từng ticket riêng lẻ (partial cancellation) và hủy toàn bộ booking (full cancellation)
+  - **Implementation**:
+    - **Level 1: Cancel Individual Ticket** - `PATCH /api/v1/bookings/tickets/:ticketId/cancel`
+      - Hủy một ticket riêng lẻ từ booking
+      - Recalculate `booking.total_amount` sau khi hủy ticket
+      - Auto-cancel booking nếu tất cả tickets cancelled
+      - Refund calculation theo segment (proportional)
+    - **Level 2: Cancel Entire Booking** - `PATCH /api/v1/bookings/:id/cancel` (enhanced)
+      - Hủy toàn bộ booking và tất cả tickets
+      - Refund calculation cho toàn bộ booking
+    - **OTP Verification for Paid Bookings**:
+      - `POST /api/v1/auth/otp/cancellation/send` - Gửi OTP (5 phút expiry)
+      - `POST /api/v1/auth/otp/cancellation/verify` - Verify OTP và tạo verification token (10 phút)
+      - Verification token được check trong cancel request (không cần OTP trong body)
+    - **Get Ticket Info** - `GET /api/v1/bookings/tickets/:ticketId/info`
+      - Lấy `bookingId` và `bookingStatus` từ `ticketId` (dùng cho OTP flow)
+  - **Refund Calculation**:
+    - **Full Cancellation**: `Refund = Total Amount - Cancellation Fee - Non-refundable Fees (10%)`
+    - **Partial Cancellation**: `Refund = Segment Amount - Cancellation Fee - Non-refundable Fees (proportional 10%)`
+    - Cancellation fee tính theo fare class (300,000 - 600,000 VND per segment)
+  - **Business Rules**:
+    - Paid bookings có thể hủy (với OTP verification)
+    - Pending/Confirmed bookings có thể hủy trực tiếp (không cần OTP)
+    - Auto-cancel booking khi tất cả tickets cancelled
+    - Booking status check được ưu tiên trước fare class/time limit check
+  - **Frontend Implementation**:
+    - Button "Hủy vé này" cho từng ticket (partial cancellation)
+    - Button "Hủy toàn bộ đặt chỗ" cho booking (full cancellation)
+    - OTP dialog riêng cho cancel ticket và cancel booking
+    - Hiển thị refund amount trong toast notification
+    - Hiển thị thông báo nếu booking được auto-cancel
+    - Disable buttons khi ticket/booking đã cancelled
+  - **My Journey Filter**:
+    - Tự động loại bỏ cancelled bookings khỏi "Hành trình của tôi"
+    - Chỉ hiển thị active/completed journeys
+  - **Files Changed**:
+    - `src/microservices/booking/booking.service.ts`:
+      - `cancelTicket()` - Cancel individual ticket
+      - `getTicketInfo()` - Get ticket info
+      - `calculateRefundAmountForSegments()` - Refund calculation for segments
+      - `cancelBooking()` - Enhanced với paid booking support và refund calculation
+    - `src/microservices/booking/booking.controller.ts` - Handlers cho cancel ticket và get ticket info
+    - `src/microservices/booking/booking.messages.ts` - Added `CANCEL_TICKET`, `GET_TICKET_INFO` patterns
+    - `src/api-gateway/modules/booking/booking.controller.ts`:
+      - `PATCH /api/v1/bookings/tickets/:ticketId/cancel` - Cancel ticket endpoint
+      - `GET /api/v1/bookings/tickets/:ticketId/info` - Get ticket info endpoint
+      - Enhanced `PATCH /api/v1/bookings/:id/cancel` với OTP verification
+    - `src/api-gateway/modules/auth/auth.service.ts`:
+      - `sendOtpCancellation()` - Send OTP for cancellation
+      - `verifyOtpCancellation()` - Verify OTP và tạo verification token
+      - `isCancellationOtpVerified()` - Check verification token
+      - `deleteCancellationVerificationToken()` - Delete verification token
+    - `src/shared/services/otp-storage.service.ts`:
+      - `storeCancellationOtp()` - Store cancellation OTP
+      - `verifyCancellationOtp()` - Verify và tạo verification token
+      - `isCancellationOtpVerified()` - Check verification token
+      - `deleteCancellationVerificationToken()` - Delete verification token
+    - `src/microservices/email/services/email-template.service.ts`:
+      - `OTP_CANCELLATION` template
+      - `BOOKING_CANCELLATION` template với refund information
+    - `booking/app/(page)/my-tickets/page.tsx`:
+      - `handleCancelTicket()` - Cancel individual ticket
+      - `handleVerifyOtpAndCancelTicket()` - OTP verification flow
+      - `performTicketCancellation()` - Execute ticket cancellation
+      - OTP dialogs cho cancel ticket và cancel booking
+      - UI updates cho partial cancellation display
+    - `booking/app/api/bookings/tickets/[ticketId]/cancel/route.ts` - Frontend API route (new)
+    - `booking/app/api/bookings/tickets/[ticketId]/info/route.ts` - Frontend API route (new)
+    - `booking/app/(page)/my-journey/page.tsx` - Filter cancelled bookings
+  - **Documentation**:
+    - Updated `docs/api/API_DOCS.md` với hybrid cancellation endpoints
+    - Updated `docs/api/API_SEQUENCE_DIAGRAMS.md` với cancellation flows
+    - Updated Postman collection với cancel ticket requests
+
 ### Bug Fixes (2025-12-XX)
 
 - **Fixed Booking Cancellation Logic - Booking Status Check (2025-12-XX)**

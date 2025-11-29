@@ -883,9 +883,85 @@
 						"description": "Verify OTP and reset password. OTP must be exactly 6 digits. New password must be at least 8 characters. After successful reset, user can login with new password."
 					},
 					"response": []
+				},
+				{
+					"name": "Send OTP Cancellation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"bookingId\": \"{{bookingId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/otp/cancellation/send",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"otp",
+								"cancellation",
+								"send"
+							]
+						},
+						"description": "Send OTP to user's email for cancellation verification. OTP expires in 5 minutes. Used for cancelling paid bookings or tickets. Requires JWT authentication and Email Microservice running on port 4007.\n\n**Validation:**\n- `userId`: Required, must be a valid UUID v7 format\n- `bookingId`: Required, must be a valid UUID v7 format\n\n**Response:**\n```json\n{\n  \"success\": true,\n  \"message\": \"OTP sent successfully\",\n  \"expiresIn\": 300\n}\n```\n\n**Error Responses:**\n- `400 Bad Request`: Invalid UUID format or missing required fields\n- `404 Not Found`: User not found\n- `503 Service Unavailable`: Email service is not available\n\n**Lưu ý:**\n- OTP is stored in Redis with TTL 5 minutes (300 seconds)\n- OTP is keyed by `userId:bookingId`\n- After verification, OTP is deleted and replaced with verification token (10 min TTL)"
+					},
+					"response": []
+				},
+				{
+					"name": "Verify OTP Cancellation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"bookingId\": \"{{bookingId}}\",\n  \"otp\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/otp/cancellation/verify",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"otp",
+								"cancellation",
+								"verify"
+							]
+						},
+						"description": "Verify OTP for cancellation. After successful verification, a verification token is stored in Redis (10 minutes) to allow the cancel request. OTP is deleted after verification (one-time use). Requires JWT authentication.\n\n**Validation:**\n- `userId`: Required, must be a valid UUID v7 format\n- `bookingId`: Required, must be a valid UUID v7 format\n- `otp`: Required, must be exactly 6 digits\n\n**Response:**\n```json\n{\n  \"success\": true,\n  \"message\": \"OTP verified successfully\"\n}\n```\n\n**Error Responses:**\n- `400 Bad Request`: Invalid UUID format or OTP format\n- `401 Unauthorized`: Invalid or expired OTP\n- `404 Not Found`: User not found\n\n**Lưu ý:**\n- OTP is automatically deleted after successful verification\n- Verification token is stored in Redis with TTL 10 minutes\n- Cancel request will check verification token (not OTP)\n- Verification token is deleted after successful cancellation"
+					},
+					"response": []
 				}
 			],
-			"description": "Authentication APIs including OTP endpoints for payment verification and password reset"
+			"description": "Authentication APIs including OTP endpoints for payment verification, password reset, and cancellation verification"
 		},
 			{
 				"name": "Booking State",
@@ -1449,7 +1525,74 @@
 								"cancel"
 							]
 						},
-						"description": "Cancel a booking. Only authenticated users can cancel their own bookings. System validates cancellation eligibility based on Bamboo Airways rules. Requires JWT authentication and Booking Microservice running on port 4004.\n\n**IMPORTANT - Booking Status Check (Updated 2025-12-XX):**\n- **Booking status validation is checked FIRST** before fare class and time limit checks\n- **Only bookings with status `pending` or `confirmed` can be cancelled**\n- Bookings with status `paid`, `cancelled`, or `completed` → **Cannot cancel** (400 Bad Request)\n- Error message: \"Cannot cancel booking with status: {status}\"\n- **Consistency**: `GET /api/v1/bookings/my-tickets` API now checks booking status first when calculating `canCancel`, ensuring frontend displays correct cancellation status\n\n**Quy định hủy vé Bamboo Airways:**\n- **Chặng bay nội địa:** Hoàn thiện thủ tục hoàn vé trước giờ khởi hành tối thiểu **03 tiếng**\n- **Chặng bay quốc tế:** Thực hiện thủ tục hoàn vé trước giờ khởi hành ít nhất **05 tiếng**\n\n**Các hạng vé được phép hoàn:**\n- Economy Smart, Economy Flex\n- Premium Smart, Premium Flex\n- Business Smart, Business Flex\n\n**Các hạng vé KHÔNG được phép hoàn/hủy:**\n- Economy Saver Max (YSM, SMX)\n- Economy Saver / Bamboo Eco (ECO, YS)\n- Lưu ý: Các hạng vé siêu tiết kiệm thông thường không được phép hoàn/hủy vé\n\n**Path parameter:**\n- `bookingId`: Booking ID (UUID v7)\n\n**Authentication:**\n- Requires JWT Bearer Token in header: `Authorization: Bearer {{access_token}}`\n- Only authenticated users can cancel bookings (guest bookings cannot be cancelled via API)\n- `userId` is automatically extracted from JWT token\n\n**Validation:**\n- Booking must belong to the authenticated user\n- Booking status must be `pending` or `confirmed`\n- Cancellation eligibility is checked (fare class, time limit)\n- All segments must be cancellable\n\n**Response (Success):**\n```json\n{\n  \"success\": true,\n  \"message\": \"Booking cancelled successfully\"\n}\n```\n\n**Error Responses:**\n- `400 Bad Request`: Booking cannot be cancelled (time limit exceeded, fare class not allowed, or already cancelled)\n- `401 Unauthorized`: Not authenticated\n- `403 Forbidden`: Booking does not belong to current user\n- `404 Not Found`: Booking not found\n\n**Lưu ý:**\n- After successful cancellation, booking status is updated to `cancelled`\n- Related tickets (if any) are also updated to `cancelled` status\n- Transaction is used to ensure data consistency\n- User should check specific Fare Rules for their ticket to know exact cancellation policy"
+						"description": "Cancel an entire booking (full cancellation). Supports cancelling bookings with status `pending`, `confirmed`, or `paid` (with OTP verification for paid bookings). Only authenticated users can cancel their own bookings. System validates cancellation eligibility based on Bamboo Airways rules. Requires JWT authentication and Booking Microservice running on port 4004.\n\n**Hybrid Cancellation Approach:**\n- **Level 1: Cancel individual ticket** - Use `PATCH /api/v1/bookings/tickets/:ticketId/cancel`\n- **Level 2: Cancel entire booking** - This endpoint\n\n**OTP Verification Flow (for paid bookings):**\n1. Send OTP: `POST /api/v1/auth/otp/cancellation/send` with `userId` and `bookingId`\n2. Verify OTP: `POST /api/v1/auth/otp/cancellation/verify` with `userId`, `bookingId`, and `otp`\n3. Cancel booking: `PATCH /api/v1/bookings/:id/cancel` (empty body, no OTP needed)\n\n**IMPORTANT - Booking Status Check (Updated 2025-12-XX):**\n- **Booking status validation is checked FIRST** before fare class and time limit checks\n- **Bookings with status `pending`, `confirmed`, or `paid` can be cancelled**\n- Bookings with status `paid` require OTP verification\n- Bookings with status `cancelled` or `completed` → **Cannot cancel** (400 Bad Request)\n- Error message: \"Cannot cancel booking with status: {status}\"\n- **Consistency**: `GET /api/v1/bookings/my-tickets` API now checks booking status first when calculating `canCancel`, ensuring frontend displays correct cancellation status\n\n**Quy định hủy vé Bamboo Airways:**\n- **Chặng bay nội địa:** Hoàn thiện thủ tục hoàn vé trước giờ khởi hành tối thiểu **03 tiếng**\n- **Chặng bay quốc tế:** Thực hiện thủ tục hoàn vé trước giờ khởi hành ít nhất **05 tiếng**\n\n**Các hạng vé được phép hoàn:**\n- Economy Smart, Economy Flex\n- Premium Smart, Premium Flex\n- Business Smart, Business Flex\n\n**Các hạng vé KHÔNG được phép hoàn/hủy:**\n- Economy Saver Max (YSM, SMX)\n- Economy Saver / Bamboo Eco (ECO, YS)\n- Lưu ý: Các hạng vé siêu tiết kiệm thông thường không được phép hoàn/hủy vé\n\n**Path parameter:**\n- `bookingId`: Booking ID (UUID v7)\n\n**Authentication:**\n- Requires JWT Bearer Token in header: `Authorization: Bearer {{access_token}}`\n- Only authenticated users can cancel bookings (guest bookings cannot be cancelled via API)\n- `userId` is automatically extracted from JWT token\n\n**Validation:**\n- Booking must belong to the authenticated user\n- Booking status must be `pending` or `confirmed`\n- Cancellation eligibility is checked (fare class, time limit)\n- All segments must be cancellable\n\n**Refund Calculation (for paid bookings):**\n- **Formula:** `Refund = Total Amount - Cancellation Fee - Non-refundable Fees (10%)`\n- **Cancellation Fee:** Based on fare class (300,000 - 600,000 VND per segment)\n- **Non-refundable Fees:** 10% of total amount (service fees, taxes)\n\n**Response (Success - Pending/Confirmed):**\n```json\n{\n  \"success\": true,\n  \"message\": \"Booking cancelled successfully\"\n}\n```\n\n**Response (Success - Paid with Refund):**\n```json\n{\n  \"success\": true,\n  \"message\": \"Booking cancelled successfully. Refund amount: 1,200,000 VND\",\n  \"refundAmount\": 1200000,\n  \"cancellationFee\": 300000\n}\n```\n\n**Error Responses:**\n- `400 Bad Request`: \"Cannot cancel booking with status: {status}\" - Booking status not allowed\n- `400 Bad Request`: \"Booking is already cancelled\" - Booking already cancelled\n- `400 Bad Request`: \"Cannot cancel booking: {reason}\" - Cancellation not eligible (fare class or time limit)\n- `400 Bad Request`: \"OTP verification is required for cancelling paid bookings\" - OTP verification required\n- `401 Unauthorized`: \"Invalid or expired OTP\" - OTP verification failed\n- `403 Forbidden`: \"Booking does not belong to the current user\" - Ownership validation failed\n- `404 Not Found`: \"Booking not found\" - Booking does not exist\n\n**Lưu ý:**\n- After successful cancellation, booking status is updated to `cancelled`\n- All related tickets are updated to `cancelled` status\n- All related segments are updated to `cancelled` status\n- Transaction is used to ensure data consistency\n- Email notification is sent with refund information (if paid booking)\n- Verification token is deleted after successful cancellation\n- User should check specific Fare Rules for their ticket to know exact cancellation policy"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Ticket Info",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/bookings/tickets/{{ticketId}}/info",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"bookings",
+								"tickets",
+								"{{ticketId}}",
+								"info"
+							]
+						},
+						"description": "Get ticket information including bookingId and bookingStatus. Used for OTP verification flow when canceling tickets. Requires JWT authentication and Booking Microservice running on port 4004.\n\n**Path parameter:**\n- `ticketId`: Ticket ID (UUID v7)\n\n**Response:**\n```json\n{\n  \"ticketId\": \"019a8f4a-bb0e-7402-a0c4-27647b89dc71\",\n  \"bookingId\": \"019a8f4a-bb0e-7402-a0c4-27647b89dc72\",\n  \"bookingStatus\": \"paid\"\n}\n```\n\n**Error Responses:**\n- `400 Bad Request`: Invalid ticket ID format\n- `401 Unauthorized`: Not authenticated\n- `403 Forbidden`: Ticket does not belong to current user\n- `404 Not Found`: Ticket not found"
+					},
+					"response": []
+				},
+				{
+					"name": "Cancel Ticket (Partial Cancellation)",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/bookings/tickets/{{ticketId}}/cancel",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"bookings",
+								"tickets",
+								"{{ticketId}}",
+								"cancel"
+							]
+						},
+						"description": "Cancel a single ticket from a booking (partial cancellation). If all tickets in the booking are cancelled, the booking will be automatically cancelled. For paid bookings, OTP verification is required. Requires JWT authentication and Booking Microservice running on port 4004.\n\n**Hybrid Cancellation Approach:**\n- **Level 1: Cancel individual ticket** - This endpoint\n- **Level 2: Cancel entire booking** - Use `PATCH /api/v1/bookings/:id/cancel`\n\n**OTP Verification Flow (for paid bookings):**\n1. Get ticket info: `GET /api/v1/bookings/tickets/:ticketId/info` to get `bookingId`\n2. Send OTP: `POST /api/v1/auth/otp/cancellation/send` with `userId` and `bookingId`\n3. Verify OTP: `POST /api/v1/auth/otp/cancellation/verify` with `userId`, `bookingId`, and `otp`\n4. Cancel ticket: `PATCH /api/v1/bookings/tickets/:ticketId/cancel` (empty body, no OTP needed)\n\n**Path parameter:**\n- `ticketId`: Ticket ID (UUID v7)\n\n**Request body:**\n- Empty object `{}` (OTP is verified separately)\n\n**Validation:**\n- Ticket must belong to the authenticated user\n- Ticket must not be already cancelled\n- Booking status must be `pending`, `confirmed`, or `paid` (with OTP verification)\n- Cancellation eligibility is checked (fare class, time limit) for the related segment\n\n**Refund Calculation (for paid bookings):**\n- **Formula:** `Refund = Segment Amount - Cancellation Fee - Non-refundable Fees (proportional 10%)`\n- **Segment Amount:** `base_fare + tax_amount + fee_amount` of cancelled segment\n- **Cancellation Fee:** Based on fare class (300,000 - 600,000 VND per segment)\n\n**Auto-cancel Booking:**\n- If all tickets in booking are cancelled after this operation, booking is automatically cancelled\n- Response will include `bookingCancelled: true` if booking was auto-cancelled\n\n**Response (Success):**\n```json\n{\n  \"success\": true,\n  \"message\": \"Ticket cancelled successfully.\",\n  \"refundAmount\": 600000,\n  \"cancellationFee\": 300000,\n  \"bookingCancelled\": false\n}\n```\n\n**Response (Booking Auto-cancelled):**\n```json\n{\n  \"success\": true,\n  \"message\": \"Ticket cancelled successfully. All tickets in this booking have been cancelled, booking is now cancelled.\",\n  \"refundAmount\": 600000,\n  \"cancellationFee\": 300000,\n  \"bookingCancelled\": true\n}\n```\n\n**Error Responses:**\n- `400 Bad Request`: \"Ticket is already cancelled\" - Ticket already cancelled\n- `400 Bad Request`: \"Cannot cancel ticket for booking with status: {status}\" - Booking status not allowed\n- `400 Bad Request`: \"This ticket cannot be cancelled due to fare class restrictions or time limits\" - Cancellation not eligible\n- `400 Bad Request`: \"OTP verification is required for cancelling tickets from paid bookings\" - OTP verification required\n- `401 Unauthorized`: \"Invalid or expired OTP\" - OTP verification failed\n- `403 Forbidden`: \"Ticket does not belong to the current user\" - Ownership validation failed\n- `404 Not Found`: \"Ticket not found\" - Ticket does not exist\n\n**Lưu ý:**\n- After successful cancellation, ticket status is updated to `cancelled`\n- Related segment status is updated to `cancelled`\n- `booking.total_amount` is recalculated (subtract cancelled segment amount)\n- Transaction is used to ensure data consistency\n- Email notification is sent with refund information (if paid booking)"
 					},
 					"response": []
 				}

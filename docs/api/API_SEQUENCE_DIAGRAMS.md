@@ -396,18 +396,20 @@ sequenceDiagram
     Frontend-->>User: Redirected to confirmation page
 ```
 
-## Cancel Booking Flow
+## Cancel Booking Flow (Hybrid Cancellation Approach)
 
-### Flow: User Cancels a Booking
+### Flow: User Cancels Entire Booking (Full Cancellation)
 
 ```mermaid
 sequenceDiagram
     participant User
     participant Frontend
     participant API Gateway
+    participant Auth Service
     participant Booking MS
     participant Database
-    participant Ticket MS
+    participant Email MS
+    participant Redis
 
     User->>Frontend: View "My Tickets" page
     Frontend->>API Gateway: GET /api/v1/bookings/my-tickets
@@ -418,42 +420,222 @@ sequenceDiagram
     API Gateway-->>Frontend: Tickets with cancellation info
     Frontend-->>User: Display tickets with cancel button (if canCancel=true)
 
-    User->>Frontend: Click "Cancel Booking"
+    User->>Frontend: Click "Cancel Entire Booking"
     Frontend->>Frontend: Show confirmation dialog
     User->>Frontend: Confirm cancellation
     
+    alt Booking Status is Paid
+        Frontend->>Frontend: Open OTP dialog
+        User->>Frontend: Click "Send OTP"
+        Frontend->>API Gateway: POST /api/v1/auth/otp/cancellation/send
+        Note over Frontend,API Gateway: {userId, bookingId}
+        API Gateway->>Auth Service: Send OTP cancellation
+        Auth Service->>Redis: Store OTP (TTL: 5 min)
+        Auth Service->>Email MS: Send OTP email
+        Email MS-->>Auth Service: Email sent
+        Auth Service-->>API Gateway: OTP sent
+        API Gateway-->>Frontend: OTP sent successfully
+        Frontend-->>User: OTP sent to email
+        
+        User->>Frontend: Enter OTP
+        Frontend->>API Gateway: POST /api/v1/auth/otp/cancellation/verify
+        Note over Frontend,API Gateway: {userId, bookingId, otp}
+        API Gateway->>Auth Service: Verify OTP
+        Auth Service->>Redis: Get OTP
+        Redis-->>Auth Service: OTP data
+        alt OTP Valid
+            Auth Service->>Redis: Store verification token (TTL: 10 min)
+            Auth Service->>Redis: Delete OTP (one-time use)
+            Auth Service-->>API Gateway: OTP verified
+            API Gateway-->>Frontend: OTP verified successfully
+        else OTP Invalid/Expired
+            Auth Service-->>API Gateway: 401 Unauthorized
+            API Gateway-->>Frontend: Invalid or expired OTP
+            Frontend-->>User: Show error
+        end
+    end
+    
     Frontend->>API Gateway: PATCH /api/v1/bookings/:id/cancel
-    Note over Frontend,API Gateway: Authorization: Bearer <token>
+    Note over Frontend,API Gateway: Authorization: Bearer <token>, Empty body
     
     API Gateway->>API Gateway: Validate JWT token
-    API Gateway->>Booking MS: Cancel booking
+    alt Booking Status is Paid
+        API Gateway->>Auth Service: Check verification token
+        Auth Service->>Redis: Get verification token
+        Redis-->>Auth Service: Token exists
+        alt Token Valid
+            API Gateway->>Booking MS: Cancel booking
+        else Token Invalid/Expired
+            API Gateway-->>Frontend: 400 Bad Request (OTP verification required)
+            Frontend-->>User: Show error
+        end
+    else Booking Status is Pending/Confirmed
+        API Gateway->>Booking MS: Cancel booking
+    end
+    
     Note over API Gateway,Booking MS: {bookingId, userId}
     
     Booking MS->>Database: Find booking with relations
     Database-->>Booking MS: Booking data
     
     Booking MS->>Booking MS: Validate ownership (userId matches)
-    Booking MS->>Booking MS: Check booking status FIRST (must be pending/confirmed)
-    Note over Booking MS: Status check priority: paid/cancelled/completed → cannot cancel
-    alt Booking Status Allows Cancellation (pending/confirmed)
-        Booking MS->>Booking MS: Check cancellation eligibility
-        Note over Booking MS: - Check fare class (Economy Saver Max/Saver cannot cancel)
-        Note over Booking MS: - Check time limit (3h domestic, 5h international)
-    else Booking Status Does Not Allow Cancellation
-        Booking MS-->>API Gateway: 400 Bad Request (status: paid/cancelled/completed)
-        API Gateway-->>Frontend: 400 Bad Request
-        Frontend-->>User: Show error: "Cannot cancel booking with status: {status}"
-    end
+    Booking MS->>Booking MS: Check booking status (pending/confirmed/paid)
+    Booking MS->>Booking MS: Check cancellation eligibility
+    Note over Booking MS: - Check fare class (Economy Saver Max/Saver cannot cancel)
+    Note over Booking MS: - Check time limit (3h domestic, 5h international)
     
     alt Cancellation Allowed
         Booking MS->>Database: Start transaction
+        alt Booking Status is Paid
+            Booking MS->>Booking MS: Calculate refund amount
+            Note over Booking MS: Refund = Total - Cancellation Fee - Non-refundable Fees
+        end
         Booking MS->>Database: Update booking status = 'cancelled'
-        Booking MS->>Database: Update related tickets status = 'cancelled'
+        Booking MS->>Database: Update all tickets status = 'cancelled'
+        Booking MS->>Database: Update all segments status = 'cancelled'
         Booking MS->>Database: Commit transaction
-        Booking MS-->>API Gateway: {success: true, message: "Booking cancelled successfully"}
+        alt Booking Status is Paid
+            Booking MS->>Email MS: Send cancellation email with refund info
+            Email MS-->>Booking MS: Email sent
+            API Gateway->>Auth Service: Delete verification token
+            Auth Service->>Redis: Delete verification token
+        end
+        Booking MS-->>API Gateway: {success: true, refundAmount, cancellationFee}
         API Gateway-->>Frontend: 200 OK
         Frontend->>Frontend: Refresh tickets list
-        Frontend-->>User: Show success message
+        Frontend-->>User: Show success message with refund info
+    else Cancellation Not Allowed
+        Booking MS-->>API Gateway: 400 Bad Request (reason: fare class or time limit)
+        API Gateway-->>Frontend: 400 Bad Request
+        Frontend-->>User: Show error message with reason
+    end
+```
+
+### Flow: User Cancels Individual Ticket (Partial Cancellation)
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant API Gateway
+    participant Auth Service
+    participant Booking MS
+    participant Database
+    participant Email MS
+    participant Redis
+
+    User->>Frontend: View "My Tickets" page
+    Frontend->>API Gateway: GET /api/v1/bookings/my-tickets
+    API Gateway->>Booking MS: Get my tickets
+    Booking MS->>Database: Query tickets
+    Database-->>Booking MS: Tickets list
+    API Gateway-->>Frontend: Tickets list
+    Frontend-->>User: Display tickets with "Cancel Ticket" button
+
+    User->>Frontend: Click "Cancel This Ticket"
+    Frontend->>Frontend: Show confirmation dialog
+    User->>Frontend: Confirm cancellation
+    
+    alt Booking Status is Paid
+        Frontend->>API Gateway: GET /api/v1/bookings/tickets/:ticketId/info
+        API Gateway->>Booking MS: Get ticket info
+        Booking MS->>Database: Get ticket with booking
+        Database-->>Booking MS: Ticket info
+        Booking MS-->>API Gateway: {ticketId, bookingId, bookingStatus}
+        API Gateway-->>Frontend: Ticket info
+        
+        Frontend->>Frontend: Open OTP dialog
+        User->>Frontend: Click "Send OTP"
+        Frontend->>API Gateway: POST /api/v1/auth/otp/cancellation/send
+        Note over Frontend,API Gateway: {userId, bookingId}
+        API Gateway->>Auth Service: Send OTP cancellation
+        Auth Service->>Redis: Store OTP (TTL: 5 min)
+        Auth Service->>Email MS: Send OTP email
+        Email MS-->>Auth Service: Email sent
+        Auth Service-->>API Gateway: OTP sent
+        API Gateway-->>Frontend: OTP sent successfully
+        Frontend-->>User: OTP sent to email
+        
+        User->>Frontend: Enter OTP
+        Frontend->>API Gateway: POST /api/v1/auth/otp/cancellation/verify
+        Note over Frontend,API Gateway: {userId, bookingId, otp}
+        API Gateway->>Auth Service: Verify OTP
+        Auth Service->>Redis: Get OTP
+        Redis-->>Auth Service: OTP data
+        alt OTP Valid
+            Auth Service->>Redis: Store verification token (TTL: 10 min)
+            Auth Service->>Redis: Delete OTP (one-time use)
+            Auth Service-->>API Gateway: OTP verified
+            API Gateway-->>Frontend: OTP verified successfully
+        else OTP Invalid/Expired
+            Auth Service-->>API Gateway: 401 Unauthorized
+            API Gateway-->>Frontend: Invalid or expired OTP
+            Frontend-->>User: Show error
+        end
+    end
+    
+    Frontend->>API Gateway: PATCH /api/v1/bookings/tickets/:ticketId/cancel
+    Note over Frontend,API Gateway: Authorization: Bearer <token>, Empty body
+    
+    API Gateway->>API Gateway: Validate JWT token
+    alt Booking Status is Paid
+        API Gateway->>Auth Service: Check verification token
+        Auth Service->>Redis: Get verification token
+        Redis-->>Auth Service: Token exists
+        alt Token Valid
+            API Gateway->>Booking MS: Cancel ticket
+        else Token Invalid/Expired
+            API Gateway-->>Frontend: 400 Bad Request (OTP verification required)
+            Frontend-->>User: Show error
+        end
+    else Booking Status is Pending/Confirmed
+        API Gateway->>Booking MS: Cancel ticket
+    end
+    
+    Note over API Gateway,Booking MS: {ticketId, userId}
+    
+    Booking MS->>Database: Find ticket with relations
+    Database-->>Booking MS: Ticket data
+    
+    Booking MS->>Booking MS: Validate ownership (userId matches)
+    Booking MS->>Booking MS: Check ticket status (not cancelled)
+    Booking MS->>Booking MS: Check booking status (pending/confirmed/paid)
+    Booking MS->>Booking MS: Check cancellation eligibility for segment
+    Note over Booking MS: - Check fare class
+    Note over Booking MS: - Check time limit (3h domestic, 5h international)
+    
+    alt Cancellation Allowed
+        Booking MS->>Database: Start transaction
+        Booking MS->>Database: Update ticket status = 'cancelled'
+        Booking MS->>Database: Update related segment status = 'cancelled'
+        alt Booking Status is Paid
+            Booking MS->>Booking MS: Calculate refund for segment
+            Note over Booking MS: Refund = Segment Amount - Cancellation Fee - Non-refundable Fees
+        end
+        Booking MS->>Booking MS: Recalculate booking.total_amount
+        Note over Booking MS: booking.total_amount -= segment_amount
+        Booking MS->>Database: Update booking.total_amount
+        Booking MS->>Database: Check if all tickets cancelled
+        alt All Tickets Cancelled
+            Booking MS->>Database: Update booking status = 'cancelled'
+            Booking MS->>Database: Update all segments status = 'cancelled'
+            Note over Booking MS: Auto-cancel booking
+        end
+        Booking MS->>Database: Commit transaction
+        alt Booking Status is Paid
+            Booking MS->>Email MS: Send cancellation email with refund info
+            Email MS-->>Booking MS: Email sent
+            API Gateway->>Auth Service: Delete verification token
+            Auth Service->>Redis: Delete verification token
+        end
+        Booking MS-->>API Gateway: {success: true, refundAmount, cancellationFee, bookingCancelled}
+        API Gateway-->>Frontend: 200 OK
+        Frontend->>Frontend: Refresh tickets list
+        alt Booking Cancelled
+            Frontend-->>User: Show success + "All tickets cancelled, booking auto-cancelled"
+        else Booking Still Active
+            Frontend-->>User: Show success message with refund info
+        end
     else Cancellation Not Allowed
         Booking MS-->>API Gateway: 400 Bad Request (reason: fare class or time limit)
         API Gateway-->>Frontend: 400 Bad Request
