@@ -4,6 +4,7 @@ export const BOOKING_MS = {
 	PATTERN: {
 		CREATE_BOOKING: 'booking.create',
 		CREATE_BOOKING_FROM_RESERVATION: 'booking.create-from-reservation',
+		GET_BOOKING: 'booking.get',
 		GET_FARE_DETAILS: 'booking.get-fare-details',
 		UPDATE_PASSENGERS: 'booking.update-passengers',
 		GET_PAYMENT_INFO: 'booking.get-payment-info',

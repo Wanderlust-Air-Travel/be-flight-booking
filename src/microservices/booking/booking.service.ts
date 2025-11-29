@@ -551,6 +551,102 @@ export class BookingService {
 	}
 
 	/**
+	 * Get full booking details by booking ID
+	 */
+	async getBooking(bookingId: string, userId: string | null = null): Promise<any> {
+		const booking = await this.bookingRepo
+			.createQueryBuilder('booking')
+			.leftJoinAndSelect('booking.currency', 'currency')
+			.leftJoinAndSelect('booking.user', 'user')
+			.leftJoinAndSelect('booking.booking_segments', 'segments')
+			.leftJoinAndSelect('segments.flight_instance', 'flightInstance')
+			.leftJoinAndSelect('flightInstance.origin', 'origin')
+			.leftJoinAndSelect('flightInstance.destination', 'destination')
+			.leftJoinAndSelect('flightInstance.flight', 'flight')
+			.leftJoinAndSelect('flight.airline', 'airline')
+			.leftJoinAndSelect('segments.fare_class', 'fareClass')
+			.leftJoinAndSelect('segments.flight_seat', 'flightSeat')
+			.leftJoinAndSelect('booking.booking_passengers', 'bookingPassengers')
+			.leftJoinAndSelect('bookingPassengers.passenger', 'passenger')
+			.where('booking.booking_id = :bookingId', { bookingId })
+			.getOne();
+
+		if (!booking) {
+			throw new NotFoundException(`Booking ${bookingId} not found`);
+		}
+
+		// Validate ownership: if userId is provided, booking must belong to that user
+		// If userId is null (guest), booking must not have a user
+		if (userId !== null) {
+			if (!booking.user || booking.user.user_id !== userId) {
+				throw new BadRequestException('Booking does not belong to the current user');
+			}
+		} else {
+			// Guest booking - should not have a user
+			if (booking.user) {
+				throw new BadRequestException('This booking belongs to a registered user. Please log in to view it.');
+			}
+		}
+
+		// Map segments
+		const segments = booking.booking_segments.map((segment) => ({
+			segmentId: segment.booking_segment_id,
+			flightInstance: {
+				flightInstanceId: segment.flight_instance.flight_instance_id,
+				departureDatetimeLocal: segment.flight_instance.departure_datetime_local.toISOString(),
+				arrivalDatetimeLocal: segment.flight_instance.arrival_datetime_local.toISOString(),
+				origin: {
+					airportCode: segment.flight_instance.origin.airport_code,
+					airportName: segment.flight_instance.origin.airport_name,
+					cityName: segment.flight_instance.origin.city_name,
+				},
+				destination: {
+					airportCode: segment.flight_instance.destination.airport_code,
+					airportName: segment.flight_instance.destination.airport_name,
+					cityName: segment.flight_instance.destination.city_name,
+				},
+				flight: {
+					flightNumber: segment.flight_instance.flight.flight_number,
+					airline: {
+						airlineName: segment.flight_instance.flight.airline.airline_name,
+					},
+				},
+			},
+			fareClass: {
+				fareClassCode: segment.fare_class.fare_class_code,
+				fareClassName: this.getFareClassName(segment.fare_class.fare_class_code, segment.fare_class.description),
+			},
+			flightSeat: segment.flight_seat
+				? {
+						seatNumber: segment.flight_seat.seat_number,
+					}
+				: undefined,
+		}));
+
+		// Map passengers
+		const passengers = booking.booking_passengers.map((bp) => ({
+			passengerId: bp.passenger.passenger_id,
+			fullname: bp.passenger.fullname,
+			dob: bp.passenger.dob.toISOString(),
+			gender: bp.passenger.gender,
+			documentNumber: bp.passenger.document_number,
+		}));
+
+		return {
+			bookingId: booking.booking_id,
+			pnrCode: booking.pnr_code,
+			status: booking.status,
+			totalAmount: Number(booking.total_amount),
+			currencyCode: booking.currency.currency_code,
+			contactFullname: booking.contact_fullname || undefined,
+			contactEmail: booking.contact_email || undefined,
+			contactPhone: booking.contact_phone || undefined,
+			segments,
+			passengers,
+		};
+	}
+
+	/**
 	 * Get payment information for a booking
 	 */
 	async getBookingPaymentInfo(bookingId: string): Promise<BookingPaymentInfoResponseDto> {

@@ -11,6 +11,7 @@ import { BookingPaymentInfoResponseDto } from './dto/booking-payment-info-respon
 import { MyTicketsResponseDto } from './dto/my-tickets-response.dto';
 import { MyJourneyResponseDto } from './dto/my-journey-response.dto';
 import { GetMyTicketsDto } from './dto/get-my-tickets.dto';
+import { GetBookingResponseDto } from './dto/get-booking-response.dto';
 
 @Controller()
 export class BookingMsController {
@@ -53,6 +54,18 @@ export class BookingMsController {
 			return result;
 		} catch (error: any) {
 			this.logger.error('Create booking from reservation error:', error);
+			throw error;
+		}
+	}
+
+	@MessagePattern(BOOKING_MS.PATTERN.GET_BOOKING)
+	async handleGetBooking(payload: { bookingId: string; userId: string | null }): Promise<GetBookingResponseDto> {
+		try {
+			this.logger.log(`Get booking: ${payload.bookingId}, userId: ${payload.userId || 'guest'}`);
+			const result = await this.bookingService.getBooking(payload.bookingId, payload.userId);
+			return result;
+		} catch (error: any) {
+			this.logger.error('Get booking error:', error);
 			throw error;
 		}
 	}
