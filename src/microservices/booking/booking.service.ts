@@ -560,10 +560,10 @@ export class BookingService {
 			.leftJoinAndSelect('booking.user', 'user')
 			.leftJoinAndSelect('booking.booking_segments', 'segments')
 			.leftJoinAndSelect('segments.flight_instance', 'flightInstance')
-			.leftJoinAndSelect('flightInstance.origin', 'origin')
-			.leftJoinAndSelect('flightInstance.destination', 'destination')
-			.leftJoinAndSelect('flightInstance.flight', 'flight')
-			.leftJoinAndSelect('flight.airline', 'airline')
+			.leftJoinAndSelect('flightInstance.flight_schedule', 'flightSchedule')
+			.leftJoinAndSelect('flightSchedule.route', 'route')
+			.leftJoinAndSelect('route.origin_airport', 'originAirport')
+			.leftJoinAndSelect('route.destination_airport', 'destinationAirport')
 			.leftJoinAndSelect('segments.fare_class', 'fareClass')
 			.leftJoinAndSelect('segments.flight_seat', 'flightSeat')
 			.leftJoinAndSelect('booking.booking_passengers', 'bookingPassengers')
@@ -589,48 +589,107 @@ export class BookingService {
 		}
 
 		// Map segments
-		const segments = booking.booking_segments.map((segment) => ({
-			segmentId: segment.booking_segment_id,
-			flightInstance: {
-				flightInstanceId: segment.flight_instance.flight_instance_id,
-				departureDatetimeLocal: segment.flight_instance.departure_datetime_local.toISOString(),
-				arrivalDatetimeLocal: segment.flight_instance.arrival_datetime_local.toISOString(),
-				origin: {
-					airportCode: segment.flight_instance.origin.airport_code,
-					airportName: segment.flight_instance.origin.airport_name,
-					cityName: segment.flight_instance.origin.city_name,
-				},
-				destination: {
-					airportCode: segment.flight_instance.destination.airport_code,
-					airportName: segment.flight_instance.destination.airport_name,
-					cityName: segment.flight_instance.destination.city_name,
-				},
-				flight: {
-					flightNumber: segment.flight_instance.flight.flight_number,
-					airline: {
-						airlineName: segment.flight_instance.flight.airline.airline_name,
+		const segments = booking.booking_segments.map((segment) => {
+			const flightInstance = segment.flight_instance;
+			const flightSchedule = flightInstance?.flight_schedule;
+			const route = flightSchedule?.route;
+			const originAirport = route?.origin_airport;
+			const destinationAirport = route?.destination_airport;
+
+			if (!flightInstance || !flightSchedule || !route || !originAirport || !destinationAirport) {
+				this.logger.error(
+					`Missing relations for segment ${segment.booking_segment_id}: flightInstance=${!!flightInstance}, flightSchedule=${!!flightSchedule}, route=${!!route}, originAirport=${!!originAirport}, destinationAirport=${!!destinationAirport}`,
+				);
+				throw new BadRequestException(`Incomplete flight data for segment ${segment.booking_segment_id}`);
+			}
+
+			// Handle datetime fields: could be Date object or string from database
+			const formatDateTime = (dt: Date | string): string => {
+				if (dt instanceof Date) {
+					return dt.toISOString();
+				} else if (typeof dt === 'string') {
+					const dateObj = new Date(dt);
+					if (!isNaN(dateObj.getTime())) {
+						return dateObj.toISOString();
+					}
+					return dt; // Fallback: return string as-is
+				}
+				return new Date().toISOString(); // Fallback: current date
+			};
+
+			return {
+				segmentId: segment.booking_segment_id,
+				flightInstance: {
+					flightInstanceId: flightInstance.flight_instance_id,
+					departureDatetimeLocal: formatDateTime(flightInstance.departure_datetime_local),
+					arrivalDatetimeLocal: formatDateTime(flightInstance.arrival_datetime_local),
+					origin: {
+						airportCode: originAirport.iata_code,
+						airportName: originAirport.name,
+						cityName: originAirport.city,
+					},
+					destination: {
+						airportCode: destinationAirport.iata_code,
+						airportName: destinationAirport.name,
+						cityName: destinationAirport.city,
+					},
+					flight: {
+						flightNumber: flightSchedule.flight_number,
+						airline: {
+							airlineName: 'Bamboo Airways', // Default airline name, can be enhanced later
+						},
 					},
 				},
-			},
-			fareClass: {
-				fareClassCode: segment.fare_class.fare_class_code,
-				fareClassName: this.getFareClassName(segment.fare_class.fare_class_code, segment.fare_class.description),
-			},
-			flightSeat: segment.flight_seat
-				? {
-						seatNumber: segment.flight_seat.seat_number,
-					}
-				: undefined,
-		}));
+				fareClass: {
+					fareClassCode: segment.fare_class.fare_class_code,
+					fareClassName: this.getFareClassName(segment.fare_class.fare_class_code, segment.fare_class.description),
+				},
+				flightSeat: segment.flight_seat
+					? {
+							seatNumber: segment.flight_seat.seat_number,
+						}
+					: undefined,
+			};
+		});
 
 		// Map passengers
-		const passengers = booking.booking_passengers.map((bp) => ({
-			passengerId: bp.passenger.passenger_id,
-			fullname: bp.passenger.fullname,
-			dob: bp.passenger.dob.toISOString(),
-			gender: bp.passenger.gender,
-			documentNumber: bp.passenger.document_number,
-		}));
+		const passengers = booking.booking_passengers.map((bp) => {
+			if (!bp.passenger) {
+				this.logger.error(`Passenger is null for booking_passenger ${bp.booking_passenger_id}`);
+				throw new BadRequestException(`Passenger data is missing for booking ${bookingId}`);
+			}
+
+			// Handle dob: could be Date object or string from database
+			let dobString: string;
+			if (!bp.passenger.dob) {
+				this.logger.warn(`DOB is missing for passenger ${bp.passenger.passenger_id}`);
+				dobString = new Date().toISOString(); // Default to current date
+			} else if (bp.passenger.dob instanceof Date) {
+				dobString = bp.passenger.dob.toISOString();
+			} else if (typeof bp.passenger.dob === 'string') {
+				// If it's already a string, try to parse and convert to ISO string
+				const dobDate = new Date(bp.passenger.dob);
+				if (!isNaN(dobDate.getTime())) {
+					dobString = dobDate.toISOString();
+				} else {
+					// Fallback: use the string as-is if parsing fails
+					this.logger.warn(`Invalid dob string for passenger ${bp.passenger.passenger_id}: ${bp.passenger.dob}`);
+					dobString = bp.passenger.dob;
+				}
+			} else {
+				// Fallback for other types
+				this.logger.warn(`Invalid dob type for passenger ${bp.passenger.passenger_id}: ${typeof bp.passenger.dob}`);
+				dobString = new Date().toISOString(); // Default to current date
+			}
+
+			return {
+				passengerId: bp.passenger.passenger_id,
+				fullname: bp.passenger.fullname,
+				dob: dobString,
+				gender: bp.passenger.gender,
+				documentNumber: bp.passenger.document_number,
+			};
+		});
 
 		return {
 			bookingId: booking.booking_id,
