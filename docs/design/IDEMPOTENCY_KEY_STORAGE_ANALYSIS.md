@@ -32,10 +32,10 @@ Not Found → Create new payment → Save Both (Redis + DB)
 
 | Scenario | Behavior |
 |----------|----------|
-| Redis down | ✅ Fallback to DB (guarantee maintained) |
-| Redis slow | ✅ Timeout → Fallback to DB |
-| DB down | ❌ All fail (expected, can't create payment) |
-| Cache miss | ✅ Query DB, then cache for future |
+| Redis down |  Fallback to DB (guarantee maintained) |
+| Redis slow |  Timeout → Fallback to DB |
+| DB down |  All fail (expected, can't create payment) |
+| Cache miss |  Query DB, then cache for future |
 
 ## Configuration
 

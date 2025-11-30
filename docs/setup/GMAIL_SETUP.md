@@ -125,15 +125,15 @@ async function authenticate() {
 
         // Save tokens to file
         writeFileSync(tokenPath, JSON.stringify(tokens, null, 2));
-        console.log(`\n✅ Tokens saved to ${tokenPath}`);
-        console.log('✅ Gmail authentication completed successfully!');
+        console.log(`\n Tokens saved to ${tokenPath}`);
+        console.log(' Gmail authentication completed successfully!');
       } catch (error: any) {
-        console.error('❌ Error while trying to retrieve access token', error);
+        console.error(' Error while trying to retrieve access token', error);
         process.exit(1);
       }
     });
   } catch (error: any) {
-    console.error('❌ Error loading credentials:', error.message);
+    console.error(' Error loading credentials:', error.message);
     console.error('Make sure you have placed credentials_desktop_apps.json in the root directory.');
     process.exit(1);
   }

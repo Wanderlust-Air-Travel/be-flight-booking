@@ -29,7 +29,7 @@ import { PaymentMethodCode, PaymentStatus, TripType, CabinType, EmailStatus, Ema
 
 ### Không được định nghĩa enum trong DTO files
 
-**❌ SAI:**
+**SAI:**
 ```typescript
 // src/microservices/payment/dto/create-payment.dto.ts
 export enum PaymentMethodCode {
@@ -38,7 +38,7 @@ export enum PaymentMethodCode {
 }
 ```
 
-**✅ ĐÚNG:**
+**ĐÚNG:**
 ```typescript
 // src/microservices/payment/dto/create-payment.dto.ts
 import { PaymentMethodCode } from 'src/shared/constants/enums';

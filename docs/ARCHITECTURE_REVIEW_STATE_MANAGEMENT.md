@@ -5,41 +5,41 @@
 
 ---
 
-## 📋 TÓM TẮT ĐIỂM MẠNH
+## TÓM TẮT ĐIỂM MẠNH
 
-### ✅ Điểm Tốt Hiện Tại
+### Điểm Tốt Hiện Tại
 
-1. **State Management ở Backend (✅ TỐT)**
+1. **State Management ở Backend (TỐT)**
    - Tất cả state được quản lý ở backend (reservations, bookings, payments)
    - Không có localStorage/sessionStorage trong backend code
    - JWT tokens được lưu trong database (refresh tokens)
    - User sessions được quản lý qua JWT
 
-2. **Database Transactions (✅ TỐT)**
+2. **Database Transactions (TỐT)**
    - Sử dụng transactions cho các operations quan trọng (booking, payment)
    - Pessimistic locking cho concurrency control
    - Rollback mechanism được implement đúng
 
-3. **Validation (✅ TỐT)**
+3. **Validation (TỐT)**
    - DTO validation với class-validator
    - Global ValidationPipe được cấu hình
    - Business logic validation trong services
 
-4. **Microservice Architecture (✅ TỐT)**
+4. **Microservice Architecture (TỐT)**
    - Tách biệt rõ ràng các microservices
    - API Gateway pattern được áp dụng
    - Message-based communication giữa services
 
-5. **Hybrid Caching Strategy (✅ TỐT)**
+5. **Hybrid Caching Strategy (TỐT)**
    - Redis cho caching reservations
    - Database là source of truth
    - Fallback mechanism từ Redis → Database
 
 ---
 
-## 🚨 CÁC VẤN ĐỀ TÌM THẤY VÀ ĐỀ XUẤT
+## CÁC VẤN ĐỀ TÌM THẤY VÀ ĐỀ XUẤT
 
-### 1. ❌ THIẾU: Global Exception Handler
+### 1. THIẾU: Global Exception Handler
 
 **Vấn đề:**
 - Chỉ có `ValidationExceptionFilter` cho `BadRequestException`
@@ -92,7 +92,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
 ---
 
-### 2. ❌ THIẾU: Centralized Logging Service
+### 2. THIẾU: Centralized Logging Service
 
 **Vấn đề:**
 - Sử dụng `console.log` và `Logger` rải rác
@@ -170,7 +170,7 @@ export class LoggingInterceptor implements NestInterceptor {
 
 ---
 
-### 3. ❌ THIẾU: Health Checks
+### 3. THIẾU: Health Checks
 
 **Vấn đề:**
 - Không có health check endpoints
@@ -225,7 +225,7 @@ npm install @nestjs/terminus
 
 ---
 
-### 4. ❌ THIẾU: Rate Limiting
+### 4. THIẾU: Rate Limiting
 
 **Vấn đề:**
 - Không có rate limiting
@@ -261,7 +261,7 @@ npm install @nestjs/throttler
 
 ---
 
-### 5. ❌ THIẾU: Request ID Tracking
+### 5. THIẾU: Request ID Tracking
 
 **Vấn đề:**
 - Không có request ID để trace request qua multiple services
@@ -308,7 +308,7 @@ export class MicroserviceRequestIdInterceptor implements NestInterceptor {
 
 ---
 
-### 6. ⚠️ THIẾU: Circuit Breaker Pattern
+### 6. THIẾU: Circuit Breaker Pattern
 
 **Vấn đề:**
 - Không có circuit breaker cho microservice communication
@@ -384,7 +384,7 @@ npm install opossum
 
 ---
 
-### 7. ⚠️ THIẾU: Retry Mechanism
+### 7. THIẾU: Retry Mechanism
 
 **Vấn đề:**
 - Không có retry cho failed microservice calls
@@ -434,7 +434,7 @@ const result = await firstValueFrom(
 
 ---
 
-### 8. ⚠️ THIẾU: Timeout Configuration
+### 8. THIẾU: Timeout Configuration
 
 **Vấn đề:**
 - Không có timeout cho microservice calls
@@ -465,7 +465,7 @@ const result = await firstValueFrom(
 
 ---
 
-### 9. ⚠️ THIẾU: API Versioning
+### 9. THIẾU: API Versioning
 
 **Vấn đề:**
 - Không có API versioning
@@ -499,7 +499,7 @@ export class BookingControllerV2 {}
 
 ---
 
-### 10. ⚠️ THIẾU: Configuration Management
+### 10. THIẾU: Configuration Management
 
 **Vấn đề:**
 - Hardcoded values trong code (e.g., `PAYMENT_EXPIRATION_MINUTES = 15`)
@@ -544,7 +544,7 @@ constructor(private readonly configService: ConfigService) {
 
 ---
 
-### 11. ⚠️ THIẾU: Monitoring & Observability
+### 11. THIẾU: Monitoring & Observability
 
 **Vấn đề:**
 - Không có metrics collection
@@ -580,7 +580,7 @@ const httpRequestTotal = new Counter({
 
 ---
 
-### 12. ⚠️ THIẾU: Idempotency Keys cho Tất Cả Operations
+### 12. THIẾU: Idempotency Keys cho Tất Cả Operations
 
 **Vấn đề:**
 - Chỉ có idempotency cho payment
@@ -622,7 +622,7 @@ async createReservation(
 
 ---
 
-### 13. ⚠️ THIẾU: Event-Driven Architecture
+### 13. THIẾU: Event-Driven Architecture
 
 **Vấn đề:**
 - Synchronous communication giữa services
@@ -672,7 +672,7 @@ export class BookingCreatedHandler {
 
 ---
 
-### 14. ⚠️ THIẾU: Saga Pattern cho Distributed Transactions
+### 14. THIẾU: Saga Pattern cho Distributed Transactions
 
 **Vấn đề:**
 - Booking creation involves multiple services (reservation, booking, payment)
@@ -734,7 +734,7 @@ export class BookingSaga {
 
 ---
 
-### 15. ⚠️ THIẾU: Business Logic trong Controllers
+### 15. THIẾU: Business Logic trong Controllers
 
 **Vấn đề:**
 - Một số validation logic trong controllers (e.g., `search.controller.ts`)
@@ -743,7 +743,7 @@ export class BookingSaga {
 
 **Giải pháp:**
 ```typescript
-// ❌ BAD: Business logic trong controller
+// BAD: Business logic trong controller
 @Get('search')
 async searchFlights(@Query() query: SearchFlightsDto) {
   // Validation logic ở đây
@@ -753,7 +753,7 @@ async searchFlights(@Query() query: SearchFlightsDto) {
   // ...
 }
 
-// ✅ GOOD: Move to service
+// GOOD: Move to service
 @Get('search')
 async searchFlights(@Query() query: SearchFlightsDto) {
   return this.searchService.searchFlights(query);
@@ -778,9 +778,9 @@ private validateSearchCriteria(dto: SearchFlightsDto) {
 
 ---
 
-## 📊 PRIORITY MATRIX
+## PRIORITY MATRIX
 
-### 🔴 HIGH PRIORITY (Implement ngay)
+### HIGH PRIORITY (Implement ngay)
 
 1. **Global Exception Handler** - Critical cho error handling
 2. **Health Checks** - Critical cho production deployment
@@ -788,7 +788,7 @@ private validateSearchCriteria(dto: SearchFlightsDto) {
 4. **Centralized Logging** - Critical cho observability
 5. **Rate Limiting** - Critical cho security
 
-### 🟡 MEDIUM PRIORITY (Implement trong sprint tiếp theo)
+### MEDIUM PRIORITY (Implement trong sprint tiếp theo)
 
 6. **Circuit Breaker** - Important cho resilience
 7. **Retry Mechanism** - Important cho reliability
@@ -796,7 +796,7 @@ private validateSearchCriteria(dto: SearchFlightsDto) {
 9. **Configuration Management** - Important cho maintainability
 10. **API Versioning** - Important cho backward compatibility
 
-### 🟢 LOW PRIORITY (Nice to have)
+### LOW PRIORITY (Nice to have)
 
 11. **Monitoring & Observability** - Enhance observability
 12. **Idempotency Keys** - Enhance reliability
@@ -806,7 +806,7 @@ private validateSearchCriteria(dto: SearchFlightsDto) {
 
 ---
 
-## 🎯 IMPLEMENTATION ROADMAP
+## IMPLEMENTATION ROADMAP
 
 ### Phase 1: Foundation (Week 1-2)
 - [ ] Global Exception Handler
@@ -833,24 +833,24 @@ private validateSearchCriteria(dto: SearchFlightsDto) {
 
 ---
 
-## 📝 KẾT LUẬN
+## KẾT LUẬN
 
 Dự án hiện tại đã có **nền tảng tốt** về:
-- ✅ State management ở backend
-- ✅ Database transactions
-- ✅ Microservice architecture
-- ✅ Validation
+- State management ở backend
+- Database transactions
+- Microservice architecture
+- Validation
 
 Tuy nhiên, cần **bổ sung các best practices** để đạt chuẩn enterprise:
-- 🔴 Critical: Exception handling, Health checks, Logging, Rate limiting
-- 🟡 Important: Resilience patterns, Configuration management
-- 🟢 Enhancement: Observability, Event-driven, Distributed transactions
+- Critical: Exception handling, Health checks, Logging, Rate limiting
+- Important: Resilience patterns, Configuration management
+- Enhancement: Observability, Event-driven, Distributed transactions
 
 **Recommendation:** Implement theo priority matrix, bắt đầu với High Priority items để đảm bảo system stability và observability trước khi scale.
 
 ---
 
-## 📚 REFERENCES
+## REFERENCES
 
 - [NestJS Best Practices](https://docs.nestjs.com/recipes/prisma)
 - [Microservices Patterns](https://microservices.io/patterns/)

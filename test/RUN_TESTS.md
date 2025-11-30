@@ -20,7 +20,7 @@ Trước khi chạy tests, đảm bảo:
    - Routes Microservice (port 4003)
    - Booking Microservice (port 4004)
    - Reservation Microservice (port 4005)
-   - Payment Microservice (port 4006) ⚠️ **Quan trọng cho Payment API tests**
+   - Payment Microservice (port 4006) **Quan trọng cho Payment API tests**
    - Email Microservice (port 4007)
 
 3. **Kiểm tra Payment microservice có thể kết nối được:**
@@ -123,17 +123,17 @@ npm run test:e2e -- --testNamePattern="should register"
 
 Test suite bao gồm:
 
-- ✅ **Auth API**: Register, Login, Refresh, Logout, Get Current User
-- ✅ **Search API**: Search flights (one-way & round-trip), Get fare options, **Get seat map (UPDATED với isSelectable)**
+- **Auth API**: Register, Login, Refresh, Logout, Get Current User
+- **Search API**: Search flights (one-way & round-trip), Get fare options, **Get seat map (UPDATED với isSelectable)**
   - **NEW**: API trả về cả economy và business seats
   - **NEW**: Validate `isSelectable` field cho mỗi seat
   - **NEW**: Test auto-fetch `cabinType` từ booking state
-- ✅ **Booking State API**: Save cabin selection, Save seat selection, Get booking state
-- ✅ **Reservation API**: Create, Get, List, Cancel, Extend (UPDATED với seat selection validation)
+- **Booking State API**: Save cabin selection, Save seat selection, Get booking state
+- **Reservation API**: Create, Get, List, Cancel, Extend (UPDATED với seat selection validation)
   - **UPDATED**: Validate seat selection với `isSelectable` logic
-- ✅ **Booking API**: Create from reservation, Get fare details, Get payment info, Update passengers (UPDATED với seat assignment)
-- ✅ **Payment API**: Create, Process, Get, Update status, Webhook, Idempotency
-- ✅ **Email API**: Send email, Get status, Health check
+- **Booking API**: Create from reservation, Get fare details, Get payment info, Update passengers (UPDATED với seat assignment)
+- **Payment API**: Create, Process, Get, Update status, Webhook, Idempotency
+- **Email API**: Send email, Get status, Health check
 
 Tất cả đều có **happy cases** và **unhappy cases**.
 

@@ -1,6 +1,6 @@
 # Get Seat Map API - Giải thích chi tiết
 
-## 📋 TÓM TẮT NHANH CHO FRONTEND DEVELOPER
+## TÓM TẮT NHANH CHO FRONTEND DEVELOPER
 
 ### Sau khi chọn cabin và gửi `POST /api/v1/booking-state/cabin`:
 
@@ -15,7 +15,7 @@
    ```typescript
    const flightInstanceId = searchParams.get('flightInstanceId');
    
-   // ✅ RECOMMENDED: Không truyền cabinType, backend tự động lấy từ Redis
+   //  RECOMMENDED: Không truyền cabinType, backend tự động lấy từ Redis
    const response = await fetch(
      `/api/v1/search/seats?flightInstanceId=${flightInstanceId}`,
      {
@@ -55,7 +55,7 @@
    });
    ```
 
-**⚠️ LƯU Ý QUAN TRỌNG:**
+**LƯU Ý QUAN TRỌNG:**
 - **KHÔNG CẦN** gọi `GET /api/v1/booking-state/:flightInstanceId` trước khi gọi seat map
 - Backend tự động lấy `cabinType` từ Redis khi gọi `GET /api/v1/search/seats`
 - Chỉ cần `flightInstanceId` từ URL params là đủ
@@ -157,7 +157,7 @@
      
      **Bước 2: Gọi API Get Seat Map (KHÔNG CẦN truyền cabinType)**
      ```typescript
-     // ✅ Option 1 (Recommended): Không truyền cabinType
+     //  Option 1 (Recommended): Không truyền cabinType
      // Backend tự động lấy cabinType từ Redis (đã save ở bước 3)
      const response = await fetch(
        `/api/v1/search/seats?flightInstanceId=${flightInstanceId}`,
@@ -191,7 +191,7 @@
      );
      ```
      
-     **⚠️ LƯU Ý**: 
+     **LƯU Ý**: 
      - **KHÔNG CẦN** gọi `GET /api/v1/booking-state/:flightInstanceId` trước khi gọi seat map
      - Backend tự động lấy `cabinType` từ Redis nếu không truyền
      - Chỉ cần gọi `GET /api/v1/search/seats?flightInstanceId=xxx` là đủ
@@ -253,7 +253,7 @@
 
 ### 🔍 So sánh 2 Approaches:
 
-#### ❌ Approach 1: Frontend gửi lại cabinType/fareClassCode (KHÔNG AN TOÀN)
+#### Approach 1: Frontend gửi lại cabinType/fareClassCode (KHÔNG AN TOÀN)
 
 ```typescript
 // Frontend gửi khi tạo reservation
@@ -277,7 +277,7 @@ POST /api/v1/reservations
 2. **Inconsistency**: Frontend có thể gửi sai data (bug, network issue, etc.)
 3. **Complexity**: Frontend phải nhớ và gửi lại nhiều thông tin
 
-#### ✅ Approach 2: Backend tự động lấy từ Redis (AN TOÀN - HIỆN TẠI)
+####  Approach 2: Backend tự động lấy từ Redis (AN TOÀN - HIỆN TẠI)
 
 ```typescript
 // Frontend CHỈ gửi flightInstanceId
@@ -302,12 +302,12 @@ const fareClassCode = selections.cabin.fareClassCode; // ← Lấy từ Redis
 2. **Consistency**: Backend là source of truth, không phụ thuộc frontend
 3. **Simplicity**: Frontend chỉ cần gửi `flightInstanceId`
 
-### 📋 Mục đích chính:
+### Mục đích chính:
 
 1. **Backend tự động lấy khi tạo Reservation** (Quan trọng nhất):
    - Khi user tạo reservation, backend **TỰ ĐỘNG** lấy `cabinType` và `fareClassCode` từ Redis
    - Frontend **KHÔNG CẦN** gửi `fareClassCode` trong request body
-   - **⚠️ LƯU Ý**: Đây **KHÔNG PHẢI** là HTTP endpoint, mà là **internal service call** trực tiếp từ Redis
+   - **LƯU Ý**: Đây **KHÔNG PHẢI** là HTTP endpoint, mà là **internal service call** trực tiếp từ Redis
    - **Code thực tế** (từ `reservation.service.ts`):
      ```typescript
      // Line 184-189: Backend tự động lấy từ Redis qua internal service call
@@ -359,9 +359,9 @@ const fareClassCode = selections.cabin.fareClassCode; // ← Lấy từ Redis
    - **Lợi ích**: UX tốt hơn, không bị conflict giữa các tab
    - **Ví dụ**: User chọn cabin ở Tab 1 → Mở Tab 2 → Tab 2 cũng thấy cabin đã chọn
 
-### 🔧 Cách Backend Lấy Cabin Selection từ Redis (Technical Details)
+### Cách Backend Lấy Cabin Selection từ Redis (Technical Details)
 
-**⚠️ QUAN TRỌNG**: Backend **KHÔNG** lấy từ HTTP endpoint, mà lấy trực tiếp từ Redis qua **internal service call**.
+**QUAN TRỌNG**: Backend **KHÔNG** lấy từ HTTP endpoint, mà lấy trực tiếp từ Redis qua **internal service call**.
 
 **Flow chi tiết:**
 
@@ -423,16 +423,16 @@ const fareClassCode = selections.cabin.fareClassCode; // ← Lấy từ Redis
    ```
 
 **Tóm lại:**
-- ❌ **KHÔNG** phải HTTP endpoint như `GET /api/v1/booking-state/:id`
-- ✅ **LÀ** internal service call: `ReservationService` → `BookingStateService` → `BookingStateRepository` → `Redis`
-- ✅ **Redis Key**: `booking:state:{userId}:{flightInstanceId}`
-- ✅ **Performance**: Internal call nhanh hơn HTTP request (không qua network)
+- **KHÔNG** phải HTTP endpoint như `GET /api/v1/booking-state/:id`
+-  **LÀ** internal service call: `ReservationService` → `BookingStateService` → `BookingStateRepository` → `Redis`
+-  **Redis Key**: `booking:state:{userId}:{flightInstanceId}`
+-  **Performance**: Internal call nhanh hơn HTTP request (không qua network)
 
-### 💡 Ví dụ cụ thể: Tại sao cần save cabin selection?
+### Ví dụ cụ thể: Tại sao cần save cabin selection?
 
 **Scenario:** User chọn Economy Smart (YS) với giá 1,000,000 VND
 
-#### ❌ Nếu KHÔNG save vào Redis (Frontend gửi lại):
+#### Nếu KHÔNG save vào Redis (Frontend gửi lại):
 
 ```typescript
 // Step 1: User chọn cabin
@@ -452,7 +452,7 @@ POST /api/v1/reservations
   }]
 }
 
-// ⚠️ VẤN ĐỀ: User có thể manipulate request
+// VẤN ĐỀ: User có thể manipulate request
 // User mở DevTools → Thay đổi request:
 {
   "segments": [{
@@ -463,7 +463,7 @@ POST /api/v1/reservations
 // Backend không biết user đã chọn gì → Không thể validate → Tạo reservation với giá sai!
 ```
 
-#### ✅ Nếu save vào Redis (Backend tự lấy):
+####  Nếu save vào Redis (Backend tự lấy):
 
 ```typescript
 // Step 1: User chọn cabin
@@ -499,12 +499,12 @@ const selections = await this.bookingStateService.getSelectionsForReservation(
 );
 const fareClassCode = selections.cabin.fareClassCode; // ← Lấy từ Redis: "YS"
 
-// ✅ Security: User không thể thay đổi fareClassCode vì backend tự lấy từ Redis
-// ✅ Consistency: Backend luôn dùng đúng fareClassCode mà user đã chọn
-// ✅ Simplicity: Frontend chỉ cần gửi flightInstanceId
+//  Security: User không thể thay đổi fareClassCode vì backend tự lấy từ Redis
+//  Consistency: Backend luôn dùng đúng fareClassCode mà user đã chọn
+//  Simplicity: Frontend chỉ cần gửi flightInstanceId
 ```
 
-### 🎯 Kết luận:
+### Kết luận:
 
 **Tại sao phải save cabin selection vào Redis?**
 
@@ -515,16 +515,16 @@ const fareClassCode = selections.cabin.fareClassCode; // ← Lấy từ Redis: "
 5. **Simplicity**: Frontend không cần nhớ và gửi lại nhiều thông tin
 
 **Nếu không save vào Redis:**
-- ❌ User có thể hack request, chọn cabin khác với giá khác
-- ❌ Frontend phải nhớ và gửi lại nhiều thông tin
-- ❌ Không có validation, dễ bị lỗi business logic
-- ❌ Reload page mất hết data
+- User có thể hack request, chọn cabin khác với giá khác
+- Frontend phải nhớ và gửi lại nhiều thông tin
+- Không có validation, dễ bị lỗi business logic
+- Reload page mất hết data
 
 **Với Redis:**
-- ✅ Backend tự động lấy, user không thể manipulate
-- ✅ Frontend đơn giản, chỉ cần gửi `flightInstanceId`
-- ✅ Validation đầy đủ, đảm bảo flow đúng
-- ✅ Recovery tốt, UX tốt hơn
+-  Backend tự động lấy, user không thể manipulate
+-  Frontend đơn giản, chỉ cần gửi `flightInstanceId`
+-  Validation đầy đủ, đảm bảo flow đúng
+-  Recovery tốt, UX tốt hơn
 
 ## Giải quyết vấn đề: Reload page mất data
 
@@ -733,7 +733,7 @@ export default function SeatMapPage() {
 
   const loadSeatMap = async () => {
     try {
-      // ✅ RECOMMENDED: Không truyền cabinType, backend tự động lấy từ Redis
+      //  RECOMMENDED: Không truyền cabinType, backend tự động lấy từ Redis
       // Backend đã lưu cabinType ở bước save cabin selection
       const response = await fetch(
         `/api/v1/search/seats?flightInstanceId=${flightInstanceId}`,
@@ -755,7 +755,7 @@ export default function SeatMapPage() {
       // ]
       setSeats(data.seats);
       
-      // ⚠️ LƯU Ý: KHÔNG CẦN gọi getBookingState() trước
+      // LƯU Ý: KHÔNG CẦN gọi getBookingState() trước
       // Backend tự động lấy cabinType từ Redis khi gọi get seat map
     } catch (error) {
       console.error('Failed to load seat map:', error);
@@ -803,7 +803,7 @@ export default function SeatMapPage() {
                 key={seat.flightSeatId}
                 className={`seat ${seat.isSelectable ? 'selectable' : 'non-selectable'} ${seat.isAvailable ? 'available' : 'unavailable'} ${selectedSeatId === seat.flightSeatId ? 'selected' : ''}`}
                 onClick={() => {
-                  // ✅ CHỈ cho phép click nếu isSelectable = true
+                  //  CHỈ cho phép click nếu isSelectable = true
                   if (seat.isSelectable) {
                     handleSelectSeat(seat.flightSeatId, seat.seatNumber);
                   }
@@ -929,11 +929,11 @@ Trang 4: Reservation Summary
 ```
 
 **Lợi ích của URL Params:**
-- ✅ Shareable URLs (user có thể bookmark, share link)
-- ✅ Browser back/forward buttons hoạt động đúng
-- ✅ Reload page không mất data (đọc từ URL)
-- ✅ SEO friendly
-- ✅ Debug dễ dàng (có thể thấy flightInstanceId trong URL)
+-  Shareable URLs (user có thể bookmark, share link)
+-  Browser back/forward buttons hoạt động đúng
+-  Reload page không mất data (đọc từ URL)
+-  SEO friendly
+-  Debug dễ dàng (có thể thấy flightInstanceId trong URL)
 
 ---
 
@@ -1021,8 +1021,8 @@ seats.forEach(seatGroup => {
 ```
 
 ### Lợi ích:
-1. ✅ Frontend luôn có đầy đủ dữ liệu để hiển thị cả 2 phần cabin
-2. ✅ UI không bị trống ở phần business khi user chọn economy
-3. ✅ User vẫn chỉ có thể chọn seats phù hợp với cabin type đã chọn
-4. ✅ Không breaking change: Thêm field mới, không xóa field cũ
-5. ✅ Logic rõ ràng: `isSelectable` cho biết seat nào có thể chọn
+1.  Frontend luôn có đầy đủ dữ liệu để hiển thị cả 2 phần cabin
+2.  UI không bị trống ở phần business khi user chọn economy
+3.  User vẫn chỉ có thể chọn seats phù hợp với cabin type đã chọn
+4.  Không breaking change: Thêm field mới, không xóa field cũ
+5.  Logic rõ ràng: `isSelectable` cho biết seat nào có thể chọn

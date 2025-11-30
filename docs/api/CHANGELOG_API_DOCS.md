@@ -102,7 +102,7 @@ return await firstValueFrom(
 );
 ```
 
-**Results**: ✅ All 25/25 payment tests now passing (100% pass rate)
+**Results**: All 25/25 payment tests now passing (100% pass rate)
 
 **Files Changed**:
 - `src/api-gateway/modules/payment/payment.controller.ts` - Added timeout operators

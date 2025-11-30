@@ -33,7 +33,7 @@ Trong cửa sổ "Connect to Server":
 Click **"Options >>"** hoặc tab **"Connection Properties"**:
 
 - **Encrypt**: **"Optional"** hoặc **"Off"** (KHÔNG dùng "Mandatory")
-- **Trust Server Certificate**: ✅ Check (bật)
+- **Trust Server Certificate**:  Check (bật)
 - **Connect to database**: Chọn `master` từ dropdown (KHÔNG để `<default>`)
 
 > **Lưu ý:** Nếu thấy "Encrypt: Mandatory", đây là nguyên nhân gây lỗi "Login failed"!
@@ -69,7 +69,7 @@ docker-compose restart sqlserver  # Restart nếu cần
 
 2. **Sửa Connection Properties:**
    - **Encrypt**: Đổi từ "Mandatory" sang **"Optional"** hoặc **"Off"**
-   - **Trust Server Certificate**: ✅ Check
+   - **Trust Server Certificate**:  Check
    - **Connect to database**: Chọn `master` (KHÔNG để `<default>`)
 
 3. **Kiểm tra password:** `Passw0rd123!` (chữ P viết hoa, số 0, có dấu chấm than)
