@@ -65,7 +65,9 @@ npm install
 
 ```
 src/
-├── api-gateway/         # REST API (port 3000)
+├── api-gateway/         # REST API + WebSocket Gateway (port 3000)
+│   └── modules/
+│       └── realtime/    # WebSocket Gateway cho real-time updates
 ├── microservices/       # Microservices (TCP)
 │   ├── search/          # Port 4001
 │   ├── services/        # Port 4002
@@ -81,20 +83,24 @@ src/
 
 Tất cả tài liệu trong thư mục [`docs/`](./docs/):
 
-- **[API Documentation](./docs/api/)** - API endpoints và flow analysis
+- **[API Documentation](./docs/api/)** - API endpoints và flow analysis (bao gồm WebSocket)
 - **[Database Documentation](./docs/database/)** - Setup, SQL scripts, ERD
 - **[Setup Guides](./docs/setup/)** - Redis, WSL, troubleshooting
 - **[Design Documents](./docs/design/)** - Microservices design
+- **[Real-time Implementation](./docs/REALTIME_IMPLEMENTATION.md)** - WebSocket implementation guide
 
 **Swagger UI**: `http://localhost:3000/api-docs`
+
+**WebSocket Endpoint**: `ws://localhost:3000/realtime` (Socket.IO namespace)
 
 ## Tech Stack
 
 - **Framework**: NestJS 11.x
 - **Database**: Microsoft SQL Server
 - **ORM**: TypeORM
-- **Cache**: Redis (Reservation Service, Idempotency, Booking State)
+- **Cache**: Redis (Reservation Service, Idempotency, Booking State, WebSocket Pub/Sub)
 - **Message Broker**: RabbitMQ (Async messaging, Event-driven communication)
+- **Real-time Communication**: WebSocket (Socket.IO) với Redis Pub/Sub
 - **Authentication**: JWT (Passport)
 - **API Docs**: Swagger/OpenAPI
 - **Microservices**: TCP-based communication (synchronous) + RabbitMQ (asynchronous)
@@ -135,6 +141,14 @@ Tất cả tài liệu trong thư mục [`docs/`](./docs/):
   - Automatic reconnection và message persistence
   - Fallback to TCP nếu RabbitMQ không available
   - Management UI tại `http://localhost:15672` (admin/admin123)
+- **Real-time WebSocket Communication**: Real-time updates cho critical business flows
+  - **Seat Availability Updates**: Real-time seat status changes để tránh conflict khi nhiều user cùng chọn ghế
+  - **Reservation Countdown Timer**: Server-synced countdown timer (business critical) - sync từ server mỗi giây
+  - **Payment Status Updates**: Real-time payment confirmation (UX critical) - immediate feedback khi payment status thay đổi
+  - WebSocket Gateway tại namespace `/realtime` với Socket.IO
+  - Redis Pub/Sub để broadcast events across multiple API Gateway instances
+  - Hỗ trợ cả authenticated users (JWT) và guest users (Session ID)
+  - Architecture: Backend-managed state - BE quản lý state, FE chỉ hiển thị
 - **UUID v7**: Tất cả IDs sử dụng UUID v7 (time-ordered)
 - **JWT Authentication**: Optional authentication cho một số APIs, required cho các APIs khác
 - **Passenger Creation**: Tự động tạo passenger khi booking (với reuse logic cho authenticated users)

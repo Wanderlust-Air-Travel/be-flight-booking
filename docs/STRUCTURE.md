@@ -4,9 +4,10 @@
 
 Hệ thống được chia thành nhiều phần nhỏ (microservices) để dễ quản lý:
 
-- **API Gateway** (cổng 3000): Cổng vào duy nhất - nơi ứng dụng web gọi API
+- **API Gateway** (cổng 3000): Cổng vào duy nhất - nơi ứng dụng web gọi API (REST + WebSocket)
 - **Microservices**: Các dịch vụ xử lý từng chức năng riêng (tìm kiếm, đặt chỗ, thanh toán...)
 - **Database**: Tất cả dịch vụ dùng chung một cơ sở dữ liệu
+- **Real-time Communication**: WebSocket Gateway cho real-time updates (seat availability, reservation countdown, payment status)
 
 ## Cách hệ thống hoạt động
 
@@ -54,11 +55,19 @@ Hệ thống được chia thành nhiều phần nhỏ (microservices) để d�
    - Gửi email thông báo
    - Quản lý hàng đợi email
 
+6. **Real-time WebSocket Gateway** (cổng 3000, namespace `/realtime`)
+   - **Seat Availability Updates**: Real-time seat status changes để tránh conflict
+   - **Reservation Countdown Timer**: Server-synced countdown timer (business critical)
+   - **Payment Status Updates**: Real-time payment confirmation (UX critical)
+   - Sử dụng Redis Pub/Sub để broadcast events across multiple instances
+   - Hỗ trợ cả authenticated users (JWT) và guest users (Session ID)
+
 ## API Endpoints chính
 
 ### Base URL
 - **API Gateway**: `http://localhost:3000`
 - **Tài liệu API**: `http://localhost:3000/api-docs`
+- **WebSocket Endpoint**: `ws://localhost:3000/realtime` (Socket.IO namespace)
 
 ### Xác thực
 - `POST /api/v1/auth/register` - Đăng ký
@@ -88,6 +97,24 @@ Hệ thống được chia thành nhiều phần nhỏ (microservices) để d�
 - `POST /api/v1/payments/bookings/:bookingId` - Tạo thanh toán
 - `POST /api/v1/payments/bookings/:bookingId/process` - Xử lý thanh toán
 
+### Real-time WebSocket (Socket.IO)
+- **Connection**: `ws://localhost:3000/realtime` với authentication (JWT token hoặc Session ID)
+- **Events**:
+  - `subscribe:seat-availability` - Subscribe to seat updates
+  - `unsubscribe:seat-availability` - Unsubscribe from seat updates
+  - `subscribe:reservation-countdown` - Subscribe to countdown timer
+  - `unsubscribe:reservation-countdown` - Unsubscribe from countdown
+  - `subscribe:payment-status` - Subscribe to payment updates
+  - `unsubscribe:payment-status` - Unsubscribe from payment updates
+- **Server Events**:
+  - `connected` - Connection confirmed
+  - `seat-availability:update` - Seat availability changed
+  - `reservation-countdown:update` - Countdown updated (every second)
+  - `reservation-countdown:expired` - Reservation expired
+  - `payment-status:update` - Payment status changed
+  - `error` - Error occurred
+- **Xem chi tiết**: [Real-time Implementation Guide](./REALTIME_IMPLEMENTATION.md)
+
 ## Tính năng tự động
 
 ### Email thông báo
@@ -104,6 +131,12 @@ Hệ thống được chia thành nhiều phần nhỏ (microservices) để d�
 ### Giữ chỗ tự động
 - Reservation tự động hết hạn sau 15 phút
 - Tự động hủy nếu không tạo booking
+
+### Real-time Updates (WebSocket)
+- **Seat Availability**: Real-time updates khi seat được reserve/release
+- **Reservation Countdown**: Server-synced countdown timer (mỗi giây)
+- **Payment Status**: Real-time updates khi payment status thay đổi
+- Backend-managed state - BE quản lý state, FE chỉ hiển thị
 
 ## Cách chạy hệ thống
 
@@ -181,6 +214,8 @@ Hệ thống hỗ trợ **Guest Booking** - cho phép người dùng chưa đăn
 ```
 src/
 ├── api-gateway/          # Cổng API (cổng 3000)
+│   └── modules/
+│       └── realtime/     # WebSocket Gateway cho real-time updates
 ├── microservices/        # Các dịch vụ
 │   ├── search/           # Dịch vụ tìm kiếm
 │   ├── booking/          # Dịch vụ đặt chỗ

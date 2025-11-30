@@ -677,3 +677,196 @@ sequenceDiagram
     Booking MS->>Booking MS: All segments must be cancellable
     Booking MS-->>API Gateway: Cancellation eligibility result
 ```
+
+## Real-time WebSocket Flows
+
+### Seat Availability Updates Flow
+
+```mermaid
+sequenceDiagram
+    participant User1
+    participant User2
+    participant Frontend1
+    participant Frontend2
+    participant WebSocket Gateway
+    participant Seat Availability Service
+    participant Redis Pub/Sub
+    participant Reservation Service
+
+    Note over User1,Frontend1: User 1 selects seat
+    User1->>Frontend1: Click seat 12A
+    Frontend1->>WebSocket Gateway: subscribe:seat-availability
+    Note over Frontend1,WebSocket Gateway: {flightInstanceId: "xxx"}
+    WebSocket Gateway->>Seat Availability Service: subscribe(socketId, flightInstanceId)
+    Seat Availability Service->>Redis Pub/Sub: SUBSCRIBE seat:availability:{flightInstanceId}
+    Seat Availability Service-->>WebSocket Gateway: Subscribed
+    WebSocket Gateway-->>Frontend1: subscribed:seat-availability
+
+    Note over User2,Frontend2: User 2 also viewing same flight
+    User2->>Frontend2: View seat map
+    Frontend2->>WebSocket Gateway: subscribe:seat-availability
+    Note over Frontend2,WebSocket Gateway: {flightInstanceId: "xxx"}
+    WebSocket Gateway->>Seat Availability Service: subscribe(socketId, flightInstanceId)
+    Seat Availability Service->>Redis Pub/Sub: Already subscribed
+    WebSocket Gateway-->>Frontend2: subscribed:seat-availability
+
+    Note over User1,Reservation Service: User 1 reserves seat
+    User1->>Frontend1: Confirm seat selection
+    Frontend1->>Reservation Service: POST /api/v1/reservations
+    Reservation Service->>Reservation Service: Reserve seat 12A
+    Reservation Service->>Seat Availability Service: publishSeatChange()
+    Seat Availability Service->>Redis Pub/Sub: PUBLISH seat:availability:{flightInstanceId}
+    Note over Seat Availability Service,Redis Pub/Sub: {flightSeatId, seatNumber: "12A", status: "reserved"}
+
+    Redis Pub/Sub->>Seat Availability Service: Message received
+    Seat Availability Service->>WebSocket Gateway: Broadcast to subscribed clients
+    WebSocket Gateway->>Frontend1: seat-availability:update
+    WebSocket Gateway->>Frontend2: seat-availability:update
+    Note over WebSocket Gateway,Frontend2: {seatNumber: "12A", status: "reserved"}
+
+    Frontend1->>Frontend1: Update seat map (12A = reserved)
+    Frontend2->>Frontend2: Update seat map (12A = reserved, disabled)
+    Frontend2-->>User2: Seat 12A no longer available
+```
+
+### Reservation Countdown Timer Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant WebSocket Gateway
+    participant Reservation Countdown Service
+    participant Reservation Microservice
+    participant Redis
+
+    User->>Frontend: Create reservation
+    Frontend->>Reservation Microservice: POST /api/v1/reservations
+    Reservation Microservice->>Redis: Store reservation (TTL: 15 minutes)
+    Reservation Microservice-->>Frontend: {reservationId, expiresAt}
+
+    Frontend->>WebSocket Gateway: subscribe:reservation-countdown
+    Note over Frontend,WebSocket Gateway: {reservationId: "xxx"}
+    WebSocket Gateway->>Reservation Countdown Service: subscribe(socketId, reservationId)
+    Reservation Countdown Service->>Reservation Countdown Service: Start countdown interval (1 second)
+
+    loop Every 1 second
+        Reservation Countdown Service->>Reservation Microservice: Get reservation (TCP)
+        Reservation Microservice->>Redis: GET reservation:{reservationId}
+        Redis-->>Reservation Microservice: Reservation data with expiresAt
+        Reservation Microservice-->>Reservation Countdown Service: Reservation data
+
+        Reservation Countdown Service->>Reservation Countdown Service: Calculate remainingSeconds
+        Note over Reservation Countdown Service: remainingSeconds = (expiresAt - now) / 1000
+
+        alt Reservation not expired
+            Reservation Countdown Service->>WebSocket Gateway: Broadcast countdown update
+            WebSocket Gateway->>Frontend: reservation-countdown:update
+            Note over WebSocket Gateway,Frontend: {remainingSeconds: 899, isExpired: false}
+            Frontend->>Frontend: Update countdown display
+        else Reservation expired
+            Reservation Countdown Service->>Reservation Countdown Service: Stop countdown interval
+            Reservation Countdown Service->>WebSocket Gateway: Broadcast expired event
+            WebSocket Gateway->>Frontend: reservation-countdown:expired
+            Frontend->>Frontend: Show "Reservation expired" message
+        end
+    end
+
+    User->>Frontend: Navigate away
+    Frontend->>WebSocket Gateway: unsubscribe:reservation-countdown
+    WebSocket Gateway->>Reservation Countdown Service: unsubscribe(socketId, reservationId)
+    Reservation Countdown Service->>Reservation Countdown Service: Stop countdown interval (if no other clients)
+```
+
+### Payment Status Updates Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant WebSocket Gateway
+    participant Payment Status Service
+    participant Redis Pub/Sub
+    participant Payment Service
+    participant Payment Gateway
+
+    User->>Frontend: Initiate payment
+    Frontend->>Payment Service: POST /api/v1/payments/bookings/:bookingId/process
+    Frontend->>WebSocket Gateway: subscribe:payment-status
+    Note over Frontend,WebSocket Gateway: {bookingId: "xxx", paymentId: "yyy"}
+    WebSocket Gateway->>Payment Status Service: subscribe(socketId, bookingId, paymentId)
+    Payment Status Service->>Redis Pub/Sub: SUBSCRIBE payment:status:booking:{bookingId}
+    Payment Status Service->>Redis Pub/Sub: SUBSCRIBE payment:status:payment:{paymentId}
+    WebSocket Gateway-->>Frontend: subscribed:payment-status
+
+    Payment Service->>Payment Gateway: Process payment
+    Payment Gateway-->>Payment Service: Payment processing...
+
+    alt Payment Success
+        Payment Gateway-->>Payment Service: Payment successful
+        Payment Service->>Payment Service: Update payment status = 'success'
+        Payment Service->>Payment Status Service: publishPaymentStatusChange()
+        Payment Status Service->>Redis Pub/Sub: PUBLISH payment:status:booking:{bookingId}
+        Payment Status Service->>Redis Pub/Sub: PUBLISH payment:status:payment:{paymentId}
+        Note over Payment Status Service,Redis Pub/Sub: {status: "success", transactionRef: "TXN123"}
+
+        Redis Pub/Sub->>Payment Status Service: Message received
+        Payment Status Service->>WebSocket Gateway: Broadcast to subscribed clients
+        WebSocket Gateway->>Frontend: payment-status:update
+        Note over WebSocket Gateway,Frontend: {status: "success", transactionRef: "TXN123"}
+
+        Frontend->>Frontend: Show success message
+        Frontend->>Frontend: Redirect to confirmation page
+    else Payment Failed
+        Payment Gateway-->>Payment Service: Payment failed
+        Payment Service->>Payment Service: Update payment status = 'failed'
+        Payment Service->>Payment Status Service: publishPaymentStatusChange()
+        Payment Status Service->>Redis Pub/Sub: PUBLISH payment:status:booking:{bookingId}
+        Payment Status Service->>Redis Pub/Sub: PUBLISH payment:status:payment:{paymentId}
+        Note over Payment Status Service,Redis Pub/Sub: {status: "failed"}
+
+        Redis Pub/Sub->>Payment Status Service: Message received
+        Payment Status Service->>WebSocket Gateway: Broadcast to subscribed clients
+        WebSocket Gateway->>Frontend: payment-status:update
+        Note over WebSocket Gateway,Frontend: {status: "failed"}
+
+        Frontend->>Frontend: Show error message
+        Frontend->>Frontend: Allow retry payment
+    end
+```
+
+### WebSocket Connection & Authentication Flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant WebSocket Gateway
+    participant JWT Service
+    participant Redis
+
+    Client->>WebSocket Gateway: Connect (Socket.IO)
+    Note over Client,WebSocket Gateway: auth: {token: "jwt-token"} or {sessionId: "session-123"}
+
+    WebSocket Gateway->>WebSocket Gateway: Extract token/sessionId
+
+    alt JWT Token Provided
+        WebSocket Gateway->>JWT Service: Verify token
+        JWT Service->>JWT Service: Decode & validate
+        alt Token Valid
+            JWT Service-->>WebSocket Gateway: {userId: "xxx"}
+            WebSocket Gateway->>WebSocket Gateway: Register client with userId
+            WebSocket Gateway->>WebSocket Gateway: Join room: user:{userId}
+            WebSocket Gateway-->>Client: connected {success: true, userId: "xxx"}
+        else Token Invalid
+            WebSocket Gateway-->>Client: error {message: "Authentication failed"}
+            WebSocket Gateway->>WebSocket Gateway: Disconnect client
+        end
+    else Session ID Provided (Guest)
+        WebSocket Gateway->>WebSocket Gateway: Register client with sessionId
+        WebSocket Gateway->>WebSocket Gateway: Join room: session:{sessionId}
+        WebSocket Gateway-->>Client: connected {success: true, sessionId: "session-123"}
+    else No Authentication
+        WebSocket Gateway-->>Client: error {message: "Authentication required"}
+        WebSocket Gateway->>WebSocket Gateway: Disconnect client
+    end
+```

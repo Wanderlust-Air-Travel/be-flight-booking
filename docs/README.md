@@ -25,6 +25,11 @@ Tài liệu dự án Flight Booking Backend được tổ chức theo các danh 
 ### Design
 - **[GUEST_BOOKING_FLOW.md](./design/GUEST_BOOKING_FLOW.md)** - Design document cho guest booking flow
 
+### Real-time Communication
+- **[REALTIME_IMPLEMENTATION.md](./REALTIME_IMPLEMENTATION.md)** - WebSocket implementation guide và architecture
+- **[Real-time Module README](../src/api-gateway/modules/realtime/README.md)** - Usage guide cho WebSocket module
+- **[Real-time Integration Guide](../src/api-gateway/modules/realtime/INTEGRATION.md)** - Hướng dẫn tích hợp real-time events
+
 ### Cài đặt
 - **[REDIS_SETUP.md](./setup/REDIS_SETUP.md)** - Hướng dẫn cài đặt Redis
 - **[DEALS_IMAGES_SETUP.md](./setup/DEALS_IMAGES_SETUP.md)** - Hướng dẫn quản lý ảnh

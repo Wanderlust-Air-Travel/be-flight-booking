@@ -1898,6 +1898,26 @@
 				}
 			],
 			"description": "Email APIs - Send emails via Gmail API. Requires Email Microservice running on port 4007.\n\n**Email Flow:**\n1. Send email - Queue email để gửi (async processing)\n2. Check email status - Get status của email đã gửi\n3. Health check - Monitor service health và queue stats\n\n**Email Templates:**\n- `otp_payment` - OTP cho xác thực thanh toán\n- `otp_password_reset` - OTP cho đặt lại mật khẩu\n- `payment_success` - Thông báo thanh toán thành công kèm thông tin vé\n- `payment_failed` - Thông báo thanh toán thất bại\n- `booking_confirmation` - Xác nhận đặt chỗ\n\n**Email Status:**\n- `queued`: Email đã được thêm vào queue\n- `sending`: Đang gửi email\n- `sent`: Email đã được gửi thành công\n- `failed`: Email gửi thất bại (sau khi retry)\n\n**Features:**\n- **Gmail API Integration**: OAuth 2.0 authentication với Gmail API\n- **Email Queue Management**: In-memory queue với async processing\n- **Retry Logic**: Tối đa 3 lần với exponential backoff\n- **Rate Limiting**: 100 emails/phút (configurable)\n- **Email Templates**: 5 templates sẵn có với HTML formatting\n- **Health Check**: Monitor service health và queue statistics\n\n**Configuration:**\n- `GMAIL_CREDENTIALS_PATH`: Path to Gmail credentials file (default: `./credentials_desktop_apps.json`)\n- `GMAIL_TOKEN_PATH`: Path to Gmail token file (default: `./token.json`)\n- `GMAIL_FROM_EMAIL`: From email address (default: `me`)\n- `EMAIL_MAX_RETRIES`: Max retry attempts (default: 3)\n\n**JWT Authentication:**\n- `POST /emails/send` và `GET /emails/:emailId/status` yêu cầu JWT authentication\n- `GET /emails/health` là public endpoint (no authentication required)\n\n**Setup Requirements:**\n- Cần Gmail API credentials file: `credentials_desktop_apps.json` (trong project root)\n- Cần Gmail token file: `token.json` (sẽ được tạo sau khi authenticate OAuth 2.0)\n- Cần Email Microservice (port 4007) chạy: `npm run start:email:dev`"
+		},
+		{
+			"name": "Real-time WebSocket",
+			"item": [
+				{
+					"name": "WebSocket Connection Guide",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/realtime",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "realtime"]
+						},
+						"description": "**WebSocket Endpoint**: `ws://localhost:3000/realtime` (Socket.IO namespace)\n\n**Lưu ý**: Postman có hỗ trợ WebSocket requests (Postman v10+), nhưng để test đầy đủ, khuyến nghị dùng Socket.IO client hoặc browser console.\n\n## WebSocket Connection\n\n**Endpoint**: `ws://localhost:3000/realtime`\n**Namespace**: `/realtime` (Socket.IO)\n\n## Authentication\n\n**Option 1: JWT Token (Authenticated users)**\n```javascript\nconst socket = io('http://localhost:3000/realtime', {\n  auth: {\n    token: 'your-jwt-token'\n  }\n});\n```\n\n**Option 2: Session ID (Guest users)**\n```javascript\nconst socket = io('http://localhost:3000/realtime', {\n  auth: {\n    sessionId: 'your-session-id'\n  }\n});\n```\n\n## Client → Server Events\n\n### Subscribe to Seat Availability\n```javascript\nsocket.emit('subscribe:seat-availability', {\n  flightInstanceId: '019a8f4a-bb0e-7402-a0c4-27647b89dc71'\n});\n```\n\n### Subscribe to Reservation Countdown\n```javascript\nsocket.emit('subscribe:reservation-countdown', {\n  reservationId: '019a8f4a-bb0e-7402-a0c4-27647b89dc71'\n});\n```\n\n### Subscribe to Payment Status\n```javascript\nsocket.emit('subscribe:payment-status', {\n  bookingId: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',\n  paymentId: '019a8f4a-bb0e-7402-a0c4-27647b89dc72' // Optional\n});\n```\n\n## Server → Client Events\n\n### Listen for Events\n```javascript\n// Connection confirmed\nsocket.on('connected', (data) => {\n  console.log('Connected:', data);\n});\n\n// Seat availability update\nsocket.on('seat-availability:update', (data) => {\n  console.log('Seat update:', data);\n  // data: { flightInstanceId, changes: [{ flightSeatId, seatNumber, status, changedBy }], timestamp }\n});\n\n// Reservation countdown update (every second)\nsocket.on('reservation-countdown:update', (data) => {\n  console.log('Countdown:', data.remainingSeconds);\n  // data: { reservationId, remainingSeconds, expiresAt, isExpired }\n});\n\n// Reservation expired\nsocket.on('reservation-countdown:expired', (data) => {\n  console.log('Reservation expired:', data.reservationId);\n});\n\n// Payment status update\nsocket.on('payment-status:update', (data) => {\n  console.log('Payment status:', data.status);\n  // data: { bookingId, paymentId, status, timestamp, metadata }\n});\n\n// Error\nsocket.on('error', (error) => {\n  console.error('Error:', error.message);\n});\n```\n\n## Testing với Browser Console\n\n1. Mở browser console (F12)\n2. Load Socket.IO client:\n```html\n<script src=\"https://cdn.socket.io/4.5.4/socket.io.min.js\"></script>\n```\n3. Connect và test:\n```javascript\nconst socket = io('http://localhost:3000/realtime', {\n  auth: { token: 'your-jwt-token' }\n});\n\nsocket.on('connected', (data) => console.log('Connected:', data));\nsocket.emit('subscribe:seat-availability', { flightInstanceId: 'xxx' });\nsocket.on('seat-availability:update', (data) => console.log('Update:', data));\n```\n\n## Redis Channels\n\n- `seat:availability:{flightInstanceId}` - Seat availability updates\n- `payment:status:booking:{bookingId}` - Payment status by booking\n- `payment:status:payment:{paymentId}` - Payment status by payment\n\n## Xem chi tiết\n\n- [Real-time Implementation Guide](../../docs/REALTIME_IMPLEMENTATION.md)\n- [Real-time Module README](../../src/api-gateway/modules/realtime/README.md)\n- [Real-time Integration Guide](../../src/api-gateway/modules/realtime/INTEGRATION.md)\n- [API Documentation](../../docs/api/API_DOCS.md#real-time-websocket-communication)"
+					},
+					"response": []
+				}
+			],
+			"description": "Real-time WebSocket Communication - Real-time updates cho critical business flows.\n\n**WebSocket Endpoint**: `ws://localhost:3000/realtime` (Socket.IO namespace)\n\n**Features:**\n- **Seat Availability Updates**: Real-time seat status changes để tránh conflict\n- **Reservation Countdown Timer**: Server-synced countdown timer (business critical)\n- **Payment Status Updates**: Real-time payment confirmation (UX critical)\n\n**Architecture:**\n- Socket.IO WebSocket Gateway\n- Redis Pub/Sub để broadcast events across multiple instances\n- Hỗ trợ cả authenticated users (JWT) và guest users (Session ID)\n- Backend-managed state - BE quản lý state, FE chỉ hiển thị\n\n**Testing:**\n- Postman v10+ hỗ trợ WebSocket requests\n- Khuyến nghị dùng Socket.IO client hoặc browser console để test đầy đủ\n- Xem \"WebSocket Connection Guide\" request để biết cách test\n\n**Dependencies:**\n- Backend: `@nestjs/websockets`, `socket.io` (đã cài đặt)\n- Frontend: `socket.io-client` (cần cài đặt)\n\n**Xem chi tiết:**\n- [Real-time Implementation Guide](../../docs/REALTIME_IMPLEMENTATION.md)\n- [Real-time Module README](../../src/api-gateway/modules/realtime/README.md)\n- [Real-time Integration Guide](../../src/api-gateway/modules/realtime/INTEGRATION.md)"
 		}
 	],
 	"variable": [
@@ -2022,6 +2042,30 @@
 			"value": "",
 			"type": "string",
 			"description": "Seat number (e.g., \"1A\", \"10C\") from /search/seats response. This is automatically set by Get Seat Map requests. Example: 1A"
+		},
+		{
+			"key": "websocket_url",
+			"value": "ws://localhost:3000/realtime",
+			"type": "string",
+			"description": "WebSocket endpoint URL (Socket.IO namespace). Example: ws://localhost:3000/realtime"
+		},
+		{
+			"key": "sessionId",
+			"value": "",
+			"type": "string",
+			"description": "Session ID for guest users (WebSocket authentication). Example: session-123"
+		},
+		{
+			"key": "websocket_url",
+			"value": "ws://localhost:3000/realtime",
+			"type": "string",
+			"description": "WebSocket endpoint URL (Socket.IO namespace). Example: ws://localhost:3000/realtime"
+		},
+		{
+			"key": "sessionId",
+			"value": "",
+			"type": "string",
+			"description": "Session ID for guest users (WebSocket authentication). Example: session-123"
 		}
 	]
 }

@@ -4,9 +4,75 @@ Lịch sử các thay đổi quan trọng của dự án.
 
 ## [Unreleased]
 
-### Tính năng mới (2025-12-XX)
+### Tính năng mới (2025-11-30)
 
-- **Hybrid Cancellation Approach - Partial & Full Cancellation (2025-12-XX)**
+- **Real-time WebSocket Communication (2025-11-30)**
+  - **Feature**: Real-time communication cho critical business flows sử dụng WebSocket và Redis Pub/Sub
+  - **Implementation**:
+    - **WebSocket Gateway**: Socket.IO Gateway tại namespace `/realtime` (port 3000)
+    - **Seat Availability Updates** (High Priority):
+      - Real-time seat status changes để tránh conflict khi nhiều user cùng chọn ghế
+      - Redis Pub/Sub channel: `seat:availability:{flightInstanceId}`
+      - Service: `SeatAvailabilityService`
+      - Events: `subscribe:seat-availability`, `unsubscribe:seat-availability`, `seat-availability:update`
+    - **Reservation Countdown Timer** (High Priority - Business Critical):
+      - Server-synced countdown timer - sync từ server mỗi giây
+      - Prevents client-side timer drift và ensures accuracy
+      - TCP communication với Reservation Microservice để lấy expiration time
+      - Service: `ReservationCountdownService`
+      - Events: `subscribe:reservation-countdown`, `unsubscribe:reservation-countdown`, `reservation-countdown:update`, `reservation-countdown:expired`
+    - **Payment Status Updates** (High Priority - UX Critical):
+      - Real-time payment confirmation - immediate feedback khi payment status thay đổi
+      - Redis Pub/Sub channels: `payment:status:booking:{bookingId}`, `payment:status:payment:{paymentId}`
+      - Service: `PaymentStatusService`
+      - Events: `subscribe:payment-status`, `unsubscribe:payment-status`, `payment-status:update`
+  - **Architecture**:
+    - Backend-managed state - BE quản lý state, FE chỉ hiển thị
+    - Redis Pub/Sub để broadcast events across multiple API Gateway instances (horizontal scaling)
+    - Hỗ trợ cả authenticated users (JWT token) và guest users (Session ID)
+    - WebSocket connection authentication qua JWT hoặc Session ID
+    - User-specific rooms: `user:{userId}` và `session:{sessionId}` cho targeted messaging
+  - **Technology Stack**:
+    - Socket.IO (NestJS WebSocket Gateway)
+    - Redis Pub/Sub cho multi-instance support
+    - TCP communication với Reservation Microservice cho countdown timer
+  - **Files Created**:
+    - `src/api-gateway/modules/realtime/realtime.module.ts` - Main module
+    - `src/api-gateway/modules/realtime/realtime.gateway.ts` - WebSocket Gateway
+    - `src/api-gateway/modules/realtime/realtime.service.ts` - Subscription management
+    - `src/api-gateway/modules/realtime/services/seat-availability.service.ts` - Seat availability service
+    - `src/api-gateway/modules/realtime/services/reservation-countdown.service.ts` - Countdown service
+    - `src/api-gateway/modules/realtime/services/payment-status.service.ts` - Payment status service
+    - `src/api-gateway/modules/realtime/README.md` - Usage guide
+    - `src/api-gateway/modules/realtime/INTEGRATION.md` - Integration guide
+    - `src/api-gateway/modules/realtime/SETUP.md` - Setup instructions
+    - `docs/REALTIME_IMPLEMENTATION.md` - Comprehensive implementation guide
+  - **Dependencies**:
+    - Backend: `@nestjs/websockets`, `socket.io`
+    - Frontend: `socket.io-client` (cần cài đặt)
+  - **Integration Points**:
+    - Seat availability: Publish events khi seat được reserve/release (từ Reservation Service hoặc Booking State Service)
+    - Payment status: Publish events khi payment status thay đổi (từ Payment Service hoặc Webhook handler)
+    - Reservation countdown: Tự động chạy khi client subscribe, không cần publish từ services
+  - **Best Practices**:
+    - Always unsubscribe khi component unmount
+    - Handle connection errors gracefully
+    - Use server as source of truth cho countdown timer
+    - Publish events immediately khi state changes
+    - Use Redis Pub/Sub cho multi-instance deployments
+    - BE manages state - Frontend chỉ hiển thị
+  - **Documentation**:
+    - Updated `README.md` - Added WebSocket to tech stack và features
+    - Updated `docs/README.md` - Added links to WebSocket documentation
+    - Updated `docs/CHANGELOG.md` - Added WebSocket implementation details
+    - Updated `docs/STRUCTURE.md` - Added WebSocket module
+    - Updated `docs/api/API_DOCS.md` - Added WebSocket endpoints documentation
+    - Updated `docs/api/API_SEQUENCE_DIAGRAMS.md` - Added WebSocket flow diagrams
+    - Updated Postman collection - Added WebSocket requests
+
+### Tính năng mới (2025-11-29)
+
+- **Hybrid Cancellation Approach - Partial & Full Cancellation (2025-11-29)**
   - **Feature**: Hỗ trợ hủy từng ticket riêng lẻ (partial cancellation) và hủy toàn bộ booking (full cancellation)
   - **Implementation**:
     - **Level 1: Cancel Individual Ticket** - `PATCH /api/v1/bookings/tickets/:ticketId/cancel`
@@ -81,7 +147,7 @@ Lịch sử các thay đổi quan trọng của dự án.
     - Updated `docs/api/API_SEQUENCE_DIAGRAMS.md` với cancellation flows
     - Updated Postman collection với cancel ticket requests
 
-### Bug Fixes (2025-12-XX)
+### Bug Fixes (2025-11-29)
 
 - **Fixed Booking Cancellation Logic - Booking Status Check (2025-12-XX)**
   - **Issue**: Frontend hiển thị "Có thể hủy" nhưng backend từ chối hủy với lỗi "Cannot cancel booking with status: paid"
@@ -94,9 +160,9 @@ Lịch sử các thay đổi quan trọng của dự án.
   - **Files Changed**:
     - `src/microservices/booking/booking.service.ts` - Updated `getMyTickets()` method to check booking status first
 
-### Tính năng mới (2025-12-XX)
+### Tính năng mới (2025-11-29)
 
-- **Booking Cancellation Feature (2025-12-XX)**
+- **Booking Cancellation Feature (2025-11-29)**
   - **Feature**: Cho phép user hủy booking theo quy định Bamboo Airways
   - **Implementation**:
     - Endpoint `PATCH /api/v1/bookings/:id/cancel` - Hủy booking (chỉ authenticated users)
@@ -130,9 +196,9 @@ Lịch sử các thay đổi quan trọng của dự án.
     - Updated `docs/CHANGELOG.md` - Added cancellation feature details
     - Updated Postman collection - Added cancel booking request
 
-### Tính năng mới (2025-12-XX)
+### Tính năng mới (2025-11-29)
 
-- **RabbitMQ Integration (2025-12-XX)**
+- **RabbitMQ Integration (2025-11-29)**
   - **Feature**: Tích hợp RabbitMQ cho asynchronous messaging và event-driven architecture
   - **Implementation**:
     - RabbitMQ service với automatic reconnection và connection pooling
@@ -161,7 +227,7 @@ Lịch sử các thay đổi quan trọng của dự án.
     - Added `docs/design/RABBITMQ_INTEGRATION.md` - Comprehensive RabbitMQ integration guide
     - Updated `README.md` - Added RabbitMQ to tech stack and features
 
-- **Payment Flow Improvements (2025-12-XX)**
+- **Payment Flow Improvements (2025-11-29)**
   - **Error Handling**: Cải thiện xử lý lỗi "Booking is already paid"
     - Frontend tự động redirect đến confirmation page thay vì hiển thị error
     - User-friendly error messages

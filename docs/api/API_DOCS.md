@@ -1236,6 +1236,348 @@ const bookingResponse = await fetch('http://localhost:3000/api/v1/bookings?reser
 
 ---
 
+## Real-time WebSocket Communication
+
+Hệ thống hỗ trợ real-time communication qua WebSocket (Socket.IO) cho các critical business flows.
+
+### WebSocket Endpoint
+
+```
+ws://localhost:3000/realtime
+```
+
+**Namespace**: `/realtime` (Socket.IO)
+
+### Authentication
+
+WebSocket connection hỗ trợ 2 cách authentication:
+
+1. **JWT Token** (Authenticated users):
+   - Gửi token trong `auth.token` hoặc `Authorization` header
+   - Format: `Bearer <access_token>`
+
+2. **Session ID** (Guest users):
+   - Gửi session ID trong `auth.sessionId` hoặc query parameter `sessionId`
+
+**Connection Example (Socket.IO Client)**:
+```typescript
+import { io } from 'socket.io-client';
+
+// Authenticated user
+const socket = io('http://localhost:3000/realtime', {
+  auth: {
+    token: 'your-jwt-token'
+  }
+});
+
+// Guest user
+const socket = io('http://localhost:3000/realtime', {
+  auth: {
+    sessionId: 'your-session-id'
+  }
+});
+```
+
+### Events
+
+#### Client → Server Events
+
+##### Subscribe to Seat Availability Updates
+
+**Event**: `subscribe:seat-availability`
+
+**Payload**:
+```json
+{
+  "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71"
+}
+```
+
+**Response Event**: `subscribed:seat-availability`
+```json
+{
+  "success": true,
+  "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71"
+}
+```
+
+**Mô tả**: Subscribe để nhận real-time updates khi seat availability thay đổi cho một flight instance. Giúp tránh conflict khi nhiều user cùng chọn ghế.
+
+---
+
+##### Unsubscribe from Seat Availability Updates
+
+**Event**: `unsubscribe:seat-availability`
+
+**Payload**:
+```json
+{
+  "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71"
+}
+```
+
+**Response Event**: `unsubscribed:seat-availability`
+```json
+{
+  "success": true,
+  "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71"
+}
+```
+
+---
+
+##### Subscribe to Reservation Countdown Timer
+
+**Event**: `subscribe:reservation-countdown`
+
+**Payload**:
+```json
+{
+  "reservationId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71"
+}
+```
+
+**Response Event**: `subscribed:reservation-countdown`
+```json
+{
+  "success": true,
+  "reservationId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71"
+}
+```
+
+**Mô tả**: Subscribe để nhận real-time countdown updates cho reservation. Server là source of truth, sync mỗi giây để tránh client-side timer drift. Business critical - đảm bảo accuracy của countdown timer.
+
+---
+
+##### Unsubscribe from Reservation Countdown
+
+**Event**: `unsubscribe:reservation-countdown`
+
+**Payload**:
+```json
+{
+  "reservationId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71"
+}
+```
+
+**Response Event**: `unsubscribed:reservation-countdown`
+```json
+{
+  "success": true,
+  "reservationId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71"
+}
+```
+
+---
+
+##### Subscribe to Payment Status Updates
+
+**Event**: `subscribe:payment-status`
+
+**Payload**:
+```json
+{
+  "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "paymentId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72" // Optional
+}
+```
+
+**Response Event**: `subscribed:payment-status`
+```json
+{
+  "success": true,
+  "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "paymentId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72"
+}
+```
+
+**Mô tả**: Subscribe để nhận real-time updates khi payment status thay đổi. UX critical - immediate feedback khi payment thành công/thất bại.
+
+---
+
+##### Unsubscribe from Payment Status
+
+**Event**: `unsubscribe:payment-status`
+
+**Payload**:
+```json
+{
+  "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71"
+}
+```
+
+**Response Event**: `unsubscribed:payment-status`
+```json
+{
+  "success": true,
+  "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71"
+}
+```
+
+---
+
+#### Server → Client Events
+
+##### Connection Confirmed
+
+**Event**: `connected`
+
+**Payload**:
+```json
+{
+  "success": true,
+  "socketId": "abc123",
+  "userId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71", // Nếu authenticated
+  "sessionId": "session-123" // Nếu guest
+}
+```
+
+**Mô tả**: Được emit ngay sau khi connection thành công và authentication hoàn tất.
+
+---
+
+##### Seat Availability Update
+
+**Event**: `seat-availability:update`
+
+**Payload**:
+```json
+{
+  "flightInstanceId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "changes": [
+    {
+      "flightSeatId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
+      "seatNumber": "12A",
+      "status": "reserved",
+      "changedBy": "019a8f4a-bb0e-7402-a0c4-27647b89dc71"
+    }
+  ],
+  "timestamp": "2025-12-01T10:00:00.000Z"
+}
+```
+
+**Mô tả**: Được emit khi seat availability thay đổi (reserve/release). Tất cả clients subscribed đến flight instance đó sẽ nhận update.
+
+**Status Values**:
+- `available`: Ghế available
+- `reserved`: Ghế đã được reserve
+
+---
+
+##### Reservation Countdown Update
+
+**Event**: `reservation-countdown:update`
+
+**Payload**:
+```json
+{
+  "reservationId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "remainingSeconds": 899,
+  "expiresAt": "2025-12-01T10:15:00.000Z",
+  "isExpired": false
+}
+```
+
+**Mô tả**: Được emit mỗi giây cho active reservations. Server là source of truth, đảm bảo accuracy.
+
+---
+
+##### Reservation Expired
+
+**Event**: `reservation-countdown:expired`
+
+**Payload**:
+```json
+{
+  "reservationId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "expiresAt": "2025-12-01T10:15:00.000Z"
+}
+```
+
+**Mô tả**: Được emit khi reservation hết hạn (remainingSeconds = 0).
+
+---
+
+##### Payment Status Update
+
+**Event**: `payment-status:update`
+
+**Payload**:
+```json
+{
+  "bookingId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "paymentId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
+  "status": "success",
+  "timestamp": "2025-12-01T10:00:00.000Z",
+  "metadata": {
+    "transactionRef": "TXN123456"
+  }
+}
+```
+
+**Mô tả**: Được emit khi payment status thay đổi. Immediate feedback cho user.
+
+**Status Values**:
+- `pending`: Payment đang được xử lý
+- `success`: Payment thành công
+- `failed`: Payment thất bại
+
+---
+
+##### Error Event
+
+**Event**: `error`
+
+**Payload**:
+```json
+{
+  "message": "Connection failed"
+}
+```
+
+**Mô tả**: Được emit khi có lỗi xảy ra (connection failed, authentication failed, subscription failed, etc.).
+
+---
+
+### Redis Channels
+
+Hệ thống sử dụng Redis Pub/Sub để broadcast events across multiple API Gateway instances:
+
+- `seat:availability:{flightInstanceId}` - Seat availability updates
+- `payment:status:booking:{bookingId}` - Payment status by booking
+- `payment:status:payment:{paymentId}` - Payment status by payment
+
+### Best Practices
+
+1. **Always unsubscribe** khi component unmount để tránh memory leaks
+2. **Handle connection errors** gracefully - implement reconnection logic
+3. **Use server as source of truth** cho countdown timer - không dùng client-side timer
+4. **Publish events immediately** khi state changes trong backend
+5. **Use Redis Pub/Sub** cho multi-instance deployments
+6. **BE manages state** - Frontend chỉ hiển thị, không quản lý state
+
+### Frontend Integration
+
+**Xem chi tiết**: 
+- [Real-time Implementation Guide](../REALTIME_IMPLEMENTATION.md)
+- [Real-time Module README](../../src/api-gateway/modules/realtime/README.md)
+- [Real-time Integration Guide](../../src/api-gateway/modules/realtime/INTEGRATION.md)
+
+**Dependencies**:
+```bash
+cd booking
+npm install socket.io-client
+```
+
+**Example Usage**:
+```typescript
+import { useSeatAvailability } from '@/app/hooks/use-seat-availability';
+import { useReservationCountdown } from '@/app/hooks/use-reservation-countdown';
+import { usePaymentStatus } from '@/app/hooks/use-payment-status';
+```
+
+---
+
 ## Các dịch vụ cần chạy
 
 - **Search Microservice** (cổng 4001): `npm run start:search:dev`
@@ -1244,3 +1586,4 @@ const bookingResponse = await fetch('http://localhost:3000/api/v1/bookings?reser
 - **Payment Microservice** (cổng 4006): `npm run start:payment:dev`
 - **Email Microservice** (cổng 4007): `npm run start:email:dev`
 - **Services Microservice** (cổng 4002): `npm run start:services:dev` (nếu dùng deals API)
+- **Redis**: Cần cho Reservation Service, Booking State, và WebSocket Pub/Sub
