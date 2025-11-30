@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy, Inject, forwardRef } from '@nestjs/common';
 import { RealtimeGateway } from '../realtime.gateway';
 import { RealtimeService } from '../realtime.service';
 import { RedisService } from 'src/shared/modules/redis/redis.service';
@@ -23,6 +23,7 @@ export class SeatAvailabilityService implements OnModuleInit, OnModuleDestroy {
 	private readonly subscribedChannels = new Set<string>();
 
 	constructor(
+		@Inject(forwardRef(() => RealtimeGateway))
 		private readonly realtimeGateway: RealtimeGateway,
 		private readonly realtimeService: RealtimeService,
 		private readonly redisService: RedisService,

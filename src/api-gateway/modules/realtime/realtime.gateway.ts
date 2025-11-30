@@ -8,7 +8,7 @@ import {
 	MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger, UseGuards } from '@nestjs/common';
+import { Logger, UseGuards, Inject, forwardRef } from '@nestjs/common';
 import { RealtimeService } from './realtime.service';
 import { SeatAvailabilityService } from './services/seat-availability.service';
 import { ReservationCountdownService } from './services/reservation-countdown.service';
@@ -38,8 +38,11 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
 	constructor(
 		private readonly realtimeService: RealtimeService,
+		@Inject(forwardRef(() => SeatAvailabilityService))
 		private readonly seatAvailabilityService: SeatAvailabilityService,
+		@Inject(forwardRef(() => ReservationCountdownService))
 		private readonly reservationCountdownService: ReservationCountdownService,
+		@Inject(forwardRef(() => PaymentStatusService))
 		private readonly paymentStatusService: PaymentStatusService,
 		private readonly jwtService: JwtService,
 		private readonly configService: ConfigService,

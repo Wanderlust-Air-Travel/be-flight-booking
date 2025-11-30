@@ -1,8 +1,7 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy, Inject, forwardRef } from '@nestjs/common';
 import { RealtimeGateway } from '../realtime.gateway';
 import { RealtimeService } from '../realtime.service';
 import { ClientProxy } from '@nestjs/microservices';
-import { Inject } from '@nestjs/common';
 import { interval, Subscription } from 'rxjs';
 import { ReservationCountdownUpdateEvent, ReservationCountdownExpiredEvent } from '../types/reservation-countdown.types';
 
@@ -23,6 +22,7 @@ export class ReservationCountdownService implements OnModuleInit, OnModuleDestro
 	private readonly checkInterval = 1000; // Check every 1 second
 
 	constructor(
+		@Inject(forwardRef(() => RealtimeGateway))
 		private readonly realtimeGateway: RealtimeGateway,
 		private readonly realtimeService: RealtimeService,
 		@Inject('RESERVATION_CLIENT') private readonly reservationClient: ClientProxy,

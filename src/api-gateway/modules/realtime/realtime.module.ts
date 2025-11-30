@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ClientsModule, Transport } from '@nestjs/microservices';
 import { RealtimeGateway } from './realtime.gateway';
 import { RealtimeService } from './realtime.service';
 import { SeatAvailabilityService } from './services/seat-availability.service';
@@ -9,6 +10,7 @@ import { BookingStateModule } from '../booking-state/booking-state.module';
 import { ReservationClientModule } from '../reservation/reservation.client.module';
 import { PaymentClientModule } from '../payment/payment.client.module';
 import { AuthModule } from '../auth/auth.module';
+import { RESERVATION_MS } from 'src/microservices/reservation/reservation.messages';
 
 /**
  * Real-time WebSocket Module
@@ -27,6 +29,17 @@ import { AuthModule } from '../auth/auth.module';
 		ReservationClientModule,
 		PaymentClientModule,
 		AuthModule,
+		// Register RESERVATION_CLIENT for ReservationCountdownService
+		ClientsModule.register([
+			{
+				name: 'RESERVATION_CLIENT',
+				transport: Transport.TCP,
+				options: {
+					host: RESERVATION_MS.TCP_HOST,
+					port: RESERVATION_MS.TCP_PORT,
+				},
+			},
+		]),
 	],
 	providers: [
 		RealtimeGateway,
