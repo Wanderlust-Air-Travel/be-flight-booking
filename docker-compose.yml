@@ -113,7 +113,7 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-    command: sh -c "npm run wait-for-sqlserver && npm run wait-for-rabbitmq && npm run init-db && npm run wait-for-db && npm run seed:if-empty && npm run start:all:with-download"
+    command: sh -c "npm run wait-for-sqlserver && npm run wait-for-rabbitmq && npm run init-db && npm run wait-for-db && npm run seed:if-empty && npm run start:all"
     # command: sh -c "npm run wait-for-sqlserver && npm run init-db && npm run wait-for-db && npm run seed:if-empty && npm run start:all:with-download"
     restart: unless-stopped
 
