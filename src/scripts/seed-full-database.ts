@@ -600,15 +600,12 @@ async function run() {
 	// ============================================================
 	console.log('\nSeeding Flight Schedules...');
 	
-	const now = new Date();
-	// Set from date to today at midnight (local timezone)
-	// Use local date components to avoid timezone issues
-	const from = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-	const to = new Date(from);
-	to.setFullYear(to.getFullYear() + 1); // 1 year ahead
+	// Set dates to December 2025 for flight schedules and instances
+	// from = 1/12/2025 00:00:00, to = 31/12/2025 23:59:59
+	const from = new Date(2025, 11, 1, 0, 0, 0, 0); // December 1, 2025 (month is 0-indexed, so 11 = December)
+	const to = new Date(2025, 11, 31, 23, 59, 59, 999); // December 31, 2025
 	
-	// For flight instances, generate from today to 180 days ahead (instead of 90)
-	// This ensures we have data for testing with various dates
+	console.log(`  Flight schedules effective period: ${from.toLocaleDateString()} to ${to.toLocaleDateString()}`);
 
 	const flightNumbers = ['BBO', 'VNA', 'VJ', 'QH'];
 	const operatingDaysPatterns = [
@@ -656,15 +653,15 @@ async function run() {
 	
 	// Combine: popular routes first, then others
 	const routesToUse = [...popularRoutes, ...otherRoutes];
-	const maxRoutes = Math.min(150, routesToUse.length); // Use up to 150 routes for reasonable number of schedules
+	const maxRoutes = Math.min(200, routesToUse.length); // Use up to 200 routes for more flight schedules in December 2025
 	
 	let schedulesCreated = 0;
 	// Track used flight numbers to avoid duplicates within the same period
 	const usedFlightNumbers = new Set<string>();
 	
 	for (const route of routesToUse.slice(0, maxRoutes)) {
-		// Create 2-3 schedules per route for reasonable data
-		const numSchedules = randomInt(2, 3);
+		// Create 3-5 schedules per route for more variety in December 2025
+		const numSchedules = randomInt(3, 5);
 		
 		for (let s = 0; s < numSchedules; s++) {
 			const aircraftType = randomElement(savedAircraftTypes);
@@ -764,13 +761,16 @@ async function run() {
 	console.log('\nSeeding Flight Instances and Seats...');
 	
 	let instanceCount = 0;
-	const startDate = new Date(from);
-	const endDate = new Date(startDate);
-	endDate.setDate(endDate.getDate() + 30); // Generate instances for next 30 days (1 month) - reduced for faster seeding
+	// Generate instances for entire December 2025 (1st to 31st)
+	const startDate = new Date(2025, 11, 1, 0, 0, 0, 0); // December 1, 2025
+	const endDate = new Date(2025, 11, 31, 23, 59, 59, 999); // December 31, 2025
+	
+	console.log(`  Generating flight instances from ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`);
 
-	// Process all schedules (or up to 50 for reasonable number of instances and seats)
-	const schedulesToProcess = schedules.slice(0, 50);
-	console.log(`  Processing ${schedulesToProcess.length} schedules...`);
+	// Process more schedules to create many flight instances for December 2025
+	// Process up to 200 schedules to ensure plenty of flights (one way and round trip)
+	const schedulesToProcess = schedules.slice(0, Math.min(200, schedules.length));
+	console.log(`  Processing ${schedulesToProcess.length} schedules for December 2025...`);
 
 	for (const schedule of schedulesToProcess) {
 		// Create a new date object for each schedule to avoid mutation issues
