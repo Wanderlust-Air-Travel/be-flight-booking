@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsArray, ValidateNested, IsOptional, ArrayMinSize } from 'class-validator';
+import { IsNotEmpty, IsString, IsArray, ValidateNested, IsOptional, ArrayMinSize, ValidateIf } from 'class-validator';
 import { Type } from 'class-transformer';
 import { IsUUIDv7 } from 'src/shared/validators/is-uuid-v7.validator';
 import { COMMON_MESSAGES, BOOKING_MESSAGES } from 'src/shared/constants/messages';
@@ -52,6 +52,7 @@ export class SaveSeatSelectionDto {
 		required: false,
 	})
 	@IsOptional()
+	@ValidateIf((o) => o.seats !== undefined && o.seats !== null && Array.isArray(o.seats))
 	@IsArray({ message: BOOKING_MESSAGES.VALIDATION.SEAT_ID_REQUIRED })
 	@ValidateNested({ each: true })
 	@Type(() => SeatSelectionItemDto)
