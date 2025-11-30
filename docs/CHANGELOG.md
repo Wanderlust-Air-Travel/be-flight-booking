@@ -4,6 +4,48 @@ Lịch sử các thay đổi quan trọng của dự án.
 
 ## [Unreleased]
 
+### Cải tiến Frontend Error Handling & Browser Data (2025-12-01)
+
+- **Professional Error Handling & Toast Notifications (2025-12-XX)**
+  - **Feature**: Cải thiện toàn diện error handling và toast notifications với thông báo lỗi chuyên nghiệp, rõ ràng
+  - **Implementation**:
+    - **Professional Error Messages**: Thay thế các thông báo lỗi generic ("fetch failed", "Network Error") bằng thông báo chuyên nghiệp, rõ ràng bằng tiếng Việt
+    - **Comprehensive Error Handling**: Xử lý đầy đủ các loại lỗi:
+      - Network Errors: "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng của bạn và thử lại."
+      - Timeout Errors: "Yêu cầu bị quá thời gian chờ. Vui lòng kiểm tra kết nối mạng và thử lại."
+      - HTTP Status Codes: Thông báo rõ ràng cho từng status code (400, 401, 403, 404, 500, 502, 503, 504)
+      - Validation Errors: Hiển thị danh sách lỗi validation một cách rõ ràng
+      - Server Errors: Thông báo lỗi máy chủ với hướng dẫn liên hệ hỗ trợ
+    - **Priority-based Error Extraction**: Ưu tiên message từ backend, sau đó mới dùng message mặc định
+    - **Axios Interceptor Enhancement**: Cải thiện xử lý network errors (không có response) trong axios interceptor
+  - **User Experience**:
+    - Thông báo lỗi rõ ràng, chuyên nghiệp, dễ hiểu
+    - Hướng dẫn cụ thể cho từng loại lỗi
+    - Thân thiện với người dùng, không còn technical jargon
+  - **Files Changed**:
+    - `booking/lib/toast.ts` - Cải thiện hàm `getErrorMessage()` với comprehensive error handling
+    - `booking/lib/axios-instance.ts` - Cải thiện axios interceptor để xử lý network errors tốt hơn
+  - **Best Practice**: Professional error messages improve user experience and reduce support burden
+
+- **Browser Data Update - Baseline Browser Mapping (2025-12-XX)**
+  - **Feature**: Cập nhật browser compatibility data và thêm script tự động cập nhật
+  - **Implementation**:
+    - Update Browserslist Database: Cập nhật `caniuse-lite` database lên version mới nhất
+    - Reinstall Baseline Browser Mapping: Đảm bảo package được cài đặt với data mới nhất
+    - Auto-update Script: Thêm script `update:browser-data` để dễ dàng cập nhật trong tương lai
+    - DevDependencies: Thêm `update-browserslist-db` vào devDependencies
+  - **Usage**:
+    ```bash
+    # Cập nhật browser data
+    npm run update:browser-data
+    
+    # Hoặc thủ công
+    npx update-browserslist-db@latest
+    ```
+  - **Files Changed**:
+    - `booking/package.json` - Thêm script `update:browser-data` và `update-browserslist-db` vào devDependencies
+  - **Best Practice**: Keep browser compatibility data up-to-date for accurate baseline information
+
 ### Cải tiến Frontend UI/UX (2025-11-30)
 
 - **Calendar Component Fix - Date of Birth Picker (2025-11-30)**

@@ -1199,6 +1199,53 @@ Hệ thống sử dụng RabbitMQ cho asynchronous messaging và event-driven ar
   - "Cannot create reservation: Seat not selected for flight {flightInstanceId}. Please select seat after cabin selection."
   - "Flight instance {flightInstanceId} not found"
 
+### Professional Error Handling (Frontend) - Updated 2025-12-01
+
+**Feature**: Frontend tự động hiển thị thông báo lỗi chuyên nghiệp, rõ ràng cho tất cả các loại lỗi
+
+**Error Message Categories:**
+
+1. **Network Errors**:
+   - "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng của bạn và thử lại."
+   - Tự động detect: `ERR_NETWORK`, `fetch failed`, `Network Error`, `Failed to fetch`
+
+2. **Timeout Errors**:
+   - "Yêu cầu bị quá thời gian chờ. Vui lòng kiểm tra kết nối mạng và thử lại."
+   - Tự động detect: `ECONNABORTED`, `timeout`
+
+3. **HTTP Status Codes** (Professional Messages):
+   - **400**: "Yêu cầu không hợp lệ. Vui lòng kiểm tra lại thông tin đã nhập."
+   - **401**: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại."
+   - **403**: "Bạn không có quyền truy cập tài nguyên này."
+   - **404**: "Không tìm thấy tài nguyên yêu cầu. Vui lòng thử lại."
+   - **500**: "Lỗi máy chủ nội bộ. Vui lòng thử lại sau hoặc liên hệ hỗ trợ."
+   - **502/503/504**: "Máy chủ không phản hồi. Vui lòng thử lại sau."
+
+4. **Validation Errors**:
+   - Hiển thị danh sách lỗi validation một cách rõ ràng
+   - Format: "Có {n} lỗi cần sửa: {error1}, {error2}, ..."
+
+5. **Server Errors**:
+   - Ưu tiên message từ backend response
+   - Fallback: Professional HTTP status message
+   - Default: "Đã xảy ra lỗi không xác định"
+
+**Error Extraction Priority:**
+1. Custom message từ backend (`response.data.message`)
+2. Error field từ backend (`response.data.error`)
+3. Validation errors array (`response.data.errors`)
+4. Professional HTTP status message
+5. Status text từ response
+6. Generic error message (filtered và translated)
+7. Default message
+
+**Implementation:**
+- `booking/lib/toast.ts` - Hàm `getErrorMessage()` với comprehensive error handling
+- `booking/lib/axios-instance.ts` - Axios interceptor tự động hiển thị error toast
+- Tất cả error messages đều được xử lý để hiển thị thông báo chuyên nghiệp, rõ ràng bằng tiếng Việt
+
+**Best Practice**: Professional error messages improve user experience and reduce support burden
+
 ---
 
 ## Ví dụ sử dụng
