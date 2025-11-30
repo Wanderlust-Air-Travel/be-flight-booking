@@ -1,4 +1,5 @@
 import { registerDecorator, ValidationOptions, ValidationArguments } from 'class-validator';
+import { COMMON_MESSAGES } from 'src/shared/constants/messages';
 
 /**
  * Custom validator for UUID v7 (time-ordered UUID)
@@ -23,7 +24,12 @@ export function IsUUIDv7(validationOptions?: ValidationOptions) {
 					return uuidV7Regex.test(value);
 				},
 				defaultMessage(args: ValidationArguments) {
-					return `${args.property} must be a valid UUID v7`;
+					if (validationOptions?.message) {
+						return typeof validationOptions.message === 'string' 
+							? validationOptions.message 
+							: validationOptions.message(args);
+					}
+					return COMMON_MESSAGES.VALIDATION.ID_INVALID_UUID_V7;
 				},
 			},
 		});

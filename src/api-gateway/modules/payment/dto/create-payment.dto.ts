@@ -1,6 +1,7 @@
 import { IsNotEmpty, IsString, IsEnum, IsOptional, IsNumber, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PaymentMethodCode } from 'src/shared/constants/enums';
+import { PAYMENT_MESSAGES } from 'src/shared/constants/messages';
 
 export class CreatePaymentDto {
 	@ApiProperty({
@@ -8,9 +9,9 @@ export class CreatePaymentDto {
 		enum: PaymentMethodCode,
 		example: PaymentMethodCode.CREDIT_CARD,
 	})
-	@IsNotEmpty()
+	@IsNotEmpty({ message: PAYMENT_MESSAGES.VALIDATION.PAYMENT_METHOD_REQUIRED })
 	@IsEnum(PaymentMethodCode, {
-		message: 'paymentMethodCode must be one of: CREDIT_CARD, DEBIT_CARD, BANK_TRANSFER, EWALLET, CASH',
+		message: PAYMENT_MESSAGES.ERROR.INVALID_PAYMENT_METHOD,
 	})
 	paymentMethodCode: PaymentMethodCode;
 
@@ -35,8 +36,8 @@ export class CreatePaymentDto {
 		example: 1577000,
 	})
 	@IsOptional()
-	@IsNumber()
-	@Min(0.01, { message: 'Amount must be greater than 0' })
+	@IsNumber({}, { message: PAYMENT_MESSAGES.VALIDATION.AMOUNT_INVALID })
+	@Min(0.01, { message: PAYMENT_MESSAGES.VALIDATION.AMOUNT_INVALID })
 	amount?: number;
 }
 

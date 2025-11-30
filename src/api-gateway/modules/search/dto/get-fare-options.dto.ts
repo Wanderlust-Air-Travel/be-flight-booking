@@ -3,6 +3,7 @@ import { Transform } from 'class-transformer';
 import { IsEnum, IsNotEmpty, IsOptional } from 'class-validator';
 import { IsUUIDv7 } from 'src/shared/validators/is-uuid-v7.validator';
 import { CabinType } from 'src/shared/constants/enums';
+import { COMMON_MESSAGES } from 'src/shared/constants/messages';
 
 export class GetFareOptionsDto {
 	@ApiProperty({
@@ -17,7 +18,7 @@ export class GetFareOptionsDto {
 		return value;
 	})
 	@IsOptional()
-	@IsUUIDv7({ message: 'flightInstanceId must be a valid UUID v7' })
+	@IsUUIDv7({ message: COMMON_MESSAGES.VALIDATION.ID_INVALID_UUID_V7 })
 	flightInstanceId?: string;
 
 	@ApiProperty({

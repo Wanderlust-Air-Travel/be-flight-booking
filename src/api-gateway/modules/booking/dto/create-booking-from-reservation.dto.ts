@@ -1,7 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsEmail, IsOptional, IsArray, ValidateNested } from 'class-validator';
+import { IsNotEmpty, IsString, IsEmail, IsOptional, IsArray, ValidateNested, MinLength, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CreateBookingPassengerDto } from './create-booking.dto';
+import { BOOKING_MESSAGES, AUTH_MESSAGES } from 'src/shared/constants/messages';
+import { IsVietnamesePhone } from 'src/shared/validators/is-vietnamese-phone.validator';
 
 /**
  * DTO for creating a booking from an existing reservation.
@@ -15,7 +17,9 @@ export class CreateBookingFromReservationDto {
 		required: false,
 	})
 	@IsOptional()
-	@IsString()
+	@IsString({ message: AUTH_MESSAGES.VALIDATION.FULLNAME_REQUIRED })
+	@MinLength(2, { message: AUTH_MESSAGES.VALIDATION.FULLNAME_REQUIRED })
+	@MaxLength(100, { message: AUTH_MESSAGES.VALIDATION.FULLNAME_REQUIRED })
 	contactFullname?: string;
 
 	@ApiProperty({
@@ -24,7 +28,7 @@ export class CreateBookingFromReservationDto {
 		required: false,
 	})
 	@IsOptional()
-	@IsEmail()
+	@IsEmail({}, { message: AUTH_MESSAGES.VALIDATION.EMAIL_INVALID })
 	contactEmail?: string;
 
 	@ApiProperty({
@@ -33,7 +37,7 @@ export class CreateBookingFromReservationDto {
 		required: false,
 	})
 	@IsOptional()
-	@IsString()
+	@IsVietnamesePhone({ message: AUTH_MESSAGES.VALIDATION.PHONE_INVALID })
 	contactPhone?: string;
 
 	@ApiProperty({
@@ -49,8 +53,8 @@ export class CreateBookingFromReservationDto {
 		description: 'List of passengers for the booking',
 		type: [CreateBookingPassengerDto],
 	})
-	@IsNotEmpty()
-	@IsArray()
+	@IsNotEmpty({ message: BOOKING_MESSAGES.VALIDATION.PASSENGERS_REQUIRED })
+	@IsArray({ message: BOOKING_MESSAGES.VALIDATION.PASSENGERS_REQUIRED })
 	@ValidateNested({ each: true })
 	@Type(() => CreateBookingPassengerDto)
 	passengers!: CreateBookingPassengerDto[];

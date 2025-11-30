@@ -1,17 +1,20 @@
-import { IsEmail, IsNotEmpty, MinLength, MaxLength, IsString, IsPhoneNumber } from "class-validator";
+import { IsEmail, IsNotEmpty, MinLength, MaxLength, IsString } from "class-validator";
 import { ApiProperty } from "@nestjs/swagger";
 import { Transform } from "class-transformer";
+import { IsVietnamesePhone } from "src/shared/validators/is-vietnamese-phone.validator";
+import { IsStrongPassword } from "src/shared/validators/is-strong-password.validator";
+import { AUTH_MESSAGES } from "src/shared/constants/messages";
 
 export class RegisterDto {
     @ApiProperty({
         description: 'Full name of the user',
         example: 'Nguyen Van A'
     })
-    @IsString()
+    @IsString({ message: AUTH_MESSAGES.VALIDATION.FULLNAME_REQUIRED })
     @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
-    @MinLength(2)
-    @MaxLength(100)
-    @IsNotEmpty()
+    @MinLength(2, { message: AUTH_MESSAGES.VALIDATION.FULLNAME_REQUIRED })
+    @MaxLength(100, { message: AUTH_MESSAGES.VALIDATION.FULLNAME_REQUIRED })
+    @IsNotEmpty({ message: AUTH_MESSAGES.VALIDATION.FULLNAME_REQUIRED })
     fullname: string;
 
     @ApiProperty({
@@ -20,26 +23,27 @@ export class RegisterDto {
         format: 'email'
     })
     @Transform(({ value }) => typeof value === 'string' ? value.trim().toLowerCase() : value)
-    @IsEmail()
+    @IsEmail({}, { message: AUTH_MESSAGES.VALIDATION.EMAIL_INVALID })
+    @IsNotEmpty({ message: AUTH_MESSAGES.VALIDATION.EMAIL_REQUIRED })
     email: string;
 
     @ApiProperty({
-        description: 'Account password (6-20 characters)',
+        description: 'Account password (6-20 characters, must contain uppercase, lowercase, number, and special character)',
         example: 'StrongP@ssw0rd',
         minLength: 6,
         maxLength: 20
     })
-    @IsString()
-    @MinLength(6)
-    @MaxLength(20)
+    @IsString({ message: AUTH_MESSAGES.VALIDATION.PASSWORD_REQUIRED })
+    @IsStrongPassword({ message: AUTH_MESSAGES.VALIDATION.PASSWORD_TOO_WEAK })
+    @IsNotEmpty({ message: AUTH_MESSAGES.VALIDATION.PASSWORD_REQUIRED })
     password: string;
 
     @ApiProperty({
-        description: 'Phone number for contact',
+        description: 'Phone number for contact (Vietnamese format)',
         example: '0901234567'
     })
     @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
-    @IsNotEmpty()
-    @IsPhoneNumber('VN', { message: 'phone must be a valid Vietnamese phone number' })
+    @IsNotEmpty({ message: AUTH_MESSAGES.VALIDATION.PHONE_REQUIRED })
+    @IsVietnamesePhone({ message: AUTH_MESSAGES.VALIDATION.PHONE_INVALID })
     phone: string;
 }

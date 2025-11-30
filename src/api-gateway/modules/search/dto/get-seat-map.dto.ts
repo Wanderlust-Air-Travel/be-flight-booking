@@ -3,6 +3,7 @@ import { IsNotEmpty, IsEnum, IsOptional } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { CabinType } from 'src/shared/constants/enums';
 import { IsUUIDv7 } from 'src/shared/validators/is-uuid-v7.validator';
+import { SEARCH_MESSAGES, COMMON_MESSAGES } from 'src/shared/constants/messages';
 
 export class GetSeatMapDto {
 	@ApiProperty({
@@ -15,8 +16,8 @@ export class GetSeatMapDto {
 		}
 		return value;
 	})
-	@IsNotEmpty()
-	@IsUUIDv7({ message: 'flightInstanceId must be a valid UUID v7' })
+	@IsNotEmpty({ message: SEARCH_MESSAGES.VALIDATION.FLIGHT_INSTANCE_ID_REQUIRED })
+	@IsUUIDv7({ message: COMMON_MESSAGES.VALIDATION.ID_INVALID_UUID_V7 })
 	flightInstanceId!: string;
 
 	@ApiProperty({

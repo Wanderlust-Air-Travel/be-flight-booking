@@ -1,8 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsEmail, IsOptional, IsArray, ValidateNested, IsInt, Min, ValidateIf, IsEnum } from 'class-validator';
+import { IsNotEmpty, IsString, IsEmail, IsOptional, IsArray, ValidateNested, IsInt, Min, ValidateIf, IsEnum, MinLength, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 import { IsUUIDv7 } from 'src/shared/validators/is-uuid-v7.validator';
 import { PassengerType } from 'src/shared/constants/enums';
+import { BOOKING_MESSAGES, COMMON_MESSAGES } from 'src/shared/constants/messages';
 
 export class CreateBookingPassengerDto {
 	@ApiProperty({
@@ -19,8 +20,8 @@ export class CreateBookingPassengerDto {
 		enum: PassengerType,
 		example: PassengerType.ADT,
 	})
-	@IsNotEmpty()
-	@IsEnum(PassengerType, { message: 'passengerType must be one of: ADT, CHD, INF' })
+	@IsNotEmpty({ message: BOOKING_MESSAGES.VALIDATION.PASSENGERS_REQUIRED })
+	@IsEnum(PassengerType, { message: BOOKING_MESSAGES.VALIDATION.INVALID_PASSENGER_COUNT })
 	passengerType!: PassengerType;
 
 	// Passenger info for creating new passenger (required if passengerId is not provided)
@@ -30,8 +31,10 @@ export class CreateBookingPassengerDto {
 		required: false,
 	})
 	@ValidateIf((o) => !o.passengerId)
-	@IsNotEmpty({ message: 'fullname is required when passengerId is not provided' })
-	@IsString()
+	@IsNotEmpty({ message: BOOKING_MESSAGES.VALIDATION.PASSENGER_NAME_REQUIRED })
+	@IsString({ message: BOOKING_MESSAGES.VALIDATION.PASSENGER_NAME_REQUIRED })
+	@MinLength(2, { message: BOOKING_MESSAGES.VALIDATION.PASSENGER_NAME_REQUIRED })
+	@MaxLength(100, { message: BOOKING_MESSAGES.VALIDATION.PASSENGER_NAME_REQUIRED })
 	fullname?: string;
 
 	@ApiProperty({
@@ -40,8 +43,8 @@ export class CreateBookingPassengerDto {
 		required: false,
 	})
 	@ValidateIf((o) => !o.passengerId)
-	@IsNotEmpty({ message: 'dob is required when passengerId is not provided' })
-	@IsString()
+	@IsNotEmpty({ message: BOOKING_MESSAGES.VALIDATION.PASSENGERS_REQUIRED })
+	@IsString({ message: BOOKING_MESSAGES.VALIDATION.PASSENGERS_REQUIRED })
 	dob?: string;
 
 	@ApiProperty({
@@ -50,8 +53,8 @@ export class CreateBookingPassengerDto {
 		required: false,
 	})
 	@ValidateIf((o) => !o.passengerId)
-	@IsNotEmpty({ message: 'gender is required when passengerId is not provided' })
-	@IsString()
+	@IsNotEmpty({ message: BOOKING_MESSAGES.VALIDATION.PASSENGERS_REQUIRED })
+	@IsString({ message: BOOKING_MESSAGES.VALIDATION.PASSENGERS_REQUIRED })
 	gender?: string;
 
 	@ApiProperty({
@@ -60,8 +63,8 @@ export class CreateBookingPassengerDto {
 		required: false,
 	})
 	@ValidateIf((o) => !o.passengerId)
-	@IsNotEmpty({ message: 'documentNumber is required when passengerId is not provided' })
-	@IsString()
+	@IsNotEmpty({ message: BOOKING_MESSAGES.VALIDATION.PASSENGERS_REQUIRED })
+	@IsString({ message: BOOKING_MESSAGES.VALIDATION.PASSENGERS_REQUIRED })
 	documentNumber?: string;
 
 	@ApiProperty({
@@ -80,8 +83,8 @@ export class CreateBookingSegmentDto {
 		description: 'Flight instance ID',
 		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
 	})
-	@IsNotEmpty()
-	@IsUUIDv7()
+	@IsNotEmpty({ message: BOOKING_MESSAGES.VALIDATION.FLIGHT_ID_REQUIRED })
+	@IsUUIDv7({ message: COMMON_MESSAGES.VALIDATION.ID_INVALID_UUID_V7 })
 	flightInstanceId!: string;
 
 	@ApiProperty({

@@ -1,6 +1,7 @@
 import { IsNotEmpty, IsEnum, IsOptional, IsString } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PaymentStatus } from 'src/shared/constants/enums';
+import { PAYMENT_MESSAGES } from 'src/shared/constants/messages';
 
 export class UpdatePaymentStatusDto {
 	@ApiProperty({
@@ -8,9 +9,9 @@ export class UpdatePaymentStatusDto {
 		enum: PaymentStatus,
 		example: PaymentStatus.SUCCESS,
 	})
-	@IsNotEmpty()
+	@IsNotEmpty({ message: PAYMENT_MESSAGES.VALIDATION.PAYMENT_METHOD_REQUIRED })
 	@IsEnum(PaymentStatus, {
-		message: 'status must be one of: pending, success, failed',
+		message: PAYMENT_MESSAGES.ERROR.INVALID_PAYMENT_METHOD,
 	})
 	status: PaymentStatus;
 

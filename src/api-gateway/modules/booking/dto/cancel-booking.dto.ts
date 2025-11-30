@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, Length } from 'class-validator';
+import { IsString, IsOptional, Length, Matches } from 'class-validator';
+import { AUTH_MESSAGES } from 'src/shared/constants/messages';
 
 export class CancelBookingDto {
 	@ApiProperty({
@@ -10,8 +11,9 @@ export class CancelBookingDto {
 		required: false,
 	})
 	@IsOptional()
-	@IsString()
-	@Length(6, 6, { message: 'OTP must be exactly 6 digits' })
+	@IsString({ message: AUTH_MESSAGES.VALIDATION.OTP_REQUIRED })
+	@Length(6, 6, { message: AUTH_MESSAGES.VALIDATION.OTP_INVALID_FORMAT })
+	@Matches(/^[0-9]{6}$/, { message: AUTH_MESSAGES.VALIDATION.OTP_INVALID_FORMAT })
 	otp?: string;
 }
 
