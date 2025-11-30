@@ -609,7 +609,7 @@ async function run() {
 
 	const flightNumbers = ['BBO', 'VNA', 'VJ', 'QH'];
 	const operatingDaysPatterns = [
-		'1111111', // Daily
+		'1111111', // Daily - prioritize this for guaranteed flights every day
 		'1010101', // Mon, Wed, Fri, Sun
 		'0101010', // Tue, Thu, Sat
 		'1111100', // Mon-Fri
@@ -663,9 +663,20 @@ async function run() {
 		// Create 3-5 schedules per route for more variety in December 2025
 		const numSchedules = randomInt(3, 5);
 		
+		// Ensure at least one daily schedule per route for guaranteed flights every day
+		let hasDailySchedule = false;
+		
 		for (let s = 0; s < numSchedules; s++) {
 			const aircraftType = randomElement(savedAircraftTypes);
-			const operatingDays = randomElement(operatingDaysPatterns);
+			// First schedule must be daily to ensure flights every day
+			// Subsequent schedules can be random
+			const operatingDays = (s === 0 || !hasDailySchedule) 
+				? '1111111' // Daily
+				: randomElement(operatingDaysPatterns);
+			
+			if (operatingDays === '1111111') {
+				hasDailySchedule = true;
+			}
 
 			// Calculate flight duration based on distance
 			const distance = route.distance_km || 1000;
