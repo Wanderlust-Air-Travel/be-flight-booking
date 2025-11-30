@@ -16,6 +16,7 @@ import { Route } from 'src/shared/entities/route/route.entity';
 import { Airport } from 'src/shared/entities/airport/airport.entity';
 import { EmailClientModule } from 'src/shared/modules/email-client/email-client.module';
 import { RabbitMQModule } from 'src/shared/modules/rabbitmq/rabbitmq.module';
+import { PassengerModule } from 'src/shared/modules/passenger/passenger.module';
 import { BookingService } from './booking.service';
 import { BookingMsController } from './booking.controller';
 import { BookingNotificationService } from './services/booking-notification.service';
@@ -44,6 +45,7 @@ import { EMAIL_MS } from '../email/email.messages';
 		]),
 		EmailClientModule, // Add Email Client module for sending email notifications
 		RabbitMQModule, // Add RabbitMQ module for async messaging
+		PassengerModule, // Add Passenger module for pricing and validation
 		ClientsModule.register([
 			{
 				name: 'RESERVATION_CLIENT',

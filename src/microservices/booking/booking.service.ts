@@ -22,10 +22,13 @@ import { UpdateBookingPassengersDto } from './dto/update-booking-passengers.dto'
 import { BookingFareDetailsResponseDto } from './dto/booking-fare-details-response.dto';
 import { BookingPaymentInfoResponseDto } from './dto/booking-payment-info-response.dto';
 import { FareDescriptionItemDto } from 'src/microservices/search/dto/fare-option.dto';
-import { CabinType } from 'src/shared/constants/enums';
+import { CabinType, PassengerType } from 'src/shared/constants/enums';
 import { ReservationResponseDto } from '../reservation/dto/reservation-response.dto';
 import { RESERVATION_MS } from '../reservation/reservation.messages';
 import { BookingNotificationService } from './services/booking-notification.service';
+import { PassengerPricingService } from 'src/shared/services/passenger-pricing.service';
+import { validatePassengerTypes, determinePassengerType, isAdult } from 'src/shared/utils/passenger-type.util';
+import { BOOKING_MESSAGES } from 'src/shared/constants/messages';
 import { MyTicketsResponseDto } from './dto/my-tickets-response.dto';
 import { MyTicketItemDto } from './dto/my-ticket-item.dto';
 import { MyJourneyResponseDto } from './dto/my-journey-response.dto';
@@ -55,6 +58,7 @@ export class BookingService {
 		@Inject('RESERVATION_CLIENT') private readonly reservationClient: ClientProxy,
 		private readonly dataSource: DataSource,
 		private readonly notificationService: BookingNotificationService,
+		private readonly passengerPricingService: PassengerPricingService,
 	) {}
 
 	/**
@@ -234,15 +238,16 @@ export class BookingService {
 			const validatedSegments: Array<{
 				flightInstance: FlightInstance;
 				fareClass: FareClass;
-				baseFare: number;
-				taxAmount: number;
-				feeAmount: number;
+				route: Route;
+				adultBaseFare: number; // Base fare for ADT (used to calculate CHD and INF prices)
+				taxRate: number;
+				feeRate: number;
 			}> = [];
 
 			for (const segment of dto.segments) {
 				const flightInstance = await queryRunner.manager.findOne(FlightInstance, {
 					where: { flight_instance_id: segment.flightInstanceId },
-					relations: ['aircraft', 'aircraft.aircraft_type'],
+					relations: ['aircraft', 'aircraft.aircraft_type', 'flight_schedule', 'flight_schedule.route'],
 				});
 				if (!flightInstance) {
 					throw new NotFoundException(`Flight instance ${segment.flightInstanceId} not found`);
@@ -256,19 +261,32 @@ export class BookingService {
 					throw new NotFoundException(`Fare class ${segment.fareClassCode} not found`);
 				}
 
+				// Get route for pricing calculation
+				const route = await queryRunner.manager.findOne(Route, {
+					where: { route_id: flightInstance.flight_schedule.route.route_id },
+				});
+				if (!route) {
+					throw new NotFoundException(`Route not found for flight instance ${segment.flightInstanceId}`);
+				}
+
 				// Determine cabin type from fare class
 				const cabinType =
 					fareClass.cabin_class.cabin_class_code === 'Y' ? CabinType.ECONOMY : CabinType.BUSINESS;
 
-				// Calculate price from database (same logic as Search Service)
+				// Calculate adult base fare from database (same logic as Search Service)
 				// If price is provided in request, use it (for price lock), otherwise calculate from database
 				const calculatedBaseFare = this.calculateFarePrice(fareClass.fare_class_code, cabinType);
-				const baseFare = segment.baseFare ?? calculatedBaseFare;
-				const taxAmount = segment.taxAmount ?? 0;
-				const feeAmount = segment.feeAmount ?? 0;
+				const adultBaseFare = segment.baseFare ?? calculatedBaseFare;
+				const taxRate = segment.taxAmount !== undefined ? segment.taxAmount / adultBaseFare : 0;
+				const feeRate = segment.feeAmount !== undefined ? segment.feeAmount / adultBaseFare : 0;
+
+				// Count passengers that need seats (ADT + CHD, INF don't need seats)
+				const passengersNeedingSeats = dto.passengers.filter(
+					(p) => p.passengerType !== PassengerType.INF,
+				).length;
 
 				// Validate availability (check if there are enough seats for this fare class)
-				// This is a simplified check - in production, you might want to lock seats
+				// INF don't need seats, so only count ADT and CHD
 				const availableSeats = await queryRunner.manager
 					.createQueryBuilder(FlightSeat, 'seat')
 					.innerJoin('seat.seat_config', 'config')
@@ -280,29 +298,97 @@ export class BookingService {
 					})
 					.getCount();
 
-				if (availableSeats < dto.passengers.length) {
+				if (availableSeats < passengersNeedingSeats) {
 					throw new BadRequestException(
-						`Not enough available seats for flight ${segment.flightInstanceId}. Available: ${availableSeats}, Required: ${dto.passengers.length}`,
+						`Not enough available seats for flight ${segment.flightInstanceId}. Available: ${availableSeats}, Required: ${passengersNeedingSeats} (excluding infants)`,
 					);
 				}
 
 				validatedSegments.push({
 					flightInstance,
 					fareClass,
-					baseFare,
-					taxAmount,
-					feeAmount,
+					route,
+					adultBaseFare,
+					taxRate,
+					feeRate,
 				});
+			}
+
+			// Validate passenger types and ages
+			// Get first flight date for age calculation
+			const firstFlightInstance = validatedSegments[0]?.flightInstance;
+			const firstFlightDate = firstFlightInstance?.departure_datetime_local 
+				? new Date(firstFlightInstance.departure_datetime_local)
+				: new Date();
+			
+			// Prepare passenger data for validation
+			const passengerDataForValidation = dto.passengers.map((p) => {
+				const dobDate = p.passengerId
+					? null // Will be fetched from database
+					: new Date(p.dob!);
+				return {
+					dob: dobDate,
+					passengerType: p.passengerType,
+					passengerId: p.passengerId,
+					dobString: p.dob,
+				};
+			});
+
+			// Fetch DOB for passengers with passengerId
+			for (let i = 0; i < passengerDataForValidation.length; i++) {
+				const p = passengerDataForValidation[i];
+				if (p.passengerId && !p.dob) {
+					const passenger = await queryRunner.manager.findOne(Passenger, {
+						where: { passenger_id: p.passengerId },
+					});
+					if (passenger) {
+						p.dob = passenger.dob instanceof Date ? passenger.dob : new Date(passenger.dob);
+					}
+				} else if (p.dobString && !p.dob) {
+					p.dob = new Date(p.dobString);
+				}
+			}
+
+			// Validate passenger types
+			const validationResult = validatePassengerTypes(
+				passengerDataForValidation.filter((p) => p.dob !== null).map((p) => ({
+					dob: p.dob!,
+					passengerType: p.passengerType,
+				})),
+				firstFlightDate,
+			);
+
+			if (!validationResult.valid) {
+				throw new BadRequestException(validationResult.errors.join('; '));
+			}
+
+			// Validate that INF passengers don't have seats assigned
+			for (const segmentDto of dto.segments) {
+				for (let i = 0; i < dto.passengers.length; i++) {
+					const passenger = dto.passengers[i];
+					if (passenger.passengerType === PassengerType.INF && segmentDto.flightSeatId) {
+						throw new BadRequestException(BOOKING_MESSAGES.VALIDATION.INFANT_CANNOT_HAVE_SEAT);
+					}
+				}
 			}
 
 			// Generate unique PNR
 			const pnrCode = await this.generateUniquePNR();
 
-			// Calculate total amount from validated segments
-			const totalAmount = validatedSegments.reduce(
-				(sum, seg) => sum + seg.baseFare + seg.taxAmount + seg.feeAmount,
-				0,
-			);
+			// Calculate total amount: For each passenger, calculate fare for each segment based on passenger type
+			let totalAmount = 0;
+			for (const passengerDto of dto.passengers) {
+				for (const validatedSegment of validatedSegments) {
+					const fareDetails = this.passengerPricingService.calculateTotalFare(
+						validatedSegment.adultBaseFare,
+						passengerDto.passengerType,
+						validatedSegment.route,
+						validatedSegment.taxRate,
+						validatedSegment.feeRate,
+					);
+					totalAmount += fareDetails.totalAmount;
+				}
+			}
 
 			// Create booking
 			const booking = this.bookingRepo.create({
@@ -417,32 +503,50 @@ export class BookingService {
 				bookingPassengers.push(savedBookingPassenger);
 			}
 
-			// Create booking segments
-			for (let i = 0; i < validatedSegments.length; i++) {
-				const validatedSegment = validatedSegments[i];
-				const segmentDto = dto.segments[i];
-				const bookingPassenger = bookingPassengers[i % bookingPassengers.length]; // Round-robin assignment
+			// Create booking segments: Each passenger needs a segment for each flight
+			// For INF, no seat is assigned (they sit on adult's lap)
+			for (let passengerIndex = 0; passengerIndex < bookingPassengers.length; passengerIndex++) {
+				const bookingPassenger = bookingPassengers[passengerIndex];
+				const passengerDto = dto.passengers[passengerIndex];
 
-				const flightInstance = validatedSegment.flightInstance;
-				const fareClass = validatedSegment.fareClass;
+				for (let segmentIndex = 0; segmentIndex < validatedSegments.length; segmentIndex++) {
+					const validatedSegment = validatedSegments[segmentIndex];
+					const segmentDto = dto.segments[segmentIndex];
 
-				const bookingSegment = this.bookingSegmentRepo.create({
-					booking_segment_id: uuidv7(),
-					booking: savedBooking,
-					booking_passenger: bookingPassenger,
-					flight_instance: flightInstance,
-					fare_class: fareClass,
-					base_fare: validatedSegment.baseFare,
-					tax_amount: validatedSegment.taxAmount,
-					fee_amount: validatedSegment.feeAmount,
-					status: 'booked',
-					flight_seat: segmentDto.flightSeatId
-						? await queryRunner.manager.findOne(FlightSeat, {
-								where: { flight_seat_id: segmentDto.flightSeatId },
-						  })
-						: null,
-				});
-				await queryRunner.manager.save(bookingSegment);
+					// Calculate fare for this passenger type
+					const fareDetails = this.passengerPricingService.calculateTotalFare(
+						validatedSegment.adultBaseFare,
+						passengerDto.passengerType,
+						validatedSegment.route,
+						validatedSegment.taxRate,
+						validatedSegment.feeRate,
+					);
+
+					// INF cannot have a seat
+					let flightSeat: FlightSeat | null = null;
+					if (passengerDto.passengerType !== PassengerType.INF && segmentDto.flightSeatId) {
+						flightSeat = await queryRunner.manager.findOne(FlightSeat, {
+							where: { flight_seat_id: segmentDto.flightSeatId },
+						});
+						if (!flightSeat) {
+							throw new NotFoundException(`Flight seat ${segmentDto.flightSeatId} not found`);
+						}
+					}
+
+					const bookingSegment = this.bookingSegmentRepo.create({
+						booking_segment_id: uuidv7(),
+						booking: savedBooking,
+						booking_passenger: bookingPassenger,
+						flight_instance: validatedSegment.flightInstance,
+						fare_class: validatedSegment.fareClass,
+						base_fare: fareDetails.baseFare,
+						tax_amount: fareDetails.taxAmount,
+						fee_amount: fareDetails.feeAmount,
+						status: 'booked',
+						flight_seat: flightSeat,
+					});
+					await queryRunner.manager.save(bookingSegment);
+				}
 			}
 
 			await queryRunner.commitTransaction();
@@ -912,9 +1016,10 @@ export class BookingService {
 			const validatedSegments: Array<{
 				flightInstance: FlightInstance;
 				fareClass: FareClass;
-				baseFare: number;
-				taxAmount: number;
-				feeAmount: number;
+				route: Route;
+				adultBaseFare: number; // Base fare for ADT (used to calculate CHD and INF prices)
+				taxRate: number;
+				feeRate: number;
 			}> = [];
 
 			// Validate that reservation has segments array (required)
@@ -927,7 +1032,7 @@ export class BookingService {
 			for (const segment of reservation.segments) {
 				const flightInstance = await queryRunner.manager.findOne(FlightInstance, {
 					where: { flight_instance_id: segment.flightInstanceId },
-					relations: ['aircraft', 'aircraft.aircraft_type'],
+					relations: ['aircraft', 'aircraft.aircraft_type', 'flight_schedule', 'flight_schedule.route'],
 				});
 				if (!flightInstance) {
 					throw new NotFoundException(`Flight instance ${segment.flightInstanceId} not found`);
@@ -941,6 +1046,24 @@ export class BookingService {
 					throw new NotFoundException(`Fare class ${segment.fareClassCode} not found`);
 				}
 
+				// Get route for pricing calculation
+				const route = await queryRunner.manager.findOne(Route, {
+					where: { route_id: flightInstance.flight_schedule.route.route_id },
+				});
+				if (!route) {
+					throw new NotFoundException(`Route not found for flight instance ${segment.flightInstanceId}`);
+				}
+
+				// Use baseFare from reservation as adult base fare
+				const adultBaseFare = segment.baseFare;
+				const taxRate = segment.taxAmount !== undefined && adultBaseFare > 0 ? segment.taxAmount / adultBaseFare : 0;
+				const feeRate = segment.feeAmount !== undefined && adultBaseFare > 0 ? segment.feeAmount / adultBaseFare : 0;
+
+				// Count passengers that need seats (ADT + CHD, INF don't need seats)
+				const passengersNeedingSeats = dto.passengers.filter(
+					(p) => p.passengerType !== PassengerType.INF,
+				).length;
+
 				// Step 9: Validate availability (re-check seats) for each segment
 				const availableSeats = await queryRunner.manager
 					.createQueryBuilder(FlightSeat, 'seat')
@@ -953,26 +1076,86 @@ export class BookingService {
 					})
 					.getCount();
 
-				if (availableSeats < reservation.numberOfPassengers) {
+				if (availableSeats < passengersNeedingSeats) {
 					throw new BadRequestException(
-						`Not enough available seats for flight ${segment.flightInstanceId}. Available: ${availableSeats}, Required: ${reservation.numberOfPassengers}`,
+						`Not enough available seats for flight ${segment.flightInstanceId}. Available: ${availableSeats}, Required: ${passengersNeedingSeats} (excluding infants)`,
 					);
 				}
 
 				validatedSegments.push({
 					flightInstance,
 					fareClass,
-					baseFare: segment.baseFare,
-					taxAmount: segment.taxAmount,
-					feeAmount: segment.feeAmount,
+					route,
+					adultBaseFare,
+					taxRate,
+					feeRate,
 				});
+			}
+
+			// Validate passenger types and ages
+			const firstFlightInstance = validatedSegments[0]?.flightInstance;
+			const firstFlightDate = firstFlightInstance?.departure_datetime_local 
+				? new Date(firstFlightInstance.departure_datetime_local)
+				: new Date();
+			
+			// Prepare passenger data for validation
+			const passengerDataForValidation = dto.passengers.map((p) => {
+				const dobDate = p.passengerId
+					? null // Will be fetched from database
+					: new Date(p.dob!);
+				return {
+					dob: dobDate,
+					passengerType: p.passengerType,
+					passengerId: p.passengerId,
+					dobString: p.dob,
+				};
+			});
+
+			// Fetch DOB for passengers with passengerId
+			for (let i = 0; i < passengerDataForValidation.length; i++) {
+				const p = passengerDataForValidation[i];
+				if (p.passengerId && !p.dob) {
+					const passenger = await queryRunner.manager.findOne(Passenger, {
+						where: { passenger_id: p.passengerId },
+					});
+					if (passenger) {
+						p.dob = passenger.dob instanceof Date ? passenger.dob : new Date(passenger.dob);
+					}
+				} else if (p.dobString && !p.dob) {
+					p.dob = new Date(p.dobString);
+				}
+			}
+
+			// Validate passenger types
+			const validationResult = validatePassengerTypes(
+				passengerDataForValidation.filter((p) => p.dob !== null).map((p) => ({
+					dob: p.dob!,
+					passengerType: p.passengerType,
+				})),
+				firstFlightDate,
+			);
+
+			if (!validationResult.valid) {
+				throw new BadRequestException(validationResult.errors.join('; '));
 			}
 
 			// Step 10: Generate unique PNR
 			const pnrCode = await this.generateUniquePNR();
 
-			// Step 11: Calculate total amount from reservation (already calculated in reservation)
-			const totalAmount = reservation.totalAmount;
+			// Step 11: Calculate total amount: For each passenger, calculate fare for each segment based on passenger type
+			let totalAmount = 0;
+			for (const passengerDto of dto.passengers) {
+				for (const validatedSegment of validatedSegments) {
+					const fareDetails = this.passengerPricingService.calculateTotalFare(
+						validatedSegment.adultBaseFare,
+						passengerDto.passengerType,
+						validatedSegment.route,
+						validatedSegment.taxRate,
+						validatedSegment.feeRate,
+					);
+					totalAmount += fareDetails.totalAmount;
+				}
+			}
 
 			// Step 12: Create booking
 			const booking = this.bookingRepo.create({
@@ -1105,29 +1288,45 @@ export class BookingService {
 				reservation.segments.map((seg) => [seg.flightInstanceId, seg]),
 			);
 
-			for (let i = 0; i < validatedSegments.length; i++) {
-				const validatedSegment = validatedSegments[i];
-				const reservationSegment = reservationSegmentMap.get(validatedSegment.flightInstance.flight_instance_id);
+			// Create booking segments: Each passenger needs a segment for each flight
+			// For INF, no seat is assigned (they sit on adult's lap)
+			for (let passengerIndex = 0; passengerIndex < bookingPassengers.length; passengerIndex++) {
+				const bookingPassenger = bookingPassengers[passengerIndex];
+				const passengerDto = dto.passengers[passengerIndex];
 
-				for (let passengerIndex = 0; passengerIndex < bookingPassengers.length; passengerIndex++) {
-					const bookingPassenger = bookingPassengers[passengerIndex];
-					
-					// Assign seat if available from reservation
-					// For multiple passengers, assign seat only to the first passenger if seat was selected
-					// (In real scenario, you might want to assign seats to all passengers)
+				for (let segmentIndex = 0; segmentIndex < validatedSegments.length; segmentIndex++) {
+					const validatedSegment = validatedSegments[segmentIndex];
+					const reservationSegment = reservationSegmentMap.get(validatedSegment.flightInstance.flight_instance_id);
+
+					// Calculate fare for this passenger type
+					const fareDetails = this.passengerPricingService.calculateTotalFare(
+						validatedSegment.adultBaseFare,
+						passengerDto.passengerType,
+						validatedSegment.route,
+						validatedSegment.taxRate,
+						validatedSegment.feeRate,
+					);
+
+					// INF cannot have a seat
+					// For other passengers, try to get seat from reservation (if available)
 					let flightSeat: FlightSeat | null = null;
-					if (reservationSegment?.flightSeatId && passengerIndex === 0) {
-						flightSeat = await queryRunner.manager.findOne(FlightSeat, {
-							where: { flight_seat_id: reservationSegment.flightSeatId },
-						});
-						if (!flightSeat) {
-							console.warn(
-								`Flight seat ${reservationSegment.flightSeatId} from reservation not found. Creating segment without seat assignment.`,
-							);
-						} else {
-							// Ensure seat is still unavailable (should be from reservation)
-							flightSeat.is_available = false;
-							await queryRunner.manager.save(flightSeat);
+					if (passengerDto.passengerType !== PassengerType.INF && reservationSegment?.flightSeatId) {
+						// For multiple passengers, we need to handle seat assignment properly
+						// This is a simplified version - in production, you might want to assign seats to all passengers
+						// For now, assign seat to first passenger that needs it
+						if (passengerIndex === 0 || (passengerIndex > 0 && !bookingPassengers.slice(0, passengerIndex).some(bp => bp.passenger_type === PassengerType.ADT || bp.passenger_type === PassengerType.CHD))) {
+							flightSeat = await queryRunner.manager.findOne(FlightSeat, {
+								where: { flight_seat_id: reservationSegment.flightSeatId },
+							});
+							if (!flightSeat) {
+								console.warn(
+									`Flight seat ${reservationSegment.flightSeatId} from reservation not found. Creating segment without seat assignment.`,
+								);
+							} else {
+								// Ensure seat is still unavailable (should be from reservation)
+								flightSeat.is_available = false;
+								await queryRunner.manager.save(flightSeat);
+							}
 						}
 					}
 
@@ -1137,11 +1336,11 @@ export class BookingService {
 						booking_passenger: bookingPassenger,
 						flight_instance: validatedSegment.flightInstance,
 						fare_class: validatedSegment.fareClass,
-						base_fare: validatedSegment.baseFare,
-						tax_amount: validatedSegment.taxAmount,
-						fee_amount: validatedSegment.feeAmount,
+						base_fare: fareDetails.baseFare,
+						tax_amount: fareDetails.taxAmount,
+						fee_amount: fareDetails.feeAmount,
 						status: 'booked',
-						flight_seat: flightSeat, // Assign seat from reservation if available
+						flight_seat: flightSeat,
 					});
 					await queryRunner.manager.save(bookingSegment);
 				}
