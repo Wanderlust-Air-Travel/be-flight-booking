@@ -15,10 +15,16 @@ export interface SeatSelection {
 	seatNumber: string;
 }
 
+export interface SeatSelectionItem {
+	flightSeatId: string;
+	seatNumber: string;
+}
+
 export interface BookingState {
 	flightInstanceId: string;
 	cabin?: CabinSelection;
-	seat?: SeatSelection;
+	seat?: SeatSelection; // Deprecated: use seats instead for multiple seats
+	seats?: SeatSelectionItem[]; // Array of seat selections for multiple passengers
 	updatedAt: Date;
 }
 

@@ -182,12 +182,51 @@ export class BookingStateController {
 		}
 		
 		try {
-			// BEST PRACTICE: Validate seat before saving to booking state
+			// BEST PRACTICE: Validate seats before saving to booking state
 			// This provides early validation feedback to users
 			// Pass fallback identifier to try both userId and sessionId if needed
 			await this.validateSeatSelection(dto, identifier, isGuest, fallbackIdentifier, fallbackIsGuest);
 			
-			const result = await this.bookingStateService.saveSeatSelection(identifier, dto, isGuest);
+			// Prepare seat selection data: prefer seats array, fallback to single seat for backward compatibility
+			let seatSelection: any = null;
+			let seats: any[] | null = null;
+			
+			if (dto.seats && dto.seats.length > 0) {
+				// Use seats array (preferred for multiple passengers)
+				seats = dto.seats;
+				// Also create single seat for backward compatibility
+				seatSelection = {
+					flightInstanceId: dto.flightInstanceId,
+					flightSeatId: dto.seats[0].flightSeatId,
+					seatNumber: dto.seats[0].seatNumber,
+				};
+			} else if (dto.seat) {
+				// Use seat object
+				seatSelection = {
+					flightInstanceId: dto.flightInstanceId,
+					flightSeatId: dto.seat.flightSeatId,
+					seatNumber: dto.seat.seatNumber,
+				};
+				seats = [{
+					flightSeatId: dto.seat.flightSeatId,
+					seatNumber: dto.seat.seatNumber,
+				}];
+			} else if (dto.flightSeatId && dto.seatNumber) {
+				// Legacy fields for backward compatibility
+				seatSelection = {
+					flightInstanceId: dto.flightInstanceId,
+					flightSeatId: dto.flightSeatId,
+					seatNumber: dto.seatNumber,
+				};
+				seats = [{
+					flightSeatId: dto.flightSeatId,
+					seatNumber: dto.seatNumber,
+				}];
+			} else {
+				throw new BadRequestException('Either seats array, seat object, or flightSeatId/seatNumber must be provided');
+			}
+			
+			const result = await this.bookingStateService.saveSeatSelection(identifier, seatSelection, seats, isGuest);
 			
 			// Return sessionId for guest users so frontend can use it in subsequent requests
 			if (isGuest) {
@@ -208,6 +247,7 @@ export class BookingStateController {
 	/**
 	 * Validate seat selection before saving to booking state
 	 * Business logic: Ensures seat exists, is available, belongs to correct flight instance, and matches cabin class
+	 * Supports both single seat and multiple seats
 	 */
 	private async validateSeatSelection(
 		dto: SaveSeatSelectionDto, 
@@ -216,6 +256,22 @@ export class BookingStateController {
 		fallbackIdentifier?: string,
 		fallbackIsGuest?: boolean
 	): Promise<void> {
+		// Determine which seats to validate: prefer seats array, fallback to single seat
+		const seatsToValidate: Array<{ flightSeatId: string; seatNumber: string }> = [];
+		
+		if (dto.seats && dto.seats.length > 0) {
+			seatsToValidate.push(...dto.seats);
+		} else if (dto.seat) {
+			seatsToValidate.push({ flightSeatId: dto.seat.flightSeatId, seatNumber: dto.seat.seatNumber });
+		} else if (dto.flightSeatId && dto.seatNumber) {
+			seatsToValidate.push({ flightSeatId: dto.flightSeatId, seatNumber: dto.seatNumber });
+		} else {
+			throw new BadRequestException('Either seats array, seat object, or flightSeatId/seatNumber must be provided');
+		}
+
+		if (seatsToValidate.length === 0) {
+			throw new BadRequestException('At least one seat must be provided');
+		}
 		// 1. Get booking state to check cabin selection
 		// Try with primary identifier first
 		this.logger.log(`[validateSeatSelection] Trying with identifier: ${identifier}, isGuest: ${isGuest}, flightInstanceId: ${dto.flightInstanceId}`);
@@ -243,37 +299,7 @@ export class BookingStateController {
 			throw new NotFoundException(`Flight instance ${dto.flightInstanceId} not found`);
 		}
 
-		// 3. Validate seat exists and load relations
-		const flightSeat = await this.flightSeatRepo.findOne({
-			where: { flight_seat_id: dto.flightSeatId },
-			relations: ['seat_config', 'seat_config.cabin_class', 'flight_instance'],
-		});
-
-		if (!flightSeat) {
-			throw new BadRequestException(`Seat ${dto.flightSeatId} not found. Please select a valid seat.`);
-		}
-
-		// 4. Validate seat belongs to the correct flight instance
-		if (flightSeat.flight_instance_id !== dto.flightInstanceId) {
-			throw new BadRequestException(
-				`Seat ${dto.seatNumber} (${dto.flightSeatId}) does not belong to flight instance ${dto.flightInstanceId}. Please select a seat from the correct flight.`,
-			);
-		}
-
-		// 5. Validate seat number matches
-		if (flightSeat.seat_number !== dto.seatNumber) {
-			throw new BadRequestException(
-				`Seat number mismatch. Expected ${flightSeat.seat_number} for seat ${dto.flightSeatId}, but received ${dto.seatNumber}.`,
-			);
-		}
-
-		// 6. Validate seat is available
-		if (!flightSeat.is_available) {
-			throw new BadRequestException(`Seat ${dto.seatNumber} is not available. Please select another seat.`);
-		}
-
-		// 7. Validate seat matches cabin class from booking state
-		// Get fare class to determine expected cabin class
+		// 3. Get fare class to determine expected cabin class (used for all seats)
 		const fareClass = await this.fareClassRepo.findOne({
 			where: { fare_class_code: bookingState.cabin.fareClassCode },
 			relations: ['cabin_class'],
@@ -284,13 +310,64 @@ export class BookingStateController {
 		}
 
 		const expectedCabinClassCode = fareClass.cabin_class.cabin_class_code;
-		const actualCabinClassCode = flightSeat.seat_config.cabin_class.cabin_class_code;
 
-		if (actualCabinClassCode !== expectedCabinClassCode) {
-			throw new BadRequestException(
-				`Seat ${dto.seatNumber} is in ${actualCabinClassCode === 'Y' ? 'Economy' : 'Business'} class, but you selected ${expectedCabinClassCode === 'Y' ? 'Economy' : 'Business'} class. Please select a seat from the correct cabin.`,
-			);
+		// 4. Validate all seats in the array
+		const validatedSeats: Array<{ flightSeatId: string; seatNumber: string; flightSeat: any }> = [];
+		const seatIds = new Set<string>(); // Track duplicate seat IDs
+
+		for (const seatItem of seatsToValidate) {
+			// Check for duplicate seats
+			if (seatIds.has(seatItem.flightSeatId)) {
+				throw new BadRequestException(`Duplicate seat ${seatItem.seatNumber} (${seatItem.flightSeatId}) in selection. Each passenger must have a unique seat.`);
+			}
+			seatIds.add(seatItem.flightSeatId);
+
+			// Validate seat exists and load relations
+			const flightSeat = await this.flightSeatRepo.findOne({
+				where: { flight_seat_id: seatItem.flightSeatId },
+				relations: ['seat_config', 'seat_config.cabin_class', 'flight_instance'],
+			});
+
+			if (!flightSeat) {
+				throw new BadRequestException(`Seat ${seatItem.flightSeatId} not found. Please select a valid seat.`);
+			}
+
+			// Validate seat belongs to the correct flight instance
+			if (flightSeat.flight_instance_id !== dto.flightInstanceId) {
+				throw new BadRequestException(
+					`Seat ${seatItem.seatNumber} (${seatItem.flightSeatId}) does not belong to flight instance ${dto.flightInstanceId}. Please select a seat from the correct flight.`,
+				);
+			}
+
+			// Validate seat number matches
+			if (flightSeat.seat_number !== seatItem.seatNumber) {
+				throw new BadRequestException(
+					`Seat number mismatch. Expected ${flightSeat.seat_number} for seat ${seatItem.flightSeatId}, but received ${seatItem.seatNumber}.`,
+				);
+			}
+
+			// Validate seat is available
+			if (!flightSeat.is_available) {
+				throw new BadRequestException(`Seat ${seatItem.seatNumber} is not available. Please select another seat.`);
+			}
+
+			// Validate seat matches cabin class from booking state
+			const actualCabinClassCode = flightSeat.seat_config.cabin_class.cabin_class_code;
+
+			if (actualCabinClassCode !== expectedCabinClassCode) {
+				throw new BadRequestException(
+					`Seat ${seatItem.seatNumber} is in ${actualCabinClassCode === 'Y' ? 'Economy' : 'Business'} class, but you selected ${expectedCabinClassCode === 'Y' ? 'Economy' : 'Business'} class. Please select a seat from the correct cabin.`,
+				);
+			}
+
+			validatedSeats.push({
+				flightSeatId: seatItem.flightSeatId,
+				seatNumber: seatItem.seatNumber,
+				flightSeat,
+			});
 		}
+
+		this.logger.log(`[validateSeatSelection] Successfully validated ${validatedSeats.length} seat(s)`);
 	}
 
 	@Get()

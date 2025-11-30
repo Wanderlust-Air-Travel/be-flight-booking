@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { BookingStateRepository } from '../repositories/booking-state.repository';
-import { CabinSelection, SeatSelection, BookingState } from '../types/booking-state.types';
+import { CabinSelection, SeatSelection, SeatSelectionItem, BookingState } from '../types/booking-state.types';
 import {
 	BookingStateNotFoundException,
 	CabinNotSelectedException,
@@ -78,44 +78,83 @@ export class BookingStateService {
 	/**
 	 * Save seat selection to Redis
 	 * Business logic: Validates cabin is selected first, then updates seat selection
+	 * Supports both single seat (backward compatibility) and multiple seats
 	 * 
 	 * @param identifier - User ID (authenticated) or session ID (guest)
-	 * @param seatSelection - Seat selection data
+	 * @param seatSelection - Seat selection data (single seat for backward compatibility)
+	 * @param seats - Array of seat selections (preferred for multiple passengers)
 	 * @param isGuest - Whether this is a guest session
 	 * @returns Success response
 	 * @throws CabinNotSelectedException if cabin is not selected
 	 */
 	async saveSeatSelection(
 		identifier: string,
-		seatSelection: SeatSelection,
+		seatSelection: SeatSelection | null,
+		seats: SeatSelectionItem[] | null = null,
 		isGuest: boolean = false,
 	): Promise<{ success: boolean; message: string }> {
-		this.logger.log(`Saving seat selection for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${seatSelection.flightInstanceId}`);
+		const flightInstanceId = seatSelection?.flightInstanceId || (seats && seats.length > 0 ? null : null);
+		
+		if (!flightInstanceId && !seats) {
+			throw new Error('Either seatSelection or seats array must be provided');
+		}
+
+		// Determine flightInstanceId from seats if not provided in seatSelection
+		const actualFlightInstanceId = seatSelection?.flightInstanceId || (seats && seats.length > 0 ? null : null);
+		
+		if (!actualFlightInstanceId) {
+			throw new Error('Flight instance ID is required');
+		}
+
+		this.logger.log(`Saving seat selection for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${actualFlightInstanceId}, seats count: ${seats?.length || (seatSelection ? 1 : 0)}`);
 
 		// Get existing state or create new
-		let state = await this.bookingStateRepository.findOne(identifier, seatSelection.flightInstanceId, isGuest);
+		let state = await this.bookingStateRepository.findOne(identifier, actualFlightInstanceId, isGuest);
 		
 		if (!state) {
 			state = {
-				flightInstanceId: seatSelection.flightInstanceId,
+				flightInstanceId: actualFlightInstanceId,
 				updatedAt: new Date(),
 			};
 		}
 
 		// Business rule: Cabin must be selected before seat
 		if (!state.cabin) {
-			this.logger.warn(`Attempted to save seat without cabin for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${seatSelection.flightInstanceId}`);
-			throw new CabinNotSelectedException(seatSelection.flightInstanceId);
+			this.logger.warn(`Attempted to save seat without cabin for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${actualFlightInstanceId}`);
+			throw new CabinNotSelectedException(actualFlightInstanceId);
 		}
 
-		// Update seat selection
-		state.seat = seatSelection;
+		// Update seat selection: prefer seats array, fallback to single seat for backward compatibility
+		if (seats && seats.length > 0) {
+			state.seats = seats;
+			// Also set single seat for backward compatibility (use first seat)
+			if (seatSelection) {
+				state.seat = seatSelection;
+			} else {
+				state.seat = {
+					flightInstanceId: actualFlightInstanceId,
+					flightSeatId: seats[0].flightSeatId,
+					seatNumber: seats[0].seatNumber,
+				};
+			}
+		} else if (seatSelection) {
+			// Backward compatibility: single seat
+			state.seat = seatSelection;
+			// Convert to seats array
+			state.seats = [{
+				flightSeatId: seatSelection.flightSeatId,
+				seatNumber: seatSelection.seatNumber,
+			}];
+		} else {
+			throw new Error('Either seatSelection or seats array must be provided');
+		}
+
 		state.updatedAt = new Date();
 
 		// Save to Redis via repository
-		await this.bookingStateRepository.save(identifier, seatSelection.flightInstanceId, state, isGuest);
+		await this.bookingStateRepository.save(identifier, actualFlightInstanceId, state, isGuest);
 
-		this.logger.log(`Seat selection saved successfully for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${seatSelection.flightInstanceId}`);
+		this.logger.log(`Seat selection saved successfully for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${actualFlightInstanceId}, ${state.seats?.length || 1} seat(s)`);
 		
 		return {
 			success: true,
@@ -151,7 +190,7 @@ export class BookingStateService {
 		identifier: string,
 		flightInstanceId: string,
 		isGuest: boolean = false,
-	): Promise<{ cabin: CabinSelection; seat: SeatSelection }> {
+	): Promise<{ cabin: CabinSelection; seat: SeatSelection; seats: SeatSelectionItem[] }> {
 		this.logger.log(`Getting selections for reservation: ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${flightInstanceId}`);
 
 		const state = await this.getBookingState(identifier, flightInstanceId, isGuest);
@@ -166,16 +205,35 @@ export class BookingStateService {
 			throw new CabinNotSelectedException(flightInstanceId);
 		}
 
-		if (!state.seat) {
+		// Check for seats array first (preferred), fallback to single seat
+		if (!state.seats && !state.seat) {
 			this.logger.warn(`Seat not selected for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${flightInstanceId}`);
 			throw new SeatNotSelectedException(flightInstanceId);
 		}
 
-		this.logger.log(`Selections retrieved successfully for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${flightInstanceId}`);
+		// Convert single seat to seats array if needed (backward compatibility)
+		const seats = state.seats || (state.seat ? [{
+			flightSeatId: state.seat.flightSeatId,
+			seatNumber: state.seat.seatNumber,
+		}] : []);
+
+		// Ensure seat is set for backward compatibility
+		const seat = state.seat || (seats.length > 0 ? {
+			flightInstanceId,
+			flightSeatId: seats[0].flightSeatId,
+			seatNumber: seats[0].seatNumber,
+		} : null);
+
+		if (!seat) {
+			throw new SeatNotSelectedException(flightInstanceId);
+		}
+
+		this.logger.log(`Selections retrieved successfully for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${flightInstanceId}, ${seats.length} seat(s)`);
 		
 		return {
 			cabin: state.cabin,
-			seat: state.seat,
+			seat,
+			seats,
 		};
 	}
 

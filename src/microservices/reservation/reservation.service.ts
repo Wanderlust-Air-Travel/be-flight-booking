@@ -182,7 +182,7 @@ export class ReservationService {
 			}
 			
 			// Get cabin and seat selection from Redis (Backend manages state)
-			let cabinSelection, seatSelection;
+			let cabinSelection, seatSelection, seatsArray;
 			try {
 				const identifier = userId || sessionId!;
 				
@@ -192,7 +192,8 @@ export class ReservationService {
 					isGuest,
 				);
 				cabinSelection = selections.cabin;
-				seatSelection = selections.seat;
+				seatSelection = selections.seat; // For backward compatibility
+				seatsArray = selections.seats || []; // Array of seats for multiple passengers
 			} catch (error: any) {
 				// Re-throw custom booking state exceptions with context
 				if (error instanceof NotFoundException || error instanceof BadRequestException) {

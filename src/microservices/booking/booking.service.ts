@@ -27,6 +27,7 @@ import { ReservationResponseDto } from '../reservation/dto/reservation-response.
 import { RESERVATION_MS } from '../reservation/reservation.messages';
 import { BookingNotificationService } from './services/booking-notification.service';
 import { PassengerPricingService } from 'src/shared/services/passenger-pricing.service';
+import { BookingStateService } from 'src/shared/services/booking-state.service';
 import { validatePassengerTypes, determinePassengerType, isAdult } from 'src/shared/utils/passenger-type.util';
 import { BOOKING_MESSAGES } from 'src/shared/constants/messages';
 import { MyTicketsResponseDto } from './dto/my-tickets-response.dto';
@@ -59,6 +60,7 @@ export class BookingService {
 		private readonly dataSource: DataSource,
 		private readonly notificationService: BookingNotificationService,
 		private readonly passengerPricingService: PassengerPricingService,
+		private readonly bookingStateService: BookingStateService,
 	) {}
 
 	/**
@@ -1281,12 +1283,72 @@ export class BookingService {
 				bookingPassengers.push(savedBookingPassenger);
 			}
 
-			// Step 14: Create booking segments from reservation (supports multiple segments)
-			// For each segment in reservation, create booking segments for all passengers
-			// Map reservation segments to validated segments by flightInstanceId
+			// Step 14: Map reservation segments to validated segments by flightInstanceId
 			const reservationSegmentMap = new Map(
 				reservation.segments.map((seg) => [seg.flightInstanceId, seg]),
 			);
+
+			// Step 15: Get seats array from booking state for each segment
+			// This allows us to assign seats to each passenger (ADT + CHD, INF don't need seats)
+			const seatsBySegment = new Map<string, Array<{ flightSeatId: string; seatNumber: string }>>();
+			
+			// Determine identifier for booking state (userId for authenticated, try to get from request context for guest)
+			// For guest bookings, we need to get sessionId from the request context or reservation metadata
+			// Since we don't have direct access to sessionId here, we'll try userId first, then fallback to reservation segments
+			const isGuest = !userId;
+			let identifier: string | null = userId;
+			
+			// For guest bookings, we might need to get sessionId from somewhere else
+			// For now, we'll try to get seats from booking state using userId (if available) or skip if guest
+			// In production, you might want to pass sessionId through the request or store it in reservation metadata
+			
+			// Try to get seats from booking state
+			// For authenticated users, use userId; for guests, we'll use reservation segment seat info as fallback
+			if (identifier) {
+				for (const validatedSegment of validatedSegments) {
+					try {
+						const bookingState = await this.bookingStateService.getBookingState(
+							identifier,
+							validatedSegment.flightInstance.flight_instance_id,
+							isGuest,
+						);
+						
+						if (bookingState?.seats && bookingState.seats.length > 0) {
+							seatsBySegment.set(validatedSegment.flightInstance.flight_instance_id, bookingState.seats);
+							this.logger.log(`Found ${bookingState.seats.length} seat(s) in booking state for flight ${validatedSegment.flightInstance.flight_instance_id}`);
+						} else if (bookingState?.seat) {
+							// Fallback to single seat for backward compatibility
+							seatsBySegment.set(validatedSegment.flightInstance.flight_instance_id, [{
+								flightSeatId: bookingState.seat.flightSeatId,
+								seatNumber: bookingState.seat.seatNumber,
+							}]);
+							this.logger.log(`Found single seat in booking state for flight ${validatedSegment.flightInstance.flight_instance_id}`);
+						}
+					} catch (error) {
+						this.logger.warn(`Could not get booking state for flight ${validatedSegment.flightInstance.flight_instance_id}: ${error instanceof Error ? error.message : String(error)}. Will use reservation segment seat info as fallback.`);
+					}
+				}
+			}
+			
+			// Fallback: If no seats from booking state, use reservation segment seat info
+			// This handles cases where booking state is not available (e.g., guest bookings without sessionId)
+			for (const validatedSegment of validatedSegments) {
+				if (!seatsBySegment.has(validatedSegment.flightInstance.flight_instance_id)) {
+					const reservationSegment = reservationSegmentMap.get(validatedSegment.flightInstance.flight_instance_id);
+					if (reservationSegment?.flightSeatId) {
+						seatsBySegment.set(validatedSegment.flightInstance.flight_instance_id, [{
+							flightSeatId: reservationSegment.flightSeatId,
+							seatNumber: reservationSegment.seatNumber || '',
+						}]);
+						this.logger.log(`Using reservation segment seat as fallback for flight ${validatedSegment.flightInstance.flight_instance_id}`);
+					}
+				}
+			}
+
+			// Step 16: Create booking segments from reservation (supports multiple segments)
+
+			// Track seat index for each segment to assign seats to passengers
+			const seatIndexBySegment = new Map<string, number>();
 
 			// Create booking segments: Each passenger needs a segment for each flight
 			// For INF, no seat is assigned (they sit on adult's lap)
@@ -1308,22 +1370,54 @@ export class BookingService {
 					);
 
 					// INF cannot have a seat
-					// For other passengers, try to get seat from reservation (if available)
+					// For other passengers, assign seat from booking state seats array
 					let flightSeat: FlightSeat | null = null;
-					if (passengerDto.passengerType !== PassengerType.INF && reservationSegment?.flightSeatId) {
-						// For multiple passengers, we need to handle seat assignment properly
-						// This is a simplified version - in production, you might want to assign seats to all passengers
-						// For now, assign seat to first passenger that needs it
-						if (passengerIndex === 0 || (passengerIndex > 0 && !bookingPassengers.slice(0, passengerIndex).some(bp => bp.passenger_type === PassengerType.ADT || bp.passenger_type === PassengerType.CHD))) {
+					if (passengerDto.passengerType !== PassengerType.INF) {
+						// Get seats array for this segment
+						const segmentSeats = seatsBySegment.get(validatedSegment.flightInstance.flight_instance_id);
+						
+						if (segmentSeats && segmentSeats.length > 0) {
+							// Get current seat index for this segment
+							const currentSeatIndex = seatIndexBySegment.get(validatedSegment.flightInstance.flight_instance_id) || 0;
+							
+							if (currentSeatIndex < segmentSeats.length) {
+								const seatItem = segmentSeats[currentSeatIndex];
+								
+								flightSeat = await queryRunner.manager.findOne(FlightSeat, {
+									where: { flight_seat_id: seatItem.flightSeatId },
+								});
+								
+								if (!flightSeat) {
+									this.logger.warn(
+										`Flight seat ${seatItem.flightSeatId} from booking state not found. Creating segment without seat assignment.`,
+									);
+								} else {
+									// Validate seat belongs to correct flight instance
+									if (flightSeat.flight_instance_id !== validatedSegment.flightInstance.flight_instance_id) {
+										this.logger.warn(
+											`Flight seat ${seatItem.flightSeatId} does not belong to flight ${validatedSegment.flightInstance.flight_instance_id}. Skipping seat assignment.`,
+										);
+										flightSeat = null;
+									} else {
+										// Ensure seat is still unavailable (should be from reservation)
+										flightSeat.is_available = false;
+										await queryRunner.manager.save(flightSeat);
+										
+										// Increment seat index for next passenger
+										seatIndexBySegment.set(validatedSegment.flightInstance.flight_instance_id, currentSeatIndex + 1);
+									}
+								}
+							} else {
+								this.logger.warn(
+									`Not enough seats in booking state for flight ${validatedSegment.flightInstance.flight_instance_id}. Required: ${currentSeatIndex + 1}, Available: ${segmentSeats.length}`,
+								);
+							}
+						} else if (reservationSegment?.flightSeatId) {
+							// Fallback: use seat from reservation (backward compatibility)
 							flightSeat = await queryRunner.manager.findOne(FlightSeat, {
 								where: { flight_seat_id: reservationSegment.flightSeatId },
 							});
-							if (!flightSeat) {
-								console.warn(
-									`Flight seat ${reservationSegment.flightSeatId} from reservation not found. Creating segment without seat assignment.`,
-								);
-							} else {
-								// Ensure seat is still unavailable (should be from reservation)
+							if (flightSeat) {
 								flightSeat.is_available = false;
 								await queryRunner.manager.save(flightSeat);
 							}
