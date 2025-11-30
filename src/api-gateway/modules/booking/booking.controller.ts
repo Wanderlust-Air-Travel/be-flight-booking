@@ -33,6 +33,7 @@ import { CancelBookingDto } from './dto/cancel-booking.dto';
 import { CancelTicketDto } from './dto/cancel-ticket.dto';
 import { AuthService } from '../auth/auth.service';
 import { UnauthorizedException } from '@nestjs/common';
+import { BOOKING_MESSAGES, COMMON_MESSAGES } from 'src/shared/constants/messages';
 
 @ApiTags('bookings')
 @Controller('bookings')
@@ -79,17 +80,17 @@ export class BookingController {
 
 			// Validate reservationId is provided
 			if (!reservationId) {
-				throw new BadRequestException('reservationId query parameter is required. Booking must be created from a reservation.');
+				throw new BadRequestException(BOOKING_MESSAGES.VALIDATION.RESERVATION_ID_REQUIRED);
 			}
 
 			// Validate request body
 			if (!dto) {
-				throw new BadRequestException('Request body is required when creating booking from reservation');
+				throw new BadRequestException(BOOKING_MESSAGES.VALIDATION.REQUEST_BODY_REQUIRED);
 			}
 
 			// For guest bookings, ensure contact info is provided
 			if (!userId && (!dto.contactFullname || !dto.contactEmail || !dto.contactPhone)) {
-				throw new BadRequestException('Contact information (fullname, email, phone) is required for guest bookings.');
+				throw new BadRequestException(BOOKING_MESSAGES.VALIDATION.CONTACT_INFO_REQUIRED_FOR_GUEST);
 			}
 
 			// Send userId to microservice (null for guest bookings)
@@ -116,17 +117,17 @@ export class BookingController {
 			
 			// Handle connection errors
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException('Booking microservice is not running. Please start it with: npm run start:booking:dev');
+				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
 			}
 			
 			// Handle timeout errors
 			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException('Booking microservice request timeout. Please check if the service is running.');
+				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
 			}
 			
 			// Handle other errors
-			const errorMessage = error?.message || error?.toString() || 'Unknown error';
-			throw new BadRequestException(`Create booking failed: ${errorMessage}`);
+			const errorMessage = error?.message || error?.toString() || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR;
+			throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${errorMessage}`);
 		}
 	}
 
@@ -153,7 +154,7 @@ export class BookingController {
 			// Validate UUID v7 format
 			const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 			if (!uuidRegex.test(bookingId)) {
-				throw new BadRequestException('Invalid booking ID format. Expected UUID v7.');
+				throw new BadRequestException(BOOKING_MESSAGES.VALIDATION.BOOKING_ID_INVALID_FORMAT);
 			}
 			
 			return await firstValueFrom(
@@ -165,15 +166,15 @@ export class BookingController {
 				throw error;
 			}
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException('Booking microservice is not running. Please start it with: npm run start:booking:dev');
+				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
 			}
 			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException('Booking microservice request timeout. Please check if the service is running.');
+				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
 			}
 			if (error?.status === 'error' && error?.message) {
 				throw new BadRequestException(`Get booking fare details failed: ${error.message}`);
 			}
-			throw new BadRequestException(`Get booking fare details failed: ${error?.message || 'Unknown error'}`);
+			throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`);
 		}
 	}
 
@@ -209,7 +210,7 @@ export class BookingController {
 			// Validate UUID v7 format
 			const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 			if (!uuidRegex.test(bookingId)) {
-				throw new BadRequestException('Invalid booking ID format. Expected UUID v7.');
+				throw new BadRequestException(BOOKING_MESSAGES.VALIDATION.BOOKING_ID_INVALID_FORMAT);
 			}
 			
 			return await firstValueFrom(
@@ -224,15 +225,15 @@ export class BookingController {
 				throw error;
 			}
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException('Booking microservice is not running. Please start it with: npm run start:booking:dev');
+				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
 			}
 			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException('Booking microservice request timeout. Please check if the service is running.');
+				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
 			}
 			if (error?.status === 'error' && error?.message) {
 				throw new BadRequestException(`Update booking passengers failed: ${error.message}`);
 			}
-			throw new BadRequestException(`Update booking passengers failed: ${error?.message || 'Unknown error'}`);
+			throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`);
 		}
 	}
 
@@ -259,7 +260,7 @@ export class BookingController {
 			// Validate UUID v7 format
 			const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 			if (!uuidRegex.test(bookingId)) {
-				throw new BadRequestException('Invalid booking ID format. Expected UUID v7.');
+				throw new BadRequestException(BOOKING_MESSAGES.VALIDATION.BOOKING_ID_INVALID_FORMAT);
 			}
 			
 			return await firstValueFrom(
@@ -271,15 +272,15 @@ export class BookingController {
 				throw error;
 			}
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException('Booking microservice is not running. Please start it with: npm run start:booking:dev');
+				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
 			}
 			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException('Booking microservice request timeout. Please check if the service is running.');
+				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
 			}
 			if (error?.status === 'error' && error?.message) {
 				throw new BadRequestException(`Get booking payment info failed: ${error.message}`);
 			}
-			throw new BadRequestException(`Get booking payment info failed: ${error?.message || 'Unknown error'}`);
+			throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`);
 		}
 	}
 
@@ -332,15 +333,15 @@ export class BookingController {
 				throw error;
 			}
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException('Booking microservice is not running. Please start it with: npm run start:booking:dev');
+				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
 			}
 			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException('Booking microservice request timeout. Please check if the service is running.');
+				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
 			}
 			if (error?.status === 'error' && error?.message) {
 				throw new BadRequestException(`Get my tickets failed: ${error.message}`);
 			}
-			throw new BadRequestException(`Get my tickets failed: ${error?.message || 'Unknown error'}`);
+			throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`);
 		}
 	}
 
@@ -370,15 +371,15 @@ export class BookingController {
 				throw error;
 			}
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException('Booking microservice is not running. Please start it with: npm run start:booking:dev');
+				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
 			}
 			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException('Booking microservice request timeout. Please check if the service is running.');
+				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
 			}
 			if (error?.status === 'error' && error?.message) {
 				throw new BadRequestException(`Get my journey failed: ${error.message}`);
 			}
-			throw new BadRequestException(`Get my journey failed: ${error?.message || 'Unknown error'}`);
+			throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`);
 		}
 	}
 
@@ -410,7 +411,7 @@ export class BookingController {
 			// Validate UUID v7 format
 			const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 			if (!uuidRegex.test(bookingId)) {
-				throw new BadRequestException('Invalid booking ID format. Expected UUID v7.');
+				throw new BadRequestException(BOOKING_MESSAGES.VALIDATION.BOOKING_ID_INVALID_FORMAT);
 			}
 
 			// Extract userId from JWT token if available (OptionalJwtAuthGuard allows requests without token)
@@ -428,15 +429,15 @@ export class BookingController {
 				throw error;
 			}
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException('Booking microservice is not running. Please start it with: npm run start:booking:dev');
+				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
 			}
 			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException('Booking microservice request timeout. Please check if the service is running.');
+				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
 			}
 			if (error?.status === 'error' && error?.message) {
 				throw new BadRequestException(`Get booking failed: ${error.message}`);
 			}
-			throw new BadRequestException(`Get booking failed: ${error?.message || 'Unknown error'}`);
+			throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`);
 		}
 	}
 
@@ -476,7 +477,7 @@ export class BookingController {
 			// Validate UUID v7 format
 			const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 			if (!uuidRegex.test(bookingId)) {
-				throw new BadRequestException('Invalid booking ID format. Expected UUID v7.');
+				throw new BadRequestException(BOOKING_MESSAGES.VALIDATION.BOOKING_ID_INVALID_FORMAT);
 			}
 
 			const userId = req.user.userId;
@@ -494,7 +495,7 @@ export class BookingController {
 				// Check if OTP has been verified (via verify endpoint)
 				const isOtpVerified = await this.authService.isCancellationOtpVerified(userId, bookingId);
 				if (!isOtpVerified) {
-					throw new BadRequestException('OTP verification is required for cancelling paid bookings. Please verify OTP first using POST /api/v1/auth/otp/cancellation/verify');
+					throw new BadRequestException(BOOKING_MESSAGES.VALIDATION.OTP_VERIFICATION_REQUIRED_PAID_BOOKING);
 				}
 			}
 
@@ -523,10 +524,10 @@ export class BookingController {
 			
 			// Handle connection errors
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException('Booking microservice is not running. Please start it with: npm run start:booking:dev');
+				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
 			}
 			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException('Booking microservice request timeout. Please check if the service is running.');
+				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
 			}
 			
 			// Handle microservice error format (status: 'error')
@@ -601,15 +602,15 @@ export class BookingController {
 
 			// Handle connection errors
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException('Booking microservice is not running. Please start it with: npm run start:booking:dev');
+				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
 			}
 			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException('Booking microservice request timeout. Please check if the service is running.');
+				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
 			}
 
 			// Fallback
 			const errorMessage = error?.message || error?.error?.message || 'Unknown error';
-			throw new BadRequestException(`Get ticket info failed: ${errorMessage}`);
+			throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${errorMessage}`);
 		}
 	}
 
@@ -668,7 +669,7 @@ export class BookingController {
 				// Check if OTP has been verified (via verify endpoint)
 				const isOtpVerified = await this.authService.isCancellationOtpVerified(userId, ticketInfo.bookingId);
 				if (!isOtpVerified) {
-					throw new BadRequestException('OTP verification is required for cancelling tickets from paid bookings. Please verify OTP first using POST /api/v1/auth/otp/cancellation/verify');
+					throw new BadRequestException(BOOKING_MESSAGES.VALIDATION.OTP_VERIFICATION_REQUIRED_PAID_TICKET);
 				}
 			}
 
@@ -699,10 +700,10 @@ export class BookingController {
 
 			// Handle connection errors
 			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException('Booking microservice is not running. Please start it with: npm run start:booking:dev');
+				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
 			}
 			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException('Booking microservice request timeout. Please check if the service is running.');
+				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
 			}
 
 			// Handle microservice error format

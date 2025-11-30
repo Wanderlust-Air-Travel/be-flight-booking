@@ -26,6 +26,7 @@ import { LogoutResponse } from "src/shared/types/auth/logout-response";
 import { OtpStorageService } from "src/shared/services/otp-storage.service";
 import { EMAIL_MS } from "src/microservices/email/email.messages";
 import { EmailTemplate } from "src/shared/constants/enums";
+import { AUTH_MESSAGES } from "src/shared/constants/messages";
 
 @Injectable()
 export class AuthService {
@@ -42,7 +43,7 @@ export class AuthService {
     async register(data: RegisterDto): Promise<CreateUserResponse> {
         const existed = await this.usersRepo.findOne({ where: { email: data.email } });
         if (existed) {
-            throw new ConflictException('Email already registered');
+            throw new ConflictException(AUTH_MESSAGES.ERROR.EMAIL_ALREADY_EXISTS);
         }
 
         const password_hash = await bcrypt.hash(data.password, 10);
@@ -72,10 +73,10 @@ export class AuthService {
 
     async login(data: LoginDto): Promise<LoginResponse> {
         const user = await this.usersRepo.findOne( { where: { email: data.email }});
-        if (!user) throw new UnauthorizedException('Invalid credentials');
+        if (!user) throw new UnauthorizedException(AUTH_MESSAGES.ERROR.INVALID_CREDENTIALS);
 
         const ok = await bcrypt.compare(data.password, user.password_hash);
-        if (!ok) throw new UnauthorizedException('Invalid credentials');
+        if (!ok) throw new UnauthorizedException(AUTH_MESSAGES.ERROR.INVALID_CREDENTIALS);
 
         const tokens = await this.issueTokens(user.user_id, user.email);
         await this.saveRefreshToken(user.user_id, tokens.refresh_token);
@@ -93,10 +94,10 @@ export class AuthService {
 
     async refresh(userId: string, refresh_token: string): Promise<TokensResponse> {
         const user = await this.usersRepo.findOne({ where: { user_id: userId } });
-        if (!user) throw new UnauthorizedException();
+        if (!user) throw new UnauthorizedException(AUTH_MESSAGES.ERROR.INVALID_REFRESH_TOKEN);
 
         const matches = await bcrypt.compare(refresh_token, user.refresh_token);
-        if (!matches) throw new UnauthorizedException();
+        if (!matches) throw new UnauthorizedException(AUTH_MESSAGES.ERROR.INVALID_REFRESH_TOKEN);
 
         const tokens = await this.issueTokens(user.user_id, user.email);
         await this.saveRefreshToken(user.user_id, tokens.refresh_token);
@@ -133,7 +134,7 @@ export class AuthService {
 		// Validate user exists
 		const user = await this.usersRepo.findOne({ where: { user_id: dto.userId } });
 		if (!user) {
-			throw new NotFoundException(`User ${dto.userId} not found`);
+			throw new NotFoundException(AUTH_MESSAGES.ERROR.USER_NOT_FOUND);
 		}
 
 		// Generate OTP
@@ -159,7 +160,7 @@ export class AuthService {
 			this.logger.log(`OTP sent for payment: userId=${dto.userId}`);
 			return {
 				success: true,
-				message: 'OTP sent successfully',
+				message: AUTH_MESSAGES.SUCCESS.OTP_PAYMENT_SENT,
 				expiresIn,
 			};
 		} catch (error: any) {
@@ -173,21 +174,21 @@ export class AuthService {
 			
 			// Connection refused - microservice is not running
 			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
-				throw new ServiceUnavailableException('Email microservice is not available. Please ensure the service is running.');
+				throw new ServiceUnavailableException(AUTH_MESSAGES.ERROR.EMAIL_SERVICE_UNAVAILABLE);
 			}
 			
 			// Connection closed - microservice disconnected
 			if (errorMessage.includes('Connection closed')) {
-				throw new ServiceUnavailableException('Email microservice connection was closed. Please ensure the service is running.');
+				throw new ServiceUnavailableException(AUTH_MESSAGES.ERROR.EMAIL_SERVICE_CONNECTION_CLOSED);
 			}
 			
 			// Timeout errors - microservice not responding
 			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
-				throw new ServiceUnavailableException('Email microservice request timeout. The service may be unavailable or overloaded.');
+				throw new ServiceUnavailableException(AUTH_MESSAGES.ERROR.EMAIL_SERVICE_TIMEOUT);
 			}
 			
 			// For other errors, throw BadRequestException
-			throw new BadRequestException('Failed to send OTP email. Please try again.');
+			throw new BadRequestException(AUTH_MESSAGES.ERROR.FAILED_TO_SEND_OTP_EMAIL);
 		}
 	}
 
@@ -198,19 +199,19 @@ export class AuthService {
 		// Validate user exists
 		const user = await this.usersRepo.findOne({ where: { user_id: dto.userId } });
 		if (!user) {
-			throw new NotFoundException(`User ${dto.userId} not found`);
+			throw new NotFoundException(AUTH_MESSAGES.ERROR.USER_NOT_FOUND);
 		}
 
 		// Verify OTP
 		const isValid = await this.otpStorageService.verifyPaymentOtp(dto.userId, dto.otp);
 		if (!isValid) {
-			throw new UnauthorizedException('Invalid or expired OTP');
+			throw new UnauthorizedException(AUTH_MESSAGES.ERROR.INVALID_OR_EXPIRED_OTP);
 		}
 
 		this.logger.log(`OTP verified for payment: userId=${dto.userId}`);
 		return {
 			success: true,
-			message: 'OTP verified successfully',
+			message: AUTH_MESSAGES.SUCCESS.OTP_PAYMENT_VERIFIED,
 		};
 	}
 
@@ -226,7 +227,7 @@ export class AuthService {
 			this.logger.warn(`Password reset requested for non-existent email: ${dto.email}`);
 			return {
 				success: true,
-				message: 'If the email exists, an OTP has been sent',
+				message: AUTH_MESSAGES.SUCCESS.PASSWORD_RESET_OTP_SENT,
 				expiresIn: 10 * 60, // Return same value regardless
 			};
 		}
@@ -254,7 +255,7 @@ export class AuthService {
 			this.logger.log(`OTP sent for password reset: email=${dto.email}`);
 			return {
 				success: true,
-				message: 'If the email exists, an OTP has been sent',
+				message: AUTH_MESSAGES.SUCCESS.PASSWORD_RESET_OTP_SENT,
 				expiresIn,
 			};
 		} catch (error: any) {
@@ -268,21 +269,21 @@ export class AuthService {
 			
 			// Connection refused - microservice is not running
 			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
-				throw new ServiceUnavailableException('Email microservice is not available. Please ensure the service is running.');
+				throw new ServiceUnavailableException(AUTH_MESSAGES.ERROR.EMAIL_SERVICE_UNAVAILABLE);
 			}
 			
 			// Connection closed - microservice disconnected
 			if (errorMessage.includes('Connection closed')) {
-				throw new ServiceUnavailableException('Email microservice connection was closed. Please ensure the service is running.');
+				throw new ServiceUnavailableException(AUTH_MESSAGES.ERROR.EMAIL_SERVICE_CONNECTION_CLOSED);
 			}
 			
 			// Timeout errors - microservice not responding
 			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
-				throw new ServiceUnavailableException('Email microservice request timeout. The service may be unavailable or overloaded.');
+				throw new ServiceUnavailableException(AUTH_MESSAGES.ERROR.EMAIL_SERVICE_TIMEOUT);
 			}
 			
 			// For other errors, throw BadRequestException
-			throw new BadRequestException('Failed to send OTP email. Please try again.');
+			throw new BadRequestException(AUTH_MESSAGES.ERROR.FAILED_TO_SEND_OTP_EMAIL);
 		}
 	}
 
@@ -293,13 +294,13 @@ export class AuthService {
 		// Validate user exists
 		const user = await this.usersRepo.findOne({ where: { email: dto.email } });
 		if (!user) {
-			throw new NotFoundException(`User with email ${dto.email} not found`);
+			throw new NotFoundException(AUTH_MESSAGES.ERROR.USER_NOT_FOUND);
 		}
 
 		// Verify OTP
 		const isValid = await this.otpStorageService.verifyPasswordResetOtp(dto.email, dto.otp);
 		if (!isValid) {
-			throw new UnauthorizedException('Invalid or expired OTP');
+			throw new UnauthorizedException(AUTH_MESSAGES.ERROR.INVALID_OR_EXPIRED_OTP);
 		}
 
 		// Reset password
@@ -309,7 +310,7 @@ export class AuthService {
 		this.logger.log(`Password reset successful: email=${dto.email}`);
 		return {
 			success: true,
-			message: 'Password reset successfully',
+			message: AUTH_MESSAGES.SUCCESS.PASSWORD_RESET,
 		};
 	}
 
@@ -320,7 +321,7 @@ export class AuthService {
 		// Validate user exists
 		const user = await this.usersRepo.findOne({ where: { user_id: dto.userId } });
 		if (!user) {
-			throw new NotFoundException(`User ${dto.userId} not found`);
+			throw new NotFoundException(AUTH_MESSAGES.ERROR.USER_NOT_FOUND);
 		}
 
 		// Generate OTP
@@ -346,7 +347,7 @@ export class AuthService {
 			this.logger.log(`OTP sent for cancellation: userId=${dto.userId}, bookingId=${dto.bookingId}`);
 			return {
 				success: true,
-				message: 'OTP sent successfully',
+				message: AUTH_MESSAGES.SUCCESS.OTP_CANCELLATION_SENT,
 				expiresIn,
 			};
 		} catch (error: any) {
@@ -360,21 +361,21 @@ export class AuthService {
 			
 			// Connection refused - microservice is not running
 			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
-				throw new ServiceUnavailableException('Email microservice is not available. Please ensure the service is running.');
+				throw new ServiceUnavailableException(AUTH_MESSAGES.ERROR.EMAIL_SERVICE_UNAVAILABLE);
 			}
 			
 			// Connection closed - microservice disconnected
 			if (errorMessage.includes('Connection closed')) {
-				throw new ServiceUnavailableException('Email microservice connection was closed. Please ensure the service is running.');
+				throw new ServiceUnavailableException(AUTH_MESSAGES.ERROR.EMAIL_SERVICE_CONNECTION_CLOSED);
 			}
 			
 			// Timeout errors - microservice not responding
 			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
-				throw new ServiceUnavailableException('Email microservice request timeout. The service may be unavailable or overloaded.');
+				throw new ServiceUnavailableException(AUTH_MESSAGES.ERROR.EMAIL_SERVICE_TIMEOUT);
 			}
 			
 			// For other errors, throw BadRequestException
-			throw new BadRequestException('Failed to send OTP email. Please try again.');
+			throw new BadRequestException(AUTH_MESSAGES.ERROR.FAILED_TO_SEND_OTP_EMAIL);
 		}
 	}
 
@@ -385,19 +386,19 @@ export class AuthService {
 		// Validate user exists
 		const user = await this.usersRepo.findOne({ where: { user_id: dto.userId } });
 		if (!user) {
-			throw new NotFoundException(`User ${dto.userId} not found`);
+			throw new NotFoundException(AUTH_MESSAGES.ERROR.USER_NOT_FOUND);
 		}
 
 		// Verify OTP
 		const isValid = await this.otpStorageService.verifyCancellationOtp(dto.userId, dto.bookingId, dto.otp);
 		if (!isValid) {
-			throw new UnauthorizedException('Invalid or expired OTP');
+			throw new UnauthorizedException(AUTH_MESSAGES.ERROR.INVALID_OR_EXPIRED_OTP);
 		}
 
 		this.logger.log(`OTP verified for cancellation: userId=${dto.userId}, bookingId=${dto.bookingId}`);
 		return {
 			success: true,
-			message: 'OTP verified successfully',
+			message: AUTH_MESSAGES.SUCCESS.OTP_CANCELLATION_VERIFIED,
 		};
 	}
 

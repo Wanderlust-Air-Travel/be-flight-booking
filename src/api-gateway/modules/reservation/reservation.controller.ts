@@ -17,6 +17,7 @@ import { OptionalJwtAuthGuard } from '../auth/guard/optional-jwt-auth.guard';
 import { Request } from 'express';
 import { RESERVATION_MS } from 'src/microservices/reservation/reservation.messages';
 import { ParseUUIDv7Pipe } from 'src/shared/pipes/parse-uuid-v7.pipe';
+import { RESERVATION_MESSAGES, COMMON_MESSAGES } from 'src/shared/constants/messages';
 
 @ApiTags('reservations')
 @Controller('reservations')
@@ -56,7 +57,7 @@ export class ReservationController {
 			
 			// For guest users, sessionId is required
 			if (isGuest && !sessionIdHeader) {
-				throw new BadRequestException('X-Session-Id header is required for guest users. Please provide the session ID from the booking state response.');
+				throw new BadRequestException(RESERVATION_MESSAGES.VALIDATION.SESSION_ID_REQUIRED_FOR_GUEST);
 			}
 			
 			// Send userId (null for guests) and sessionId to microservice
@@ -108,17 +109,17 @@ export class ReservationController {
 			
 			// Connection refused - microservice is not running
 			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
-				throw new ServiceUnavailableException('Reservation microservice is not available. Please ensure the service is running.');
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
 			}
 			
 			// Connection closed - microservice disconnected
 			if (errorMessage.includes('Connection closed')) {
-				throw new ServiceUnavailableException('Reservation microservice connection was closed. Please ensure the service is running.');
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
 			}
 			
 			// Timeout errors - microservice not responding
 			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
-				throw new ServiceUnavailableException('Reservation microservice request timeout. The service may be unavailable or overloaded.');
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
 			}
 			
 			// Handle microservice error format: { status: 'error', message: '...' }
@@ -161,8 +162,7 @@ export class ReservationController {
 			}
 			
 			// Use extracted message or provide descriptive default
-			const finalMessage = extractedMessage || 
-				'Cannot create reservation: Cabin and seat must be selected in booking state before creating reservation. Please select cabin and seat first using /api/v1/booking-state endpoints.';
+			const finalMessage = extractedMessage || COMMON_MESSAGES.ERROR.OPERATION_FAILED;
 			throw new BadRequestException(finalMessage);
 		}
 	}
@@ -215,9 +215,9 @@ export class ReservationController {
 			}
 			
 			if (error?.status === 'error' && error?.message) {
-				throw new BadRequestException(`Get reservation failed: ${error.message}`);
+				throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error.message}`);
 			}
-			throw new BadRequestException(`Get reservation failed: ${error?.message || 'Unknown error'}`);
+			throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`);
 		}
 	}
 
@@ -239,12 +239,12 @@ export class ReservationController {
 		description: 'Reservation code not found or expired',
 	})
 	async getReservationByCode(@Param('code') reservationCode: string): Promise<ReservationResponseDto> {
-		// Validate reservation code format BEFORE calling microservice
-		// Reservation code should be 6 alphanumeric characters
-		const codeRegex = /^[A-Z0-9]{6}$/i;
-		if (!codeRegex.test(reservationCode)) {
-			throw new BadRequestException('Reservation code must be exactly 6 alphanumeric characters');
-		}
+			// Validate reservation code format BEFORE calling microservice
+			// Reservation code should be 6 alphanumeric characters
+			const codeRegex = /^[A-Z0-9]{6}$/i;
+			if (!codeRegex.test(reservationCode)) {
+				throw new BadRequestException(RESERVATION_MESSAGES.VALIDATION.RESERVATION_CODE_INVALID_FORMAT);
+			}
 		
 		try {
 			// Send reservation code to microservice - it will auto-detect if it's a code (6 chars) or ID (UUID)
@@ -277,9 +277,9 @@ export class ReservationController {
 			}
 			
 			if (error?.status === 'error' && error?.message) {
-				throw new BadRequestException(`Get reservation by code failed: ${error.message}`);
+				throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error.message}`);
 			}
-			throw new BadRequestException(`Get reservation by code failed: ${error?.message || 'Unknown error'}`);
+			throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`);
 		}
 	}
 
@@ -343,9 +343,9 @@ export class ReservationController {
 			}
 			
 			if (error?.status === 'error' && error?.message) {
-				throw new BadRequestException(`Cancel reservation failed: ${error.message}`);
+				throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error.message}`);
 			}
-			throw new BadRequestException(`Cancel reservation failed: ${error?.message || 'Unknown error'}`);
+			throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`);
 		}
 	}
 
@@ -395,9 +395,9 @@ export class ReservationController {
 			}
 			
 			if (error?.status === 'error' && error?.message) {
-				throw new BadRequestException(`List reservations failed: ${error.message}`);
+				throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error.message}`);
 			}
-			throw new BadRequestException(`List reservations failed: ${error?.message || 'Unknown error'}`);
+			throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`);
 		}
 	}
 
@@ -425,7 +425,7 @@ export class ReservationController {
 		try {
 			// Validate additionalSeconds
 			if (!body.additionalSeconds || body.additionalSeconds <= 0) {
-				throw new BadRequestException('additionalSeconds must be a positive number');
+				throw new BadRequestException(RESERVATION_MESSAGES.VALIDATION.ADDITIONAL_SECONDS_INVALID);
 			}
 			
 			return await firstValueFrom(
@@ -460,9 +460,9 @@ export class ReservationController {
 			}
 			
 			if (error?.status === 'error' && error?.message) {
-				throw new BadRequestException(`Extend reservation failed: ${error.message}`);
+				throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error.message}`);
 			}
-			throw new BadRequestException(`Extend reservation failed: ${error?.message || 'Unknown error'}`);
+			throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`);
 		}
 	}
 }

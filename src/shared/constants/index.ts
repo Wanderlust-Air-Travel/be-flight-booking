@@ -9,4 +9,5 @@
 
 export * from './seat.constants';
 export * from './enums';
+export * from './messages';
 
