@@ -4,6 +4,70 @@ Lịch sử các thay đổi quan trọng của dự án.
 
 ## [Unreleased]
 
+### Cải tiến Frontend UI/UX (2025-11-30)
+
+- **Calendar Component Fix - Date of Birth Picker (2025-11-30)**
+  - **Issue**: Calendar component quá nhỏ, dropdown tháng/năm không hoạt động
+  - **Root Cause**: Calendar component không tuân theo đúng Shadcn UI documentation, có override không cần thiết
+  - **Fix**:
+    - Sửa `calendar.tsx` component theo đúng Shadcn UI documentation
+    - Bỏ `bg-popover` khỏi `dropdown` class (theo documentation)
+    - Đơn giản hóa cách sử dụng Calendar - chỉ override những classNames cần thiết cho theme
+    - Sử dụng `overflow-hidden p-0` trong `PopoverContent` (theo Date of Birth Picker example)
+  - **User Experience**:
+    - Calendar có kích thước phù hợp, dễ đọc và thao tác
+    - Dropdown tháng/năm hoạt động bình thường (native select của react-day-picker)
+    - Có thể click và chọn tháng/năm dễ dàng
+  - **Files Changed**:
+    - `booking/components/ui/calendar.tsx` - Fixed dropdown class, removed unnecessary overrides
+    - `booking/app/(page)/booking/info/page.tsx` - Simplified Calendar usage, removed excessive classNames
+  - **Best Practice**: Follow Shadcn UI documentation exactly, only override necessary classNames for theme customization
+
+- **Hydration Mismatch Fix - AOS Library (2025-11-30)**
+  - **Issue**: Next.js hydration mismatch warnings do AOS (Animate On Scroll) library
+  - **Root Cause**: AOS thêm các class `aos-init` và `aos-animate` vào client-side nhưng không có trong server-side render
+  - **Fix**:
+    - Thêm `suppressHydrationWarning` cho tất cả elements có `data-aos` attribute
+    - Prop này báo cho React bỏ qua warning về sự khác biệt attributes/classes cho element đó
+    - An toàn vì AOS chỉ ảnh hưởng đến animation, không ảnh hưởng đến logic
+  - **Files Changed**:
+    - `booking/app/components/Services/ServiceSlide.tsx` - Added `suppressHydrationWarning` to all `data-aos` elements
+    - `booking/app/components/Banner/Banner.tsx` - Added `suppressHydrationWarning` to all `data-aos` elements
+    - `booking/app/components/Services/ServiceHome.tsx` - Added `suppressHydrationWarning` to all `data-aos` elements
+    - `booking/app/components/Services/ServiceAll.tsx` - Added `suppressHydrationWarning` to all `data-aos` elements
+  - **Impact**: Không còn hydration mismatch warnings, AOS vẫn hoạt động bình thường
+
+- **Booking Info Page UI Improvements (2025-11-30)**
+  - **Feature**: Cải thiện UI/UX cho trang nhập thông tin booking (`/booking/info`)
+  - **Implementation**:
+    - **Font Size & Weight**: Tăng font size (1.8rem cho inputs, 2.4rem cho headings) và font-weight (font-semibold, font-bold)
+    - **Color Synchronization**: Áp dụng primary color (`--cl-pri`) cho headings, labels, borders, buttons
+    - **Calendar Date Picker**: 
+      - Sử dụng Shadcn UI Calendar component với `captionLayout="dropdown"`
+      - Tăng kích thước calendar (min-w-[380px], cell-size: 3.2rem)
+      - Dropdown tháng/năm hoạt động đúng
+    - **Gender Selection**: 
+      - Thay select box bằng radio buttons (Shadcn UI RadioGroup)
+      - Chỉ có 2 options: "Male" và "Female" (bỏ "Other")
+    - **Document Number Logic**:
+      - Chỉ hiển thị cho ADT passengers
+      - Ẩn hoàn toàn cho CHD và INF passengers
+      - Frontend validation: required cho ADT, optional cho CHD/INF
+    - **Auto-fill DOB**: 
+      - Tự động điền DOB mặc định khi chọn passenger type
+      - ADT: 18 tuổi tại ngày bay
+      - CHD: 6 tuổi tại ngày bay
+      - INF: 1 tuổi tại ngày bay
+  - **User Experience**:
+    - Text dễ đọc hơn với font size lớn hơn
+    - UI nhất quán với landing page (cùng color scheme)
+    - Calendar dễ sử dụng hơn với dropdown tháng/năm
+    - Gender selection trực quan hơn với radio buttons
+    - Auto-fill DOB tiết kiệm thời gian
+  - **Files Changed**:
+    - `booking/app/(page)/booking/info/page.tsx` - Complete UI overhaul với Shadcn UI components
+  - **Best Practice**: Sử dụng Shadcn UI components cho consistency, chỉ customize theme colors
+
 ### Cải tiến quan trọng (2025-11-30)
 
 - **Flight Search Pre-validation với Toast Notifications (2025-11-30)**
