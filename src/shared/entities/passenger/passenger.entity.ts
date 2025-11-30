@@ -24,8 +24,8 @@ export class Passenger {
 	@Column({ type: 'nvarchar', nullable: false, length: 10 })
 	gender: string;
 
-	@Column({ type: 'varchar', nullable: false, length: 50 })
-	document_number: string;
+	@Column({ type: 'varchar', nullable: true, length: 50 })
+	document_number: string | null; // Nullable for CHD and INF passengers
 
 	@Column({ type: 'varchar', nullable: true, length: 50 })
 	loyalty_number: string | null;

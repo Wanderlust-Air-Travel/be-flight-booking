@@ -422,9 +422,17 @@ export class BookingService {
 					}
 				} else {
 					// Create new passenger from provided info
-					if (!passengerDto.fullname || !passengerDto.dob || !passengerDto.gender || !passengerDto.documentNumber) {
+					// Document number is required for ADT, optional for CHD and INF
+					if (!passengerDto.fullname || !passengerDto.dob || !passengerDto.gender) {
 						throw new BadRequestException(
-							'If passengerId is not provided, fullname, dob, gender, and documentNumber are required',
+							'If passengerId is not provided, fullname, dob, and gender are required',
+						);
+					}
+					
+					// Validate documentNumber for ADT passengers
+					if (passengerDto.passengerType === PassengerType.ADT && !passengerDto.documentNumber) {
+						throw new BadRequestException(
+							'documentNumber is required for ADT passengers when passengerId is not provided',
 						);
 					}
 
@@ -479,18 +487,19 @@ export class BookingService {
 						passenger = existingPassenger;
 					} else {
 						// Create new passenger
+						// For CHD and INF, documentNumber can be null
 						passenger = this.passengerRepo.create({
 							passenger_id: uuidv7(),
 							user: user,
 							fullname: passengerDto.fullname,
 							dob: dobDate,
 							gender: passengerDto.gender,
-							document_number: passengerDto.documentNumber,
+							document_number: passengerDto.documentNumber || null, // Allow null for CHD and INF
 							loyalty_number: passengerDto.loyaltyNumber || null,
 						});
 						passenger = await queryRunner.manager.save(passenger);
 						console.log(
-							`Created new passenger: ${passenger.passenger_id} (${passenger.fullname}, ${passenger.document_number})`,
+							`Created new passenger: ${passenger.passenger_id} (${passenger.fullname}, ${passenger.document_number || 'N/A (CHD/INF)'})`,
 						);
 					}
 				}
@@ -1199,9 +1208,18 @@ export class BookingService {
 						);
 					}
 				} else {
-					if (!passengerDto.fullname || !passengerDto.dob || !passengerDto.gender || !passengerDto.documentNumber) {
+					// Create new passenger from provided info
+					// Document number is required for ADT, optional for CHD and INF
+					if (!passengerDto.fullname || !passengerDto.dob || !passengerDto.gender) {
 						throw new BadRequestException(
-							'If passengerId is not provided, fullname, dob, gender, and documentNumber are required',
+							'If passengerId is not provided, fullname, dob, and gender are required',
+						);
+					}
+					
+					// Validate documentNumber for ADT passengers
+					if (passengerDto.passengerType === PassengerType.ADT && !passengerDto.documentNumber) {
+						throw new BadRequestException(
+							'documentNumber is required for ADT passengers when passengerId is not provided',
 						);
 					}
 
@@ -1212,8 +1230,9 @@ export class BookingService {
 
 					// Check if passenger with same document number already exists for this user
 					// Best Practice: Reuse passenger to avoid duplicates and improve UX
-					// Note: user_id is @RelationId, must use relation in where clause
-					const existingPassenger = user?.user_id
+					// Note: Only check for existing passenger if documentNumber is provided (ADT passengers)
+					// CHD and INF passengers may not have documentNumber, so skip duplicate check
+					const existingPassenger = user?.user_id && passengerDto.documentNumber
 						? await queryRunner.manager.findOne(Passenger, {
 								where: {
 									document_number: passengerDto.documentNumber,
@@ -1257,18 +1276,19 @@ export class BookingService {
 						// Create new passenger
 						// For guest bookings (user = null), passenger is created without user_id
 						// For authenticated bookings, passenger is linked to user
+						// For CHD and INF, documentNumber can be null
 						passenger = this.passengerRepo.create({
 							passenger_id: uuidv7(),
 							user: user || null, // null for guest bookings
 							fullname: passengerDto.fullname,
 							dob: dobDate,
 							gender: passengerDto.gender,
-							document_number: passengerDto.documentNumber,
+							document_number: passengerDto.documentNumber || null, // Allow null for CHD and INF
 							loyalty_number: passengerDto.loyaltyNumber || null,
 						});
 						passenger = await queryRunner.manager.save(passenger);
 						console.log(
-							`Created new passenger: ${passenger.passenger_id} (${passenger.fullname}, ${passenger.document_number}) ${user ? `for user ${user.user_id}` : 'as guest'}`,
+							`Created new passenger: ${passenger.passenger_id} (${passenger.fullname}, ${passenger.document_number || 'N/A (CHD/INF)'}) ${user ? `for user ${user.user_id}` : 'as guest'}`,
 						);
 					}
 				}

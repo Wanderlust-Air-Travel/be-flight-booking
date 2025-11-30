@@ -55,13 +55,14 @@ export class CreateBookingPassengerDto {
 	gender?: string;
 
 	@ApiProperty({
-		description: 'Document number (CCCD/Passport) (required if passengerId is not provided)',
+		description: 'Document number (CCCD/Passport) (required for ADT if passengerId is not provided; optional for CHD and INF)',
 		example: '001234567890',
 		required: false,
 	})
-	@ValidateIf((o) => !o.passengerId)
-	@IsNotEmpty({ message: 'documentNumber is required when passengerId is not provided' })
+	@ValidateIf((o) => !o.passengerId && o.passengerType === PassengerType.ADT)
+	@IsNotEmpty({ message: 'documentNumber is required for ADT when passengerId is not provided' })
 	@IsString()
+	@IsOptional()
 	documentNumber?: string;
 
 	@ApiProperty({
