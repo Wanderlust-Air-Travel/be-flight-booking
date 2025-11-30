@@ -1,4 +1,5 @@
 import { PassengerType } from '../constants/enums';
+import { PassengerValidationResult } from '../types/passenger-type.types';
 
 /**
  * Calculate age in years from date of birth to a specific date
@@ -68,7 +69,7 @@ export function isAdult(dob: Date, flightDate: Date): boolean {
 export function validatePassengerTypes(
 	passengers: Array<{ dob: Date; passengerType: PassengerType }>,
 	flightDate: Date
-): { valid: boolean; errors: string[] } {
+): PassengerValidationResult {
 	const errors: string[] = [];
 	
 	// Count passengers by type

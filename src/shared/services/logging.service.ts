@@ -1,8 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-
-export interface LogContext {
-	[key: string]: any;
-}
+import { LogContext } from '../types/logging.types';
 
 @Injectable()
 export class LoggingService {

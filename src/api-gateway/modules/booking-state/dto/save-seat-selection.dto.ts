@@ -58,6 +58,11 @@ export class SaveSeatSelectionDto {
 	@ArrayMinSize(1, { message: BOOKING_MESSAGES.VALIDATION.SEAT_ID_REQUIRED })
 	seats?: SeatSelectionItemDto[];
 
+	/**
+	 * Custom validation: At least one of seats array, seat object, or legacy fields must be provided
+	 * This is handled in controller logic, but we add a note here for clarity
+	 */
+
 	// Legacy fields for backward compatibility
 	@ApiProperty({
 		description: 'Flight seat ID (deprecated: use seat.flightSeatId or seats array)',

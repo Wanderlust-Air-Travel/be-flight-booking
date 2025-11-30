@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PassengerType } from '../constants/enums';
 import { Route } from '../entities/route/route.entity';
+import { PassengerFareDetails } from '../types/passenger-pricing.types';
 
 /**
  * Service to calculate passenger pricing based on passenger type
@@ -122,12 +123,7 @@ export class PassengerPricingService {
 		route: Route,
 		taxRate: number = 0,
 		feeRate: number = 0
-	): {
-		baseFare: number;
-		taxAmount: number;
-		feeAmount: number;
-		totalAmount: number;
-	} {
+	): PassengerFareDetails {
 		const baseFare = this.calculateBaseFare(adultBaseFare, passengerType, route);
 		const taxAmount = this.calculateTaxAmount(baseFare, passengerType, route, taxRate);
 		const feeAmount = this.calculateFeeAmount(baseFare, passengerType, route, feeRate);

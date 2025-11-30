@@ -1,18 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-
-interface CircuitBreakerOptions {
-	timeout?: number;
-	errorThresholdPercentage?: number;
-	resetTimeout?: number;
-}
-
-interface CircuitBreakerState {
-	isOpen: boolean;
-	failureCount: number;
-	lastFailureTime?: Date;
-	successCount: number;
-}
+import { CircuitBreakerOptions, CircuitBreakerState } from '../types/circuit-breaker.types';
 
 @Injectable()
 export class CircuitBreakerService {
