@@ -87,19 +87,22 @@ Script SQL để xóa toàn bộ data trong database, cho phép chạy lại see
 
 ### 8. Flight Schedules
 - 300-450 flight schedules
-- Tạo cho 150 routes (ưu tiên domestic routes)
-- 2-3 schedules per route
-- Operating patterns: Daily, Mon/Wed/Fri/Sun, Tue/Thu/Sat, Mon-Fri, Sat-Sun
-- Effective từ hôm nay đến 1 năm sau
+- Tạo cho 200 routes (ưu tiên domestic routes)
+- 3-5 schedules per route
+- **Guaranteed Daily Flights**: Schedule đầu tiên của mỗi route luôn là daily (`operating_days: '1111111'`) để đảm bảo có flights mỗi ngày
+- Operating patterns: Daily (guaranteed first), Mon/Wed/Fri/Sun, Tue/Thu/Sat, Mon-Fri, Sat-Sun
+- Effective từ 1/12/2025 đến 31/12/2025 (tháng 12/2025)
 - Flight numbers: BBO, VNA, VJ, QH
 - Tự động tránh duplicate flight numbers trong cùng period
+- **Important**: Mỗi route có ít nhất 1 daily schedule để đảm bảo user có thể search bất kỳ route nào vào bất kỳ ngày nào trong tháng 12/2025
 
 ### 9. Flight Instances & Flight Seats
-- Hàng ngàn flight instances cho 60 ngày (2 tháng) tới
-- Xử lý 50 schedules đầu tiên (để giảm số lượng seats)
+- Hàng ngàn flight instances cho toàn bộ tháng 12/2025 (1/12/2025 - 31/12/2025)
+- Xử lý 200 schedules đầu tiên để tạo nhiều instances
 - Mỗi instance có đầy đủ seats
 - 70% seats available (30% đã được book)
 - Status: scheduled, on_time, delayed
+- **Guaranteed Coverage**: Với daily schedules, mỗi route sẽ có flights cho tất cả 31 ngày trong tháng 12/2025
 
 ### 10. Bookings & Related Data
 - 500-1,000 bookings với:
@@ -122,8 +125,8 @@ Sau khi chạy seed, bạn sẽ có:
 - **Seat Configurations**: ~1,080 (6 aircraft types × 180 seats = 1,080 total seats)
   - Business seats: ~108 (6 types × 18 business seats)
   - Economy seats: ~972 (6 types × 162 economy seats)
-- **Flight Schedules**: 300-450 (150 routes × 2-3 schedules)
-- **Flight Instances**: Hàng ngàn (50 schedules × 60 ngày × operating days)
+- **Flight Schedules**: 600-1000 (200 routes × 3-5 schedules)
+- **Flight Instances**: Hàng chục ngàn (200 schedules × 31 ngày × operating days)
 - **Flight Seats**: Hàng chục ngàn (instances × 180 seats per aircraft)
 - **Users**: 500
 - **Passengers**: 500-1,500 (1-3 per user)

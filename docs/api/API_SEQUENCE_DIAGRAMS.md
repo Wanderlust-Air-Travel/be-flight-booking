@@ -1,5 +1,70 @@
 # API Sequence Diagrams
 
+## Airport List Fetch Flow
+
+### Flow: Frontend → Next.js API Route → Backend API Gateway → Search Microservice
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant Next.js API Route
+    participant API Gateway
+    participant Search Microservice
+    participant Database
+
+    User->>Frontend: Load flight search page
+    Frontend->>Next.js API Route: GET /api/search/airports
+    Next.js API Route->>API Gateway: GET /api/v1/search/airports
+    API Gateway->>Search Microservice: Message: search.airports
+    Search Microservice->>Database: SELECT * FROM airports ORDER BY city ASC
+    Database-->>Search Microservice: Airport list
+    Search Microservice->>Search Microservice: Transform to DTO format
+    Search Microservice-->>API Gateway: {airports: [{iata, name, city, value}]}
+    API Gateway-->>Next.js API Route: Airport list response
+    Next.js API Route-->>Frontend: Airport list response
+    Frontend->>Frontend: Transform to frontend format
+    Frontend-->>User: Display airports in dropdown
+```
+
+## Flight Search Pre-validation Flow
+
+### Flow: User Search → Pre-validate → Navigate or Show Toast
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant Next.js API Route
+    participant API Gateway
+    participant Search Microservice
+    participant Database
+
+    User->>Frontend: Click Search button
+    Frontend->>Frontend: Show loading toast: "Đang kiểm tra chuyến bay..."
+    Frontend->>Next.js API Route: GET /api/search/flights?origin=...&destination=...&departDate=...
+    Next.js API Route->>API Gateway: GET /api/v1/search/flights?...
+    API Gateway->>Search Microservice: Search flights
+    Search Microservice->>Database: Query flight instances
+    Database-->>Search Microservice: Flight results
+    
+    alt Flights Found
+        Search Microservice-->>API Gateway: {outbound: [...], inbound: [...]}
+        API Gateway-->>Next.js API Route: Flight results
+        Next.js API Route-->>Frontend: Flight results
+        Frontend->>Frontend: Dismiss loading toast
+        Frontend->>Frontend: Navigate to /search/flights
+        Frontend-->>User: Display flight results
+    else No Flights Found
+        Search Microservice-->>API Gateway: {outbound: [], inbound: []}
+        API Gateway-->>Next.js API Route: Empty results
+        Next.js API Route-->>Frontend: Empty results
+        Frontend->>Frontend: Dismiss loading toast
+        Frontend->>Frontend: Show error toast: "Không tìm thấy chuyến bay..."
+        Frontend-->>User: Error message (stay on landing page)
+    end
+```
+
 ## Booking Flow with Auto-fetch Cabin Type
 
 ### Flow: Search → Select Cabin → View Seat Map (Auto-fetch)

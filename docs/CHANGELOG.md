@@ -4,6 +4,83 @@ Lịch sử các thay đổi quan trọng của dự án.
 
 ## [Unreleased]
 
+### Cải tiến quan trọng (2025-11-30)
+
+- **Flight Search Pre-validation với Toast Notifications (2025-11-30)**
+  - **Feature**: Validate flight availability trước khi navigate đến results page
+  - **Implementation**:
+    - Frontend gọi API search trước khi navigate
+    - Hiển thị loading toast: "Đang kiểm tra chuyến bay..."
+    - Nếu không có flights: Hiển thị error toast ngay tại landing page, không navigate
+    - Nếu có flights: Navigate đến results page
+  - **User Experience**:
+    - User được thông báo ngay tại landing page nếu không có flights
+    - Không cần chuyển trang rồi mới thấy lỗi
+    - Error messages rõ ràng với thông tin cụ thể (origin, destination, date)
+  - **Files Changed**:
+    - `booking/app/components/FlightSearchBar/FlightSearchBar.tsx` - Updated `handleSearch()` với pre-validation
+    - `booking/lib/toast.ts` - Sử dụng `showLoading()`, `updateToast()`, `showError()`
+  - **Best Practice**: Fail fast - validate trước khi navigate để cải thiện UX
+
+- **Seed Script Improvements - Guaranteed Daily Flights (2025-11-30)**
+  - **Feature**: Đảm bảo mỗi route có ít nhất 1 daily schedule để có flights mỗi ngày trong tháng 12/2025
+  - **Implementation**:
+    - Schedule đầu tiên của mỗi route luôn là daily (`operating_days: '1111111'`)
+    - Các schedule tiếp theo có thể random (daily, Mon/Wed/Fri/Sun, Tue/Thu/Sat, Mon-Fri, Sat-Sun)
+    - Đảm bảo có flights cho tất cả routes và dates trong tháng 12/2025
+  - **Benefits**:
+    - User có thể search bất kỳ route nào vào bất kỳ ngày nào trong tháng 12/2025
+    - Không còn trường hợp "Flight instances are not valid. Please choose another day!"
+    - Data realistic và đầy đủ cho testing
+  - **Files Changed**:
+    - `be-flight-booking/src/scripts/seed-full-database.ts` - Updated schedule generation logic
+  - **Documentation**: Updated `docs/database/SEED-README.md` với thông tin về daily schedules
+
+- **Airport List API Endpoint (2025-11-30)**
+  - **Feature**: API endpoint để lấy danh sách tất cả airports từ backend
+  - **Implementation**:
+    - `GET /api/v1/search/airports` - Public endpoint, không cần authentication
+    - Trả về danh sách airports sorted by city name
+    - Response format: `{ airports: [{ iata, name, city, value }] }`
+    - Frontend fetch từ Next.js API route: `/api/search/airports` (proxy to backend)
+  - **Benefits**:
+    - Frontend không cần hardcode airport data
+    - Backend là single source of truth cho airport data
+    - Dễ dàng update airports mà không cần deploy frontend
+  - **Files Changed**:
+    - `be-flight-booking/src/microservices/search/search.service.ts` - Added `getAirports()` method
+    - `be-flight-booking/src/microservices/search/search.controller.ts` - Added `handleGetAirports()` handler
+    - `be-flight-booking/src/api-gateway/modules/search/search.controller.ts` - Added `GET /api/v1/search/airports` endpoint
+    - `be-flight-booking/src/microservices/search/dto/airport-list-response.dto.ts` - New DTO
+    - `booking/app/api/search/airports/route.ts` - Next.js API route proxy
+    - `booking/app/components/FlightSearchBar/FlightSearchBar.tsx` - Updated để fetch airports từ API
+  - **Documentation**: Updated `docs/api/API_DOCS.md` với airports endpoint
+
+- **Person Component State Hydration Fix (2025-11-30)**
+  - **Issue**: Person component không hydrate state từ store khi mount, gây ra lỗi hiển thị sai số lượng passengers
+  - **Root Cause**: Component khởi tạo với hardcoded values (1 adult, 0 child, 0 infant) và không đọc từ store
+  - **Fix**:
+    - Component đọc state từ store khi khởi tạo
+    - Thêm hydration logic: đợi store hydrate xong, sau đó sync local state từ store
+    - Sử dụng `useRef` để track hydration, tránh overwrite store với giá trị mặc định
+    - Chỉ update store sau khi đã hydrate xong
+  - **Files Changed**:
+    - `booking/app/components/Person/Person.tsx` - Added hydration logic
+    - `booking/app/zustand/storeFightSearchBar.tsx` - Added `isHydrated` flag và `onRehydrateStorage` callback
+    - `booking/types/fight-search-bar.d.ts` - Added `isHydrated` và `setHydrated` to interface
+  - **Impact**: Search bar hiển thị đúng số lượng passengers khi navigate giữa các trang
+
+- **Seat Map Page Passenger Count Fix (2025-11-30)**
+  - **Issue**: Seat map page chỉ cho phép chọn 1 ghế dù user đã chọn nhiều passengers
+  - **Root Cause**: `passengersNeedingSeats` được tính từ store nhưng store chưa hydrate khi component mount
+  - **Fix**:
+    - Đợi store hydrate xong trước khi tính `passengersNeedingSeats`
+    - Thêm logging để debug state changes
+    - `passengersNeedingSeats` trả về 0 nếu chưa hydrate, tránh tính toán sai
+  - **Files Changed**:
+    - `booking/app/(page)/booking/seat-map/page.tsx` - Updated để đợi hydration và thêm logging
+  - **Impact**: Seat map page hiển thị đúng số lượng ghế cần chọn dựa trên số lượng passengers
+
 ### Tính năng mới (2025-11-30)
 
 - **Real-time WebSocket Communication (2025-11-30)**

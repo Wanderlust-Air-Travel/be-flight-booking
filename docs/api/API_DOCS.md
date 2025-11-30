@@ -281,6 +281,49 @@ Khi `access_token` hết hạn, dùng `refresh_token` để lấy token mới.
 
 ## Search Flights (Tìm kiếm chuyến bay)
 
+### Lấy danh sách airports
+**GET** `/api/v1/search/airports`
+
+**Authentication:** Không cần (Public endpoint)
+
+**Mô tả:** Lấy danh sách tất cả airports từ database, sorted by city name. Dùng cho frontend dropdown selection trong flight search form.
+
+**Trả về:**
+```json
+{
+  "airports": [
+    {
+      "iata": "HAN",
+      "name": "Noi Bai International Airport",
+      "city": "Hanoi",
+      "value": "ha-noi"
+    },
+    {
+      "iata": "SGN",
+      "name": "Tan Son Nhat International Airport",
+      "city": "Ho Chi Minh City",
+      "value": "ho-chi-minh-city"
+    }
+  ]
+}
+```
+
+**Response Fields:**
+- `iata`: IATA code của airport (3 ký tự, ví dụ: `HAN`, `SGN`)
+- `name`: Tên đầy đủ của airport
+- `city`: Tên thành phố
+- `value`: Slug value cho frontend (city name in lowercase with hyphens)
+
+**Lưu ý:**
+- Tất cả airports đều là sân bay nội địa Việt Nam
+- Response được sort theo city name (ASC)
+- Frontend nên cache response để giảm số lượng API calls
+
+**Lỗi có thể xảy ra:**
+- `500 Internal Server Error`: Database error hoặc microservice unavailable
+
+---
+
 ### Tìm kiếm chuyến bay
 **GET** `/api/v1/search/flights`
 
@@ -304,6 +347,11 @@ GET /api/v1/search/flights?origin=HAN&destination=SGN&departDate=2025-11-17&retu
 ```
 
 **Trả về:** Danh sách chuyến bay với thông tin: `flightInstanceId`, `flightNumber`, giờ đi/đến, số ghế còn trống
+
+**Lưu ý quan trọng:**
+- Seed script đảm bảo mỗi route có ít nhất 1 daily schedule
+- User có thể search bất kỳ route nào vào bất kỳ ngày nào trong tháng 12/2025
+- Nếu không tìm thấy flights, frontend sẽ hiển thị toast notification ngay tại landing page (không navigate đến results page)
 
 ---
 

@@ -315,6 +315,27 @@
 					"response": []
 				},
 				{
+					"name": "Get Airports List",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/search/airports",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"search",
+								"airports"
+							]
+						},
+						"description": "Get list of all available airports sorted by city name. Public endpoint, no authentication required. Used for frontend dropdown selection in flight search form.\n\n**Response Format:**\n```json\n{\n  \"airports\": [\n    {\n      \"iata\": \"HAN\",\n      \"name\": \"Noi Bai International Airport\",\n      \"city\": \"Hanoi\",\n      \"value\": \"ha-noi\"\n    },\n    {\n      \"iata\": \"SGN\",\n      \"name\": \"Tan Son Nhat International Airport\",\n      \"city\": \"Ho Chi Minh City\",\n      \"value\": \"ho-chi-minh-city\"\n    }\n  ]\n}\n```\n\n**Response Fields:**\n- `iata`: IATA code (3 characters, e.g., HAN, SGN)\n- `name`: Full airport name\n- `city`: City name\n- `value`: Slug value for frontend (city name in lowercase with hyphens)\n\n**Notes:**\n- All airports are domestic Vietnamese airports\n- Response is sorted by city name (ASC)\n- Frontend should cache response to reduce API calls"
+					},
+					"response": []
+				},
+				{
 					"name": "Get Economy Fare Options",
 					"request": {
 						"method": "GET",
