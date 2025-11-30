@@ -616,4 +616,36 @@ export class SearchService {
 			return 'ef'; // Default to Economy Flex
 		}
 	}
+
+	/**
+	 * Get list of all airports for frontend dropdown selection
+	 * Returns airports sorted by city name
+	 */
+	async getAirports() {
+		const airports = await this.airportRepo.find({
+			order: {
+				city: 'ASC',
+			},
+		});
+
+		// Transform to frontend format
+		return airports.map((airport) => {
+			// Generate slug value from city name (Vietnamese to slug)
+			const citySlug = airport.city
+				.toLowerCase()
+				.normalize('NFD')
+				.replace(/[\u0300-\u036f]/g, '') // Remove diacritics
+				.replace(/đ/g, 'd')
+				.replace(/Đ/g, 'D')
+				.replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric with hyphens
+				.replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
+
+			return {
+				iata: airport.iata_code,
+				name: airport.name,
+				city: airport.city,
+				value: citySlug,
+			};
+		});
+	}
 }

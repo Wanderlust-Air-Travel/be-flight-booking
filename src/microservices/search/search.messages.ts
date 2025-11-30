@@ -5,6 +5,7 @@ export const SEARCH_MS = {
 		SEARCH_FLIGHTS: 'search.flights',
 		GET_FARE_OPTIONS: 'search.fare-options',
 		GET_SEAT_MAP: 'search.seat-map',
+		GET_AIRPORTS: 'search.airports',
 	},
 } as const;
 

@@ -5,6 +5,7 @@ import { SearchService } from './search.service';
 import { SearchFlightsDto } from './dto/search-flights.dto';
 import { GetFareOptionsDto } from './dto/get-fare-options.dto';
 import { GetSeatMapDto } from './dto/get-seat-map.dto';
+import { AirportListResponseDto } from './dto/airport-list-response.dto';
 
 @Controller()
 export class SearchMsController {
@@ -49,6 +50,20 @@ export class SearchMsController {
 			return result;
 		} catch (error: any) {
 			this.logger.error('Get seat map error:', error);
+			// Re-throw để NestJS exception filter xử lý
+			throw error;
+		}
+	}
+
+	@MessagePattern(SEARCH_MS.PATTERN.GET_AIRPORTS)
+	async handleGetAirports(): Promise<AirportListResponseDto> {
+		try {
+			this.logger.log('Get airports list');
+			const airports = await this.searchService.getAirports();
+			this.logger.log(`Found ${airports.length} airports`);
+			return { airports };
+		} catch (error: any) {
+			this.logger.error('Get airports error:', error);
 			// Re-throw để NestJS exception filter xử lý
 			throw error;
 		}

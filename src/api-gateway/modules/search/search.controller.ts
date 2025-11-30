@@ -15,6 +15,7 @@ import { GetSeatMapDto } from './dto/get-seat-map.dto';
 import { SeatMapResponseDto } from './dto/seat-map-response.dto';
 import { SEARCH_MS } from 'src/microservices/search/search.messages';
 import { BookingStateService } from 'src/shared/services/booking-state.service';
+import { AirportListResponseDto } from './dto/airport-list-response.dto';
 
 @ApiTags('search')
 @Controller('search')
@@ -594,6 +595,48 @@ export class SearchController {
 			
 			// For any other unexpected errors, return 500 Internal Server Error
 			throw new InternalServerErrorException(`An unexpected error occurred while getting seat map. Please try again later.`);
+		}
+	}
+
+	@Get('airports')
+	@ApiOperation({ 
+		summary: 'Get list of all available airports',
+		description: 'Returns a list of all airports sorted by city name. Used for frontend dropdown selection in flight search form.'
+	})
+	@ApiOkResponse({ 
+		description: 'List of all available airports', 
+		type: AirportListResponseDto 
+	})
+	@ApiResponse({ 
+		status: 500, 
+		description: 'Internal server error',
+		schema: {
+			type: 'object',
+			properties: {
+				statusCode: { type: 'number', example: 500 },
+				message: { type: 'string', example: 'An unexpected error occurred while getting airports' },
+				error: { type: 'string', example: 'Internal Server Error' }
+			}
+		}
+	})
+	async getAirports(): Promise<AirportListResponseDto> {
+		try {
+			this.logger.log('Get airports list');
+			const result = await firstValueFrom(
+				this.client.send<AirportListResponseDto>(SEARCH_MS.PATTERN.GET_AIRPORTS, {})
+			);
+			this.logger.log(`Found ${result.airports?.length || 0} airports`);
+			return result;
+		} catch (error: any) {
+			this.logger.error('Get airports error:', error);
+			
+			// Re-throw HttpException instances
+			if (error instanceof HttpException) {
+				throw error;
+			}
+			
+			// For any other unexpected errors, return 500 Internal Server Error
+			throw new InternalServerErrorException(`An unexpected error occurred while getting airports. Please try again later.`);
 		}
 	}
 }
