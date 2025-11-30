@@ -23,8 +23,13 @@ export function IsVietnamesePhone(validationOptions?: ValidationOptions) {
 					const vietnamesePhoneRegex = /^(0|84)(3[2-9]|5[6|8|9]|7[0|6-9]|8[1-6|8|9]|9[0-4|6-9])[0-9]{7}$/;
 					return vietnamesePhoneRegex.test(value.replace(/\s+/g, ''));
 				},
-				defaultMessage(args: ValidationArguments) {
-					return validationOptions?.message || AUTH_MESSAGES.VALIDATION.PHONE_INVALID;
+				defaultMessage(args: ValidationArguments): string {
+					if (validationOptions?.message) {
+						return typeof validationOptions.message === 'string'
+							? validationOptions.message
+							: validationOptions.message(args);
+					}
+					return AUTH_MESSAGES.VALIDATION.PHONE_INVALID;
 				},
 			},
 		});

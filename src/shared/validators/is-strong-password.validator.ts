@@ -44,8 +44,13 @@ export function IsStrongPassword(validationOptions?: ValidationOptions) {
 					}
 					return true;
 				},
-				defaultMessage(args: ValidationArguments) {
-					return validationOptions?.message || AUTH_MESSAGES.VALIDATION.PASSWORD_TOO_WEAK;
+				defaultMessage(args: ValidationArguments): string {
+					if (validationOptions?.message) {
+						return typeof validationOptions.message === 'string'
+							? validationOptions.message
+							: validationOptions.message(args);
+					}
+					return AUTH_MESSAGES.VALIDATION.PASSWORD_TOO_WEAK;
 				},
 			},
 		});
