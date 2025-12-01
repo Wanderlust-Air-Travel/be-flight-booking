@@ -1,5 +1,54 @@
 # API Sequence Diagrams
 
+## Overall Backend Flow (High-level, BE-centric)
+
+### Flow: Auth → Search → Reservation/Booking → Payment → Async/Realtime (Mini-map)
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant FE as Frontend
+    participant GW as API Gateway
+    participant SVC as Backend Services
+    participant DB as Database
+    participant MQ as RabbitMQ/Redis
+
+    Note over User,GW: 1. (Optional) Auth – BE giữ state user
+    User->>FE: Đăng nhập
+    FE->>GW: /auth/login
+    GW->>SVC: Auth
+    SVC->>DB: Users
+    SVC-->>GW: tokens
+
+    Note over User,SVC: 2. Search flights – thuần read
+    User->>FE: Tìm chuyến
+    FE->>GW: /search/flights
+    GW->>SVC: Search
+    SVC->>DB: Routes + Flights
+    SVC-->>GW: Flight DTOs
+    GW-->>FE: Flight DTOs
+
+    Note over User,SVC: 3. Reservation + Booking – state ở BE
+    User->>FE: Chọn chuyến/cabin/seat + nhập hành khách
+    FE->>GW: /reservations + /bookings
+    GW->>SVC: Reservation + Booking
+    SVC->>DB: Reservations + Bookings + Segments
+
+    Note over User,SVC: 4. Payment – BE transaction + async
+    User->>FE: Pay now
+    FE->>GW: /payments/bookings/:id/process
+    GW->>SVC: Payment
+    SVC->>DB: Payments + update Booking.status
+    SVC->>MQ: publish(ticket + email + status)
+
+    Note over User,MQ: 5. Async ticket/email + realtime
+    MQ->>SVC: Ticket + Email workers
+    SVC->>DB: Create Tickets + load data
+    SVC-->>User: Email vé
+    FE->>MQ: WebSocket subscribe
+    MQ-->>FE: Seat/Payment/Countdown events
+```
+
 ## Airport List Fetch Flow
 
 ### Flow: Frontend → Next.js API Route → Backend API Gateway → Search Microservice
@@ -741,6 +790,151 @@ sequenceDiagram
     
     Booking MS->>Booking MS: All segments must be cancellable
     Booking MS-->>API Gateway: Cancellation eligibility result
+```
+
+## Seat Change Flow (Đổi ghế cho booking segment đã tồn tại)
+
+### Flow: User đổi ghế trong cùng chuyến bay (giữ PNR, cập nhật state BE + realtime)
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant API Gateway
+    participant Booking MS
+    participant Database
+    participant Seat Availability Service
+    participant Redis Pub/Sub
+    participant WebSocket Gateway
+
+    Note over User,Booking MS: Assumption: Booking đã tồn tại, ticket có thể đã issued, áp dụng rule riêng
+
+    User->>Frontend: Mở trang quản lý ghế (Manage seats)
+    Frontend->>API Gateway: GET /api/v1/bookings/:bookingId/segments
+    API Gateway->>Booking MS: Get booking segments with seat info
+    Booking MS->>Database: SELECT segments + flightSeats + rules
+    Database-->>Booking MS: Segments + current seats
+    Booking MS-->>API Gateway: Segments DTO
+    API Gateway-->>Frontend: Segments DTO
+    Frontend-->>User: Hiển thị seat map + ghế hiện tại
+
+    User->>Frontend: Chọn ghế mới (ví dụ: 14C)
+    Frontend->>API Gateway: PATCH /api/v1/bookings/segments/:segmentId/seat
+    Note over Frontend,API Gateway: {newFlightSeatId} hoặc {seatNumber}
+
+    API Gateway->>Booking MS: changeSeat(segmentId, newSeat)
+    Booking MS->>Database: Load segment + booking + flight seats
+    Database-->>Booking MS: segment + booking + seat availability
+
+    Booking MS->>Booking MS: Validate business rules
+    Note over Booking MS: 
+        - Kiểm tra ownership (userId)
+        - Kiểm tra booking status (pending/confirmed/paid)
+        - Kiểm tra fare class có cho phép đổi ghế không
+        - Kiểm tra deadline (T-x giờ trước departure)
+        - Kiểm tra ghế mới còn available
+
+    alt Đổi ghế không hợp lệ
+        Booking MS-->>API Gateway: 400 Bad Request (reason: rule/time/availability)
+        API Gateway-->>Frontend: Error với message chi tiết
+        Frontend-->>User: Hiển thị thông báo lỗi (không đổi ghế)
+    else Đổi ghế hợp lệ
+        Booking MS->>Database: BEGIN TRANSACTION
+        Booking MS->>Database: 
+            UPDATE BookingSegments 
+            SET flight_seat_id = :newSeatId, status = 'booked'
+            WHERE booking_segment_id = :segmentId
+
+        Note over Booking MS,Database: Trigger trg_BookingSegments_SeatAvailability_IUD tự động:
+            - Ghế mới: is_available = 0
+            - Ghế cũ: is_available = 1 nếu không còn ai dùng
+
+        Booking MS->>Database: INSERT SeatChangeLogs (..., oldSeatId, newSeatId, reason, created_at)
+        Booking MS->>Database: COMMIT TRANSACTION
+
+        Booking MS-->>API Gateway: {success: true, newSeatNumber: "14C"}
+        API Gateway-->>Frontend: {success: true, newSeatNumber: "14C"}
+        Frontend->>Frontend: Cập nhật UI: ghế mới cho user hiện tại
+
+        Note over Booking MS,Redis Pub/Sub: Publish thay đổi để realtime update cho các client khác
+        Booking MS->>Seat Availability Service: publishSeatChange(flightInstanceId, seatNumber="14C", status="reserved")
+        Seat Availability Service->>Redis Pub/Sub: PUBLISH seat:availability:{flightInstanceId}
+        Redis Pub/Sub-->>Seat Availability Service: Message delivered
+        Seat Availability Service->>WebSocket Gateway: Broadcast update
+        WebSocket Gateway->>Frontend: seat-availability:update (cho tất cả client xem cùng chuyến bay)
+        Frontend->>Frontend: Disable ghế 14C cho user khác, mở lại ghế cũ nếu cần
+    end
+```
+
+## Partial Refund / Re-issue Flow (ở mức backend state)
+
+### Flow: Partial refund cho một segment sau khi đã thanh toán (no-op với payment gateway giả lập)
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant API Gateway
+    participant Booking MS
+    participant Payment MS
+    participant Database
+    participant Email MS
+
+    Note over User,Database: Case: User đã thanh toán, muốn hủy 1 segment và nhận partial refund
+
+    User->>Frontend: Chọn segment muốn hủy (partial cancellation)
+    Frontend->>API Gateway: PATCH /api/v1/bookings/segments/:segmentId/cancel
+    Note over Frontend,API Gateway: Authorization: Bearer token, body rỗng
+
+    API Gateway->>Booking MS: cancelSegment(segmentId, userId)
+    Booking MS->>Database: Load booking + segment + fares + route
+    Database-->>Booking MS: Booking + segment data
+
+    Booking MS->>Booking MS: Check cancellation eligibility (re-use flow ở trên)
+    alt Không đủ điều kiện hủy
+        Booking MS-->>API Gateway: 400 Bad Request (reason: fare class/time limit)
+        API Gateway-->>Frontend: Error message
+        Frontend-->>User: Hiển thị lý do không được hoàn
+    else Được phép hủy segment
+        Booking MS->>Database: BEGIN TRANSACTION
+        Booking MS->>Booking MS: Tính refundAmount cho segment
+        Note over Booking MS:
+            Refund = SegmentAmount - CancellationFee - NonRefundableFees
+
+        Booking MS->>Database: 
+            UPDATE BookingSegments 
+            SET status = 'cancelled' 
+            WHERE booking_segment_id = :segmentId
+
+        Booking MS->>Database: 
+            UPDATE Tickets 
+            SET status = 'cancelled'
+            WHERE booking_passenger_id = :segmentPassengerId
+              AND (optional) flight_instance_id = :flightInstanceId
+
+        Booking MS->>Database: 
+            UPDATE Bookings 
+            SET total_amount = total_amount - :segmentAmount
+            WHERE booking_id = :bookingId
+
+        Booking MS->>Database: COMMIT TRANSACTION
+        Booking MS-->>API Gateway: {success: true, refundAmount, bookingId}
+
+        API Gateway->>Payment MS: createPartialRefund(bookingId, refundAmount)
+        Payment MS->>Database: BEGIN TRANSACTION
+        Payment MS->>Database: 
+            INSERT INTO Payments (booking_id, amount, status, currency_code, payment_method_code, transaction_ref)
+            VALUES (:bookingId, -:refundAmount, 'refunded', :currency, :method, :generatedRef)
+
+        Payment MS->>Database: COMMIT TRANSACTION
+        Payment MS-->>API Gateway: {refundPaymentId, status: 'refunded'}
+        API Gateway-->>Frontend: {success: true, refundAmount}
+
+        Booking MS->>Email MS: Send refund confirmation email
+        Email MS-->>User: Email: thông tin hoàn tiền + segment đã hủy
+
+        Frontend-->>User: Hiển thị kết quả partial refund + số tiền hoàn
+    end
 ```
 
 ## Real-time WebSocket Flows

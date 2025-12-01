@@ -335,3 +335,71 @@ erDiagram
   - Tìm instance theo (flight_number, flight_date) để tra cứu chặng.
   - Lấy seat map: FlightSeats by instance, join SeatConfigurations, filter `is_available`.
   - Lấy booking theo `pnr_code` (unique) và liệt kê segments/tickets/payments theo `booking_id`.
+
+## ERD phụ (planned): Audit / Log tables
+
+> Lưu ý: Các bảng dưới đây là đề xuất thiết kế **future-proof** cho logging/audit, chưa được tạo trong migrations hiện tại.  
+> Khi chốt yêu cầu, sẽ thêm migrations tương ứng để sync với ERD này.
+
+```mermaid
+erDiagram
+    %% ============ AUDIT / LOG TABLES (PLANNED) ============
+    BookingAuditLogs {
+        UNIQUEIDENTIFIER booking_audit_id PK
+        UNIQUEIDENTIFIER booking_id FK
+        UNIQUEIDENTIFIER user_id FK
+        VARCHAR actor_type        -- 'user' | 'system' | 'job'
+        VARCHAR action            -- 'created' | 'updated' | 'cancelled' | 'seat_changed' | 'paid' | 'refunded'
+        NVARCHAR details_json     -- JSON chi tiết diff/thêm thông tin
+        DATETIME2 created_at
+    }
+
+    PaymentAuditLogs {
+        UNIQUEIDENTIFIER payment_audit_id PK
+        UNIQUEIDENTIFIER payment_id FK
+        UNIQUEIDENTIFIER booking_id FK
+        VARCHAR status_before
+        VARCHAR status_after
+        NVARCHAR gateway_response_json   -- payload từ payment gateway (masked)
+        DATETIME2 created_at
+    }
+
+    SeatChangeLogs {
+        UNIQUEIDENTIFIER seat_change_id PK
+        UNIQUEIDENTIFIER booking_segment_id FK
+        UNIQUEIDENTIFIER booking_id FK
+        UNIQUEIDENTIFIER flight_instance_id FK
+        UNIQUEIDENTIFIER old_flight_seat_id FK
+        UNIQUEIDENTIFIER new_flight_seat_id FK
+        VARCHAR reason
+        UNIQUEIDENTIFIER changed_by_user_id FK
+        DATETIME2 created_at
+    }
+
+    OtpAuditLogs {
+        UNIQUEIDENTIFIER otp_audit_id PK
+        UNIQUEIDENTIFIER user_id FK
+        UNIQUEIDENTIFIER booking_id FK
+        VARCHAR type           -- 'cancellation' | 'login' | ...
+        VARCHAR channel        -- 'email' | 'sms'
+        VARCHAR status         -- 'sent' | 'verified' | 'failed' | 'expired'
+        NVARCHAR metadata_json -- IP, user-agent, retryCount...
+        DATETIME2 created_at
+    }
+
+    %% RELATIONSHIPS (PLANNED)
+    Bookings       ||--o{ BookingAuditLogs : "booking_id"
+    Users          ||--o{ BookingAuditLogs : "user_id"
+
+    Bookings       ||--o{ PaymentAuditLogs : "booking_id"
+    Payments       ||--o{ PaymentAuditLogs : "payment_id"
+
+    Bookings       ||--o{ SeatChangeLogs   : "booking_id"
+    BookingSegments||--o{ SeatChangeLogs   : "booking_segment_id"
+    FlightInstances||--o{ SeatChangeLogs   : "flight_instance_id"
+    FlightSeats    ||--o{ SeatChangeLogs   : "old/new_flight_seat_id"
+    Users          ||--o{ SeatChangeLogs   : "changed_by_user_id"
+
+    Users          ||--o{ OtpAuditLogs     : "user_id"
+    Bookings       ||--o{ OtpAuditLogs     : "booking_id"
+```
