@@ -176,8 +176,12 @@ export class PaymentValidationService {
 				const cachedPaymentResponse = await this.redisService.get<PaymentResponseDto>(redisKey);
 
 				if (cachedPaymentResponse) {
-					// Verify booking ID matches
-					if (cachedPaymentResponse.bookingId === bookingId) {
+					// Normalize UUIDs for case-insensitive comparison (SQL Server may return uppercase/lowercase)
+					const cachedBookingId = String(cachedPaymentResponse.bookingId || '').toLowerCase().trim();
+					const requestBookingId = String(bookingId || '').toLowerCase().trim();
+					
+					// Verify booking ID matches (case-insensitive)
+					if (cachedBookingId === requestBookingId) {
 						this.logger.log(
 							`[Redis Hit] Found existing payment with idempotency key: ${idempotencyKey} for booking ${bookingId}`,
 						);
@@ -221,19 +225,25 @@ export class PaymentValidationService {
 			relations: ['payment_method', 'currency', 'booking'],
 		});
 
-		if (existingPayment && existingPayment.booking.booking_id === bookingId) {
-			this.logger.log(
-				`[DB Hit] Found existing payment with idempotency key: ${idempotencyKey} for booking ${bookingId}`,
-			);
+		if (existingPayment) {
+			// Normalize UUIDs for case-insensitive comparison (SQL Server may return uppercase/lowercase)
+			const dbBookingId = String(existingPayment.booking.booking_id || '').toLowerCase().trim();
+			const requestBookingId = String(bookingId || '').toLowerCase().trim();
+			
+			if (dbBookingId === requestBookingId) {
+				this.logger.log(
+					`[DB Hit] Found existing payment with idempotency key: ${idempotencyKey} for booking ${bookingId}`,
+				);
 
-			// Cache in Redis for future requests (non-blocking)
-			if (this.redisEnabled) {
-				this.cachePaymentResponse(existingPayment, idempotencyKey).catch((err) => {
-					this.logger.warn(`Failed to cache idempotency key in Redis: ${err.message}`);
-				});
+				// Cache in Redis for future requests (non-blocking)
+				if (this.redisEnabled) {
+					this.cachePaymentResponse(existingPayment, idempotencyKey).catch((err) => {
+						this.logger.warn(`Failed to cache idempotency key in Redis: ${err.message}`);
+					});
+				}
+
+				return existingPayment;
 			}
-
-			return existingPayment;
 		}
 
 		return null;
@@ -252,9 +262,11 @@ export class PaymentValidationService {
 			// For now, we'll store minimal data and reconstruct in PaymentService
 			// Or we can pass the response DTO from PaymentService
 			const redisKey = this.getIdempotencyKey(idempotencyKey);
+			// Normalize bookingId to lowercase for consistent comparison (SQL Server may return uppercase/lowercase)
+			const normalizedBookingId = String(payment.booking.booking_id || '').toLowerCase().trim();
 			const cacheData = {
 				paymentId: payment.payment_id,
-				bookingId: payment.booking.booking_id,
+				bookingId: normalizedBookingId,
 				status: payment.status,
 				createdAt: payment.created_at,
 			};
@@ -277,7 +289,12 @@ export class PaymentValidationService {
 
 		try {
 			const redisKey = this.getIdempotencyKey(idempotencyKey);
-			await this.redisService.set(redisKey, paymentResponse, this.idempotencyTtl);
+			// Normalize bookingId to lowercase for consistent comparison (SQL Server may return uppercase/lowercase)
+			const normalizedResponse = {
+				...paymentResponse,
+				bookingId: String(paymentResponse.bookingId || '').toLowerCase().trim(),
+			};
+			await this.redisService.set(redisKey, normalizedResponse, this.idempotencyTtl);
 			this.logger.debug(`Cached full payment response for idempotency key: ${idempotencyKey} (TTL: ${this.idempotencyTtl}s)`);
 		} catch (error) {
 			this.logger.warn(`Failed to cache payment response in Redis: ${error.message}`);
