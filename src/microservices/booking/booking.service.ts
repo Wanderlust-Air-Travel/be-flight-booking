@@ -918,12 +918,42 @@ export class BookingService {
 					),
 				);
 			} catch (error: any) {
+				// Handle connection errors
+				if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+					throw new BadRequestException('Reservation service is not available. Please ensure the service is running.');
+				}
+				
+				// Handle timeout errors
+				if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
+					throw new BadRequestException('Request to reservation service timed out. Please try again.');
+				}
+				
+				// Handle RPC errors from Reservation Microservice
+				if (error?.response?.statusCode && error?.response?.message) {
+					const statusCode = error.response.statusCode;
+					const message = error.response.message;
+					if (statusCode === 404) {
+						throw new NotFoundException(message || `Reservation ${reservationId} not found or expired`);
+					}
+					if (statusCode === 400) {
+						throw new BadRequestException(message || 'Reservation has expired. Please create a new reservation.');
+					}
+				}
+				
+				// Handle NestJS exceptions
+				if (error instanceof NotFoundException || error instanceof BadRequestException) {
+					throw error;
+				}
+				
+				// Handle statusCode property
 				if (error?.statusCode === 404 || error?.message?.includes('not found')) {
 					throw new NotFoundException(`Reservation ${reservationId} not found or expired`);
 				}
 				if (error?.statusCode === 400 || error?.message?.includes('expired')) {
 					throw new BadRequestException('Reservation has expired. Please create a new reservation.');
 				}
+				
+				// Generic error
 				throw new BadRequestException(`Failed to retrieve reservation: ${error?.message || 'Unknown error'}`);
 			}
 
@@ -1497,11 +1527,42 @@ export class BookingService {
 				reservationId,
 				userId,
 			});
-			// Re-throw with better error message
-			if (error?.statusCode && error?.message) {
-				throw error; // NestJS exception
+			
+			// Re-throw NestJS exceptions as-is (BadRequestException, NotFoundException, etc.)
+			if (error instanceof BadRequestException || error instanceof NotFoundException) {
+				throw error;
 			}
-			throw new Error(`Failed to create booking from reservation: ${error?.message || error?.toString() || 'Unknown error'}`);
+			
+			// Re-throw exceptions with statusCode property
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			
+			// Handle connection errors to Reservation Microservice
+			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+				throw new BadRequestException('Reservation service is not available. Please ensure the service is running.');
+			}
+			
+			// Handle timeout errors
+			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
+				throw new BadRequestException('Request to reservation service timed out. Please try again.');
+			}
+			
+			// Handle RPC errors from Reservation Microservice
+			if (error?.response?.statusCode && error?.response?.message) {
+				const statusCode = error.response.statusCode;
+				const message = error.response.message;
+				if (statusCode === 404) {
+					throw new NotFoundException(message || `Reservation ${reservationId} not found`);
+				}
+				if (statusCode === 400) {
+					throw new BadRequestException(message || 'Invalid reservation');
+				}
+			}
+			
+			// Handle generic errors with descriptive message
+			const errorMessage = error?.message || error?.toString() || 'Unknown error';
+			throw new BadRequestException(`Failed to create booking from reservation: ${errorMessage}`);
 		} finally {
 			await queryRunner.release();
 		}

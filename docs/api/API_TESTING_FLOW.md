@@ -5,48 +5,6 @@ Tài liệu này hướng dẫn test API theo flow đầy đủ từ đầu đ�
 ---
 
 ## Prerequisites
-
-### 1. Start Services
-```bash
-# Start Redis
-docker-compose up -d redis
-
-# Start API Gateway
-npm run start:dev
-
-# Start Microservices (mỗi terminal riêng)
-npm run start:search:dev        # Port 4001
-npm run start:services:dev      # Port 4002
-npm run start:routes:dev        # Port 4003
-npm run start:booking:dev       # Port 4004
-npm run start:reservation:dev   # Port 4005
-```
-
-### 2. Run Database Migrations
-```bash
-# Chạy migrations để tạo Reservations table (nếu chưa có)
-npm run migration:run
-
-# Kiểm tra trạng thái migrations
-npm run migration:show
-```
-
-**Lưu ý:** Migration `AddReservationsTable` sẽ tạo bảng `Reservations` với đầy đủ indexes và foreign keys.
-
-### 3. Seed Database
-```bash
-npm run seed:full
-```
-
-### 4. Setup Postman Collection
-- Import file: `tools/Flight-Booking-API.postman_collection.json`
-- Set collection variables:
-  - `base_url`: `http://localhost:3000`
-  - `departDate`: Ngày trong khoảng 60 ngày từ hôm nay (VD: `2025-11-20`)
-  - `returnDate`: Ngày sau departDate (VD: `2025-11-27`)
-
----
-
 ## Flow 1: One-Way Booking (Chuyến một chiều)
 
 ### Step 1: Register User (Optional - nếu chưa có account)
@@ -916,158 +874,6 @@ Content-Type: application/json
 - Update Database: expires_at = new expiration time
 - Update Redis: SET with new TTL
 
----
-
-## Testing Checklist
-
-### One-Way Booking Flow
-- [ ] Register user
-- [ ] Login và lấy access_token
-- [ ] Search flights (one-way)
-- [ ] Get fare options
-- [ ] Create reservation (1 segment - outbound)
-- [ ] Verify reservation trong Database và Redis
-- [ ] Create booking from reservation
-- [ ] Verify reservation status = 'converted' trong Database
-- [ ] Verify reservation deleted từ Redis
-- [ ] Get booking fare details
-- [ ] Get booking payment info
-- [ ] Process payment
-- [ ] Verify payment status = 'success'
-- [ ] Verify booking status = 'paid'
-- [ ] Get payment details
-
-### Round-Trip Booking Flow
-- [ ] Register user
-- [ ] Login và lấy access_token
-- [ ] Search flights (round-trip)
-- [ ] Get fare options (outbound)
-- [ ] Get fare options (inbound)
-- [ ] Create reservation (2 segments - outbound + inbound)
-- [ ] Verify reservation trong Database và Redis
-- [ ] Verify totalAmount = sum of both segments
-- [ ] Create booking from reservation
-- [ ] Verify booking có 2 segments (outbound + inbound)
-- [ ] Verify reservation status = 'converted' trong Database
-- [ ] Get booking details
-- [ ] Process payment
-- [ ] Verify payment status = 'success'
-- [ ] Verify booking status = 'paid'
-
-### Additional Operations
-- [ ] List reservations
-- [ ] Get reservation by ID
-- [ ] Get reservation by code
-- [ ] Cancel reservation
-- [ ] Extend reservation
-- [ ] Verify Hybrid Approach (Redis down → fallback to Database)
-- [ ] Create payment (without processing)
-- [ ] Get payment by ID
-- [ ] Get payments by booking
-- [ ] Update payment status
-- [ ] Send email với custom content
-- [ ] Send email với template (OTP payment, payment success, etc.)
-- [ ] Get email status
-- [ ] Email health check
-
----
-
-## Common Issues & Solutions
-
-### Issue 0: Table 'Reservations' does not exist
-**Nguyên nhân:** Chưa chạy migration để tạo bảng Reservations
-**Giải pháp:** 
-```bash
-# Đảm bảo SQL Server đang chạy và database đã được tạo
-# Kiểm tra .env file có đúng DB credentials không
-
-# Chạy migrations
-npm run migration:run
-
-# Kiểm tra migrations đã chạy
-npm run migration:show
-```
-
-**Nếu gặp lỗi "Login failed for user 'sa'":**
-- Kiểm tra SQL Server đang chạy
-- Kiểm tra credentials trong `.env` file (DB_USER, DB_PASS, DB_NAME)
-- Đảm bảo database đã được tạo
-- Thử connect bằng SQL Server Management Studio để verify credentials
-
-### Issue 0.1: Entity metadata for Currency#reservations was not found
-**Nguyên nhân:** Seed script chưa include Reservation entity
-**Giải pháp:** 
-- Đã fix trong code - Reservation entity đã được thêm vào seed script
-- Chạy lại: `npm run seed:full`
-
-### Issue 1: Reservation not found
-**Nguyên nhân:** Reservation đã expire hoặc không tồn tại
-**Giải pháp:** 
-- Check `expiresAt` trong response
-- Tạo reservation mới
-- Nếu Redis down, reservation vẫn có thể lấy từ Database (Hybrid Approach)
-
-### Issue 2: Not enough available seats
-**Nguyên nhân:** Số ghế available < numberOfPassengers
-**Giải pháp:** 
-- Chọn flight instance khác có nhiều available seats hơn
-- Giảm numberOfPassengers
-
-### Issue 3: Reservation expired
-**Nguyên nhân:** Reservation đã quá 15 phút
-**Giải pháp:** 
-- Tạo reservation mới
-- Hoặc extend reservation trước khi tạo booking
-
-### Issue 4: Invalid reservation status
-**Nguyên nhân:** Reservation đã bị cancel hoặc converted
-**Giải pháp:** 
-- Check reservation status trong Database
-- Tạo reservation mới
-
----
-
-## Notes
-
-1. **Hybrid Approach**: Reservation được lưu trong cả Database và Redis
-   - Database: Persistent storage, audit trail, analytics
-   - Redis: Fast cache với TTL 15 phút
-   - Get Flow: Try Redis first → Fallback to Database → Re-cache
-
-2. **Reservation Status**:
-   - `pending`: Trong Database (chưa expire)
-   - `active`: Trong Redis (chưa expire)
-   - `expired`: Đã quá thời gian
-   - `converted`: Đã tạo booking
-   - `cancelled`: Đã bị hủy
-
-3. **Multi-Segment Support**:
-   - One-way: 1 segment với `segmentType: 'outbound'`
-   - Round-trip: 1 reservation với 2 segments (outbound + inbound)
-   - Frontend chỉ cần lưu 1 `reservationId`
-
-4. **Booking Creation**:
-   - `reservationId` query parameter là **REQUIRED**
-   - Direct booking without reservation không còn được hỗ trợ
-   - Backend tự động lấy tất cả segments từ reservation
-
----
-
-## Postman Collection Variables
-
-Sau khi chạy các requests, Postman collection sẽ tự động set các variables:
-
-- `access_token`: JWT access token
-- `flightInstanceId`: Flight instance ID cho outbound
-- `returnFlightInstanceId`: Flight instance ID cho inbound (round-trip)
-- `reservationId`: Reservation ID
-- `reservationCode`: Reservation code (6 alphanumeric)
-- `bookingId`: Booking ID
-- `paymentId`: Payment ID
-- `departDate`: Departure date (YYYY-MM-DD)
-- `returnDate`: Return date (YYYY-MM-DD)
-
----
 
 ## Flow 4: Guest Booking (Đặt vé không cần đăng nhập)
 
@@ -1290,6 +1096,472 @@ Content-Type: application/json
 
 ---
 
+## Flow 5: Guest Booking với X-Session-Id (Không cần đăng nhập - Full Guest Flow)
+
+**Lưu ý:** Flow này test guest booking hoàn toàn không cần đăng nhập, sử dụng `X-Session-Id` header để quản lý booking state (cabin/seat) cho guest users.
+
+### Step 1: Search Flights (Public - không cần đăng nhập)
+
+**Request:**
+```http
+GET {{base_url}}/api/v1/search/flights?origin=HAN&destination=SGN&departDate={{departDate}}&adults=1&minors=0
+```
+
+**Response:** Tương tự Flow 1
+
+**Lưu ý:** 
+- Lưu `flightInstanceId` vào Postman variable `{{flightInstanceId}}`
+- Chọn flight instance có `availableSeats > 0`
+
+**Postman Test Script (Optional - để auto-set variable):**
+```javascript
+let res = pm.response.json();
+let fi = res.outbound && res.outbound[0];
+if (fi && fi.flightInstanceId) {
+  pm.collectionVariables.set("flightInstanceId", fi.flightInstanceId);
+}
+```
+
+---
+
+### Step 2: Save Cabin Selection (Guest - lấy sessionId từ response)
+
+**Request:**
+```http
+POST {{base_url}}/api/v1/booking-state/cabin
+Content-Type: application/json
+
+{
+  "flightInstanceId": "{{flightInstanceId}}",
+  "cabinType": "economy",
+  "fareClassCode": "YS"
+}
+```
+
+**Lưu ý:** 
+- **KHÔNG gửi** `Authorization` header (guest user)
+- **KHÔNG gửi** `X-Session-Id` header ở request đầu tiên (backend sẽ tự generate)
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Cabin selection saved successfully",
+  "sessionId": "019adf90-c4c0-7270-bece-d30871b28cd8"
+}
+```
+
+**Postman Test Script (BẮT BUỘC - để lưu sessionId):**
+```javascript
+let data = pm.response.json();
+if (data.sessionId) {
+  pm.collectionVariables.set("sessionId", data.sessionId);
+}
+```
+
+**Lưu ý:** 
+- Lưu `sessionId` từ response vào Postman variable `{{sessionId}}`
+- `sessionId` này sẽ được dùng cho tất cả các request tiếp theo trong flow guest
+
+---
+
+### Step 3: Get Seat Map (Optional - để chọn ghế)
+
+**Request:**
+```http
+GET {{base_url}}/api/v1/search/seats?flightInstanceId={{flightInstanceId}}&cabinType=economy
+```
+
+**Response:** Array of seats với `flightSeatId`, `seatNumber`, `isAvailable`, etc.
+
+**Lưu ý:** 
+- Chọn một seat có `isAvailable: true`
+- Lưu `flightSeatId` và `seatNumber` vào Postman variables
+
+**Postman Test Script (Optional):**
+```javascript
+let seats = pm.response.json();
+if (Array.isArray(seats) && seats.length > 0) {
+  // Chọn seat đầu tiên có sẵn
+  let availableSeat = seats.find(s => s.isAvailable) || seats[0];
+  pm.collectionVariables.set("flightSeatId", availableSeat.flightSeatId);
+  pm.collectionVariables.set("seatNumber", availableSeat.seatNumber);
+}
+```
+
+---
+
+### Step 4: Save Seat Selection (Guest - dùng X-Session-Id)
+
+**Request:**
+```http
+POST {{base_url}}/api/v1/booking-state/seat
+X-Session-Id: {{sessionId}}
+Content-Type: application/json
+
+{
+  "flightInstanceId": "{{flightInstanceId}}",
+  "flightSeatId": "{{flightSeatId}}",
+  "seatNumber": "{{seatNumber}}"
+}
+```
+
+**Lưu ý:** 
+- **KHÔNG gửi** `Authorization` header (vẫn là guest)
+- **BẮT BUỘC gửi** `X-Session-Id: {{sessionId}}` header (lấy từ Step 2)
+- Seat phải thuộc đúng cabin class đã chọn ở Step 2
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Seat selection saved successfully",
+  "sessionId": "019adf90-c4c0-7270-bece-d30871b28cd8"
+}
+```
+
+---
+
+### Step 5: Create Reservation (Guest - dùng X-Session-Id)
+
+**Request:**
+```http
+POST {{base_url}}/api/v1/reservations
+X-Session-Id: {{sessionId}}
+Content-Type: application/json
+
+{
+  "segments": [
+    {
+      "flightInstanceId": "{{flightInstanceId}}",
+      "segmentType": "outbound"
+    }
+  ],
+  "numberOfPassengers": 1,
+  "currencyCode": "VND"
+}
+```
+
+**Lưu ý:** 
+- **KHÔNG gửi** `Authorization` header (guest user)
+- **BẮT BUỘC gửi** `X-Session-Id: {{sessionId}}` header
+- Backend sẽ tự động lấy `fareClassCode` và `flightSeatId` từ booking state (Redis) dựa trên `sessionId`
+
+**Response:**
+```json
+{
+  "reservationId": "019adf91-ed6e-7190-9f3a-4e72629e7778",
+  "reservationCode": "6EY46B",
+  "segments": [
+    {
+      "segmentId": "019adf91-ed6c-732e-bf23-c3ecd6130d25",
+      "flightInstanceId": "019AD9AA-2362-7329-B631-B7BFF432B78F",
+      "fareClassCode": "YS",
+      "segmentType": "outbound",
+      "baseFare": 1577000,
+      "taxAmount": 0,
+      "feeAmount": 0,
+      "flightSeatId": "019AD9AA-3603-7549-A62D-E595015F800F",
+      "seatNumber": "3C"
+    }
+  ],
+  "numberOfPassengers": 1,
+  "totalAmount": 1577000,
+  "currencyCode": "VND",
+  "status": "active",
+  "expiresAt": "2025-12-02T15:40:19.874Z",
+  "ttl": 900
+}
+```
+
+**Postman Test Script (BẮT BUỘC):**
+```javascript
+let data = pm.response.json();
+if (data.reservationId) {
+  pm.collectionVariables.set("reservationId", data.reservationId);
+}
+```
+
+**Lưu ý:** 
+- Lưu `reservationId` vào Postman variable
+- Reservation expire sau 15 phút (900 seconds)
+- Booking state (cabin/seat) sẽ tự động được xóa sau khi tạo reservation thành công
+
+---
+
+### Step 6: Create Booking (Guest - không cần X-Session-Id)
+
+**Request:**
+```http
+POST {{base_url}}/api/v1/bookings?reservationId={{reservationId}}
+Content-Type: application/json
+
+{
+  "passengers": [
+    {
+      "passengerType": "ADT",
+      "fullname": "Nguyen Van A",
+      "dob": "1990-01-15",
+      "gender": "Male",
+      "documentNumber": "001234567890"
+    }
+  ],
+  "contactFullname": "Nguyen Van A",
+  "contactEmail": "guest@example.com",
+  "contactPhone": "0912345678",
+  "channel": "web"
+}
+```
+
+**Lưu ý:** 
+- **KHÔNG gửi** `Authorization` header (guest user)
+- **KHÔNG cần** `X-Session-Id` header (reservation đã chứa toàn bộ thông tin cần thiết)
+- **Contact info là BẮT BUỘC** cho guest bookings
+- **Không thể dùng** `passengerId` (phải cung cấp đầy đủ thông tin passenger)
+
+**Response:**
+```json
+{
+  "bookingId": "019adf97-0941-75f1-a753-b769b5a11d8a",
+  "pnrCode": "ML1T4I",
+  "totalAmount": 1577000,
+  "currencyCode": "VND",
+  "status": "pending"
+}
+```
+
+**Postman Test Script (BẮT BUỘC):**
+```javascript
+let data = pm.response.json();
+if (data.bookingId) {
+  pm.collectionVariables.set("bookingId", data.bookingId);
+  pm.collectionVariables.set("totalAmount", data.totalAmount);
+}
+```
+
+**Lưu ý:** 
+- Lưu `bookingId` và `totalAmount` vào Postman variables
+- Reservation status sẽ tự động update thành `converted`
+- Booking sẽ có `user_id = null` (guest booking)
+
+---
+
+### Step 7: Process Payment (Guest - với idempotency key)
+
+**Request:**
+```http
+POST {{base_url}}/api/v1/payments/bookings/{{bookingId}}/process
+Content-Type: application/json
+
+{
+  "paymentMethodCode": "CREDIT_CARD",
+  "transactionRef": "TXN123456789",
+  "idempotencyKey": "abc",
+  "amount": {{totalAmount}}
+}
+```
+
+**Lưu ý:** 
+- **KHÔNG gửi** `Authorization` header (guest user)
+- **KHÔNG cần** `X-Session-Id` header
+- `idempotencyKey` là optional nhưng **nên dùng** để prevent duplicate payments
+- `amount` phải bằng `totalAmount` của booking
+
+**Response:**
+```json
+{
+  "paymentId": "019ADFAB-0482-7329-97C0-92851620F821",
+  "bookingId": "019adf97-0941-75f1-a753-b769b5a11d8a",
+  "pnrCode": "ML1T4I",
+  "amount": 1577000,
+  "currencyCode": "VND",
+  "paymentMethodCode": "CREDIT_CARD",
+  "paymentMethodName": "Credit Card",
+  "status": "pending",
+  "transactionRef": "019ADFAB-0A82-7329-97C0-92851620F821",
+  "createdAt": "2025-12-02T15:25:19.877Z",
+  "paidAt": null
+}
+```
+
+**Postman Test Script (BẮT BUỘC):**
+```javascript
+let data = pm.response.json();
+if (data.paymentId) {
+  pm.collectionVariables.set("paymentId", data.paymentId);
+}
+```
+
+**Lưu ý:** 
+- Lưu `paymentId` vào Postman variable
+- Payment status = `pending` (sẽ được update thành `success` sau khi payment gateway xử lý)
+- Booking status sẽ tự động update thành `paid` khi payment thành công
+- Tickets sẽ được tạo tự động sau khi payment thành công
+- Email confirmation sẽ được gửi đến `contactEmail` trong booking
+
+---
+
+### Step 8: Test Idempotency (Optional - verify idempotency key hoạt động)
+
+**Request (Gửi lại Step 7 với cùng idempotencyKey):**
+```http
+POST {{base_url}}/api/v1/payments/bookings/{{bookingId}}/process
+Content-Type: application/json
+
+{
+  "paymentMethodCode": "CREDIT_CARD",
+  "transactionRef": "TXN123456789",
+  "idempotencyKey": "abc",
+  "amount": {{totalAmount}}
+}
+```
+
+**Expected Response:**
+- **Cùng `paymentId`** như Step 7 (không tạo payment mới)
+- **Cùng `transactionRef`** như Step 7
+- Status code: `200 OK` hoặc `201 Created` (tùy implementation)
+
+**Lưu ý:** 
+- Idempotency key hoạt động dựa trên cặp (`bookingId`, `idempotencyKey`)
+- Nếu gửi cùng cặp này nhiều lần, backend sẽ trả về cùng payment (không tạo duplicate)
+- Idempotency check: Redis first (fast) → DB fallback (guarantee)
+
+---
+
+### Step 9: Verify Payment (Optional - xem payment details)
+
+**Request:**
+```http
+GET {{base_url}}/api/v1/payments/{{paymentId}}
+```
+
+**Lưu ý:** 
+- **KHÔNG cần** `Authorization` header (guest có thể xem payment của booking của họ)
+- Endpoint hỗ trợ guest users (OptionalJwtAuthGuard)
+
+**Response:** Payment details với đầy đủ thông tin
+
+---
+
+### Step 10: Get Payments by Booking (Optional - xem tất cả payments của booking)
+
+**Request:**
+```http
+GET {{base_url}}/api/v1/payments/bookings/{{bookingId}}
+```
+
+**Lưu ý:** 
+- **KHÔNG cần** `Authorization` header (guest có thể xem payments của booking của họ)
+- Endpoint hỗ trợ guest users (OptionalJwtAuthGuard)
+
+**Response:** Array of payments cho booking đó
+
+---
+
+### Step 11: Verify Booking Status (Verify booking đã được update thành 'paid')
+
+**Request:**
+```http
+GET {{base_url}}/api/v1/bookings/{{bookingId}}/payment-info
+```
+
+**Lưu ý:** 
+- **KHÔNG cần** `Authorization` header (public endpoint)
+- Endpoint này trả về thông tin payment của booking
+
+**Response:**
+```json
+{
+  "bookingId": "019adf97-0941-75f1-a753-b769b5a11d8a",
+  "pnrCode": "ML1T4I",
+  "totalAmount": 1577000,
+  "currencyCode": "VND",
+  "contactFullname": "Nguyen Van A",
+  "contactEmail": "guest@example.com",
+  "contactPhone": "0912345678",
+  "status": "paid"
+}
+```
+
+**Lưu ý:** 
+- Verify `status` = `"paid"` (booking đã được thanh toán thành công)
+- Sau khi payment thành công, booking status sẽ tự động update thành `paid`
+- Tickets sẽ được tạo tự động qua RabbitMQ queue (async processing)
+
+---
+
+### Step 12: Verify Payment Status (Verify payment đã được process thành công)
+
+**Request:**
+```http
+GET {{base_url}}/api/v1/payments/{{paymentId}}
+```
+
+**Lưu ý:** 
+- **KHÔNG cần** `Authorization` header (guest có thể xem payment của booking của họ)
+- Endpoint hỗ trợ guest users (OptionalJwtAuthGuard)
+
+**Expected Response:**
+```json
+{
+  "paymentId": "019ADFAB-0482-7329-97C0-92851620F821",
+  "bookingId": "019adf97-0941-75f1-a753-b769b5a11d8a",
+  "pnrCode": "ML1T4I",
+  "amount": 1577000,
+  "currencyCode": "VND",
+  "paymentMethodCode": "CREDIT_CARD",
+  "paymentMethodName": "Credit Card",
+  "status": "success",
+  "transactionRef": "019ADFAB-0A82-7329-97C0-92851620F821",
+  "createdAt": "2025-12-02T15:25:19.877Z",
+  "paidAt": "2025-12-02T15:25:20.123Z"
+}
+```
+
+**Lưu ý:** 
+- Verify `status` = `"success"` (payment đã được xử lý thành công)
+- Verify `paidAt` không null (thời điểm payment thành công)
+- Payment status sẽ được update từ `pending` → `success` sau khi payment gateway xử lý
+
+---
+
+### Step 13: Verify Email Confirmation (Optional - check email đã được gửi)
+
+**Lưu ý:** 
+- Email confirmation sẽ được gửi tự động đến `contactEmail` trong booking sau khi payment thành công
+- Email được gửi qua RabbitMQ queue (async, non-blocking)
+- Email chứa thông tin booking, payment, và ticket details
+
+**Cách verify:**
+- Check email inbox của `contactEmail` (guest@example.com)
+- Hoặc check RabbitMQ queue `email_notifications` trong RabbitMQ Management UI (`http://localhost:15672`)
+- Hoặc check logs của Email Microservice
+
+---
+
+### Step 14: Verify Tickets Created (Optional - check tickets đã được tạo)
+
+**Lưu ý:** 
+- Tickets sẽ được tạo tự động sau khi payment thành công
+- Ticket creation được xử lý qua RabbitMQ queue `ticket_creation` (async processing)
+- Mỗi passenger trong booking sẽ có 1 ticket tương ứng
+
+**Cách verify:**
+- Check database table `Tickets` với `booking_id = {{bookingId}}`
+- Hoặc check RabbitMQ queue `ticket_creation` trong RabbitMQ Management UI
+- Hoặc check logs của Booking Microservice
+
+**SQL Query (Optional):**
+```sql
+SELECT * FROM Tickets WHERE booking_id = '{{bookingId}}'
+```
+
+**Expected:** 
+- Số lượng tickets = số lượng passengers trong booking
+- Mỗi ticket có `ticket_number`, `pnr_code`, `passenger_id`, `booking_segment_id`, etc.
+
+---
+
 ## Next Steps
 
 Sau khi test thành công:
@@ -1300,4 +1572,6 @@ Sau khi test thành công:
 5. Test Hybrid Approach (Redis down scenario)
 6. **Test Guest Booking**: Verify booking và passengers có `user_id = null`
 7. **Test Authenticated Booking**: Verify booking và passengers có `user_id` được set đúng
+8. **Test Idempotency**: Verify cùng `idempotencyKey` + `bookingId` trả về cùng `paymentId`
+9. **Test X-Session-Id Flow**: Verify guest có thể complete full booking flow mà không cần login
 
