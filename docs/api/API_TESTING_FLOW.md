@@ -1630,10 +1630,14 @@ pm.test("Payment has paidAt timestamp after update", function () {
 
 ### Step 12b: Update Payment Status via Webhook (KHUYẾN NGHỊ cho Guest Flow)
 
-⚠️ **KHUYẾN NGHỊ cho Guest Flow**: Dùng webhook endpoint thay vì `PATCH /payments/:id/status` vì:
-- ✅ Không cần JWT authentication
-- ✅ Giống với production flow (payment gateway gửi webhook)
-- ✅ FE đang dùng cách này để simulate payment gateway
+**KHUYẾN NGHỊ cho Guest Flow**: Dùng webhook endpoint thay vì `PATCH /payments/:id/status` vì:
+- Không cần JWT authentication
+- Giống với production flow (payment gateway gửi webhook)
+- FE đang dùng cách này để simulate payment gateway
+
+**Có 2 webhook endpoints:**
+
+#### Option 1: `/webhooks/dev` (KHUYẾN NGHỊ - dùng với FE)
 
 **Request:**
 ```http
@@ -1646,12 +1650,39 @@ Content-Type: application/json
 }
 ```
 
-**Lưu ý:** 
+**Đặc điểm:**
+- Dùng khi test với FE (FE có UI `/payments/dev` để chọn success/failed)
+- `paymentUrl` từ `DevPaymentGateway` trỏ tới FE page
+- Phù hợp cho end-to-end testing với UI
+
+#### Option 2: `/webhooks/mock` (Dùng cho API-only testing)
+
+**Request:**
+```http
+POST {{base_url}}/api/v1/payments/webhooks/mock
+Content-Type: application/json
+
+{
+  "paymentId": "{{paymentId}}",
+  "status": "success",
+  "transactionId": "{{transactionRef}}"
+}
+```
+
+**Đặc điểm:**
+- Dùng khi test trực tiếp từ Postman/API (không cần FE)
+- `paymentUrl` từ `MockPaymentGateway` là URL giả (`https://mock-payment-gateway.com/...`)
+- Phù hợp cho API testing, unit tests, automation tests
+- **QUAN TRỌNG**: Webhook tìm payment theo `transaction_ref` (không phải `paymentId`)
+  - Nếu dùng `paymentId` trong payload → `MockPaymentGateway.processWebhook()` sẽ dùng `paymentId` làm `transactionId`
+  - Nếu có `transactionId` trong payload → dùng `transactionId` để tìm payment
+  - **Khuyến nghị**: Dùng `transactionId` từ response của `POST /payments/bookings/:bookingId/process` (field `transactionRef`)
+
+**Lưu ý chung:** 
 - **KHÔNG cần** `Authorization` header (webhook endpoint không yêu cầu auth)
-- `gateway` trong URL là `dev` (development gateway)
 - `status` có thể là `"success"` hoặc `"failed"`
 - Webhook sẽ tự động:
-  1. Tìm payment theo `paymentId`
+  1. Tìm payment theo `paymentId` hoặc `transactionId`
   2. Update payment status
   3. Update booking status thành `paid` (nếu success)
   4. Tạo tickets qua RabbitMQ queue
@@ -1773,40 +1804,78 @@ pm.test("Payment has all required fields", function () {
 
 ---
 
-### Step 13: Verify Email Confirmation (Optional - check email đã được gửi)
+### Step 14: Verify Email Confirmation (Verify email đã được gửi tự động)
 
 **Lưu ý:** 
-- Email confirmation sẽ được gửi tự động đến `contactEmail` trong booking sau khi payment thành công
-- Email được gửi qua RabbitMQ queue (async, non-blocking)
+- Email confirmation sẽ được gửi **TỰ ĐỘNG** đến `contactEmail` trong booking sau khi payment thành công
+- Email được gửi qua RabbitMQ queue `email_notifications` (async, non-blocking)
 - Email chứa thông tin booking, payment, và ticket details
+- **Không cần gọi API** - email được gửi tự động bởi backend
 
-**Cách verify:**
-- Check email inbox của `contactEmail` (guest@example.com)
-- Hoặc check RabbitMQ queue `email_notifications` trong RabbitMQ Management UI (`http://localhost:15672`)
-- Hoặc check logs của Email Microservice
+**Cách verify trong Postman:**
+
+**Option 1: Check Email Inbox (KHUYẾN NGHỊ)**
+- Mở email inbox của `contactEmail` (từ booking info: `GET /bookings/:bookingId/payment-info`)
+- Tìm email với subject: `"Xác nhận thanh toán thành công - Mã đặt chỗ: {{pnrCode}}"`
+- Email sẽ chứa: PNR code, booking ID, total amount, payment method, seat details
+
+**Option 2: Check RabbitMQ Queue**
+1. Mở RabbitMQ Management UI: `http://localhost:15672`
+2. Login: `guest` / `guest` (default)
+3. Vào tab "Queues"
+4. Tìm queue `email_notifications`
+5. Check messages trong queue (nếu chưa được consume)
+
+**Option 3: Check Email Microservice Logs**
+- Check logs của Email Microservice để xem:
+  ```
+  Payment success notification queued via RabbitMQ to {{contactEmail}} for booking {{pnrCode}}
+  ```
+
+**Lưu ý:**
+- Email được gửi **async** - có thể mất vài giây để nhận được
+- Nếu không thấy email, check spam folder hoặc RabbitMQ queue
 
 ---
 
-### Step 14: Verify Tickets Created (Optional - check tickets đã được tạo)
+### Step 15: Verify Tickets Created (Verify tickets đã được tạo tự động)
 
 **Lưu ý:** 
-- Tickets sẽ được tạo tự động sau khi payment thành công
+- Tickets sẽ được tạo **TỰ ĐỘNG** sau khi payment thành công
 - Ticket creation được xử lý qua RabbitMQ queue `ticket_creation` (async processing)
 - Mỗi passenger trong booking sẽ có 1 ticket tương ứng
+- **Không cần gọi API** - tickets được tạo tự động bởi backend
 
-**Cách verify:**
-- Check database table `Tickets` với `booking_id = {{bookingId}}`
-- Hoặc check RabbitMQ queue `ticket_creation` trong RabbitMQ Management UI
-- Hoặc check logs của Booking Microservice
+**Cách verify trong Postman:**
 
-**SQL Query (Optional):**
+**Option 1: Check Database (KHUYẾN NGHỊ - nếu có quyền truy cập)**
 ```sql
 SELECT * FROM Tickets WHERE booking_id = '{{bookingId}}'
 ```
 
 **Expected:** 
 - Số lượng tickets = số lượng passengers trong booking
-- Mỗi ticket có `ticket_number`, `pnr_code`, `passenger_id`, `booking_segment_id`, etc.
+- Mỗi ticket có `ticket_number`, `pnr_code`, `passenger_id`, `booking_segment_id`, `issued_at`, etc.
+
+**Option 2: Check RabbitMQ Queue**
+1. Mở RabbitMQ Management UI: `http://localhost:15672`
+2. Login: `guest` / `guest` (default)
+3. Vào tab "Queues"
+4. Tìm queue `ticket_creation`
+5. Check messages trong queue (nếu chưa được consume)
+6. Message sẽ chứa: `{ bookingId: "{{bookingId}}" }`
+
+**Option 3: Check Booking Microservice Logs**
+- Check logs của Booking Microservice để xem:
+  ```
+  Tickets created successfully for booking {{bookingId}}
+  ```
+
+**Lưu ý:**
+- Tickets được tạo **async** - có thể mất vài giây để được tạo
+- Nếu không thấy tickets trong database, check RabbitMQ queue hoặc logs
+- **Trong Postman testing**: Có thể skip bước verify tickets nếu không có quyền truy cập database
+- **Trên FE**: Guest user sẽ nhận email chứa ticket details, không cần endpoint riêng để get tickets
 
 ---
 
