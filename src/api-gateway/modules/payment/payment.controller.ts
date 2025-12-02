@@ -414,11 +414,11 @@ export class PaymentController {
 	}
 
 	@Get('bookings/:bookingId')
-	@UseGuards(JwtAuthGuard)
+	@UseGuards(OptionalJwtAuthGuard)
 	@ApiBearerAuth('access-token')
 	@ApiOperation({
 		summary: 'Get all payments for a booking',
-		description: 'Get all payment records for a specific booking. Requires JWT authentication.',
+		description: 'Get all payment records for a specific booking. Supports both authenticated users and guest users.',
 	})
 	@ApiParam({
 		name: 'bookingId',
@@ -433,7 +433,7 @@ export class PaymentController {
 		description: 'Invalid booking ID or booking not found',
 	})
 	async getPaymentsByBooking(
-		@Req() req: Request & { user: { userId: string; email: string } },
+		@Req() req: Request & { user?: { userId: string; email: string } },
 		@Param('bookingId') bookingId: string,
 	): Promise<PaymentResponseDto[]> {
 		try {
@@ -443,7 +443,8 @@ export class PaymentController {
 				throw new BadRequestException(PAYMENT_MESSAGES.VALIDATION.BOOKING_ID_INVALID_FORMAT);
 			}
 			
-			const userId = req.user.userId;
+			// userId can be null for guest users
+			const userId = req.user?.userId || null;
 
 			// BEST PRACTICE: Get payments by booking can be slow if database is under load
 			// Set timeout to 30 seconds (read operations should be faster)

@@ -1017,7 +1017,12 @@ Tạo payment và xử lý thanh toán ngay. Có thể trả về `paymentUrl` �
 ### Xem tất cả payments của booking
 **GET** `/api/v1/payments/bookings/:bookingId`
 
-**Cần đăng nhập:** Có
+**Cần đăng nhập:** Không (Optional - Guest bookings được hỗ trợ)
+
+**Lưu ý:**
+- **Guest Bookings**: Guest users có thể xem payments của booking của họ (không cần đăng nhập)
+- **Authenticated Bookings**: Authenticated users chỉ có thể xem payments của booking thuộc về họ
+- Payment ownership được validate dựa trên booking ownership
 
 ---
 

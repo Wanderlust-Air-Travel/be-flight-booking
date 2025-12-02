@@ -485,9 +485,10 @@ export class PaymentService {
 
 	/**
 	 * Get all payments for a booking
+	 * Supports both authenticated users and guest users
 	 */
-	async getPaymentsByBooking(userId: string, bookingId: string): Promise<PaymentResponseDto[]> {
-		// Validate booking exists and belongs to user
+	async getPaymentsByBooking(userId: string | null, bookingId: string): Promise<PaymentResponseDto[]> {
+		// Validate booking exists
 		const booking = await this.bookingRepo.findOne({
 			where: { booking_id: bookingId },
 			relations: ['user'],
@@ -497,8 +498,17 @@ export class PaymentService {
 			throw new NotFoundException(`Booking ${bookingId} not found`);
 		}
 
-		if (booking.user?.user_id !== userId) {
-			throw new BadRequestException('Booking does not belong to the current user');
+		// Check if booking belongs to user (support both authenticated and guest users)
+		if (userId) {
+			// For authenticated users, booking must have a user and match userId
+			if (!booking.user || booking.user.user_id !== userId) {
+				throw new BadRequestException('Booking does not belong to the current user');
+			}
+		} else {
+			// For guest users, booking should not have a user (user_id should be null)
+			if (booking.user) {
+				throw new BadRequestException('This booking belongs to a registered user. Please log in to view payment details.');
+			}
 		}
 
 		const payments = await this.paymentRepo.find({

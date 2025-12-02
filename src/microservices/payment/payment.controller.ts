@@ -52,9 +52,9 @@ export class PaymentMsController {
 	}
 
 	@MessagePattern(PAYMENT_MS.PATTERN.GET_PAYMENTS_BY_BOOKING)
-	async handleGetPaymentsByBooking(@Payload() payload: { userId: string; bookingId: string }) {
+	async handleGetPaymentsByBooking(@Payload() payload: { userId: string | null; bookingId: string }) {
 		try {
-			this.logger.log(`Get payments for booking ${payload.bookingId}`);
+			this.logger.log(`Get payments for booking ${payload.bookingId} (${payload.userId ? 'user' : 'guest'})`);
 			const result = await this.paymentService.getPaymentsByBooking(payload.userId, payload.bookingId);
 			this.logger.log(`Found ${result.length} payments`);
 			return result;
