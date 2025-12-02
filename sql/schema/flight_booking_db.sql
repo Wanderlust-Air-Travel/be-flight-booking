@@ -38,7 +38,7 @@ CREATE TABLE Passengers (
     fullname NVARCHAR(100) NOT NULL,
     dob DATE NOT NULL,
     gender NVARCHAR(10) NOT NULL,
-    document_number VARCHAR(50) NOT NULL,   -- CCCD / Passport
+    document_number VARCHAR(50) NULL,      -- CCCD / Passport (nullable for CHD and INF passengers)
     loyalty_number VARCHAR(50) NULL,        -- mã khách hàng thân thiết (nếu có)
     created_at DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
 
@@ -71,7 +71,7 @@ CREATE TABLE Routes (
     destination_airport_id UNIQUEIDENTIFIER NOT NULL,
     distance_km INT NULL,
     is_domestic BIT NOT NULL DEFAULT 1,     -- nội địa / quốc tế
-    image_url NVARCHAR(300) NULL,           -- Đường dẫn đến hình ảnh deal, format: '/images/routes/{route_id}.jpg' (length = 55, route_id là UUID v7 - 36 ký tự)
+    image_url NVARCHAR(255) NULL,           -- Đường dẫn đến hình ảnh deal, format: '/images/routes/{route_id}.jpg' (length = 55, route_id là UUID v7 - 36 ký tự)
     service_link NVARCHAR(255) NULL,        -- Link đến trang service, format: '/service/{route_id}' (route_id là UUID v7 - 36 ký tự)
     created_at DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
 
@@ -484,8 +484,9 @@ CREATE INDEX IX_FlightInstances_FlightNumber_Date
 CREATE INDEX IX_Bookings_UserId
     ON Bookings(user_id);
 
-CREATE INDEX IX_Bookings_PNR
-    ON Bookings(pnr_code);
+-- pnr_code đã có UNIQUE constraint trong CREATE TABLE, không cần thêm index riêng
+-- CREATE INDEX IX_Bookings_PNR
+--     ON Bookings(pnr_code);
 
 CREATE INDEX IX_BookingSegments_FlightInstance
     ON BookingSegments(flight_instance_id);
@@ -504,14 +505,17 @@ CREATE INDEX IX_Payments_ExpiresAt
 CREATE INDEX IX_Reservations_UserId
     ON Reservations(user_id);
 
-CREATE INDEX IX_Reservations_Code
-    ON Reservations(reservation_code);
+-- reservation_code đã có UNIQUE constraint trong CREATE TABLE, không cần thêm index riêng
+-- CREATE INDEX IX_Reservations_Code
+--     ON Reservations(reservation_code);
 
 CREATE INDEX IX_Reservations_Status
     ON Reservations(status);
 
 CREATE INDEX IX_Reservations_ExpiresAt
     ON Reservations(expires_at);
+
+-- Tickets.ticket_number đã có UNIQUE constraint trong CREATE TABLE, không cần thêm index riêng
 GO
 
 /* =========================================================
