@@ -67,7 +67,7 @@ export class PaymentMsController {
 	@MessagePattern(PAYMENT_MS.PATTERN.UPDATE_PAYMENT_STATUS)
 	async handleUpdatePaymentStatus(@Payload() payload: { userId: string; dto: UpdatePaymentStatusDto }) {
 		try {
-			this.logger.log(`Update payment ${payload.dto.paymentId} status to ${payload.dto.status}`);
+			this.logger.log(`Update payment ${payload.dto.paymentId} status to ${payload.dto.status} (${payload.userId === 'system' ? 'webhook' : 'user'})`);
 			const result = await this.paymentService.updatePaymentStatus(payload.userId, payload.dto);
 			return result;
 		} catch (error: any) {

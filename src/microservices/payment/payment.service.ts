@@ -331,8 +331,10 @@ export class PaymentService {
 
 			// If gateway returns success immediately (synchronous payment), update status
 			if (gatewayResponse.status === 'success') {
+				// Use 'system' for guest users (simulate webhook), or userId for authenticated users
+				const updateUserId = userId || 'system';
 				await this.updatePaymentStatus(
-					userId,
+					updateUserId,
 					{
 						paymentId: payment.payment_id,
 						status: PaymentStatus.SUCCESS,
@@ -392,8 +394,10 @@ export class PaymentService {
 				// 1. Set booking expiration time (e.g., 24 hours)
 				// 2. Send notification to user
 				// 3. Release reserved seats after expiration
+				// Use 'system' for guest users (simulate webhook), or userId for authenticated users
+				const updateUserId = userId || 'system';
 				await this.updatePaymentStatus(
-					userId,
+					updateUserId,
 					{
 						paymentId: payment.payment_id,
 						status: PaymentStatus.FAILED,
@@ -526,7 +530,7 @@ export class PaymentService {
 	 * Update payment status
 	 */
 	async updatePaymentStatus(
-		userId: string | null,
+		userId: string, // Required: authenticated user ID or 'system' for webhook calls
 		dto: UpdatePaymentStatusDto,
 		queryRunner?: any,
 	): Promise<PaymentResponseDto> {
@@ -541,16 +545,18 @@ export class PaymentService {
 			throw new NotFoundException(`Payment ${dto.paymentId} not found`);
 		}
 
-		// Check if payment belongs to user's booking (skip if called from webhook or guest user)
-		if (userId && userId !== 'system') {
+		// SECURITY: Only authenticated users or system (webhook) can update payment status
+		// Guest users cannot update payment status directly - payment gateway webhook handles this
+		if (!userId) {
+			throw new BadRequestException('Payment status can only be updated by authenticated users or payment gateway webhooks. Guest users cannot update payment status directly.');
+		}
+
+		// Check ownership: authenticated users can only update their own payments
+		// System (webhook) can update any payment
+		if (userId !== 'system') {
 			// For authenticated users, check ownership
 			if (!payment.booking.user || payment.booking.user.user_id !== userId) {
 				throw new BadRequestException('Payment does not belong to the current user');
-			}
-		} else if (userId === null) {
-			// For guest users, booking should not have a user
-			if (payment.booking.user) {
-				throw new BadRequestException('This payment belongs to a registered user. Please log in to update payment status.');
 			}
 		}
 		// If userId === 'system', skip ownership check (webhook calls)

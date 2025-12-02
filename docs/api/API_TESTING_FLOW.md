@@ -1401,6 +1401,48 @@ if (data.paymentId) {
 
 ---
 
+## 🔄 Payment Flow: Từ Pending → Success
+
+### Trong Production (Real Payment Gateway):
+
+1. **User tạo payment** → `POST /payments/bookings/:bookingId/process`
+   - Backend tạo Payment record với `status = "pending"`
+   - Backend gọi Payment Gateway API → nhận `transactionId` và `paymentUrl`
+   - Backend trả về `paymentUrl` cho frontend
+
+2. **User redirect đến Payment Gateway** (VNPay, MoMo, Stripe, etc.)
+   - User nhập thông tin thẻ/account và thanh toán
+   - Payment Gateway xử lý payment
+
+3. **Payment Gateway gửi Webhook về Backend**
+   - Payment Gateway gọi `POST /api/v1/payments/webhook` (hoặc endpoint tương tự)
+   - Backend xử lý webhook → `handleWebhook()` → tự động update `status = "success"`
+   - Backend tự động update booking `status = "paid"`
+   - Backend tạo tickets qua RabbitMQ queue
+
+### Trong Testing/Development (Mock Payment Gateway):
+
+⚠️ **Vấn đề**: Mock Payment Gateway **KHÔNG tự động gửi webhook** về backend!
+
+**Flow hiện tại:**
+1. **User tạo payment** → `POST /payments/bookings/:bookingId/process`
+   - Backend tạo Payment record với `status = "pending"`
+   - Backend gọi Mock Payment Gateway → nhận `transactionId` và `paymentUrl`
+   - **Payment vẫn ở trạng thái `pending`** (vì không có webhook tự động)
+
+2. **Cần manually update payment status**:
+   - Gọi `PATCH /api/v1/payments/:paymentId/status` với `status = "success"`
+   - Backend update payment `status = "success"` và `paidAt = now()`
+   - Backend tự động update booking `status = "paid"`
+   - Backend tạo tickets qua RabbitMQ queue
+
+**Tại sao cần Step 12 (Update Payment Status)?**
+- Trong testing/development, không có real payment gateway webhook
+- Cần manually simulate payment success để test full flow
+- Trong production, step này sẽ được thay thế bởi payment gateway webhook
+
+---
+
 ### Step 8: Test Idempotency (Optional - verify idempotency key hoạt động)
 
 **Request (Gửi lại Step 7 với cùng idempotencyKey):**
@@ -1490,7 +1532,163 @@ GET {{base_url}}/api/v1/bookings/{{bookingId}}/payment-info
 
 ---
 
-### Step 12: Verify Payment Status (Verify payment đã được process thành công)
+### Step 12: Update Payment Status (BẮT BUỘC trong Testing - Update payment từ pending → success)
+
+**QUAN TRỌNG:** 
+- **Trong Testing/Development**: Đây là step **BẮT BUỘC** vì Mock Payment Gateway không tự động gửi webhook
+- **Trong Production**: Step này **KHÔNG CẦN** vì Payment Gateway sẽ tự động gửi webhook về backend
+- **SECURITY**: Endpoint này yêu cầu JWT authentication - chỉ authenticated users hoặc system (webhook) có thể update payment status
+- **Guest users KHÔNG THỂ update payment status trực tiếp** - đây là security best practice để prevent unauthorized payment status updates
+- Trước khi verify payment success, bạn cần update payment status từ `pending` → `success`!
+
+**Request:**
+```http
+PATCH {{base_url}}/api/v1/payments/{{paymentId}}/status
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "status": "success",
+  "transactionRef": "{{transactionRef}}"
+}
+```
+
+**Lưu ý:** 
+- **BẮT BUỘC** `Authorization: Bearer {{access_token}}` header (JWT authentication required)
+- **Guest users**: Nếu test guest flow, bạn có 2 options:
+
+  **Option 1: Dùng Webhook Endpoint (KHUYẾN NGHỊ - giống FE đang làm):**
+  ```http
+  POST {{base_url}}/api/v1/payments/webhooks/dev
+  Content-Type: application/json
+  
+  {
+    "paymentId": "{{paymentId}}",
+    "status": "success"
+  }
+  ```
+  - **KHÔNG cần** `Authorization` header (webhook endpoint không yêu cầu auth)
+  - Đây là cách FE đang dùng để simulate payment gateway webhook
+  - Phù hợp với production flow (payment gateway gửi webhook về backend)
+
+  **Option 2: Dùng Authenticated User:**
+  - Tạo một test user account và login để lấy `access_token`
+  - Dùng `access_token` để gọi `PATCH /payments/:id/status`
+  - Chỉ có thể update payment của chính user đó (ownership check)
+
+- Sau khi update status = `success`, `paidAt` sẽ được tự động set
+- Booking status sẽ tự động update thành `paid` khi payment thành công
+- **Security**: Chỉ authenticated users hoặc webhook (system) có thể update payment status
+
+**Expected Response:**
+```json
+{
+  "paymentId": "019ADFAB-0482-7329-97C0-92851620F821",
+  "bookingId": "019adf97-0941-75f1-a753-b769b5a11d8a",
+  "pnrCode": "ML1T4I",
+  "amount": 1577000,
+  "currencyCode": "VND",
+  "paymentMethodCode": "CREDIT_CARD",
+  "paymentMethodName": "Credit Card",
+  "status": "success",
+  "transactionRef": "019ADFAB-0A82-7329-97C0-92851620F821",
+  "createdAt": "2025-12-02T15:25:19.877Z",
+  "paidAt": "2025-12-02T15:25:20.123Z"
+}
+```
+
+**Postman Test Script (Optional - để verify update thành công):**
+```javascript
+// Check response status code
+pm.test("Status code is 200", function () {
+    pm.response.to.have.status(200);
+});
+
+// Parse JSON response safely
+let jsonData;
+try {
+    jsonData = pm.response.json();
+} catch (e) {
+    pm.expect.fail("Response is not valid JSON: " + pm.response.text());
+}
+
+// Verify payment status is success
+pm.test("Payment status updated to success", function () {
+    pm.expect(jsonData).to.have.property('status');
+    pm.expect(jsonData.status).to.equal("success");
+});
+
+// Verify payment has paidAt timestamp
+pm.test("Payment has paidAt timestamp after update", function () {
+    pm.expect(jsonData).to.have.property('paidAt');
+    pm.expect(jsonData.paidAt).to.not.be.null;
+    pm.expect(jsonData.paidAt).to.be.a('string');
+});
+```
+
+---
+
+### Step 12b: Update Payment Status via Webhook (KHUYẾN NGHỊ cho Guest Flow)
+
+⚠️ **KHUYẾN NGHỊ cho Guest Flow**: Dùng webhook endpoint thay vì `PATCH /payments/:id/status` vì:
+- ✅ Không cần JWT authentication
+- ✅ Giống với production flow (payment gateway gửi webhook)
+- ✅ FE đang dùng cách này để simulate payment gateway
+
+**Request:**
+```http
+POST {{base_url}}/api/v1/payments/webhooks/dev
+Content-Type: application/json
+
+{
+  "paymentId": "{{paymentId}}",
+  "status": "success"
+}
+```
+
+**Lưu ý:** 
+- **KHÔNG cần** `Authorization` header (webhook endpoint không yêu cầu auth)
+- `gateway` trong URL là `dev` (development gateway)
+- `status` có thể là `"success"` hoặc `"failed"`
+- Webhook sẽ tự động:
+  1. Tìm payment theo `paymentId`
+  2. Update payment status
+  3. Update booking status thành `paid` (nếu success)
+  4. Tạo tickets qua RabbitMQ queue
+
+**Expected Response:**
+```json
+{
+  "success": true,
+  "message": "Webhook processed successfully"
+}
+```
+
+**Postman Test Script (Optional):**
+```javascript
+// Check response status code
+pm.test("Status code is 200", function () {
+    pm.response.to.have.status(200);
+});
+
+// Parse JSON response safely
+let jsonData;
+try {
+    jsonData = pm.response.json();
+} catch (e) {
+    pm.expect.fail("Response is not valid JSON: " + pm.response.text());
+}
+
+// Verify webhook processed successfully
+pm.test("Webhook processed successfully", function () {
+    pm.expect(jsonData).to.have.property('success');
+    pm.expect(jsonData.success).to.be.true;
+});
+```
+
+---
+
+### Step 13: Verify Payment Status (Verify payment đã được process thành công)
 
 **Request:**
 ```http
@@ -1518,10 +1716,60 @@ GET {{base_url}}/api/v1/payments/{{paymentId}}
 }
 ```
 
+**Postman Test Script (BẮT BUỘC - Verify Payment Success):**
+
+⚠️ **QUAN TRỌNG:** Script này phải đặt trong tab **"Post-response"** (hoặc **"Tests"**), KHÔNG phải **"Pre-request"**!
+
+- **Pre-request script**: Chạy TRƯỚC khi gửi request → không có `pm.response` → dùng để set variables, headers, body
+- **Post-response script**: Chạy SAU khi nhận response → có `pm.response` → dùng để verify response
+
+```javascript
+// ⚠️ ĐẶT SCRIPT NÀY VÀO TAB "Post-response" (Tests), KHÔNG PHẢI "Pre-request"!
+
+// Check response status code
+pm.test("Status code is 200", function () {
+    pm.response.to.have.status(200);
+});
+
+// Parse JSON response safely
+let jsonData;
+try {
+    jsonData = pm.response.json();
+} catch (e) {
+    pm.expect.fail("Response is not valid JSON: " + pm.response.text());
+}
+
+// Verify payment status is success
+pm.test("Payment status is success", function () {
+    pm.expect(jsonData).to.have.property('status');
+    pm.expect(jsonData.status).to.equal("success");
+});
+
+// Verify payment has paidAt timestamp
+pm.test("Payment has paidAt timestamp", function () {
+    pm.expect(jsonData).to.have.property('paidAt');
+    pm.expect(jsonData.paidAt).to.not.be.null;
+    pm.expect(jsonData.paidAt).to.be.a('string');
+});
+
+// Verify payment has required fields
+pm.test("Payment has all required fields", function () {
+    pm.expect(jsonData).to.have.property('paymentId');
+    pm.expect(jsonData).to.have.property('bookingId');
+    pm.expect(jsonData).to.have.property('amount');
+    pm.expect(jsonData).to.have.property('currencyCode');
+    pm.expect(jsonData).to.have.property('paymentMethodCode');
+    pm.expect(jsonData).to.have.property('status');
+});
+```
+
 **Lưu ý:** 
+- ✅ **Đặt script trong tab "Post-response"** (Tests) - script chạy SAU khi nhận response
+- ❌ **KHÔNG đặt script trong tab "Pre-request"** - sẽ gây lỗi `TypeError: Cannot read properties of undefined (reading 'text')`
 - Verify `status` = `"success"` (payment đã được xử lý thành công)
 - Verify `paidAt` không null (thời điểm payment thành công)
 - Payment status sẽ được update từ `pending` → `success` sau khi payment gateway xử lý
+- Test script sử dụng try-catch để parse JSON an toàn, tránh lỗi `TypeError`
 
 ---
 

@@ -7,6 +7,7 @@ import {
 	ApiTags,
 	ApiBearerAuth,
 	ApiHeader,
+	ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { ClientProxy } from '@nestjs/microservices';
 import { Inject } from '@nestjs/common';
@@ -533,7 +534,7 @@ export class PaymentController {
 	@ApiOperation({
 		summary: 'Update payment status',
 		description:
-			'Update the status of a payment. Typically used by payment gateway webhooks or admin operations. Requires JWT authentication.',
+			'Update the status of a payment. Typically used by payment gateway webhooks (with system token) or authenticated users updating their payment status. **Guest users cannot update payment status directly** - payment status is updated automatically via payment gateway webhooks.',
 	})
 	@ApiParam({
 		name: 'id',
@@ -547,6 +548,9 @@ export class PaymentController {
 	@ApiBadRequestResponse({
 		description: 'Invalid payment ID or request parameters',
 	})
+	@ApiUnauthorizedResponse({
+		description: 'Unauthorized - JWT token required',
+	})
 	async updatePaymentStatus(
 		@Req() req: Request & { user: { userId: string; email: string } },
 		@Param('id') paymentId: string,
@@ -559,6 +563,8 @@ export class PaymentController {
 				throw new BadRequestException(PAYMENT_MESSAGES.VALIDATION.PAYMENT_ID_INVALID_FORMAT);
 			}
 			
+			// userId is required (JwtAuthGuard ensures user is authenticated)
+			// For webhook calls, use a system token with userId = 'system'
 			const userId = req.user.userId;
 
 			// BEST PRACTICE: Update payment status can be slow due to database transactions and notifications
