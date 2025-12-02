@@ -1891,4 +1891,3 @@ Sau khi test thành công:
 7. **Test Authenticated Booking**: Verify booking và passengers có `user_id` được set đúng
 8. **Test Idempotency**: Verify cùng `idempotencyKey` + `bookingId` trả về cùng `paymentId`
 9. **Test X-Session-Id Flow**: Verify guest có thể complete full booking flow mà không cần login
-
