@@ -38,10 +38,13 @@ import { CreateBaggageAllowanceDto } from './dto/create-baggage-allowance.dto';
 import { UpdateBaggageAllowanceDto } from './dto/update-baggage-allowance.dto';
 import { CreateCabinServiceDto } from './dto/create-cabin-service.dto';
 import { UpdateCabinServiceDto } from './dto/update-cabin-service.dto';
+import { CreateFareDescriptionRuleDto } from './dto/create-fare-description-rule.dto';
+import { UpdateFareDescriptionRuleDto } from './dto/update-fare-description-rule.dto';
 import { FareClass } from 'src/shared/entities/fare/fare-class.entity';
 import { RouteFarePrice } from 'src/shared/entities/fare/route-fare-price.entity';
 import { BaggageAllowance } from 'src/shared/entities/fare/baggage-allowance.entity';
 import { CabinService } from 'src/shared/entities/cabin/cabin-service.entity';
+import { FareDescriptionRule } from 'src/shared/entities/fare/fare-description-rule.entity';
 import { FlightSchedule } from 'src/shared/entities/flight/flight-schedule.entity';
 import { FlightInstance } from 'src/shared/entities/flight/flight-instance.entity';
 import { Role } from 'src/shared/entities/role/role.entity';
@@ -1061,6 +1064,161 @@ export class AdminController {
 			}
 			throw new BadRequestException(
 				`Failed to delete cabin service: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
+			);
+		}
+	}
+
+	// ==================== FARE DESCRIPTION RULE MANAGEMENT ====================
+
+	@Post('fare-description-rules')
+	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER)
+	@ApiOperation({
+		summary: 'Create a new fare description rule',
+		description: 'Create a new fare description rule. Requires ADMIN or ANCILLARY_MANAGER role.',
+	})
+	@ApiOkResponse({
+		description: 'Fare description rule created successfully',
+		type: FareDescriptionRule,
+	})
+	@ApiBadRequestResponse({
+		description: 'Invalid request',
+	})
+	async createFareDescriptionRule(@Body() dto: CreateFareDescriptionRuleDto): Promise<FareDescriptionRule> {
+		try {
+			return await this.adminService.createFareDescriptionRule(dto);
+		} catch (error: any) {
+			this.logger.error('Create fare description rule error:', error);
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			throw new BadRequestException(
+				`Failed to create fare description rule: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
+			);
+		}
+	}
+
+	@Get('fare-description-rules')
+	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER, SystemRole.CALL_CENTER, SystemRole.DISTRIBUTION_MANAGER)
+	@ApiOperation({
+		summary: 'Get all fare description rules',
+		description: 'Get all fare description rules. Requires ADMIN, ANCILLARY_MANAGER, CALL_CENTER, or DISTRIBUTION_MANAGER role.',
+	})
+	@ApiOkResponse({
+		description: 'Fare description rules retrieved successfully',
+		type: [FareDescriptionRule],
+	})
+	async getAllFareDescriptionRules(): Promise<FareDescriptionRule[]> {
+		try {
+			return await this.adminService.getAllFareDescriptionRules();
+		} catch (error: any) {
+			this.logger.error('Get all fare description rules error:', error);
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			throw new BadRequestException(
+				`Failed to get fare description rules: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
+			);
+		}
+	}
+
+	@Get('fare-description-rules/:id')
+	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER, SystemRole.CALL_CENTER, SystemRole.DISTRIBUTION_MANAGER)
+	@ApiOperation({
+		summary: 'Get fare description rule by ID',
+		description: 'Get fare description rule details by ID. Requires ADMIN, ANCILLARY_MANAGER, CALL_CENTER, or DISTRIBUTION_MANAGER role.',
+	})
+	@ApiParam({
+		name: 'id',
+		description: 'Fare description rule ID (UUID)',
+		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+	})
+	@ApiOkResponse({
+		description: 'Fare description rule retrieved successfully',
+		type: FareDescriptionRule,
+	})
+	@ApiBadRequestResponse({
+		description: 'Fare description rule not found',
+	})
+	async getFareDescriptionRuleById(@Param('id') ruleId: string): Promise<FareDescriptionRule> {
+		try {
+			return await this.adminService.getFareDescriptionRuleById(ruleId);
+		} catch (error: any) {
+			this.logger.error('Get fare description rule by ID error:', error);
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			throw new BadRequestException(
+				`Failed to get fare description rule: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
+			);
+		}
+	}
+
+	@Put('fare-description-rules/:id')
+	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER)
+	@ApiOperation({
+		summary: 'Update fare description rule',
+		description: 'Update fare description rule. Requires ADMIN or ANCILLARY_MANAGER role.',
+	})
+	@ApiParam({
+		name: 'id',
+		description: 'Fare description rule ID (UUID)',
+		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+	})
+	@ApiOkResponse({
+		description: 'Fare description rule updated successfully',
+		type: FareDescriptionRule,
+	})
+	@ApiBadRequestResponse({
+		description: 'Invalid request or fare description rule not found',
+	})
+	async updateFareDescriptionRule(
+		@Param('id') ruleId: string,
+		@Body() dto: UpdateFareDescriptionRuleDto,
+	): Promise<FareDescriptionRule> {
+		try {
+			return await this.adminService.updateFareDescriptionRule(ruleId, dto);
+		} catch (error: any) {
+			this.logger.error('Update fare description rule error:', error);
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			throw new BadRequestException(
+				`Failed to update fare description rule: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
+			);
+		}
+	}
+
+	@Delete('fare-description-rules/:id')
+	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER)
+	@ApiOperation({
+		summary: 'Delete fare description rule',
+		description: 'Delete fare description rule. Requires ADMIN or ANCILLARY_MANAGER role.',
+	})
+	@ApiParam({
+		name: 'id',
+		description: 'Fare description rule ID (UUID)',
+		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+	})
+	@ApiOkResponse({
+		description: 'Fare description rule deleted successfully',
+		schema: {
+			type: 'object',
+			properties: {
+				success: { type: 'boolean', example: true },
+				message: { type: 'string', example: 'Fare description rule deleted successfully' },
+			},
+		},
+	})
+	async deleteFareDescriptionRule(@Param('id') ruleId: string): Promise<{ success: boolean; message: string }> {
+		try {
+			return await this.adminService.deleteFareDescriptionRule(ruleId);
+		} catch (error: any) {
+			this.logger.error('Delete fare description rule error:', error);
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			throw new BadRequestException(
+				`Failed to delete fare description rule: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
 			);
 		}
 	}

@@ -17,6 +17,7 @@ import { Role } from 'src/shared/entities/role/role.entity';
 import { RouteFarePrice } from 'src/shared/entities/fare/route-fare-price.entity';
 import { BaggageAllowance } from 'src/shared/entities/fare/baggage-allowance.entity';
 import { CabinService } from 'src/shared/entities/cabin/cabin-service.entity';
+import { FareDescriptionRule } from 'src/shared/entities/fare/fare-description-rule.entity';
 import { RolesGuard } from 'src/shared/guards/roles.guard';
 import { AuthModule } from '../auth/auth.module';
 
@@ -38,6 +39,7 @@ import { AuthModule } from '../auth/auth.module';
 			RouteFarePrice,
 			BaggageAllowance,
 			CabinService,
+			FareDescriptionRule,
 		]),
 		AuthModule,
 	],

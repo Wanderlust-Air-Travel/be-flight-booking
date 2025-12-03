@@ -13,6 +13,7 @@ import { FlightInstance } from 'src/shared/entities/flight/flight-instance.entit
 import { FlightSeat } from 'src/shared/entities/flight/flight-seat.entity';
 import { FareClass } from 'src/shared/entities/fare/fare-class.entity';
 import { Currency } from 'src/shared/entities/currency/currency.entity';
+import { FareDescriptionRule } from 'src/shared/entities/fare/fare-description-rule.entity';
 import { Passenger } from 'src/shared/entities/passenger/passenger.entity';
 import { User } from 'src/shared/entities/user/user.entity';
 import { CreateBookingDto } from './dto/create-booking.dto';
@@ -57,6 +58,7 @@ export class BookingService {
 		@InjectRepository(Ticket) private readonly ticketRepo: Repository<Ticket>,
 		@InjectRepository(Route) private readonly routeRepo: Repository<Route>,
 		@InjectRepository(Airport) private readonly airportRepo: Repository<Airport>,
+		@InjectRepository(FareDescriptionRule) private readonly fareDescriptionRuleRepo: Repository<FareDescriptionRule>,
 		@Inject('RESERVATION_CLIENT') private readonly reservationClient: ClientProxy,
 		private readonly dataSource: DataSource,
 		private readonly notificationService: BookingNotificationService,
@@ -98,79 +100,61 @@ export class BookingService {
 	}
 
 	/**
-	 * Generate fare descriptions based on fare class code
+	 * Generate fare descriptions based on fare class code from database
 	 */
-	private generateFareDescriptions(fareClassCode: string, cabinType: string): FareDescriptionItemDto[] {
+	private async generateFareDescriptions(fareClassCode: string, cabinType: string): Promise<FareDescriptionItemDto[]> {
 		const code = fareClassCode.toUpperCase();
 		const desc: FareDescriptionItemDto[] = [];
 
-		desc.push({ text: 'Hành lý xách tay: 7kg', status: true });
+		try {
+			// Get all active rules for this cabin type
+			const allRules = await this.fareDescriptionRuleRepo.find({
+				where: {
+					cabin_type: cabinType,
+					is_active: true,
+				},
+				order: {
+					display_order: 'ASC',
+				},
+			});
 
-		if (cabinType === 'economy') {
-			if (code.includes('SMX') || code.includes('SAVER')) {
-				desc.push({ text: 'Không bao gồm hành lý ký gửi', status: false });
-				desc.push({ text: 'Không được hoàn/hủy', status: false });
-				desc.push({ text: 'Thay đổi trước giờ khởi hành: 600.000 VND (*)', status: true });
-				desc.push({ text: 'Không thay đổi sau giờ khởi hành (*)', status: false });
-				desc.push({ text: 'Hệ số cộng điểm Bamboo Club: 0.25', status: true });
-				desc.push({ text: 'Chọn ghế ngồi mất phí', status: false });
-				desc.push({ text: 'Không áp dụng cho go-show', status: false });
-			} else if (code === 'Y') {
-				desc.push({ text: 'Không bao gồm hành lý ký gửi', status: false });
-				desc.push({ text: 'Hoàn/hủy trước giờ khởi hành: 400.000 VND (*)', status: true });
-				desc.push({ text: 'Hoàn/hủy sau giờ khởi hành: 400.000 VND (*)', status: true });
-				desc.push({ text: 'Thay đổi trước giờ khởi hành: 500.000 VND (*)', status: true });
-				desc.push({ text: 'Thay đổi sau giờ khởi hành: 500.000 VND (*)', status: true });
-				desc.push({ text: 'Hệ số cộng điểm Bamboo Club: 0.5', status: true });
-				desc.push({ text: 'Chọn ghế ngồi mất phí', status: true });
-				desc.push({ text: 'Không áp dụng cho go-show', status: false });
-			} else if (code.includes('SM') || code === 'YS') {
-				desc.push({ text: 'Không bao gồm hành lý ký gửi', status: false });
-				desc.push({ text: 'Hoàn/hủy trước giờ khởi hành: 450.000 VND (*)', status: true });
-				desc.push({ text: 'Hoàn/hủy sau giờ khởi hành: 600.000 VND (*)', status: true });
-				desc.push({ text: 'Thay đổi trước giờ khởi hành: 450.000 VND (*)', status: true });
-				desc.push({ text: 'Thay đổi sau giờ khởi hành: 600.000 VND (*)', status: true });
-				desc.push({ text: 'Hệ số cộng điểm Bamboo Club: 0.5', status: true });
-				desc.push({ text: 'Chọn ghế ngồi mất phí', status: true });
-				desc.push({ text: 'Không áp dụng cho go-show', status: false });
-			} else if (code.includes('FLX') || code.includes('FLEX') || code === 'YF') {
-				desc.push({ text: '01 kiện hành lý ký gửi 20kg', status: true });
-				desc.push({ text: 'Hoàn/hủy trước giờ khởi hành: 300.000 VND (*)', status: true });
-				desc.push({ text: 'Hoàn/hủy sau giờ khởi hành: 300.000 VND (*)', status: true });
-				desc.push({ text: 'Thay đổi miễn phí', status: true });
-				desc.push({ text: 'Hệ số cộng điểm Bamboo Club: 1.00', status: true });
-				desc.push({ text: 'Chọn ghế ngồi miễn phí', status: true });
-				desc.push({ text: 'Đổi chuyến tại sân bay miễn phí', status: true });
+			// First, add default rules (like "Hành lý xách tay: 7kg")
+			const defaultRules = allRules.filter((rule) => rule.is_default);
+			for (const rule of defaultRules) {
+				desc.push({
+					text: rule.description_text,
+					status: rule.status,
+				});
 			}
-		} else if (cabinType === 'business') {
-			if (code === 'J') {
-				desc.push({ text: '01 kiện hành lý ký gửi 30kg', status: true });
-				desc.push({ text: 'Hoàn/hủy trước giờ khởi hành: 400.000 VND (*)', status: true });
-				desc.push({ text: 'Hoàn/hủy sau giờ khởi hành: 400.000 VND (*)', status: true });
-				desc.push({ text: 'Thay đổi trước giờ khởi hành: 350.000 VND (*)', status: true });
-				desc.push({ text: 'Thay đổi sau giờ khởi hành: 350.000 VND (*)', status: true });
-				desc.push({ text: 'Hệ số cộng điểm Bamboo Club: 1.5', status: true });
-				desc.push({ text: 'Chọn ghế ngồi miễn phí', status: true });
-				desc.push({ text: 'Ưu tiên check-in và lên máy bay', status: true });
-			} else if (code.includes('SM') || code === 'JS') {
-				desc.push({ text: '01 kiện hành lý ký gửi 30kg', status: true });
-				desc.push({ text: 'Hoàn/hủy trước giờ khởi hành: 450.000 VND (*)', status: true });
-				desc.push({ text: 'Hoàn/hủy sau giờ khởi hành: 800.000 VND (*)', status: true });
-				desc.push({ text: 'Thay đổi trước giờ khởi hành: 300.000 VND (*)', status: true });
-				desc.push({ text: 'Thay đổi sau giờ khởi hành: 800.000 VND (*)', status: true });
-				desc.push({ text: 'Hệ số cộng điểm Bamboo Club: 1.5', status: true });
-				desc.push({ text: 'Chọn ghế ngồi miễn phí', status: true });
-				desc.push({ text: 'Ưu tiên check-in và lên máy bay', status: true });
-			} else if (code.includes('FLX') || code.includes('FLEX') || code === 'JF') {
-				desc.push({ text: '02 kiện hành lý ký gửi 30kg', status: true });
-				desc.push({ text: 'Hoàn/hủy miễn phí', status: true });
-				desc.push({ text: 'Thay đổi miễn phí', status: true });
-				desc.push({ text: 'Hệ số cộng điểm Bamboo Club: 2.00', status: true });
-				desc.push({ text: 'Chọn ghế ngồi miễn phí', status: true });
-				desc.push({ text: 'Đổi chuyến tại sân bay miễn phí', status: true });
-				desc.push({ text: 'Ưu tiên check-in và lên máy bay', status: true });
-				desc.push({ text: 'Phòng chờ thương gia', status: true });
+
+			// Then, find matching rules based on fare class code pattern
+			const matchingRules: FareDescriptionRule[] = [];
+
+			for (const rule of allRules) {
+				if (rule.is_default) continue; // Skip default rules, already added
+
+				const pattern = rule.fare_class_code_pattern.toUpperCase();
+
+				// Check if pattern matches:
+				// 1. Exact match (e.g., "Y", "J")
+				// 2. Contains match (e.g., "SMX", "FLX", "SM", "FLEX")
+				if (code === pattern || code.includes(pattern)) {
+					matchingRules.push(rule);
+				}
 			}
+
+			// Sort matching rules by display_order and add to descriptions
+			matchingRules.sort((a, b) => a.display_order - b.display_order);
+			for (const rule of matchingRules) {
+				desc.push({
+					text: rule.description_text,
+					status: rule.status,
+				});
+			}
+		} catch (error) {
+			this.logger.error(`Error fetching fare description rules for ${fareClassCode}/${cabinType}:`, error);
+			// Fallback: return default description if database query fails
+			desc.push({ text: 'Hành lý xách tay: 7kg', status: true });
 		}
 
 		return desc;
@@ -621,7 +605,7 @@ export class BookingService {
 		const cabinType = fareClass.cabin_class.cabin_class_code === 'Y' ? 'economy' : 'business';
 
 		const fareClassName = this.getFareClassName(fareClass.fare_class_code, fareClass.description);
-		const descriptions = this.generateFareDescriptions(fareClass.fare_class_code, cabinType);
+		const descriptions = await this.generateFareDescriptions(fareClass.fare_class_code, cabinType);
 
 		const totalPassengers = booking.booking_passengers.length;
 		const priceOneWay = booking.booking_segments.reduce(

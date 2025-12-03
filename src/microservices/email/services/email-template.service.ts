@@ -474,7 +474,7 @@ Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi.`;
 			<p>Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi qua email hoặc hotline.</p>
 			<div class="footer">
 				<p>Đây là email tự động, vui lòng không trả lời email này.</p>
-				<p>© 2025 Bamboo Airways. All rights reserved.</p>
+				<p>© 2025 Wanderlust Airways. All rights reserved.</p>
 			</div>
 		</div>
 	</div>
@@ -664,7 +664,7 @@ Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng t�
 			<p>Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi. Chúng tôi hy vọng được phục vụ bạn trong các chuyến bay tiếp theo.</p>
 			<div class="footer">
 				<p>Đây là email tự động, vui lòng không trả lời email này.</p>
-				<p>© 2025 Bamboo Airways. All rights reserved.</p>
+				<p>© 2025 Wanderlust Airways. All rights reserved.</p>
 			</div>
 		</div>
 	</div>

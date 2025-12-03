@@ -16,6 +16,7 @@ import { Role } from 'src/shared/entities/role/role.entity';
 import { RouteFarePrice } from 'src/shared/entities/fare/route-fare-price.entity';
 import { BaggageAllowance } from 'src/shared/entities/fare/baggage-allowance.entity';
 import { CabinService } from 'src/shared/entities/cabin/cabin-service.entity';
+import { FareDescriptionRule } from 'src/shared/entities/fare/fare-description-rule.entity';
 import { CreateFareClassDto } from './dto/create-fare-class.dto';
 import { CreateRouteFarePriceDto } from './dto/create-route-fare-price.dto';
 import { UpdateRouteFarePriceDto } from './dto/update-route-fare-price.dto';
@@ -24,6 +25,8 @@ import { UpdateBaggageAllowanceDto } from './dto/update-baggage-allowance.dto';
 import { CreateCabinServiceDto } from './dto/create-cabin-service.dto';
 import { UpdateCabinServiceDto } from './dto/update-cabin-service.dto';
 import { UpdateFareClassDto } from './dto/update-fare-class.dto';
+import { CreateFareDescriptionRuleDto } from './dto/create-fare-description-rule.dto';
+import { UpdateFareDescriptionRuleDto } from './dto/update-fare-description-rule.dto';
 import { CreateFlightScheduleDto } from './dto/create-flight-schedule.dto';
 import { UpdateFlightScheduleDto } from './dto/update-flight-schedule.dto';
 import { CreateFlightInstanceDto } from './dto/create-flight-instance.dto';
@@ -53,6 +56,7 @@ export class AdminService {
 		@InjectRepository(RouteFarePrice) private readonly routeFarePriceRepo: Repository<RouteFarePrice>,
 		@InjectRepository(BaggageAllowance) private readonly baggageAllowanceRepo: Repository<BaggageAllowance>,
 		@InjectRepository(CabinService) private readonly cabinServiceRepo: Repository<CabinService>,
+		@InjectRepository(FareDescriptionRule) private readonly fareDescriptionRuleRepo: Repository<FareDescriptionRule>,
 		private readonly dataSource: DataSource,
 	) {}
 
@@ -1046,6 +1050,99 @@ export class AdminService {
 		return {
 			success: true,
 			message: `Cabin service ${cabinServiceId} deleted successfully`,
+		};
+	}
+
+	// ==================== FARE DESCRIPTION RULE MANAGEMENT ====================
+
+	/**
+	 * Create a new fare description rule
+	 */
+	async createFareDescriptionRule(dto: CreateFareDescriptionRuleDto): Promise<FareDescriptionRule> {
+		const rule = this.fareDescriptionRuleRepo.create({
+			fare_class_code_pattern: dto.fareClassCodePattern,
+			cabin_type: dto.cabinType,
+			description_text: dto.descriptionText,
+			status: dto.status ?? true,
+			display_order: dto.displayOrder ?? 0,
+			is_active: dto.isActive ?? true,
+			is_default: dto.isDefault ?? false,
+		});
+
+		return await this.fareDescriptionRuleRepo.save(rule);
+	}
+
+	/**
+	 * Get all fare description rules
+	 */
+	async getAllFareDescriptionRules(): Promise<FareDescriptionRule[]> {
+		return await this.fareDescriptionRuleRepo.find({
+			order: {
+				cabin_type: 'ASC',
+				display_order: 'ASC',
+				fare_class_code_pattern: 'ASC',
+			},
+		});
+	}
+
+	/**
+	 * Get fare description rule by ID
+	 */
+	async getFareDescriptionRuleById(ruleId: string): Promise<FareDescriptionRule> {
+		const rule = await this.fareDescriptionRuleRepo.findOne({
+			where: { id: ruleId },
+		});
+
+		if (!rule) {
+			throw new NotFoundException(`Fare description rule ${ruleId} not found`);
+		}
+
+		return rule;
+	}
+
+	/**
+	 * Update fare description rule
+	 */
+	async updateFareDescriptionRule(ruleId: string, dto: UpdateFareDescriptionRuleDto): Promise<FareDescriptionRule> {
+		const rule = await this.fareDescriptionRuleRepo.findOne({
+			where: { id: ruleId },
+		});
+
+		if (!rule) {
+			throw new NotFoundException(`Fare description rule ${ruleId} not found`);
+		}
+
+		// Update fields
+		if (dto.fareClassCodePattern !== undefined) rule.fare_class_code_pattern = dto.fareClassCodePattern;
+		if (dto.cabinType !== undefined) rule.cabin_type = dto.cabinType;
+		if (dto.descriptionText !== undefined) rule.description_text = dto.descriptionText;
+		if (dto.status !== undefined) rule.status = dto.status;
+		if (dto.displayOrder !== undefined) rule.display_order = dto.displayOrder;
+		if (dto.isActive !== undefined) rule.is_active = dto.isActive;
+		if (dto.isDefault !== undefined) rule.is_default = dto.isDefault;
+
+		rule.updated_at = new Date();
+
+		return await this.fareDescriptionRuleRepo.save(rule);
+	}
+
+	/**
+	 * Delete fare description rule
+	 */
+	async deleteFareDescriptionRule(ruleId: string): Promise<{ success: boolean; message: string }> {
+		const rule = await this.fareDescriptionRuleRepo.findOne({
+			where: { id: ruleId },
+		});
+
+		if (!rule) {
+			throw new NotFoundException(`Fare description rule ${ruleId} not found`);
+		}
+
+		await this.fareDescriptionRuleRepo.remove(rule);
+
+		return {
+			success: true,
+			message: `Fare description rule ${ruleId} deleted successfully`,
 		};
 	}
 }
