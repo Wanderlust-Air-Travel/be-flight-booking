@@ -95,8 +95,8 @@ export class AuthController{
     @UseGuards(JwtAuthGuard)
     @ApiBearerAuth('access-token')
     @Get('me')
-    me(@Req() req: Request & { user: Express.User }) {
-        return req.user;
+    async me(@Req() req: Request & { user: Express.User }) {
+        return await this.auth.getUserWithRoles(req.user.userId);
     }
 
     @Post('otp/payment/send')

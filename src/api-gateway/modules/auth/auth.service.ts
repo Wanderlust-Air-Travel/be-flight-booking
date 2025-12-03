@@ -3,6 +3,7 @@ import { JwtService } from "@nestjs/jwt";
 import { InjectRepository } from "@nestjs/typeorm";
 import { User } from "src/shared/entities/user/user.entity";
 import { Repository } from "typeorm";
+import { Role } from "src/shared/entities/role/role.entity";
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import { RegisterDto } from "./dto/register.dto";
@@ -35,6 +36,8 @@ export class AuthService {
     constructor(
         @InjectRepository(User)
         private readonly usersRepo: Repository<User>,
+        @InjectRepository(Role)
+        private readonly roleRepo: Repository<Role>,
         private readonly jwt: JwtService,
 		@Inject('EMAIL_CLIENT') private readonly emailClient: ClientProxy,
 		private readonly otpStorageService: OtpStorageService,
@@ -414,5 +417,39 @@ export class AuthService {
 	 */
 	async deleteCancellationVerificationToken(userId: string, bookingId: string): Promise<void> {
 		await this.otpStorageService.deleteCancellationVerificationToken(userId, bookingId);
+	}
+
+	/**
+	 * Get user with roles
+	 */
+	async getUserWithRoles(userId: string): Promise<{
+		userId: string;
+		email: string;
+		fullname: string;
+		phone: string | null;
+		roles: Array<{ roleCode: string; name: string; description: string | null }>;
+	}> {
+		const user = await this.usersRepo.findOne({
+			where: { user_id: userId },
+			relations: ['userRoles', 'userRoles.role'],
+		});
+
+		if (!user) {
+			throw new NotFoundException(AUTH_MESSAGES.ERROR.USER_NOT_FOUND);
+		}
+
+		const roles = user.userRoles?.map((ur) => ({
+			roleCode: ur.role.role_code,
+			name: ur.role.name,
+			description: ur.role.description,
+		})) || [];
+
+		return {
+			userId: user.user_id,
+			email: user.email,
+			fullname: user.fullname,
+			phone: user.phone,
+			roles,
+		};
 	}
 }
