@@ -20,6 +20,9 @@ import { AircraftType } from 'src/shared/entities/aircraft/aircraft-type.entity'
 import { Aircraft } from 'src/shared/entities/aircraft/aircraft.entity';
 import { CabinClass } from 'src/shared/entities/cabin/cabin-class.entity';
 import { FareClass } from 'src/shared/entities/fare/fare-class.entity';
+import { RouteFarePrice } from 'src/shared/entities/fare/route-fare-price.entity';
+import { BaggageAllowance } from 'src/shared/entities/fare/baggage-allowance.entity';
+import { CabinService } from 'src/shared/entities/cabin/cabin-service.entity';
 import { SeatConfiguration } from 'src/shared/entities/seat/seat-configuration.entity';
 import { User } from 'src/shared/entities/user/user.entity';
 import { Passenger } from 'src/shared/entities/passenger/passenger.entity';
@@ -217,6 +220,9 @@ async function run() {
 		payment: ds.getRepository(Payment),
 		role: ds.getRepository(Role),
 		userRole: ds.getRepository(UserRole),
+		routeFarePrice: ds.getRepository(RouteFarePrice),
+		baggageAllowance: ds.getRepository(BaggageAllowance),
+		cabinService: ds.getRepository(CabinService),
 	};
 
 	// ============================================================
@@ -301,6 +307,101 @@ async function run() {
 		const existing = await repos.fareClass.findOne({ where: { fare_class_code: fc.fare_class_code } });
 		if (!existing) await repos.fareClass.save(repos.fareClass.create(fc));
 	}
+
+	// ============================================================
+	// 2.5. BAGGAGE ALLOWANCES
+	// ============================================================
+	console.log('\nSeeding Baggage Allowances...');
+	
+	const baggageAllowances = [
+		// Economy fare classes
+		{ fare_class_code: 'YSM', checked_baggage_kg: null, checked_baggage_pieces: null, carry_on_kg: 7, carry_on_pieces: 1, carry_on_dimensions: '55x40x20', is_domestic: true, is_international: true, notes: 'No checked baggage included' },
+		{ fare_class_code: 'YSMX', checked_baggage_kg: null, checked_baggage_pieces: null, carry_on_kg: 7, carry_on_pieces: 1, carry_on_dimensions: '55x40x20', is_domestic: true, is_international: true, notes: 'No checked baggage included' },
+		{ fare_class_code: 'Y', checked_baggage_kg: 20, checked_baggage_pieces: 1, carry_on_kg: 7, carry_on_pieces: 1, carry_on_dimensions: '55x40x20', is_domestic: true, is_international: true, notes: '1 piece 20kg checked baggage' },
+		{ fare_class_code: 'YS', checked_baggage_kg: 20, checked_baggage_pieces: 1, carry_on_kg: 7, carry_on_pieces: 1, carry_on_dimensions: '55x40x20', is_domestic: true, is_international: true, notes: '1 piece 20kg checked baggage' },
+		{ fare_class_code: 'YF', checked_baggage_kg: 30, checked_baggage_pieces: 2, carry_on_kg: 7, carry_on_pieces: 1, carry_on_dimensions: '55x40x20', is_domestic: true, is_international: true, notes: '2 pieces 30kg checked baggage' },
+		{ fare_class_code: 'YFLX', checked_baggage_kg: 30, checked_baggage_pieces: 2, carry_on_kg: 7, carry_on_pieces: 1, carry_on_dimensions: '55x40x20', is_domestic: true, is_international: true, notes: '2 pieces 30kg checked baggage' },
+		// Business fare classes
+		{ fare_class_code: 'J', checked_baggage_kg: 30, checked_baggage_pieces: 2, carry_on_kg: 7, carry_on_pieces: 1, carry_on_dimensions: '55x40x20', is_domestic: true, is_international: true, notes: '2 pieces 30kg checked baggage' },
+		{ fare_class_code: 'JS', checked_baggage_kg: 30, checked_baggage_pieces: 2, carry_on_kg: 7, carry_on_pieces: 1, carry_on_dimensions: '55x40x20', is_domestic: true, is_international: true, notes: '2 pieces 30kg checked baggage' },
+		{ fare_class_code: 'JF', checked_baggage_kg: 40, checked_baggage_pieces: 2, carry_on_kg: 7, carry_on_pieces: 1, carry_on_dimensions: '55x40x20', is_domestic: true, is_international: true, notes: '2 pieces 40kg checked baggage' },
+		{ fare_class_code: 'JFLX', checked_baggage_kg: 40, checked_baggage_pieces: 2, carry_on_kg: 7, carry_on_pieces: 1, carry_on_dimensions: '55x40x20', is_domestic: true, is_international: true, notes: '2 pieces 40kg checked baggage' },
+	];
+
+	for (const ba of baggageAllowances) {
+		const existing = await repos.baggageAllowance.findOne({ 
+			where: { 
+				fare_class_code: ba.fare_class_code,
+				is_domestic: ba.is_domestic,
+				is_international: ba.is_international,
+			} 
+		});
+		if (!existing) {
+			await repos.baggageAllowance.save(repos.baggageAllowance.create({
+				baggage_allowance_id: uuidv7(),
+				...ba,
+			}));
+		}
+	}
+	console.log(`Seeded ${baggageAllowances.length} baggage allowances`);
+
+	// ============================================================
+	// 2.6. CABIN SERVICES
+	// ============================================================
+	console.log('\nSeeding Cabin Services...');
+	
+	const cabinServices = [
+		// Economy cabin services (applies to all economy fare classes)
+		{ cabin_class_code: 'Y', fare_class_code: null, service_type: 'meal', service_name: 'Snack', description: 'Light snack and beverage', is_included: true, price: null, display_order: 1 },
+		{ cabin_class_code: 'Y', fare_class_code: null, service_type: 'entertainment', service_name: 'In-flight Entertainment', description: 'Personal screen with movies and music', is_included: true, price: null, display_order: 2 },
+		{ cabin_class_code: 'Y', fare_class_code: null, service_type: 'wifi', service_name: 'WiFi Access', description: 'Available for purchase', is_included: false, price: 200000, display_order: 3 },
+		{ cabin_class_code: 'Y', fare_class_code: null, service_type: 'seat_selection', service_name: 'Seat Selection', description: 'Available for purchase', is_included: false, price: 150000, display_order: 4 },
+		
+		// Economy Flex specific services
+		{ cabin_class_code: 'Y', fare_class_code: 'YF', service_type: 'meal', service_name: 'Hot Meal', description: 'Hot meal and beverage', is_included: true, price: null, display_order: 1 },
+		{ cabin_class_code: 'Y', fare_class_code: 'YFLX', service_type: 'meal', service_name: 'Hot Meal', description: 'Hot meal and beverage', is_included: true, price: null, display_order: 1 },
+		{ cabin_class_code: 'Y', fare_class_code: 'YF', service_type: 'priority_boarding', service_name: 'Priority Boarding', description: 'Board before general boarding', is_included: true, price: null, display_order: 5 },
+		{ cabin_class_code: 'Y', fare_class_code: 'YFLX', service_type: 'priority_boarding', service_name: 'Priority Boarding', description: 'Board before general boarding', is_included: true, price: null, display_order: 5 },
+		
+		// Business cabin services (applies to all business fare classes)
+		{ cabin_class_code: 'J', fare_class_code: null, service_type: 'meal', service_name: 'Gourmet Meal', description: 'Multi-course gourmet meal with premium beverages', is_included: true, price: null, display_order: 1 },
+		{ cabin_class_code: 'J', fare_class_code: null, service_type: 'entertainment', service_name: 'Premium Entertainment', description: 'Large screen with premium content', is_included: true, price: null, display_order: 2 },
+		{ cabin_class_code: 'J', fare_class_code: null, service_type: 'wifi', service_name: 'WiFi Access', description: 'Complimentary WiFi', is_included: true, price: null, display_order: 3 },
+		{ cabin_class_code: 'J', fare_class_code: null, service_type: 'seat_selection', service_name: 'Seat Selection', description: 'Complimentary seat selection', is_included: true, price: null, display_order: 4 },
+		{ cabin_class_code: 'J', fare_class_code: null, service_type: 'priority_boarding', service_name: 'Priority Boarding', description: 'Priority boarding access', is_included: true, price: null, display_order: 5 },
+		{ cabin_class_code: 'J', fare_class_code: null, service_type: 'lounge_access', service_name: 'Lounge Access', description: 'Access to business class lounge', is_included: true, price: null, display_order: 6 },
+		{ cabin_class_code: 'J', fare_class_code: null, service_type: 'extra_legroom', service_name: 'Extra Legroom', description: 'More legroom and space', is_included: true, price: null, display_order: 7 },
+		
+		// Business Flex specific services
+		{ cabin_class_code: 'J', fare_class_code: 'JF', service_type: 'meal', service_name: 'Premium Gourmet Meal', description: 'Chef-curated premium meal with fine wines', is_included: true, price: null, display_order: 1 },
+		{ cabin_class_code: 'J', fare_class_code: 'JFLX', service_type: 'meal', service_name: 'Premium Gourmet Meal', description: 'Chef-curated premium meal with fine wines', is_included: true, price: null, display_order: 1 },
+		{ cabin_class_code: 'J', fare_class_code: 'JF', service_type: 'lounge_access', service_name: 'Premium Lounge Access', description: 'Access to premium lounge with spa services', is_included: true, price: null, display_order: 6 },
+		{ cabin_class_code: 'J', fare_class_code: 'JFLX', service_type: 'lounge_access', service_name: 'Premium Lounge Access', description: 'Access to premium lounge with spa services', is_included: true, price: null, display_order: 6 },
+	];
+
+	for (const cs of cabinServices) {
+		// Build where condition based on nullable fields
+		const whereCondition: any = {
+			cabin_class_code: cs.cabin_class_code,
+			service_type: cs.service_type,
+		};
+		if (cs.fare_class_code !== null) {
+			whereCondition.fare_class_code = cs.fare_class_code;
+		} else {
+			whereCondition.fare_class_code = null;
+		}
+
+		const existing = await repos.cabinService.findOne({ 
+			where: whereCondition,
+		});
+		if (!existing) {
+			await repos.cabinService.save(repos.cabinService.create({
+				cabin_service_id: uuidv7(),
+				...cs,
+			}));
+		}
+	}
+	console.log(`Seeded ${cabinServices.length} cabin services`);
 
 	// ============================================================
 	// 3. AIRCRAFT TYPES & AIRCRAFTS
@@ -527,6 +628,93 @@ async function run() {
 		}
 	}
 	console.log(`Created ${routesCreated} new routes, total: ${routes.length} routes`);
+
+	// ============================================================
+	// 6.5. ROUTE FARE PRICES (Seed prices for all routes and fare classes)
+	// ============================================================
+	console.log('\nSeeding Route Fare Prices...');
+	
+	// Get all fare classes
+	const allFareClasses = await repos.fareClass.find({ relations: ['cabin_class'] });
+	
+	// Pricing structure based on fare class and cabin type
+	const pricingStructure: Record<string, { basePrice: number; taxRate: number; feeRate: number }> = {
+		// Economy fare classes
+		'YSMX': { basePrice: 1448000, taxRate: 0.1, feeRate: 0.05 },
+		'YSM': { basePrice: 1448000, taxRate: 0.1, feeRate: 0.05 },
+		'Y': { basePrice: 1577000, taxRate: 0.1, feeRate: 0.05 },
+		'YS': { basePrice: 1577000, taxRate: 0.1, feeRate: 0.05 },
+		'YF': { basePrice: 3068000, taxRate: 0.1, feeRate: 0.05 },
+		'YFLX': { basePrice: 3068000, taxRate: 0.1, feeRate: 0.05 },
+		// Business fare classes
+		'J': { basePrice: 5022000, taxRate: 0.1, feeRate: 0.05 },
+		'JS': { basePrice: 5022000, taxRate: 0.1, feeRate: 0.05 },
+		'JF': { basePrice: 7074000, taxRate: 0.1, feeRate: 0.05 },
+		'JFLX': { basePrice: 7074000, taxRate: 0.1, feeRate: 0.05 },
+	};
+
+	// Default pricing for unknown fare classes
+	const getDefaultPricing = (cabinClassCode: string) => {
+		if (cabinClassCode === 'Y') {
+			return { basePrice: 1577000, taxRate: 0.1, feeRate: 0.05 }; // Economy default
+		} else if (cabinClassCode === 'J') {
+			return { basePrice: 5022000, taxRate: 0.1, feeRate: 0.05 }; // Business default
+		}
+		return { basePrice: 1577000, taxRate: 0.1, feeRate: 0.05 }; // Fallback
+	};
+
+	let pricesCreated = 0;
+	const today = new Date();
+	const effectiveFrom = new Date(today.getFullYear(), today.getMonth(), 1); // First day of current month
+	const effectiveTo = new Date(today.getFullYear() + 1, 11, 31); // End of next year
+
+	// Create prices for each route and fare class combination
+	for (const route of routes) {
+		for (const fareClass of allFareClasses) {
+			try {
+				// Check if price already exists
+				const existing = await repos.routeFarePrice.findOne({
+					where: {
+						route_id: route.route_id,
+						fare_class_code: fareClass.fare_class_code,
+					},
+				});
+
+				if (existing) {
+					continue; // Skip if already exists
+				}
+
+				// Get pricing from structure or use default
+				const fareClassCode = fareClass.fare_class_code.toUpperCase();
+				const pricing = pricingStructure[fareClassCode] || getDefaultPricing(fareClass.cabin_class.cabin_class_code);
+
+				// Create route fare price
+				const routeFarePrice = repos.routeFarePrice.create({
+					route_fare_price_id: uuidv7(),
+					route_id: route.route_id,
+					fare_class_code: fareClass.fare_class_code,
+					base_price: pricing.basePrice,
+					tax_rate: pricing.taxRate,
+					fee_rate: pricing.feeRate,
+					effective_from: effectiveFrom,
+					effective_to: effectiveTo,
+					is_active: true,
+					priority: 0,
+					notes: `Default price for ${fareClass.fare_class_code} on route ${route.route_id}`,
+				});
+
+				await repos.routeFarePrice.save(routeFarePrice);
+				pricesCreated++;
+			} catch (error: any) {
+				console.error(
+					`  Error creating price for route ${route.route_id}, fare class ${fareClass.fare_class_code}:`,
+					error.message,
+				);
+			}
+		}
+	}
+
+	console.log(`Created ${pricesCreated} route fare prices`);
 
 	// ============================================================
 	// 7. USERS & PASSENGERS

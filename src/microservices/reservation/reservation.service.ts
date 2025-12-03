@@ -15,6 +15,8 @@ import { BookingStateService } from 'src/shared/services/booking-state.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { ReservationResponseDto } from './dto/reservation-response.dto';
 import { CabinType } from 'src/shared/constants/enums';
+import { FarePricingService } from 'src/shared/services/fare-pricing.service';
+import { Route } from 'src/shared/entities/route/route.entity';
 
 @Injectable()
 export class ReservationService {
@@ -26,9 +28,11 @@ export class ReservationService {
 		@InjectRepository(FareClass) private readonly fareClassRepo: Repository<FareClass>,
 		@InjectRepository(Currency) private readonly currencyRepo: Repository<Currency>,
 		@InjectRepository(Reservation) private readonly reservationRepo: Repository<Reservation>,
+		@InjectRepository(Route) private readonly routeRepo: Repository<Route>,
 		private readonly redisService: RedisService,
 		private readonly configService: ConfigService,
 		private readonly bookingStateService: BookingStateService,
+		private readonly farePricingService: FarePricingService,
 	) {
 		const redisConfig = this.configService.get('redis');
 		this.reservationTtl = redisConfig?.ttl?.reservation || 900; // 15 minutes default
@@ -61,21 +65,13 @@ export class ReservationService {
 	}
 
 	/**
-	 * Calculate fare price based on fare class code and cabin type
+	 * @deprecated Use FarePricingService.getPricingInfo() instead
+	 * Kept for backward compatibility only
 	 */
 	private calculateFarePrice(fareClassCode: string, cabinType: CabinType): number {
-		const code = fareClassCode.toUpperCase();
-		if (cabinType === CabinType.ECONOMY) {
-			if (code.includes('SMX') || code.includes('SAVER')) return 1448000;
-			if (code.includes('SM') || code === 'Y' || code === 'YS') return 1577000;
-			if (code.includes('FLX') || code.includes('FLEX') || code === 'YF') return 3068000;
-			return 1577000;
-		} else if (cabinType === CabinType.BUSINESS) {
-			if (code.includes('SM') || code === 'J' || code === 'JS') return 5022000;
-			if (code.includes('FLX') || code.includes('FLEX') || code === 'JF') return 7074000;
-			return 5022000;
-		}
-		return 0;
+		// This method is deprecated - use FarePricingService instead
+		// Kept for backward compatibility
+		return this.farePricingService['getFallbackPrice'](fareClassCode, cabinType);
 	}
 
 	/**
@@ -164,13 +160,17 @@ export class ReservationService {
 		let totalAmount = 0;
 
 		for (const segmentDto of dto.segments) {
-			// Validate flight instance
+			// Validate flight instance and get route
 			const flightInstance = await this.flightInstanceRepo.findOne({
 				where: { flight_instance_id: segmentDto.flightInstanceId },
-				relations: ['aircraft', 'aircraft.aircraft_type'],
+				relations: ['aircraft', 'aircraft.aircraft_type', 'flight_schedule', 'flight_schedule.route'],
 			});
 			if (!flightInstance) {
 				throw new NotFoundException(`Flight instance ${segmentDto.flightInstanceId} not found`);
+			}
+
+			if (!flightInstance.flight_schedule || !flightInstance.flight_schedule.route) {
+				throw new NotFoundException(`Route not found for flight instance ${segmentDto.flightInstanceId}`);
 			}
 
 			// Get cabin and seat selection from Redis (Backend manages state)
@@ -235,10 +235,19 @@ export class ReservationService {
 			const flightSeatId = null;
 			const seatNumber = null;
 
-			// Calculate price
-			const baseFare = this.calculateFarePrice(fareClass.fare_class_code, cabinType);
-			const taxAmount = 0;
-			const feeAmount = 0;
+			// Get pricing from database (route-specific pricing)
+			const routeId = flightInstance.flight_schedule.route.route_id;
+			const flightDate = new Date(flightInstance.flight_date);
+			const pricingInfo = await this.farePricingService.getPricingInfo(
+				routeId,
+				fareClass.fare_class_code,
+				cabinType,
+				flightDate,
+			);
+
+			const baseFare = pricingInfo.basePrice;
+			const taxAmount = Math.round(baseFare * pricingInfo.taxRate);
+			const feeAmount = Math.round(baseFare * pricingInfo.feeRate);
 			const segmentTotal = (baseFare + taxAmount + feeAmount) * dto.numberOfPassengers;
 
 			// Validate availability for additional passengers (if multiple passengers, validate remaining seats)

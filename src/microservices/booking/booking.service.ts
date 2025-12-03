@@ -38,6 +38,7 @@ import { GetMyTicketsDto } from './dto/get-my-tickets.dto';
 import { Ticket } from 'src/shared/entities/ticket/ticket.entity';
 import { Route } from 'src/shared/entities/route/route.entity';
 import { Airport } from 'src/shared/entities/airport/airport.entity';
+import { FarePricingService } from 'src/shared/services/fare-pricing.service';
 
 @Injectable()
 export class BookingService {
@@ -61,6 +62,7 @@ export class BookingService {
 		private readonly notificationService: BookingNotificationService,
 		private readonly passengerPricingService: PassengerPricingService,
 		private readonly bookingStateService: BookingStateService,
+		private readonly farePricingService: FarePricingService,
 	) {}
 
 	/**
@@ -275,12 +277,25 @@ export class BookingService {
 				const cabinType =
 					fareClass.cabin_class.cabin_class_code === 'Y' ? CabinType.ECONOMY : CabinType.BUSINESS;
 
-				// Calculate adult base fare from database (same logic as Search Service)
-				// If price is provided in request, use it (for price lock), otherwise calculate from database
-				const calculatedBaseFare = this.calculateFarePrice(fareClass.fare_class_code, cabinType);
+				// Get pricing from database (route-specific pricing)
+				const routeId = flightInstance.flight_schedule.route.route_id;
+				const flightDate = new Date(flightInstance.flight_date);
+				const pricingInfo = await this.farePricingService.getPricingInfo(
+					routeId,
+					fareClass.fare_class_code,
+					cabinType,
+					flightDate,
+				);
+
+				// If price is provided in request, use it (for price lock), otherwise use database price
+				const calculatedBaseFare = pricingInfo.basePrice;
 				const adultBaseFare = segment.baseFare ?? calculatedBaseFare;
-				const taxRate = segment.taxAmount !== undefined ? segment.taxAmount / adultBaseFare : 0;
-				const feeRate = segment.feeAmount !== undefined ? segment.feeAmount / adultBaseFare : 0;
+				const taxRate = segment.taxAmount !== undefined 
+					? segment.taxAmount / adultBaseFare 
+					: pricingInfo.taxRate;
+				const feeRate = segment.feeAmount !== undefined 
+					? segment.feeAmount / adultBaseFare 
+					: pricingInfo.feeRate;
 
 				// Count passengers that need seats (ADT + CHD, INF don't need seats)
 				const passengersNeedingSeats = dto.passengers.filter(
@@ -847,45 +862,13 @@ export class BookingService {
 	}
 
 	/**
-	 * Calculate fare price from fare class code and cabin type
-	 * Same logic as Search Service to ensure consistency
+	 * @deprecated Use FarePricingService.getPricingInfo() instead
+	 * Kept for backward compatibility only
 	 */
 	private calculateFarePrice(fareClassCode: string, cabinType: CabinType): number {
-		// Base pricing logic - same as Search Service
-		// For now, using fixed prices based on fare class code patterns
-		// In production, this could be enhanced with dynamic pricing from database
-		const code = fareClassCode.toUpperCase();
-
-		if (cabinType === CabinType.ECONOMY) {
-			if (code.includes('SMX') || code.includes('SAVER')) {
-				return 1448000; // Economy Saver Max
-			}
-			if (code === 'Y') {
-				return 1577000; // Economy Standard
-			}
-			if (code.includes('SM') || code === 'YS') {
-				return 1577000; // Economy Smart
-			}
-			if (code.includes('FLX') || code.includes('FLEX') || code === 'YF') {
-				return 3068000; // Economy Flex
-			}
-			// Default economy price
-			return 1577000;
-		} else if (cabinType === CabinType.BUSINESS) {
-			if (code === 'J') {
-				return 5022000; // Business Standard
-			}
-			if (code.includes('SM') || code === 'JS') {
-				return 5022000; // Business Smart
-			}
-			if (code.includes('FLX') || code.includes('FLEX') || code === 'JF') {
-				return 7074000; // Business Flex
-			}
-			// Default business price
-			return 5022000;
-		}
-
-		return 0;
+		// This method is deprecated - use FarePricingService instead
+		// Kept for backward compatibility
+		return this.farePricingService['getFallbackPrice'](fareClassCode, cabinType);
 	}
 
 	/**

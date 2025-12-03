@@ -18,6 +18,7 @@ import { FareOptionsResponseDto, FareOptionsGroupDto } from './dto/fare-options-
 import { FareOptionDto, FareDescriptionItemDto } from './dto/fare-option.dto';
 import { SeatMapResponseDto, SeatMapGroupDto } from './dto/seat-map-response.dto';
 import { SeatDto } from './dto/seat.dto';
+import { FarePricingService } from 'src/shared/services/fare-pricing.service';
 
 @Injectable()
 export class SearchService {
@@ -53,6 +54,7 @@ export class SearchService {
 		@InjectRepository(FareClass) private readonly fareClassRepo: Repository<FareClass>,
 		@InjectRepository(CabinClass) private readonly cabinClassRepo: Repository<CabinClass>,
 		@InjectRepository(SeatConfiguration) private readonly seatConfigRepo: Repository<SeatConfiguration>,
+		private readonly farePricingService: FarePricingService,
 	) {}
 
 	async search(dto: SearchFlightsDto) {
@@ -395,41 +397,14 @@ export class SearchService {
 		return description || fareClassCode;
 	}
 
+	/**
+	 * @deprecated Use FarePricingService.calculateBaseFare() instead
+	 * Kept for backward compatibility only
+	 */
 	private calculateFarePrice(fareClassCode: string, cabinType: CabinType): number {
-		// Base pricing logic - can be enhanced with dynamic pricing from database
-		// For now, using fixed prices based on fare class code patterns
-		const code = fareClassCode.toUpperCase();
-
-		if (cabinType === CabinType.ECONOMY) {
-			if (code.includes('SMX') || code.includes('SAVER')) {
-				return 1448000; // Economy Saver Max
-			}
-			if (code === 'Y') {
-				return 1577000; // Economy Standard
-			}
-			if (code.includes('SM') || code === 'YS') {
-				return 1577000; // Economy Smart
-			}
-			if (code.includes('FLX') || code.includes('FLEX') || code === 'YF') {
-				return 3068000; // Economy Flex
-			}
-			// Default economy price
-			return 1577000;
-		} else if (cabinType === CabinType.BUSINESS) {
-			if (code === 'J') {
-				return 5022000; // Business Standard
-			}
-			if (code.includes('SM') || code === 'JS') {
-				return 5022000; // Business Smart
-			}
-			if (code.includes('FLX') || code.includes('FLEX') || code === 'JF') {
-				return 7074000; // Business Flex
-			}
-			// Default business price
-			return 5022000;
-		}
-
-		return 0;
+		// This method is deprecated - use FarePricingService instead
+		// Kept for backward compatibility
+		return this.farePricingService['getFallbackPrice'](fareClassCode, cabinType);
 	}
 
 	/**
