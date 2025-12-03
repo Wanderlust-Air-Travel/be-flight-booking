@@ -30,5 +30,8 @@ export class SendEmailDto {
 	@IsEmail()
 	@IsOptional()
 	replyTo?: string;
+
+	@IsOptional()
+	attachments?: string[]; // Array of file paths to attach
 }
 

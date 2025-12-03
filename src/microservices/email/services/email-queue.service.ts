@@ -170,6 +170,7 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
 				htmlBody,
 				textBody,
 				email.dto.replyTo,
+				email.dto.attachments,
 			);
 
 			// Success

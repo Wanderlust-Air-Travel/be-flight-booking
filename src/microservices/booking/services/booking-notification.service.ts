@@ -5,6 +5,7 @@ import { Booking } from 'src/shared/entities/booking/booking.entity';
 import { EMAIL_MS } from 'src/microservices/email/email.messages';
 import { EmailTemplate } from 'src/shared/constants/enums';
 import { RabbitMQPublisherService } from 'src/shared/modules/rabbitmq/rabbitmq-publisher.service';
+import { TicketPdfService } from './ticket-pdf.service';
 
 /**
  * Booking Notification Service
@@ -18,6 +19,7 @@ export class BookingNotificationService {
 	constructor(
 		@Optional() private readonly rabbitMQPublisher: RabbitMQPublisherService | null,
 		@Optional() @Inject('EMAIL_CLIENT') private readonly emailClient: ClientProxy | null,
+		@Optional() private readonly ticketPdfService: TicketPdfService | null,
 	) {}
 
 	/**
@@ -145,8 +147,9 @@ export class BookingNotificationService {
 	}
 
 	/**
-	 * Send ticket confirmation email with detailed information
+	 * Send ticket confirmation email with detailed information and PDF attachments
 	 * Called after tickets are successfully created
+	 * For guest users, PDF tickets are generated and attached to the email
 	 */
 	async sendTicketConfirmation(booking: Booking, tickets: any[]): Promise<void> {
 		this.logger.log(`Sending ticket confirmation for booking ${booking.booking_id}`);
@@ -168,6 +171,25 @@ export class BookingNotificationService {
 			// Calculate check-in time (2 hours before departure for domestic, 3 hours for international)
 			const checkInTime = this.calculateCheckInTime(booking);
 
+			// Generate PDF tickets and get file paths
+			// This is especially important for guest users who don't have accounts
+			let pdfFilePaths: string[] = [];
+			if (this.ticketPdfService) {
+				try {
+					pdfFilePaths = await this.ticketPdfService.generateAllTicketsPdf(booking, tickets);
+					this.logger.log(
+						`Generated ${pdfFilePaths.length} PDF tickets for booking ${booking.pnr_code}`,
+					);
+				} catch (error: any) {
+					this.logger.error(
+						`Failed to generate PDF tickets: ${error.message}. Continuing without PDF attachments.`,
+					);
+					// Continue without PDFs - email will still be sent
+				}
+			} else {
+				this.logger.warn('TicketPdfService not available. PDF tickets will not be generated.');
+			}
+
 			// Send email via RabbitMQ (preferred) or TCP (fallback)
 			const emailDto = {
 				to: emailAddress,
@@ -177,6 +199,7 @@ export class BookingNotificationService {
 					ticketDetails,
 					checkInTime,
 				},
+				attachments: pdfFilePaths.length > 0 ? pdfFilePaths : undefined,
 			};
 
 			// Try RabbitMQ first (preferred)
@@ -184,7 +207,7 @@ export class BookingNotificationService {
 				try {
 					await this.rabbitMQPublisher.publishEmail(emailDto);
 					this.logger.log(
-						`Ticket confirmation queued via RabbitMQ to ${emailAddress} for booking ${booking.pnr_code} with ${tickets.length} tickets`,
+						`Ticket confirmation queued via RabbitMQ to ${emailAddress} for booking ${booking.pnr_code} with ${tickets.length} tickets${pdfFilePaths.length > 0 ? ` and ${pdfFilePaths.length} PDF attachments` : ''}`,
 					);
 					return;
 				} catch (error: any) {
@@ -196,7 +219,7 @@ export class BookingNotificationService {
 			if (this.emailClient) {
 				await firstValueFrom(this.emailClient.send(EMAIL_MS.PATTERN.SEND_EMAIL, emailDto));
 				this.logger.log(
-					`Ticket confirmation sent via TCP to ${emailAddress} for booking ${booking.pnr_code} with ${tickets.length} tickets`,
+					`Ticket confirmation sent via TCP to ${emailAddress} for booking ${booking.pnr_code} with ${tickets.length} tickets${pdfFilePaths.length > 0 ? ` and ${pdfFilePaths.length} PDF attachments` : ''}`,
 				);
 			} else {
 				this.logger.error('No email client available (neither RabbitMQ nor TCP)');

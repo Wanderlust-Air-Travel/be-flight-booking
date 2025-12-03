@@ -137,15 +137,30 @@ export class GmailApiService implements OnModuleInit {
 
 	/**
 	 * Send email using Gmail API
+	 * @param attachments Array of file paths to attach
 	 */
-	async sendEmail(to: string, subject: string, htmlBody: string, textBody?: string, replyTo?: string): Promise<string> {
+	async sendEmail(
+		to: string,
+		subject: string,
+		htmlBody: string,
+		textBody?: string,
+		replyTo?: string,
+		attachments?: string[],
+	): Promise<string> {
 		if (!this.gmail) {
 			throw new Error('Gmail client not initialized. Please authenticate first.');
 		}
 
 		try {
-			// Create email message
-			const message = this.createMessage(to, subject, htmlBody, textBody, replyTo);
+			// Create email message with attachments
+			const message = await this.createMessageWithAttachments(
+				to,
+				subject,
+				htmlBody,
+				textBody,
+				replyTo,
+				attachments,
+			);
 
 			// Send email
 			const response = await this.gmail.users.messages.send({
@@ -164,7 +179,86 @@ export class GmailApiService implements OnModuleInit {
 	}
 
 	/**
-	 * Create base64 encoded email message
+	 * Create base64 encoded email message with attachments support
+	 */
+	private async createMessageWithAttachments(
+		to: string,
+		subject: string,
+		htmlBody: string,
+		textBody?: string,
+		replyTo?: string,
+		attachments?: string[],
+	): Promise<string> {
+		const fromEmail = this.configService.get<string>('GMAIL_FROM_EMAIL') || 'me';
+		
+		// Encode subject to UTF-8 using RFC 2047 format to avoid encoding issues
+		const encodedSubject = this.encodeSubject(subject);
+
+		// If no attachments, use simple message
+		if (!attachments || attachments.length === 0) {
+			return this.createMessage(to, subject, htmlBody, textBody, replyTo);
+		}
+
+		// Create multipart message with attachments
+		const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+		
+		const headers = [
+			`To: ${to}`,
+			`From: ${fromEmail}`,
+			`Subject: ${encodedSubject}`,
+			`MIME-Version: 1.0`,
+			`Content-Type: multipart/mixed; boundary="${boundary}"`,
+		];
+
+		if (replyTo) {
+			headers.push(`Reply-To: ${replyTo}`);
+		}
+
+		// Build message parts
+		const parts: string[] = [];
+
+		// HTML body part
+		parts.push(`--${boundary}`);
+		parts.push('Content-Type: text/html; charset=utf-8');
+		parts.push('Content-Transfer-Encoding: 7bit');
+		parts.push('');
+		parts.push(htmlBody);
+
+		// Attachments
+		const { readFileSync } = await import('fs');
+		const { basename } = await import('path');
+
+		for (const attachmentPath of attachments) {
+			try {
+				const fileContent = readFileSync(attachmentPath);
+				const fileName = basename(attachmentPath);
+				const base64Content = fileContent.toString('base64');
+
+				parts.push(`--${boundary}`);
+				parts.push(`Content-Type: application/pdf; name="${fileName}"`);
+				parts.push('Content-Transfer-Encoding: base64');
+				parts.push(`Content-Disposition: attachment; filename="${fileName}"`);
+				parts.push('');
+				// Split base64 into lines of 76 characters (RFC 2045)
+				const base64Lines = base64Content.match(/.{1,76}/g) || [];
+				parts.push(base64Lines.join('\r\n'));
+			} catch (error: any) {
+				this.logger.error(`Failed to attach file ${attachmentPath}: ${error.message}`);
+				// Continue with other attachments
+			}
+		}
+
+		// Close boundary
+		parts.push(`--${boundary}--`);
+
+		const email = [headers.join('\r\n'), '', parts.join('\r\n')].join('\r\n');
+
+		// Encode to base64url format
+		return Buffer.from(email).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+	}
+
+	/**
+	 * Create base64 encoded email message (simple, no attachments)
 	 */
 	private createMessage(to: string, subject: string, htmlBody: string, textBody?: string, replyTo?: string): string {
 		const fromEmail = this.configService.get<string>('GMAIL_FROM_EMAIL') || 'me';

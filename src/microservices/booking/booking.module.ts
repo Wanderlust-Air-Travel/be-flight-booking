@@ -24,6 +24,7 @@ import { BookingStateModule } from 'src/shared/modules/booking-state/booking-sta
 import { BookingService } from './booking.service';
 import { BookingMsController } from './booking.controller';
 import { BookingNotificationService } from './services/booking-notification.service';
+import { TicketPdfService } from './services/ticket-pdf.service';
 import { TicketRabbitMQConsumer } from './consumers/ticket-rabbitmq.consumer';
 import { RESERVATION_MS } from '../reservation/reservation.messages';
 import { EMAIL_MS } from '../email/email.messages';
@@ -72,7 +73,7 @@ import { EMAIL_MS } from '../email/email.messages';
 			},
 		]),
 	],
-	providers: [BookingService, BookingNotificationService, TicketRabbitMQConsumer, FarePricingService],
+	providers: [BookingService, BookingNotificationService, TicketPdfService, TicketRabbitMQConsumer, FarePricingService],
 	controllers: [BookingMsController],
 	exports: [BookingService],
 })
