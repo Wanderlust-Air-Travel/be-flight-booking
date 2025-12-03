@@ -130,18 +130,54 @@ export class SearchService {
 
 		console.log(`[DEBUG] Found ${instances.length} flight instances for date ${dateStr}`);
 
-		// Calculate available seats for each instance
+		// Calculate available seats for each instance, grouped by cabin type
 		const withAvailability = await Promise.all(instances.map(async (fi) => {
-			// Use QueryBuilder with raw column name because flight_instance_id is a @RelationId property
-			// TypeORM doesn't support @RelationId properties in count() where clauses
-			// The actual column name in DB is 'flight_instance_id' (from @JoinColumn in entity)
+			// Get total available seats
 			const availableSeats = await this.seatRepo
 				.createQueryBuilder('seat')
 				.where('seat.flight_instance_id = :instanceId', { instanceId: fi.flight_instance_id })
 				.andWhere('seat.is_available = :available', { available: true })
 				.getCount();
-			console.log(`[DEBUG] Flight ${fi.flight_number} (${fi.flight_instance_id}): ${availableSeats} available seats`);
-			return { fi, availableSeats };
+
+			// Get available seats by cabin type
+			const cabinTypeSeats = await this.seatRepo
+				.createQueryBuilder('seat')
+				.innerJoin('seat.seat_config', 'sc')
+				.innerJoin('sc.cabin_class', 'cc')
+				.where('seat.flight_instance_id = :instanceId', { instanceId: fi.flight_instance_id })
+				.andWhere('seat.is_available = :available', { available: true })
+				.select('cc.cabin_class_code', 'cabinClassCode')
+				.addSelect('COUNT(seat.flight_seat_id)', 'count')
+				.groupBy('cc.cabin_class_code')
+				.getRawMany();
+
+			// Map cabin class codes to cabin types
+			const cabinTypes: { cabinType: string; availableSeats: number }[] = [];
+			for (const row of cabinTypeSeats) {
+				const cabinClassCode = row.cabinClassCode;
+				const count = parseInt(row.count, 10);
+				
+				// Map cabin class code to cabin type
+				let cabinType: string;
+				if (cabinClassCode === 'Y') {
+					cabinType = CabinType.ECONOMY;
+				} else if (cabinClassCode === 'J') {
+					cabinType = CabinType.BUSINESS;
+				} else if (cabinClassCode === 'F') {
+					cabinType = CabinType.FIRST;
+				} else {
+					// Skip unknown cabin class codes
+					continue;
+				}
+
+				// Only include cabin types with available seats >= minSeats
+				if (count >= minSeats) {
+					cabinTypes.push({ cabinType, availableSeats: count });
+				}
+			}
+
+			console.log(`[DEBUG] Flight ${fi.flight_number} (${fi.flight_instance_id}): ${availableSeats} total available seats, cabin types: ${JSON.stringify(cabinTypes)}`);
+			return { fi, availableSeats, cabinTypes };
 		}));
 
 		// Map to FlightResult, only include flights with valid flightInstanceId and enough seats
@@ -149,13 +185,17 @@ export class SearchService {
 			.filter(x => {
 				const hasEnoughSeats = x.availableSeats >= minSeats;
 				const hasValidId = !!x.fi.flight_instance_id;
+				const hasAvailableCabinTypes = x.cabinTypes.length > 0;
 				if (!hasEnoughSeats) {
 					console.log(`[DEBUG] Filtered out ${x.fi.flight_number}: only ${x.availableSeats} seats (need ${minSeats})`);
 				}
 				if (!hasValidId) {
 					console.log(`[DEBUG] Filtered out ${x.fi.flight_number}: no flight_instance_id`);
 				}
-				return hasEnoughSeats && hasValidId;
+				if (!hasAvailableCabinTypes) {
+					console.log(`[DEBUG] Filtered out ${x.fi.flight_number}: no cabin types with enough seats`);
+				}
+				return hasEnoughSeats && hasValidId && hasAvailableCabinTypes;
 			})
 			.map(x => ({
 				flightInstanceId: x.fi.flight_instance_id,
@@ -165,6 +205,7 @@ export class SearchService {
 				availableSeats: x.availableSeats,
 				origin: { iata: origin.iata_code, name: origin.name, city: origin.city },
 				destination: { iata: destination.iata_code, name: destination.name, city: destination.city },
+				cabinTypes: x.cabinTypes,
 			}));
 
 		console.log(`[DEBUG] Returning ${results.length} flights with enough seats`);

@@ -12,6 +12,22 @@ export class AirportInfoDto {
 	city!: string;
 }
 
+export class CabinTypeInfoDto {
+	@ApiProperty({ 
+		description: 'Cabin type', 
+		example: 'economy',
+		enum: ['economy', 'business', 'first']
+	})
+	cabinType!: string;
+
+	@ApiProperty({ 
+		description: 'Number of available seats for this cabin type', 
+		example: 135,
+		minimum: 0 
+	})
+	availableSeats!: number;
+}
+
 export class FlightResultDto {
 	@ApiProperty({ 
 		description: 'Flight instance ID (empty string if from schedule)', 
@@ -35,7 +51,7 @@ export class FlightResultDto {
 	arrivalLocal!: Date;
 
 	@ApiProperty({ 
-		description: 'Number of available seats', 
+		description: 'Total number of available seats (across all cabin types)', 
 		example: 180,
 		minimum: 0 
 	})
@@ -46,6 +62,16 @@ export class FlightResultDto {
 
 	@ApiProperty({ type: AirportInfoDto, description: 'Destination airport information' })
 	destination!: AirportInfoDto;
+
+	@ApiProperty({ 
+		type: [CabinTypeInfoDto], 
+		description: 'Available cabin types with seat counts for this flight instance',
+		example: [
+			{ cabinType: 'economy', availableSeats: 135 },
+			{ cabinType: 'business', availableSeats: 20 }
+		]
+	})
+	cabinTypes!: CabinTypeInfoDto[];
 }
 
 export class SearchFlightsResponseDto {
