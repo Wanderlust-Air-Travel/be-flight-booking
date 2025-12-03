@@ -9,6 +9,7 @@ import { FareClass } from 'src/shared/entities/fare/fare-class.entity';
 import { CabinClass } from 'src/shared/entities/cabin/cabin-class.entity';
 import { SeatConfiguration } from 'src/shared/entities/seat/seat-configuration.entity';
 import { RouteFarePrice } from 'src/shared/entities/fare/route-fare-price.entity';
+import { FareDescriptionRule } from 'src/shared/entities/fare/fare-description-rule.entity';
 import { FarePricingService } from 'src/shared/services/fare-pricing.service';
 import { SearchService } from './search.service';
 import { SearchMsController } from './search.controller';
@@ -25,6 +26,7 @@ import { SearchMsController } from './search.controller';
 			CabinClass,
 			SeatConfiguration,
 			RouteFarePrice,
+			FareDescriptionRule,
 		]),
 	],
 	providers: [SearchService, FarePricingService],
