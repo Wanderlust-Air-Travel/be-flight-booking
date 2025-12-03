@@ -32,7 +32,16 @@ import { CreateFlightInstanceDto } from './dto/create-flight-instance.dto';
 import { UpdateFlightInstanceDto } from './dto/update-flight-instance.dto';
 import { AssignRoleDto } from './dto/assign-role.dto';
 import { RemoveRoleDto } from './dto/remove-role.dto';
+import { CreateRouteFarePriceDto } from './dto/create-route-fare-price.dto';
+import { UpdateRouteFarePriceDto } from './dto/update-route-fare-price.dto';
+import { CreateBaggageAllowanceDto } from './dto/create-baggage-allowance.dto';
+import { UpdateBaggageAllowanceDto } from './dto/update-baggage-allowance.dto';
+import { CreateCabinServiceDto } from './dto/create-cabin-service.dto';
+import { UpdateCabinServiceDto } from './dto/update-cabin-service.dto';
 import { FareClass } from 'src/shared/entities/fare/fare-class.entity';
+import { RouteFarePrice } from 'src/shared/entities/fare/route-fare-price.entity';
+import { BaggageAllowance } from 'src/shared/entities/fare/baggage-allowance.entity';
+import { CabinService } from 'src/shared/entities/cabin/cabin-service.entity';
 import { FlightSchedule } from 'src/shared/entities/flight/flight-schedule.entity';
 import { FlightInstance } from 'src/shared/entities/flight/flight-instance.entity';
 import { Role } from 'src/shared/entities/role/role.entity';
@@ -614,6 +623,444 @@ export class AdminController {
 			this.logger.error('Get all roles error:', error);
 			throw new InternalServerErrorException(
 				`Failed to retrieve roles: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
+			);
+		}
+	}
+
+	// ==================== ROUTE FARE PRICE MANAGEMENT (REVENUE_ANALYST) ====================
+
+	@Post('route-fare-prices')
+	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST)
+	@ApiOperation({
+		summary: 'Create a new route fare price',
+		description: 'Create a new route fare price. Requires ADMIN or REVENUE_ANALYST role.',
+	})
+	@ApiOkResponse({
+		description: 'Route fare price created successfully',
+		type: RouteFarePrice,
+	})
+	@ApiBadRequestResponse({
+		description: 'Invalid request or route/fare class not found',
+	})
+	async createRouteFarePrice(@Body() dto: CreateRouteFarePriceDto): Promise<RouteFarePrice> {
+		try {
+			return await this.adminService.createRouteFarePrice(dto);
+		} catch (error: any) {
+			this.logger.error('Create route fare price error:', error);
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			throw new BadRequestException(
+				`Failed to create route fare price: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
+			);
+		}
+	}
+
+	@Get('route-fare-prices')
+	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST, SystemRole.DISTRIBUTION_MANAGER)
+	@ApiOperation({
+		summary: 'Get all route fare prices',
+		description: 'Get all route fare prices. Requires ADMIN, REVENUE_ANALYST, or DISTRIBUTION_MANAGER role.',
+	})
+	@ApiOkResponse({
+		description: 'Route fare prices retrieved successfully',
+		type: [RouteFarePrice],
+	})
+	async getAllRouteFarePrices(): Promise<RouteFarePrice[]> {
+		try {
+			return await this.adminService.getAllRouteFarePrices();
+		} catch (error: any) {
+			this.logger.error('Get all route fare prices error:', error);
+			throw new InternalServerErrorException(
+				`Failed to retrieve route fare prices: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
+			);
+		}
+	}
+
+	@Get('route-fare-prices/:id')
+	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST, SystemRole.DISTRIBUTION_MANAGER)
+	@ApiOperation({
+		summary: 'Get route fare price by ID',
+		description: 'Get route fare price details by ID. Requires ADMIN, REVENUE_ANALYST, or DISTRIBUTION_MANAGER role.',
+	})
+	@ApiParam({
+		name: 'id',
+		description: 'Route fare price ID (UUID v7)',
+		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+	})
+	@ApiOkResponse({
+		description: 'Route fare price retrieved successfully',
+		type: RouteFarePrice,
+	})
+	async getRouteFarePriceById(@Param('id') routeFarePriceId: string): Promise<RouteFarePrice> {
+		try {
+			return await this.adminService.getRouteFarePriceById(routeFarePriceId);
+		} catch (error: any) {
+			this.logger.error('Get route fare price error:', error);
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			throw new BadRequestException(
+				`Failed to retrieve route fare price: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
+			);
+		}
+	}
+
+	@Put('route-fare-prices/:id')
+	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST)
+	@ApiOperation({
+		summary: 'Update route fare price',
+		description: 'Update route fare price details. Requires ADMIN or REVENUE_ANALYST role.',
+	})
+	@ApiParam({
+		name: 'id',
+		description: 'Route fare price ID (UUID v7)',
+		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+	})
+	@ApiOkResponse({
+		description: 'Route fare price updated successfully',
+		type: RouteFarePrice,
+	})
+	async updateRouteFarePrice(
+		@Param('id') routeFarePriceId: string,
+		@Body() dto: UpdateRouteFarePriceDto,
+	): Promise<RouteFarePrice> {
+		try {
+			return await this.adminService.updateRouteFarePrice(routeFarePriceId, dto);
+		} catch (error: any) {
+			this.logger.error('Update route fare price error:', error);
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			throw new BadRequestException(
+				`Failed to update route fare price: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
+			);
+		}
+	}
+
+	@Delete('route-fare-prices/:id')
+	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST)
+	@ApiOperation({
+		summary: 'Delete route fare price',
+		description: 'Delete a route fare price. Requires ADMIN or REVENUE_ANALYST role.',
+	})
+	@ApiParam({
+		name: 'id',
+		description: 'Route fare price ID (UUID v7)',
+		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+	})
+	@ApiOkResponse({
+		description: 'Route fare price deleted successfully',
+		schema: {
+			type: 'object',
+			properties: {
+				success: { type: 'boolean', example: true },
+				message: { type: 'string', example: 'Route fare price deleted successfully' },
+			},
+		},
+	})
+	async deleteRouteFarePrice(@Param('id') routeFarePriceId: string): Promise<{ success: boolean; message: string }> {
+		try {
+			return await this.adminService.deleteRouteFarePrice(routeFarePriceId);
+		} catch (error: any) {
+			this.logger.error('Delete route fare price error:', error);
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			throw new BadRequestException(
+				`Failed to delete route fare price: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
+			);
+		}
+	}
+
+	// ==================== BAGGAGE ALLOWANCE MANAGEMENT (ANCILLARY_MANAGER) ====================
+
+	@Post('baggage-allowances')
+	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER)
+	@ApiOperation({
+		summary: 'Create a new baggage allowance',
+		description: 'Create a new baggage allowance for a fare class. Requires ADMIN or ANCILLARY_MANAGER role.',
+	})
+	@ApiOkResponse({
+		description: 'Baggage allowance created successfully',
+		type: BaggageAllowance,
+	})
+	@ApiBadRequestResponse({
+		description: 'Invalid request or fare class not found',
+	})
+	async createBaggageAllowance(@Body() dto: CreateBaggageAllowanceDto): Promise<BaggageAllowance> {
+		try {
+			return await this.adminService.createBaggageAllowance(dto);
+		} catch (error: any) {
+			this.logger.error('Create baggage allowance error:', error);
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			throw new BadRequestException(
+				`Failed to create baggage allowance: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
+			);
+		}
+	}
+
+	@Get('baggage-allowances')
+	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER, SystemRole.CALL_CENTER, SystemRole.DISTRIBUTION_MANAGER)
+	@ApiOperation({
+		summary: 'Get all baggage allowances',
+		description: 'Get all baggage allowances. Requires ADMIN, ANCILLARY_MANAGER, CALL_CENTER, or DISTRIBUTION_MANAGER role.',
+	})
+	@ApiOkResponse({
+		description: 'Baggage allowances retrieved successfully',
+		type: [BaggageAllowance],
+	})
+	async getAllBaggageAllowances(): Promise<BaggageAllowance[]> {
+		try {
+			return await this.adminService.getAllBaggageAllowances();
+		} catch (error: any) {
+			this.logger.error('Get all baggage allowances error:', error);
+			throw new InternalServerErrorException(
+				`Failed to retrieve baggage allowances: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
+			);
+		}
+	}
+
+	@Get('baggage-allowances/:id')
+	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER, SystemRole.CALL_CENTER, SystemRole.DISTRIBUTION_MANAGER)
+	@ApiOperation({
+		summary: 'Get baggage allowance by ID',
+		description: 'Get baggage allowance details by ID. Requires ADMIN, ANCILLARY_MANAGER, CALL_CENTER, or DISTRIBUTION_MANAGER role.',
+	})
+	@ApiParam({
+		name: 'id',
+		description: 'Baggage allowance ID (UUID v7)',
+		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+	})
+	@ApiOkResponse({
+		description: 'Baggage allowance retrieved successfully',
+		type: BaggageAllowance,
+	})
+	async getBaggageAllowanceById(@Param('id') baggageAllowanceId: string): Promise<BaggageAllowance> {
+		try {
+			return await this.adminService.getBaggageAllowanceById(baggageAllowanceId);
+		} catch (error: any) {
+			this.logger.error('Get baggage allowance error:', error);
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			throw new BadRequestException(
+				`Failed to retrieve baggage allowance: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
+			);
+		}
+	}
+
+	@Put('baggage-allowances/:id')
+	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER)
+	@ApiOperation({
+		summary: 'Update baggage allowance',
+		description: 'Update baggage allowance details. Requires ADMIN or ANCILLARY_MANAGER role.',
+	})
+	@ApiParam({
+		name: 'id',
+		description: 'Baggage allowance ID (UUID v7)',
+		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+	})
+	@ApiOkResponse({
+		description: 'Baggage allowance updated successfully',
+		type: BaggageAllowance,
+	})
+	async updateBaggageAllowance(
+		@Param('id') baggageAllowanceId: string,
+		@Body() dto: UpdateBaggageAllowanceDto,
+	): Promise<BaggageAllowance> {
+		try {
+			return await this.adminService.updateBaggageAllowance(baggageAllowanceId, dto);
+		} catch (error: any) {
+			this.logger.error('Update baggage allowance error:', error);
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			throw new BadRequestException(
+				`Failed to update baggage allowance: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
+			);
+		}
+	}
+
+	@Delete('baggage-allowances/:id')
+	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER)
+	@ApiOperation({
+		summary: 'Delete baggage allowance',
+		description: 'Delete a baggage allowance. Requires ADMIN or ANCILLARY_MANAGER role.',
+	})
+	@ApiParam({
+		name: 'id',
+		description: 'Baggage allowance ID (UUID v7)',
+		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+	})
+	@ApiOkResponse({
+		description: 'Baggage allowance deleted successfully',
+		schema: {
+			type: 'object',
+			properties: {
+				success: { type: 'boolean', example: true },
+				message: { type: 'string', example: 'Baggage allowance deleted successfully' },
+			},
+		},
+	})
+	async deleteBaggageAllowance(@Param('id') baggageAllowanceId: string): Promise<{ success: boolean; message: string }> {
+		try {
+			return await this.adminService.deleteBaggageAllowance(baggageAllowanceId);
+		} catch (error: any) {
+			this.logger.error('Delete baggage allowance error:', error);
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			throw new BadRequestException(
+				`Failed to delete baggage allowance: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
+			);
+		}
+	}
+
+	// ==================== CABIN SERVICE MANAGEMENT (ANCILLARY_MANAGER) ====================
+
+	@Post('cabin-services')
+	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER)
+	@ApiOperation({
+		summary: 'Create a new cabin service',
+		description: 'Create a new cabin service. Requires ADMIN or ANCILLARY_MANAGER role.',
+	})
+	@ApiOkResponse({
+		description: 'Cabin service created successfully',
+		type: CabinService,
+	})
+	@ApiBadRequestResponse({
+		description: 'Invalid request or cabin/fare class not found',
+	})
+	async createCabinService(@Body() dto: CreateCabinServiceDto): Promise<CabinService> {
+		try {
+			return await this.adminService.createCabinService(dto);
+		} catch (error: any) {
+			this.logger.error('Create cabin service error:', error);
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			throw new BadRequestException(
+				`Failed to create cabin service: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
+			);
+		}
+	}
+
+	@Get('cabin-services')
+	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER, SystemRole.CALL_CENTER, SystemRole.DISTRIBUTION_MANAGER)
+	@ApiOperation({
+		summary: 'Get all cabin services',
+		description: 'Get all cabin services. Requires ADMIN, ANCILLARY_MANAGER, CALL_CENTER, or DISTRIBUTION_MANAGER role.',
+	})
+	@ApiOkResponse({
+		description: 'Cabin services retrieved successfully',
+		type: [CabinService],
+	})
+	async getAllCabinServices(): Promise<CabinService[]> {
+		try {
+			return await this.adminService.getAllCabinServices();
+		} catch (error: any) {
+			this.logger.error('Get all cabin services error:', error);
+			throw new InternalServerErrorException(
+				`Failed to retrieve cabin services: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
+			);
+		}
+	}
+
+	@Get('cabin-services/:id')
+	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER, SystemRole.CALL_CENTER, SystemRole.DISTRIBUTION_MANAGER)
+	@ApiOperation({
+		summary: 'Get cabin service by ID',
+		description: 'Get cabin service details by ID. Requires ADMIN, ANCILLARY_MANAGER, CALL_CENTER, or DISTRIBUTION_MANAGER role.',
+	})
+	@ApiParam({
+		name: 'id',
+		description: 'Cabin service ID (UUID v7)',
+		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+	})
+	@ApiOkResponse({
+		description: 'Cabin service retrieved successfully',
+		type: CabinService,
+	})
+	async getCabinServiceById(@Param('id') cabinServiceId: string): Promise<CabinService> {
+		try {
+			return await this.adminService.getCabinServiceById(cabinServiceId);
+		} catch (error: any) {
+			this.logger.error('Get cabin service error:', error);
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			throw new BadRequestException(
+				`Failed to retrieve cabin service: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
+			);
+		}
+	}
+
+	@Put('cabin-services/:id')
+	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER)
+	@ApiOperation({
+		summary: 'Update cabin service',
+		description: 'Update cabin service details. Requires ADMIN or ANCILLARY_MANAGER role.',
+	})
+	@ApiParam({
+		name: 'id',
+		description: 'Cabin service ID (UUID v7)',
+		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+	})
+	@ApiOkResponse({
+		description: 'Cabin service updated successfully',
+		type: CabinService,
+	})
+	async updateCabinService(
+		@Param('id') cabinServiceId: string,
+		@Body() dto: UpdateCabinServiceDto,
+	): Promise<CabinService> {
+		try {
+			return await this.adminService.updateCabinService(cabinServiceId, dto);
+		} catch (error: any) {
+			this.logger.error('Update cabin service error:', error);
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			throw new BadRequestException(
+				`Failed to update cabin service: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
+			);
+		}
+	}
+
+	@Delete('cabin-services/:id')
+	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER)
+	@ApiOperation({
+		summary: 'Delete cabin service',
+		description: 'Delete a cabin service. Requires ADMIN or ANCILLARY_MANAGER role.',
+	})
+	@ApiParam({
+		name: 'id',
+		description: 'Cabin service ID (UUID v7)',
+		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+	})
+	@ApiOkResponse({
+		description: 'Cabin service deleted successfully',
+		schema: {
+			type: 'object',
+			properties: {
+				success: { type: 'boolean', example: true },
+				message: { type: 'string', example: 'Cabin service deleted successfully' },
+			},
+		},
+	})
+	async deleteCabinService(@Param('id') cabinServiceId: string): Promise<{ success: boolean; message: string }> {
+		try {
+			return await this.adminService.deleteCabinService(cabinServiceId);
+		} catch (error: any) {
+			this.logger.error('Delete cabin service error:', error);
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			throw new BadRequestException(
+				`Failed to delete cabin service: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
 			);
 		}
 	}

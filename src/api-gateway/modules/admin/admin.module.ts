@@ -14,6 +14,9 @@ import { SeatConfiguration } from 'src/shared/entities/seat/seat-configuration.e
 import { User } from 'src/shared/entities/user/user.entity';
 import { UserRole } from 'src/shared/entities/user/user-role.entity';
 import { Role } from 'src/shared/entities/role/role.entity';
+import { RouteFarePrice } from 'src/shared/entities/fare/route-fare-price.entity';
+import { BaggageAllowance } from 'src/shared/entities/fare/baggage-allowance.entity';
+import { CabinService } from 'src/shared/entities/cabin/cabin-service.entity';
 import { RolesGuard } from 'src/shared/guards/roles.guard';
 import { AuthModule } from '../auth/auth.module';
 
@@ -32,6 +35,9 @@ import { AuthModule } from '../auth/auth.module';
 			User,
 			UserRole,
 			Role,
+			RouteFarePrice,
+			BaggageAllowance,
+			CabinService,
 		]),
 		AuthModule,
 	],

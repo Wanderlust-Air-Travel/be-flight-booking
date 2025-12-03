@@ -13,7 +13,16 @@ import { SeatConfiguration } from 'src/shared/entities/seat/seat-configuration.e
 import { User } from 'src/shared/entities/user/user.entity';
 import { UserRole } from 'src/shared/entities/user/user-role.entity';
 import { Role } from 'src/shared/entities/role/role.entity';
+import { RouteFarePrice } from 'src/shared/entities/fare/route-fare-price.entity';
+import { BaggageAllowance } from 'src/shared/entities/fare/baggage-allowance.entity';
+import { CabinService } from 'src/shared/entities/cabin/cabin-service.entity';
 import { CreateFareClassDto } from './dto/create-fare-class.dto';
+import { CreateRouteFarePriceDto } from './dto/create-route-fare-price.dto';
+import { UpdateRouteFarePriceDto } from './dto/update-route-fare-price.dto';
+import { CreateBaggageAllowanceDto } from './dto/create-baggage-allowance.dto';
+import { UpdateBaggageAllowanceDto } from './dto/update-baggage-allowance.dto';
+import { CreateCabinServiceDto } from './dto/create-cabin-service.dto';
+import { UpdateCabinServiceDto } from './dto/update-cabin-service.dto';
 import { UpdateFareClassDto } from './dto/update-fare-class.dto';
 import { CreateFlightScheduleDto } from './dto/create-flight-schedule.dto';
 import { UpdateFlightScheduleDto } from './dto/update-flight-schedule.dto';
@@ -41,6 +50,9 @@ export class AdminService {
 		@InjectRepository(User) private readonly userRepo: Repository<User>,
 		@InjectRepository(UserRole) private readonly userRoleRepo: Repository<UserRole>,
 		@InjectRepository(Role) private readonly roleRepo: Repository<Role>,
+		@InjectRepository(RouteFarePrice) private readonly routeFarePriceRepo: Repository<RouteFarePrice>,
+		@InjectRepository(BaggageAllowance) private readonly baggageAllowanceRepo: Repository<BaggageAllowance>,
+		@InjectRepository(CabinService) private readonly cabinServiceRepo: Repository<CabinService>,
 		private readonly dataSource: DataSource,
 	) {}
 
@@ -686,6 +698,355 @@ export class AdminService {
 			where: { is_active: true },
 			order: { role_code: 'ASC' },
 		});
+	}
+
+	// ==================== ROUTE FARE PRICE MANAGEMENT (REVENUE_ANALYST) ====================
+
+	/**
+	 * Create a new route fare price
+	 */
+	async createRouteFarePrice(dto: CreateRouteFarePriceDto): Promise<RouteFarePrice> {
+		// Validate route exists
+		const route = await this.routeRepo.findOne({
+			where: { route_id: dto.routeId },
+		});
+
+		if (!route) {
+			throw new NotFoundException(`Route ${dto.routeId} not found`);
+		}
+
+		// Validate fare class exists
+		const fareClass = await this.fareClassRepo.findOne({
+			where: { fare_class_code: dto.fareClassCode },
+		});
+
+		if (!fareClass) {
+			throw new NotFoundException(`Fare class ${dto.fareClassCode} not found`);
+		}
+
+		// Create route fare price
+		const routeFarePrice = this.routeFarePriceRepo.create({
+			route_fare_price_id: randomUUID(),
+			route_id: dto.routeId,
+			fare_class_code: dto.fareClassCode,
+			base_price: dto.basePrice,
+			tax_rate: dto.taxRate ?? 0.1,
+			fee_rate: dto.feeRate ?? 0.05,
+			effective_from: new Date(dto.effectiveFrom),
+			effective_to: dto.effectiveTo ? new Date(dto.effectiveTo) : null,
+			is_active: dto.isActive ?? true,
+			priority: dto.priority ?? 0,
+			notes: dto.notes || null,
+		});
+
+		return await this.routeFarePriceRepo.save(routeFarePrice);
+	}
+
+	/**
+	 * Get all route fare prices
+	 */
+	async getAllRouteFarePrices(): Promise<RouteFarePrice[]> {
+		return await this.routeFarePriceRepo.find({
+			relations: ['route', 'fare_class'],
+			order: { created_at: 'DESC' },
+		});
+	}
+
+	/**
+	 * Get route fare price by ID
+	 */
+	async getRouteFarePriceById(routeFarePriceId: string): Promise<RouteFarePrice> {
+		const routeFarePrice = await this.routeFarePriceRepo.findOne({
+			where: { route_fare_price_id: routeFarePriceId },
+			relations: ['route', 'fare_class'],
+		});
+
+		if (!routeFarePrice) {
+			throw new NotFoundException(`Route fare price ${routeFarePriceId} not found`);
+		}
+
+		return routeFarePrice;
+	}
+
+	/**
+	 * Update route fare price
+	 */
+	async updateRouteFarePrice(
+		routeFarePriceId: string,
+		dto: UpdateRouteFarePriceDto,
+	): Promise<RouteFarePrice> {
+		const routeFarePrice = await this.routeFarePriceRepo.findOne({
+			where: { route_fare_price_id: routeFarePriceId },
+		});
+
+		if (!routeFarePrice) {
+			throw new NotFoundException(`Route fare price ${routeFarePriceId} not found`);
+		}
+
+		// Update fields
+		if (dto.basePrice !== undefined) routeFarePrice.base_price = dto.basePrice;
+		if (dto.taxRate !== undefined) routeFarePrice.tax_rate = dto.taxRate;
+		if (dto.feeRate !== undefined) routeFarePrice.fee_rate = dto.feeRate;
+		if (dto.effectiveFrom !== undefined) routeFarePrice.effective_from = new Date(dto.effectiveFrom);
+		if (dto.effectiveTo !== undefined) routeFarePrice.effective_to = dto.effectiveTo ? new Date(dto.effectiveTo) : null;
+		if (dto.isActive !== undefined) routeFarePrice.is_active = dto.isActive;
+		if (dto.priority !== undefined) routeFarePrice.priority = dto.priority;
+		if (dto.notes !== undefined) routeFarePrice.notes = dto.notes;
+
+		routeFarePrice.updated_at = new Date();
+
+		return await this.routeFarePriceRepo.save(routeFarePrice);
+	}
+
+	/**
+	 * Delete route fare price
+	 */
+	async deleteRouteFarePrice(routeFarePriceId: string): Promise<{ success: boolean; message: string }> {
+		const routeFarePrice = await this.routeFarePriceRepo.findOne({
+			where: { route_fare_price_id: routeFarePriceId },
+		});
+
+		if (!routeFarePrice) {
+			throw new NotFoundException(`Route fare price ${routeFarePriceId} not found`);
+		}
+
+		await this.routeFarePriceRepo.remove(routeFarePrice);
+
+		return {
+			success: true,
+			message: `Route fare price ${routeFarePriceId} deleted successfully`,
+		};
+	}
+
+	// ==================== BAGGAGE ALLOWANCE MANAGEMENT (ANCILLARY_MANAGER) ====================
+
+	/**
+	 * Create a new baggage allowance
+	 */
+	async createBaggageAllowance(dto: CreateBaggageAllowanceDto): Promise<BaggageAllowance> {
+		// Validate fare class exists
+		const fareClass = await this.fareClassRepo.findOne({
+			where: { fare_class_code: dto.fareClassCode },
+		});
+
+		if (!fareClass) {
+			throw new NotFoundException(`Fare class ${dto.fareClassCode} not found`);
+		}
+
+		// Create baggage allowance
+		const baggageAllowance = this.baggageAllowanceRepo.create({
+			baggage_allowance_id: randomUUID(),
+			fare_class_code: dto.fareClassCode,
+			checked_baggage_kg: dto.checkedBaggageKg ?? null,
+			checked_baggage_pieces: dto.checkedBaggagePieces ?? null,
+			carry_on_kg: dto.carryOnKg ?? 7,
+			carry_on_pieces: dto.carryOnPieces ?? 1,
+			carry_on_dimensions: dto.carryOnDimensions || null,
+			is_domestic: dto.isDomestic ?? true,
+			is_international: dto.isInternational ?? true,
+			notes: dto.notes || null,
+		});
+
+		return await this.baggageAllowanceRepo.save(baggageAllowance);
+	}
+
+	/**
+	 * Get all baggage allowances
+	 */
+	async getAllBaggageAllowances(): Promise<BaggageAllowance[]> {
+		return await this.baggageAllowanceRepo.find({
+			relations: ['fare_class'],
+			order: { fare_class_code: 'ASC' },
+		});
+	}
+
+	/**
+	 * Get baggage allowance by ID
+	 */
+	async getBaggageAllowanceById(baggageAllowanceId: string): Promise<BaggageAllowance> {
+		const baggageAllowance = await this.baggageAllowanceRepo.findOne({
+			where: { baggage_allowance_id: baggageAllowanceId },
+			relations: ['fare_class'],
+		});
+
+		if (!baggageAllowance) {
+			throw new NotFoundException(`Baggage allowance ${baggageAllowanceId} not found`);
+		}
+
+		return baggageAllowance;
+	}
+
+	/**
+	 * Update baggage allowance
+	 */
+	async updateBaggageAllowance(
+		baggageAllowanceId: string,
+		dto: UpdateBaggageAllowanceDto,
+	): Promise<BaggageAllowance> {
+		const baggageAllowance = await this.baggageAllowanceRepo.findOne({
+			where: { baggage_allowance_id: baggageAllowanceId },
+		});
+
+		if (!baggageAllowance) {
+			throw new NotFoundException(`Baggage allowance ${baggageAllowanceId} not found`);
+		}
+
+		// Update fields
+		if (dto.checkedBaggageKg !== undefined) baggageAllowance.checked_baggage_kg = dto.checkedBaggageKg;
+		if (dto.checkedBaggagePieces !== undefined) baggageAllowance.checked_baggage_pieces = dto.checkedBaggagePieces;
+		if (dto.carryOnKg !== undefined) baggageAllowance.carry_on_kg = dto.carryOnKg;
+		if (dto.carryOnPieces !== undefined) baggageAllowance.carry_on_pieces = dto.carryOnPieces;
+		if (dto.carryOnDimensions !== undefined) baggageAllowance.carry_on_dimensions = dto.carryOnDimensions;
+		if (dto.isDomestic !== undefined) baggageAllowance.is_domestic = dto.isDomestic;
+		if (dto.isInternational !== undefined) baggageAllowance.is_international = dto.isInternational;
+		if (dto.notes !== undefined) baggageAllowance.notes = dto.notes;
+
+		baggageAllowance.updated_at = new Date();
+
+		return await this.baggageAllowanceRepo.save(baggageAllowance);
+	}
+
+	/**
+	 * Delete baggage allowance
+	 */
+	async deleteBaggageAllowance(baggageAllowanceId: string): Promise<{ success: boolean; message: string }> {
+		const baggageAllowance = await this.baggageAllowanceRepo.findOne({
+			where: { baggage_allowance_id: baggageAllowanceId },
+		});
+
+		if (!baggageAllowance) {
+			throw new NotFoundException(`Baggage allowance ${baggageAllowanceId} not found`);
+		}
+
+		await this.baggageAllowanceRepo.remove(baggageAllowance);
+
+		return {
+			success: true,
+			message: `Baggage allowance ${baggageAllowanceId} deleted successfully`,
+		};
+	}
+
+	// ==================== CABIN SERVICE MANAGEMENT (ANCILLARY_MANAGER) ====================
+
+	/**
+	 * Create a new cabin service
+	 */
+	async createCabinService(dto: CreateCabinServiceDto): Promise<CabinService> {
+		// Validate cabin class if provided
+		if (dto.cabinClassCode) {
+			const cabinClass = await this.cabinClassRepo.findOne({
+				where: { cabin_class_code: dto.cabinClassCode },
+			});
+
+			if (!cabinClass) {
+				throw new NotFoundException(`Cabin class ${dto.cabinClassCode} not found`);
+			}
+		}
+
+		// Validate fare class if provided
+		if (dto.fareClassCode) {
+			const fareClass = await this.fareClassRepo.findOne({
+				where: { fare_class_code: dto.fareClassCode },
+			});
+
+			if (!fareClass) {
+				throw new NotFoundException(`Fare class ${dto.fareClassCode} not found`);
+			}
+		}
+
+		// At least one of cabin_class_code or fare_class_code must be provided
+		if (!dto.cabinClassCode && !dto.fareClassCode) {
+			throw new BadRequestException('Either cabinClassCode or fareClassCode must be provided');
+		}
+
+		// Create cabin service
+		const cabinService = this.cabinServiceRepo.create({
+			cabin_service_id: randomUUID(),
+			cabin_class_code: dto.cabinClassCode || null,
+			fare_class_code: dto.fareClassCode || null,
+			service_type: dto.serviceType,
+			service_name: dto.serviceName,
+			description: dto.description || null,
+			is_included: dto.isIncluded ?? true,
+			price: dto.price ?? null,
+			is_active: dto.isActive ?? true,
+			display_order: dto.displayOrder ?? 0,
+			icon_url: dto.iconUrl || null,
+		});
+
+		return await this.cabinServiceRepo.save(cabinService);
+	}
+
+	/**
+	 * Get all cabin services
+	 */
+	async getAllCabinServices(): Promise<CabinService[]> {
+		return await this.cabinServiceRepo.find({
+			relations: ['cabin_class', 'fare_class'],
+			order: { display_order: 'ASC', service_type: 'ASC' },
+		});
+	}
+
+	/**
+	 * Get cabin service by ID
+	 */
+	async getCabinServiceById(cabinServiceId: string): Promise<CabinService> {
+		const cabinService = await this.cabinServiceRepo.findOne({
+			where: { cabin_service_id: cabinServiceId },
+			relations: ['cabin_class', 'fare_class'],
+		});
+
+		if (!cabinService) {
+			throw new NotFoundException(`Cabin service ${cabinServiceId} not found`);
+		}
+
+		return cabinService;
+	}
+
+	/**
+	 * Update cabin service
+	 */
+	async updateCabinService(cabinServiceId: string, dto: UpdateCabinServiceDto): Promise<CabinService> {
+		const cabinService = await this.cabinServiceRepo.findOne({
+			where: { cabin_service_id: cabinServiceId },
+		});
+
+		if (!cabinService) {
+			throw new NotFoundException(`Cabin service ${cabinServiceId} not found`);
+		}
+
+		// Update fields
+		if (dto.serviceName !== undefined) cabinService.service_name = dto.serviceName;
+		if (dto.description !== undefined) cabinService.description = dto.description;
+		if (dto.isIncluded !== undefined) cabinService.is_included = dto.isIncluded;
+		if (dto.price !== undefined) cabinService.price = dto.price;
+		if (dto.isActive !== undefined) cabinService.is_active = dto.isActive;
+		if (dto.displayOrder !== undefined) cabinService.display_order = dto.displayOrder;
+		if (dto.iconUrl !== undefined) cabinService.icon_url = dto.iconUrl;
+
+		cabinService.updated_at = new Date();
+
+		return await this.cabinServiceRepo.save(cabinService);
+	}
+
+	/**
+	 * Delete cabin service
+	 */
+	async deleteCabinService(cabinServiceId: string): Promise<{ success: boolean; message: string }> {
+		const cabinService = await this.cabinServiceRepo.findOne({
+			where: { cabin_service_id: cabinServiceId },
+		});
+
+		if (!cabinService) {
+			throw new NotFoundException(`Cabin service ${cabinServiceId} not found`);
+		}
+
+		await this.cabinServiceRepo.remove(cabinService);
+
+		return {
+			success: true,
+			message: `Cabin service ${cabinServiceId} deleted successfully`,
+		};
 	}
 }
 
