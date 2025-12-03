@@ -4,6 +4,75 @@ Lịch sử các thay đổi quan trọng của dự án.
 
 ## [Unreleased]
 
+### Dynamic Pricing & Management APIs (2025-12-03)
+
+- **Feature**: Triển khai hệ thống quản lý giá vé động, quy định hành lý và dịch vụ cabin từ database
+- **Implementation**:
+  - **Route Fare Price Management**: 
+    - Tạo entity `RouteFarePrice` để lưu giá vé theo route, fare class, cabin type
+    - Hỗ trợ dynamic pricing với effective dates và priority system
+    - `FarePricingService` để retrieve pricing từ database với fallback logic
+    - APIs: CRUD operations cho route fare prices (REVENUE_ANALYST role)
+  - **Baggage Allowance Management**:
+    - Tạo entity `BaggageAllowance` để lưu quy định hành lý theo fare class
+    - Hỗ trợ phân biệt domestic/international routes
+    - APIs: CRUD operations cho baggage allowances (ANCILLARY_MANAGER role)
+  - **Cabin Service Management**:
+    - Tạo entity `CabinService` để lưu dịch vụ cabin (meals, entertainment, WiFi, etc.)
+    - Hỗ trợ services theo cabin class hoặc fare class cụ thể
+    - Hỗ trợ included services (miễn phí) và purchasable services (có giá)
+    - APIs: CRUD operations cho cabin services (ANCILLARY_MANAGER role)
+  - **Frontend UI**:
+    - Tạo admin pages cho Route Fare Prices, Baggage Allowances, Cabin Services
+    - Tích hợp với admin layout và navigation
+    - Type definitions được tách ra file riêng (best practice)
+  - **Database Schema**:
+    - Migration `1700000003000-CreateRouteFarePriceTable.ts` - Tạo bảng RouteFarePrices
+    - Migration `1700000004000-CreateBaggageAndCabinServiceTables.ts` - Tạo bảng BaggageAllowances và CabinServices
+  - **Seed Data**:
+    - Cập nhật `seed-full-database.ts` để seed route fare prices, baggage allowances, và cabin services
+- **Files Changed**:
+  - `src/shared/entities/fare/route-fare-price.entity.ts` - RouteFarePrice entity
+  - `src/shared/entities/fare/baggage-allowance.entity.ts` - BaggageAllowance entity
+  - `src/shared/entities/cabin/cabin-service.entity.ts` - CabinService entity
+  - `src/shared/services/fare-pricing.service.ts` - FarePricingService
+  - `src/shared/services/cabin-service.service.ts` - CabinServiceService
+  - `src/migrations/1700000003000-CreateRouteFarePriceTable.ts` - RouteFarePrice migration
+  - `src/migrations/1700000004000-CreateBaggageAndCabinServiceTables.ts` - BaggageAllowance & CabinService migration
+  - `src/api-gateway/modules/admin/` - Thêm DTOs và endpoints cho route fare prices, baggage allowances, cabin services
+  - `src/microservices/search/search.service.ts` - Sử dụng FarePricingService
+  - `src/microservices/reservation/reservation.service.ts` - Sử dụng FarePricingService
+  - `src/microservices/booking/booking.service.ts` - Sử dụng FarePricingService
+  - `src/scripts/seed-full-database.ts` - Seed route fare prices, baggage allowances, cabin services
+  - `booking/app/(page)/admin/route-fare-prices/page.tsx` - Frontend page
+  - `booking/app/(page)/admin/baggage-allowances/page.tsx` - Frontend page
+  - `booking/app/(page)/admin/cabin-services/page.tsx` - Frontend page
+  - `booking/types/admin/*.d.ts` - Type definitions cho admin pages
+- **API Endpoints**:
+  - `POST /api/v1/admin/route-fare-prices` - Tạo giá vé (REVENUE_ANALYST)
+  - `GET /api/v1/admin/route-fare-prices` - Lấy tất cả giá vé
+  - `GET /api/v1/admin/route-fare-prices/:id` - Lấy giá vé theo ID
+  - `PUT /api/v1/admin/route-fare-prices/:id` - Cập nhật giá vé
+  - `DELETE /api/v1/admin/route-fare-prices/:id` - Xóa giá vé
+  - `POST /api/v1/admin/baggage-allowances` - Tạo quy định hành lý (ANCILLARY_MANAGER)
+  - `GET /api/v1/admin/baggage-allowances` - Lấy tất cả quy định hành lý
+  - `GET /api/v1/admin/baggage-allowances/:id` - Lấy quy định hành lý theo ID
+  - `PUT /api/v1/admin/baggage-allowances/:id` - Cập nhật quy định hành lý
+  - `DELETE /api/v1/admin/baggage-allowances/:id` - Xóa quy định hành lý
+  - `POST /api/v1/admin/cabin-services` - Tạo dịch vụ cabin (ANCILLARY_MANAGER)
+  - `GET /api/v1/admin/cabin-services` - Lấy tất cả dịch vụ cabin
+  - `GET /api/v1/admin/cabin-services/:id` - Lấy dịch vụ cabin theo ID
+  - `PUT /api/v1/admin/cabin-services/:id` - Cập nhật dịch vụ cabin
+  - `DELETE /api/v1/admin/cabin-services/:id` - Xóa dịch vụ cabin
+- **Best Practices**:
+  - Tất cả pricing data được lưu trong database, không hardcode
+  - Fallback pricing logic nếu không tìm thấy trong database
+  - Priority system cho promotions và special pricing
+  - Effective dates để quản lý pricing theo thời gian
+  - Type definitions tách riêng khỏi business logic (frontend)
+
+---
+
 ### Hệ thống Phân quyền Role-Based Access Control (RBAC) (2025-12-03)
 
 - **Feature**: Triển khai hệ thống phân quyền dựa trên vai trò (Role-Based Access Control) theo best practices của ngành hàng không

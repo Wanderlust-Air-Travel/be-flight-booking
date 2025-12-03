@@ -56,10 +56,13 @@ Hệ thống được chia thành nhiều phần nhỏ (microservices) để d�
    - Quản lý hàng đợi email
 
 6. **Admin Module** (cổng 3000, API Gateway)
-   - Quản lý giá vé (Fare Management)
-   - Quản lý lịch chuyến bay (Flight Schedule Management)
-   - Quản lý chuyến bay thực tế (Flight Instance Management)
-   - Quản lý quyền người dùng (User Role Management)
+   - Quản lý giá vé theo route (Route Fare Price Management) - REVENUE_ANALYST
+   - Quản lý quy định hành lý (Baggage Allowance Management) - ANCILLARY_MANAGER
+   - Quản lý dịch vụ cabin (Cabin Service Management) - ANCILLARY_MANAGER
+   - Quản lý hạng vé (Fare Class Management) - REVENUE_ANALYST
+   - Quản lý lịch chuyến bay (Flight Schedule Management) - SCHEDULE_PLANNER
+   - Quản lý chuyến bay thực tế (Flight Instance Management) - SCHEDULE_PLANNER
+   - Quản lý quyền người dùng (User Role Management) - ADMIN
    - Role-Based Access Control (RBAC) - Phân quyền dựa trên vai trò
 
 7. **Real-time WebSocket Gateway** (cổng 3000, namespace `/realtime`)
@@ -105,18 +108,47 @@ Hệ thống được chia thành nhiều phần nhỏ (microservices) để d�
 - `POST /api/v1/payments/bookings/:bookingId/process` - Xử lý thanh toán
 
 ### Admin (Quản trị hệ thống)
+
+#### Route Fare Price Management (REVENUE_ANALYST)
+- `POST /api/v1/admin/route-fare-prices` - Tạo giá vé theo route
+- `GET /api/v1/admin/route-fare-prices` - Lấy tất cả giá vé
+- `GET /api/v1/admin/route-fare-prices/:id` - Lấy giá vé theo ID
+- `PUT /api/v1/admin/route-fare-prices/:id` - Cập nhật giá vé
+- `DELETE /api/v1/admin/route-fare-prices/:id` - Xóa giá vé
+
+#### Baggage Allowance Management (ANCILLARY_MANAGER)
+- `POST /api/v1/admin/baggage-allowances` - Tạo quy định hành lý
+- `GET /api/v1/admin/baggage-allowances` - Lấy tất cả quy định hành lý
+- `GET /api/v1/admin/baggage-allowances/:id` - Lấy quy định hành lý theo ID
+- `PUT /api/v1/admin/baggage-allowances/:id` - Cập nhật quy định hành lý
+- `DELETE /api/v1/admin/baggage-allowances/:id` - Xóa quy định hành lý
+
+#### Cabin Service Management (ANCILLARY_MANAGER)
+- `POST /api/v1/admin/cabin-services` - Tạo dịch vụ cabin
+- `GET /api/v1/admin/cabin-services` - Lấy tất cả dịch vụ cabin
+- `GET /api/v1/admin/cabin-services/:id` - Lấy dịch vụ cabin theo ID
+- `PUT /api/v1/admin/cabin-services/:id` - Cập nhật dịch vụ cabin
+- `DELETE /api/v1/admin/cabin-services/:id` - Xóa dịch vụ cabin
+
+#### Fare Class Management (REVENUE_ANALYST)
 - `POST /api/v1/admin/fare-classes` - Tạo hạng vé (Requires ADMIN, REVENUE_ANALYST)
 - `GET /api/v1/admin/fare-classes` - Lấy tất cả hạng vé
 - `PUT /api/v1/admin/fare-classes/:code` - Cập nhật hạng vé
 - `DELETE /api/v1/admin/fare-classes/:code` - Xóa hạng vé
+
+#### Flight Schedule Management (SCHEDULE_PLANNER)
 - `POST /api/v1/admin/flight-schedules` - Tạo lịch chuyến bay (Requires ADMIN, SCHEDULE_PLANNER)
 - `GET /api/v1/admin/flight-schedules` - Lấy tất cả lịch chuyến bay
 - `PUT /api/v1/admin/flight-schedules/:id` - Cập nhật lịch chuyến bay
 - `DELETE /api/v1/admin/flight-schedules/:id` - Xóa lịch chuyến bay
+
+#### Flight Instance Management (SCHEDULE_PLANNER)
 - `POST /api/v1/admin/flight-instances` - Tạo chuyến bay thực tế
 - `GET /api/v1/admin/flight-instances` - Lấy tất cả chuyến bay
 - `PUT /api/v1/admin/flight-instances/:id` - Cập nhật chuyến bay
 - `DELETE /api/v1/admin/flight-instances/:id` - Xóa chuyến bay
+
+#### User Role Management (ADMIN)
 - `POST /api/v1/admin/users/:userId/roles` - Gán quyền cho user (Requires ADMIN)
 - `DELETE /api/v1/admin/users/:userId/roles/:roleCode` - Xóa quyền của user
 - `GET /api/v1/admin/users/:userId/roles` - Lấy quyền của user

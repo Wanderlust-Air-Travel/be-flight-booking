@@ -1,5 +1,95 @@
 # API Documentation Changelog
 
+## [2025-12-03] - Dynamic Pricing & Management APIs
+
+### Tính năng mới
+
+#### 1. Route Fare Price Management APIs
+
+**Feature**: Quản lý giá vé động theo route, fare class, và cabin type từ database
+
+**New Endpoints**:
+- `POST /api/v1/admin/route-fare-prices` - Create route fare price (Requires ADMIN, REVENUE_ANALYST)
+- `GET /api/v1/admin/route-fare-prices` - Get all route fare prices
+- `GET /api/v1/admin/route-fare-prices/:id` - Get route fare price by ID
+- `PUT /api/v1/admin/route-fare-prices/:id` - Update route fare price
+- `DELETE /api/v1/admin/route-fare-prices/:id` - Delete route fare price
+
+**Key Features**:
+- Dynamic pricing với effective dates (effectiveFrom, effectiveTo)
+- Priority system cho promotions và special pricing
+- Tax rate và fee rate configurable per route/fare class
+- Fallback pricing logic nếu không tìm thấy trong database
+
+**Required Roles**:
+- **CRUD**: `ADMIN`, `REVENUE_ANALYST`
+- **Read Only**: `DISTRIBUTION_MANAGER`
+
+#### 2. Baggage Allowance Management APIs
+
+**Feature**: Quản lý quy định hành lý theo fare class và route type (domestic/international)
+
+**New Endpoints**:
+- `POST /api/v1/admin/baggage-allowances` - Create baggage allowance (Requires ADMIN, ANCILLARY_MANAGER)
+- `GET /api/v1/admin/baggage-allowances` - Get all baggage allowances
+- `GET /api/v1/admin/baggage-allowances/:id` - Get baggage allowance by ID
+- `PUT /api/v1/admin/baggage-allowances/:id` - Update baggage allowance
+- `DELETE /api/v1/admin/baggage-allowances/:id` - Delete baggage allowance
+
+**Key Features**:
+- Checked baggage: weight (kg) và pieces
+- Carry-on baggage: weight (kg), pieces, và dimensions
+- Phân biệt domestic và international routes
+- Notes field cho additional restrictions
+
+**Required Roles**:
+- **CRUD**: `ADMIN`, `ANCILLARY_MANAGER`
+- **Read Only**: `CALL_CENTER`, `DISTRIBUTION_MANAGER`
+
+#### 3. Cabin Service Management APIs
+
+**Feature**: Quản lý dịch vụ cabin (meals, entertainment, WiFi, priority boarding, lounge access, etc.)
+
+**New Endpoints**:
+- `POST /api/v1/admin/cabin-services` - Create cabin service (Requires ADMIN, ANCILLARY_MANAGER)
+- `GET /api/v1/admin/cabin-services` - Get all cabin services
+- `GET /api/v1/admin/cabin-services/:id` - Get cabin service by ID
+- `PUT /api/v1/admin/cabin-services/:id` - Update cabin service
+- `DELETE /api/v1/admin/cabin-services/:id` - Delete cabin service
+
+**Key Features**:
+- Services có thể áp dụng cho cabin class hoặc fare class cụ thể
+- Included services (miễn phí) vs purchasable services (có giá)
+- Service types: meal, entertainment, wifi, priority_boarding, lounge_access, seat_selection, extra_legroom, other
+- Display order để sắp xếp trong UI
+- Icon URL cho visual representation
+
+**Required Roles**:
+- **CRUD**: `ADMIN`, `ANCILLARY_MANAGER`
+- **Read Only**: `CALL_CENTER`, `DISTRIBUTION_MANAGER`
+
+#### 4. Frontend UI Implementation
+
+**New Admin Pages**:
+- `/admin/route-fare-prices` - Quản lý giá vé theo route
+- `/admin/baggage-allowances` - Quản lý quy định hành lý
+- `/admin/cabin-services` - Quản lý dịch vụ cabin
+
+**Best Practices Applied**:
+- Type definitions tách riêng khỏi business logic
+- Consistent UI/UX với các admin pages khác
+- Form validation và error handling
+- Real-time updates sau CRUD operations
+
+**Documentation Updates**:
+- Updated `docs/api/API_DOCS.md` với Route Fare Price, Baggage Allowance, Cabin Service APIs
+- Updated `docs/CHANGELOG.md` với Dynamic Pricing & Management APIs entry
+- Updated `docs/STRUCTURE.md` với Admin module endpoints
+- Updated Postman collection với new admin API requests
+- Updated `docs/database/ERD.md` với RouteFarePrices, BaggageAllowances, CabinServices entities
+
+---
+
 ## [2025-12-03] - Role-Based Access Control (RBAC) & Admin APIs
 
 ### Tính năng mới

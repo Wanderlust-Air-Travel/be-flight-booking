@@ -1037,6 +1037,565 @@ Tạo payment và xử lý thanh toán ngay. Có thể trả về `paymentUrl` �
 
 ---
 
+## Admin APIs (Quản trị hệ thống)
+
+**Lưu ý quan trọng:**
+- Tất cả Admin APIs yêu cầu **JWT authentication** (Bearer token)
+- Mỗi endpoint được bảo vệ bởi **role-based access control (RBAC)**
+- Nếu user không có quyền, sẽ nhận `403 Forbidden` với message: "Access denied. Required roles: {roles}"
+- Xem chi tiết về roles và permissions tại [ROLES_AND_PERMISSIONS.md](../ROLES_AND_PERMISSIONS.md)
+
+### Route Fare Price Management (Quản lý giá vé theo route)
+
+**Required Roles:** `ADMIN`, `REVENUE_ANALYST` (CRUD), `DISTRIBUTION_MANAGER` (Read only)
+
+#### Tạo giá vé mới
+**POST** `/api/v1/admin/route-fare-prices`
+
+**Cần đăng nhập:** Có (ADMIN, REVENUE_ANALYST)
+
+**Request Body:**
+```json
+{
+  "routeId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "fareClassCode": "YS",
+  "basePrice": 1577000,
+  "taxRate": 0.1,
+  "feeRate": 0.05,
+  "effectiveFrom": "2025-01-01",
+  "effectiveTo": "2025-12-31",
+  "isActive": true,
+  "priority": 0,
+  "notes": "Promotional price for summer season"
+}
+```
+
+**Trả về:** RouteFarePrice object với `routeFarePriceId`, `route`, `fareClass`, `basePrice`, `taxRate`, `feeRate`, `effectiveFrom`, `effectiveTo`, `isActive`, `priority`, `notes`
+
+---
+
+#### Lấy tất cả giá vé
+**GET** `/api/v1/admin/route-fare-prices`
+
+**Cần đăng nhập:** Có (ADMIN, REVENUE_ANALYST, DISTRIBUTION_MANAGER)
+
+**Trả về:** Danh sách tất cả route fare prices với relations (route, fareClass)
+
+---
+
+#### Lấy giá vé theo ID
+**GET** `/api/v1/admin/route-fare-prices/:id`
+
+**Cần đăng nhập:** Có (ADMIN, REVENUE_ANALYST, DISTRIBUTION_MANAGER)
+
+**Trả về:** RouteFarePrice object với đầy đủ thông tin
+
+---
+
+#### Cập nhật giá vé
+**PUT** `/api/v1/admin/route-fare-prices/:id`
+
+**Cần đăng nhập:** Có (ADMIN, REVENUE_ANALYST)
+
+**Request Body (tất cả fields optional):**
+```json
+{
+  "basePrice": 1600000,
+  "taxRate": 0.12,
+  "feeRate": 0.05,
+  "effectiveFrom": "2025-01-01",
+  "effectiveTo": null,
+  "isActive": true,
+  "priority": 1,
+  "notes": "Updated promotional price"
+}
+```
+
+**Trả về:** Updated RouteFarePrice object
+
+---
+
+#### Xóa giá vé
+**DELETE** `/api/v1/admin/route-fare-prices/:id`
+
+**Cần đăng nhập:** Có (ADMIN, REVENUE_ANALYST)
+
+**Trả về:**
+```json
+{
+  "success": true,
+  "message": "Route fare price deleted successfully"
+}
+```
+
+---
+
+### Baggage Allowance Management (Quản lý quy định hành lý)
+
+**Required Roles:** `ADMIN`, `ANCILLARY_MANAGER` (CRUD), `CALL_CENTER`, `DISTRIBUTION_MANAGER` (Read only)
+
+#### Tạo quy định hành lý mới
+**POST** `/api/v1/admin/baggage-allowances`
+
+**Cần đăng nhập:** Có (ADMIN, ANCILLARY_MANAGER)
+
+**Request Body:**
+```json
+{
+  "fareClassCode": "YS",
+  "checkedBaggageKg": 20,
+  "checkedBaggagePieces": 1,
+  "carryOnKg": 7,
+  "carryOnPieces": 1,
+  "carryOnDimensions": "55x40x20",
+  "isDomestic": true,
+  "isInternational": true,
+  "notes": "Maximum weight per piece: 32kg"
+}
+```
+
+**Trả về:** BaggageAllowance object với `baggageAllowanceId`, `fareClass`, `checkedBaggageKg`, `checkedBaggagePieces`, `carryOnKg`, `carryOnPieces`, `carryOnDimensions`, `isDomestic`, `isInternational`, `notes`
+
+---
+
+#### Lấy tất cả quy định hành lý
+**GET** `/api/v1/admin/baggage-allowances`
+
+**Cần đăng nhập:** Có (ADMIN, ANCILLARY_MANAGER, CALL_CENTER, DISTRIBUTION_MANAGER)
+
+**Trả về:** Danh sách tất cả baggage allowances với relations (fareClass)
+
+---
+
+#### Lấy quy định hành lý theo ID
+**GET** `/api/v1/admin/baggage-allowances/:id`
+
+**Cần đăng nhập:** Có (ADMIN, ANCILLARY_MANAGER, CALL_CENTER, DISTRIBUTION_MANAGER)
+
+**Trả về:** BaggageAllowance object với đầy đủ thông tin
+
+---
+
+#### Cập nhật quy định hành lý
+**PUT** `/api/v1/admin/baggage-allowances/:id`
+
+**Cần đăng nhập:** Có (ADMIN, ANCILLARY_MANAGER)
+
+**Request Body (tất cả fields optional):**
+```json
+{
+  "checkedBaggageKg": 25,
+  "checkedBaggagePieces": 2,
+  "carryOnKg": 7,
+  "carryOnPieces": 1,
+  "carryOnDimensions": "55x40x20",
+  "isDomestic": true,
+  "isInternational": false,
+  "notes": "Updated baggage allowance"
+}
+```
+
+**Trả về:** Updated BaggageAllowance object
+
+---
+
+#### Xóa quy định hành lý
+**DELETE** `/api/v1/admin/baggage-allowances/:id`
+
+**Cần đăng nhập:** Có (ADMIN, ANCILLARY_MANAGER)
+
+**Trả về:**
+```json
+{
+  "success": true,
+  "message": "Baggage allowance deleted successfully"
+}
+```
+
+---
+
+### Cabin Service Management (Quản lý dịch vụ cabin)
+
+**Required Roles:** `ADMIN`, `ANCILLARY_MANAGER` (CRUD), `CALL_CENTER`, `DISTRIBUTION_MANAGER` (Read only)
+
+#### Tạo dịch vụ cabin mới
+**POST** `/api/v1/admin/cabin-services`
+
+**Cần đăng nhập:** Có (ADMIN, ANCILLARY_MANAGER)
+
+**Request Body:**
+```json
+{
+  "cabinClassCode": "Y",
+  "fareClassCode": "YS",
+  "serviceType": "meal",
+  "serviceName": "Hot Meal",
+  "description": "Hot meal and beverage served during flight",
+  "isIncluded": true,
+  "price": null,
+  "isActive": true,
+  "displayOrder": 1,
+  "iconUrl": "https://example.com/icons/meal.png"
+}
+```
+
+**Lưu ý:**
+- Ít nhất một trong `cabinClassCode` hoặc `fareClassCode` phải được cung cấp
+- Nếu `isIncluded = true`, `price` phải là `null`
+- Nếu `isIncluded = false`, `price` là bắt buộc
+
+**Trả về:** CabinService object với `cabinServiceId`, `cabinClass`, `fareClass`, `serviceType`, `serviceName`, `description`, `isIncluded`, `price`, `isActive`, `displayOrder`, `iconUrl`
+
+---
+
+#### Lấy tất cả dịch vụ cabin
+**GET** `/api/v1/admin/cabin-services`
+
+**Cần đăng nhập:** Có (ADMIN, ANCILLARY_MANAGER, CALL_CENTER, DISTRIBUTION_MANAGER)
+
+**Trả về:** Danh sách tất cả cabin services với relations (cabinClass, fareClass), sorted by `displayOrder`
+
+---
+
+#### Lấy dịch vụ cabin theo ID
+**GET** `/api/v1/admin/cabin-services/:id`
+
+**Cần đăng nhập:** Có (ADMIN, ANCILLARY_MANAGER, CALL_CENTER, DISTRIBUTION_MANAGER)
+
+**Trả về:** CabinService object với đầy đủ thông tin
+
+---
+
+#### Cập nhật dịch vụ cabin
+**PUT** `/api/v1/admin/cabin-services/:id`
+
+**Cần đăng nhập:** Có (ADMIN, ANCILLARY_MANAGER)
+
+**Request Body (tất cả fields optional):**
+```json
+{
+  "serviceName": "Premium Hot Meal",
+  "description": "Premium hot meal with beverage",
+  "isIncluded": false,
+  "price": 200000,
+  "isActive": true,
+  "displayOrder": 2,
+  "iconUrl": "https://example.com/icons/premium-meal.png"
+}
+```
+
+**Trả về:** Updated CabinService object
+
+---
+
+#### Xóa dịch vụ cabin
+**DELETE** `/api/v1/admin/cabin-services/:id`
+
+**Cần đăng nhập:** Có (ADMIN, ANCILLARY_MANAGER)
+
+**Trả về:**
+```json
+{
+  "success": true,
+  "message": "Cabin service deleted successfully"
+}
+```
+
+---
+
+### Fare Class Management (Quản lý hạng vé)
+
+**Required Roles:** `ADMIN`, `REVENUE_ANALYST` (CRUD), `DISTRIBUTION_MANAGER` (Read only)
+
+#### Tạo hạng vé mới
+**POST** `/api/v1/admin/fare-classes`
+
+**Cần đăng nhập:** Có (ADMIN, REVENUE_ANALYST)
+
+**Request Body:**
+```json
+{
+  "fareClassCode": "YS",
+  "cabinClassCode": "Y",
+  "description": "Economy Smart",
+  "changeRule": "Change before departure: 450,000 VND",
+  "refundRule": "Refund before departure: 450,000 VND"
+}
+```
+
+**Trả về:** FareClass object
+
+---
+
+#### Lấy tất cả hạng vé
+**GET** `/api/v1/admin/fare-classes`
+
+**Cần đăng nhập:** Có (ADMIN, REVENUE_ANALYST, DISTRIBUTION_MANAGER)
+
+**Trả về:** Danh sách tất cả fare classes với relations (cabinClass)
+
+---
+
+#### Lấy hạng vé theo code
+**GET** `/api/v1/admin/fare-classes/:code`
+
+**Cần đăng nhập:** Có (ADMIN, REVENUE_ANALYST, DISTRIBUTION_MANAGER)
+
+**Trả về:** FareClass object
+
+---
+
+#### Cập nhật hạng vé
+**PUT** `/api/v1/admin/fare-classes/:code`
+
+**Cần đăng nhập:** Có (ADMIN, REVENUE_ANALYST)
+
+**Request Body (tất cả fields optional):**
+```json
+{
+  "description": "Economy Smart - Updated",
+  "changeRule": "Change before departure: 500,000 VND",
+  "refundRule": "Refund before departure: 500,000 VND"
+}
+```
+
+**Trả về:** Updated FareClass object
+
+---
+
+#### Xóa hạng vé
+**DELETE** `/api/v1/admin/fare-classes/:code`
+
+**Cần đăng nhập:** Có (ADMIN, REVENUE_ANALYST)
+
+**Trả về:**
+```json
+{
+  "success": true,
+  "message": "Fare class YS deleted successfully"
+}
+```
+
+---
+
+### Flight Schedule Management (Quản lý lịch chuyến bay)
+
+**Required Roles:** `ADMIN`, `SCHEDULE_PLANNER` (CRUD), `CALL_CENTER`, `OPERATIONS`, `DISTRIBUTION_MANAGER` (Read/Update)
+
+#### Tạo lịch chuyến bay mới
+**POST** `/api/v1/admin/flight-schedules`
+
+**Cần đăng nhập:** Có (ADMIN, SCHEDULE_PLANNER)
+
+**Request Body:**
+```json
+{
+  "flightNumber": "QH101",
+  "routeId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "aircraftTypeId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
+  "departureTime": "07:00",
+  "arrivalTime": "09:15",
+  "operatingDays": "1111111",
+  "effectiveFrom": "2025-01-01",
+  "effectiveTo": "2025-12-31",
+  "status": "active"
+}
+```
+
+**Trả về:** FlightSchedule object
+
+---
+
+#### Lấy tất cả lịch chuyến bay
+**GET** `/api/v1/admin/flight-schedules`
+
+**Cần đăng nhập:** Có (ADMIN, SCHEDULE_PLANNER, CALL_CENTER, OPERATIONS, DISTRIBUTION_MANAGER)
+
+**Trả về:** Danh sách tất cả flight schedules với relations (route, aircraftType)
+
+---
+
+#### Lấy lịch chuyến bay theo ID
+**GET** `/api/v1/admin/flight-schedules/:id`
+
+**Cần đăng nhập:** Có (ADMIN, SCHEDULE_PLANNER, CALL_CENTER, OPERATIONS, DISTRIBUTION_MANAGER)
+
+**Trả về:** FlightSchedule object
+
+---
+
+#### Cập nhật lịch chuyến bay
+**PUT** `/api/v1/admin/flight-schedules/:id`
+
+**Cần đăng nhập:** Có (ADMIN, SCHEDULE_PLANNER)
+
+**Request Body (tất cả fields optional):**
+```json
+{
+  "departureTime": "08:00",
+  "arrivalTime": "10:15",
+  "operatingDays": "1111100",
+  "status": "active"
+}
+```
+
+**Trả về:** Updated FlightSchedule object
+
+---
+
+#### Xóa lịch chuyến bay
+**DELETE** `/api/v1/admin/flight-schedules/:id`
+
+**Cần đăng nhập:** Có (ADMIN, SCHEDULE_PLANNER)
+
+**Lưu ý:** Không thể xóa nếu schedule có flight instances
+
+**Trả về:**
+```json
+{
+  "success": true,
+  "message": "Flight schedule deleted successfully"
+}
+```
+
+---
+
+### Flight Instance Management (Quản lý chuyến bay thực tế)
+
+**Required Roles:** `ADMIN`, `SCHEDULE_PLANNER` (CRUD), `CALL_CENTER`, `OPERATIONS` (Read/Update)
+
+#### Tạo chuyến bay thực tế
+**POST** `/api/v1/admin/flight-instances`
+
+**Cần đăng nhập:** Có (ADMIN, SCHEDULE_PLANNER)
+
+**Request Body:**
+```json
+{
+  "flightScheduleId": "019a8f4a-bb0e-7402-a0c4-27647b89dc71",
+  "flightDate": "2025-12-25",
+  "aircraftId": "019a8f4a-bb0e-7402-a0c4-27647b89dc72",
+  "status": "scheduled"
+}
+```
+
+**Trả về:** FlightInstance object
+
+---
+
+#### Lấy tất cả chuyến bay
+**GET** `/api/v1/admin/flight-instances`
+
+**Cần đăng nhập:** Có (ADMIN, SCHEDULE_PLANNER, CALL_CENTER, OPERATIONS, DISTRIBUTION_MANAGER)
+
+**Trả về:** Danh sách tất cả flight instances với relations (flightSchedule, aircraft)
+
+---
+
+#### Lấy chuyến bay theo ID
+**GET** `/api/v1/admin/flight-instances/:id`
+
+**Cần đăng nhập:** Có (ADMIN, SCHEDULE_PLANNER, CALL_CENTER, OPERATIONS, DISTRIBUTION_MANAGER)
+
+**Trả về:** FlightInstance object
+
+---
+
+#### Cập nhật chuyến bay
+**PUT** `/api/v1/admin/flight-instances/:id`
+
+**Cần đăng nhập:** Có (ADMIN, SCHEDULE_PLANNER, CALL_CENTER, OPERATIONS)
+
+**Request Body (tất cả fields optional):**
+```json
+{
+  "aircraftId": "019a8f4a-bb0e-7402-a0c4-27647b89dc73",
+  "status": "delayed",
+  "actualDepartureTime": "2025-12-25T08:30:00Z",
+  "actualArrivalTime": "2025-12-25T10:45:00Z"
+}
+```
+
+**Trả về:** Updated FlightInstance object
+
+---
+
+#### Xóa chuyến bay
+**DELETE** `/api/v1/admin/flight-instances/:id`
+
+**Cần đăng nhập:** Có (ADMIN, SCHEDULE_PLANNER)
+
+**Trả về:**
+```json
+{
+  "success": true,
+  "message": "Flight instance deleted successfully"
+}
+```
+
+---
+
+### User Role Management (Quản lý quyền người dùng)
+
+**Required Roles:** `ADMIN` only
+
+#### Gán quyền cho user
+**POST** `/api/v1/admin/users/:userId/roles`
+
+**Cần đăng nhập:** Có (ADMIN only)
+
+**Request Body:**
+```json
+{
+  "roleCode": "REVENUE_ANALYST"
+}
+```
+
+**Trả về:**
+```json
+{
+  "success": true,
+  "message": "Role REVENUE_ANALYST assigned to user successfully"
+}
+```
+
+---
+
+#### Xóa quyền của user
+**DELETE** `/api/v1/admin/users/:userId/roles/:roleCode`
+
+**Cần đăng nhập:** Có (ADMIN only)
+
+**Lưu ý:** Không thể xóa `CUSTOMER` role
+
+**Trả về:**
+```json
+{
+  "success": true,
+  "message": "Role REVENUE_ANALYST removed from user successfully"
+}
+```
+
+---
+
+#### Lấy quyền của user
+**GET** `/api/v1/admin/users/:userId/roles`
+
+**Cần đăng nhập:** Có (ADMIN only)
+
+**Trả về:** Danh sách roles của user
+
+---
+
+#### Lấy tất cả roles
+**GET** `/api/v1/admin/roles`
+
+**Cần đăng nhập:** Có (ADMIN only)
+
+**Trả về:** Danh sách tất cả roles trong hệ thống
+
+---
+
 ## Services (Dịch vụ)
 
 ### Lấy danh sách deals
