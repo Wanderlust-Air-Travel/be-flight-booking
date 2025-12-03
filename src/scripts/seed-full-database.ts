@@ -949,7 +949,7 @@ async function run() {
 			// Create a passenger for test user
 			try {
 				const existingPassenger = await repos.passenger.findOne({
-					where: { user_id: user.user_id }
+					where: { user: { user_id: user.user_id } }
 				});
 				if (!existingPassenger) {
 					await repos.passenger.save(repos.passenger.create({
