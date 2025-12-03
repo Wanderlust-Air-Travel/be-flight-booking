@@ -2560,15 +2560,27 @@ export class BookingService {
 		this.logger.log(`Check-in validation passed for booking ${dto.bookingCode} (status: ${booking.status}, guest: ${isGuestBooking})`);
 
 			// Step 3: Check if tickets already exist (already checked in)
+			// Make check-in idempotent: if already checked in, return existing tickets info
 			const existingBooking = await queryRunner.manager.findOne(Booking, {
 				where: { booking_id: booking.bookingId },
 				relations: ['tickets'],
 			});
 
 			if (existingBooking?.tickets && existingBooking.tickets.length > 0) {
-				throw new BadRequestException(
-					`Booking ${dto.bookingCode} has already been checked in. Tickets have already been issued.`,
+				this.logger.log(
+					`Booking ${dto.bookingCode} has already been checked in. Returning existing tickets info (idempotent operation). Found ${existingBooking.tickets.length} tickets.`,
 				);
+				// Release query runner since we're not making any changes
+				await queryRunner.rollbackTransaction();
+				await queryRunner.release();
+
+				return {
+					bookingId: booking.bookingId,
+					pnrCode: booking.pnrCode,
+					ticketCount: existingBooking.tickets.length,
+					message: 'Booking has already been checked in. Tickets have already been issued.',
+					alreadyCheckedIn: true,
+				};
 			}
 
 			// Step 4: Validate seat selections match booking segments
@@ -2738,6 +2750,7 @@ export class BookingService {
 				pnrCode: booking.pnrCode,
 				ticketCount: tickets.length,
 				message: 'Check-in completed successfully. Tickets have been issued and sent to your email.',
+				alreadyCheckedIn: false,
 			};
 		} catch (error: any) {
 			await queryRunner.rollbackTransaction();

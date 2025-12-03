@@ -24,5 +24,12 @@ export class CheckInBookingResponseDto {
 		example: 'Check-in completed successfully. Tickets have been issued and sent to your email.',
 	})
 	message: string;
+
+	@ApiProperty({
+		description: 'Indicates if booking was already checked in (idempotent operation)',
+		example: false,
+		required: false,
+	})
+	alreadyCheckedIn?: boolean;
 }
 
