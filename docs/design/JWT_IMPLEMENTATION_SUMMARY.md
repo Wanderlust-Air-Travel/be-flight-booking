@@ -69,6 +69,40 @@ async handleCreateBookingFromReservation(payload: {
 
 **API Gateway:**
 - JWT Strategy: `src/api-gateway/modules/auth/strategies/jwt.strategyt.ts`
+- Roles Guard: `src/shared/guards/roles.guard.ts`
+- Roles Decorator: `src/shared/decorators/roles.decorator.ts`
+- Roles Constants: `src/shared/constants/roles.ts`
+
+## Role-Based Access Control (RBAC)
+
+Hệ thống sử dụng Role-Based Access Control (RBAC) để quản lý quyền truy cập:
+
+**Roles**: 10 roles chuyên nghiệp được chia thành 3 nhóm:
+- **Người dùng Cuối**: `CUSTOMER`, `TRAVEL_AGENT`
+- **Nghiệp vụ Cốt lõi**: `SCHEDULE_PLANNER`, `REVENUE_ANALYST`, `ANCILLARY_MANAGER`, `CALL_CENTER`
+- **Hỗ trợ & Quản trị**: `ADMIN`, `ACCOUNTING_STAFF`, `DISTRIBUTION_MANAGER`, `FRAUD_ANALYST`
+
+**Authorization Flow**:
+1. JWT được validate tại Gateway (JwtAuthGuard)
+2. `userId` được extract từ JWT token
+3. RolesGuard kiểm tra roles của user từ database
+4. Nếu user có role phù hợp → cho phép truy cập
+5. Nếu không → trả về `403 Forbidden`
+
+**Usage Example**:
+```typescript
+@Controller('admin')
+@UseGuards(JwtAuthGuard, RolesGuard)
+export class AdminController {
+  @Post('fare-classes')
+  @Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST)
+  async createFareClass() {
+    // Only ADMIN and REVENUE_ANALYST can access
+  }
+}
+```
+
+**Xem chi tiết**: [ROLES_AND_PERMISSIONS.md](../ROLES_AND_PERMISSIONS.md)
 - JWT Guard: `src/api-gateway/modules/auth/guard/jwt-auth.guard.ts`
 - Controllers: `src/api-gateway/modules/*/`
 

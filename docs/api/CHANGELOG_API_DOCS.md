@@ -1,10 +1,74 @@
 # API Documentation Changelog
 
-## [2025-12-XX] - Hybrid Cancellation Approach (Partial & Full Cancellation)
+## [2025-12-03] - Role-Based Access Control (RBAC) & Admin APIs
 
 ### Tính năng mới
 
-#### 1. Hybrid Cancellation Approach (2025-12-XX)
+#### 1. Role-Based Access Control (RBAC) System
+
+**Feature**: Triển khai hệ thống phân quyền dựa trên vai trò (Role-Based Access Control) theo best practices của ngành hàng không
+
+**Roles**: 10 roles chuyên nghiệp được chia thành 3 nhóm:
+- **Người dùng Cuối**: `CUSTOMER`, `TRAVEL_AGENT`
+- **Nghiệp vụ Cốt lõi**: `SCHEDULE_PLANNER`, `REVENUE_ANALYST`, `ANCILLARY_MANAGER`, `CALL_CENTER`
+- **Hỗ trợ & Quản trị**: `ADMIN`, `ACCOUNTING_STAFF`, `DISTRIBUTION_MANAGER`, `FRAUD_ANALYST`
+
+**Authorization**:
+- Tất cả Admin APIs yêu cầu JWT authentication
+- Mỗi endpoint được bảo vệ bởi `@Roles()` decorator
+- Nếu user không có quyền, sẽ nhận `403 Forbidden` với message: "Access denied. Required roles: {roles}"
+
+**Xem chi tiết**: [ROLES_AND_PERMISSIONS.md](../ROLES_AND_PERMISSIONS.md)
+
+#### 2. Admin APIs - Fare Management
+
+**New Endpoints**:
+- `POST /api/v1/admin/fare-classes` - Create fare class (Requires ADMIN, REVENUE_ANALYST)
+- `GET /api/v1/admin/fare-classes` - Get all fare classes
+- `GET /api/v1/admin/fare-classes/:code` - Get fare class by code
+- `PUT /api/v1/admin/fare-classes/:code` - Update fare class
+- `DELETE /api/v1/admin/fare-classes/:code` - Delete fare class
+
+#### 3. Admin APIs - Flight Schedule Management
+
+**New Endpoints**:
+- `POST /api/v1/admin/flight-schedules` - Create flight schedule (Requires ADMIN, SCHEDULE_PLANNER)
+- `GET /api/v1/admin/flight-schedules` - Get all flight schedules
+- `GET /api/v1/admin/flight-schedules/:id` - Get flight schedule by ID
+- `PUT /api/v1/admin/flight-schedules/:id` - Update flight schedule
+- `DELETE /api/v1/admin/flight-schedules/:id` - Delete flight schedule
+
+#### 4. Admin APIs - Flight Instance Management
+
+**New Endpoints**:
+- `POST /api/v1/admin/flight-instances` - Create flight instance (Requires ADMIN, SCHEDULE_PLANNER)
+- `GET /api/v1/admin/flight-instances` - Get all flight instances
+- `GET /api/v1/admin/flight-instances/:id` - Get flight instance by ID
+- `PUT /api/v1/admin/flight-instances/:id` - Update flight instance
+- `DELETE /api/v1/admin/flight-instances/:id` - Delete flight instance
+
+#### 5. Admin APIs - User Role Management
+
+**New Endpoints**:
+- `POST /api/v1/admin/users/:userId/roles` - Assign role to user (Requires ADMIN only)
+- `DELETE /api/v1/admin/users/:userId/roles/:roleCode` - Remove role from user (Requires ADMIN only)
+- `GET /api/v1/admin/users/:userId/roles` - Get user roles (Requires ADMIN only)
+- `GET /api/v1/admin/roles` - Get all roles (Requires ADMIN only)
+
+**Documentation Updates**:
+- Updated `docs/api/API_DOCS.md` với Admin APIs section
+- Updated `docs/ROLES_AND_PERMISSIONS.md` với chi tiết về tất cả roles và permissions
+- Updated Postman collection với Admin APIs requests
+- Updated `docs/STRUCTURE.md` với Admin module information
+- Updated `docs/CHANGELOG.md` với RBAC system entry
+
+---
+
+## [2025-12-01] - Hybrid Cancellation Approach (Partial & Full Cancellation)
+
+### Tính năng mới
+
+#### 1. Hybrid Cancellation Approach (2025-12-01)
 
 **Feature**: Hỗ trợ hủy từng ticket riêng lẻ (partial cancellation) và hủy toàn bộ booking (full cancellation)
 

@@ -55,7 +55,14 @@ Hệ thống được chia thành nhiều phần nhỏ (microservices) để d�
    - Gửi email thông báo
    - Quản lý hàng đợi email
 
-6. **Real-time WebSocket Gateway** (cổng 3000, namespace `/realtime`)
+6. **Admin Module** (cổng 3000, API Gateway)
+   - Quản lý giá vé (Fare Management)
+   - Quản lý lịch chuyến bay (Flight Schedule Management)
+   - Quản lý chuyến bay thực tế (Flight Instance Management)
+   - Quản lý quyền người dùng (User Role Management)
+   - Role-Based Access Control (RBAC) - Phân quyền dựa trên vai trò
+
+7. **Real-time WebSocket Gateway** (cổng 3000, namespace `/realtime`)
    - **Seat Availability Updates**: Real-time seat status changes để tránh conflict
    - **Reservation Countdown Timer**: Server-synced countdown timer (business critical)
    - **Payment Status Updates**: Real-time payment confirmation (UX critical)
@@ -96,6 +103,26 @@ Hệ thống được chia thành nhiều phần nhỏ (microservices) để d�
 ### Thanh toán
 - `POST /api/v1/payments/bookings/:bookingId` - Tạo thanh toán
 - `POST /api/v1/payments/bookings/:bookingId/process` - Xử lý thanh toán
+
+### Admin (Quản trị hệ thống)
+- `POST /api/v1/admin/fare-classes` - Tạo hạng vé (Requires ADMIN, REVENUE_ANALYST)
+- `GET /api/v1/admin/fare-classes` - Lấy tất cả hạng vé
+- `PUT /api/v1/admin/fare-classes/:code` - Cập nhật hạng vé
+- `DELETE /api/v1/admin/fare-classes/:code` - Xóa hạng vé
+- `POST /api/v1/admin/flight-schedules` - Tạo lịch chuyến bay (Requires ADMIN, SCHEDULE_PLANNER)
+- `GET /api/v1/admin/flight-schedules` - Lấy tất cả lịch chuyến bay
+- `PUT /api/v1/admin/flight-schedules/:id` - Cập nhật lịch chuyến bay
+- `DELETE /api/v1/admin/flight-schedules/:id` - Xóa lịch chuyến bay
+- `POST /api/v1/admin/flight-instances` - Tạo chuyến bay thực tế
+- `GET /api/v1/admin/flight-instances` - Lấy tất cả chuyến bay
+- `PUT /api/v1/admin/flight-instances/:id` - Cập nhật chuyến bay
+- `DELETE /api/v1/admin/flight-instances/:id` - Xóa chuyến bay
+- `POST /api/v1/admin/users/:userId/roles` - Gán quyền cho user (Requires ADMIN)
+- `DELETE /api/v1/admin/users/:userId/roles/:roleCode` - Xóa quyền của user
+- `GET /api/v1/admin/users/:userId/roles` - Lấy quyền của user
+- `GET /api/v1/admin/roles` - Lấy tất cả roles
+
+**Lưu ý**: Tất cả Admin APIs yêu cầu JWT authentication và role phù hợp. Xem [ROLES_AND_PERMISSIONS.md](./ROLES_AND_PERMISSIONS.md) để biết chi tiết về roles và permissions.
 
 ### Real-time WebSocket (Socket.IO)
 - **Connection**: `ws://localhost:3000/realtime` với authentication (JWT token hoặc Session ID)

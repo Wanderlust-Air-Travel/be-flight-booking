@@ -25,6 +25,9 @@ Tài liệu dự án Flight Booking Backend được tổ chức theo các danh 
 ### Design
 - **[GUEST_BOOKING_FLOW.md](./design/GUEST_BOOKING_FLOW.md)** - Design document cho guest booking flow
 
+### Security & Authorization
+- **[ROLES_AND_PERMISSIONS.md](./ROLES_AND_PERMISSIONS.md)** - Hệ thống vai trò và quyền (Role-Based Access Control)
+
 ### Real-time Communication
 - **[REALTIME_IMPLEMENTATION.md](./REALTIME_IMPLEMENTATION.md)** - WebSocket implementation guide và architecture
 - **[Real-time Module README](../src/api-gateway/modules/realtime/README.md)** - Usage guide cho WebSocket module

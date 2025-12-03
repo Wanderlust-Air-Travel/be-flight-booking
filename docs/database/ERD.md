@@ -16,6 +16,18 @@ erDiagram
         BIT is_active
     }
 
+    Roles {
+        VARCHAR role_code PK
+        NVARCHAR name
+        NVARCHAR description
+        BIT is_active
+    }
+
+    UserRoles {
+        UNIQUEIDENTIFIER user_id PK,FK
+        VARCHAR role_code PK,FK
+    }
+
     Passengers {
         UNIQUEIDENTIFIER passenger_id PK
         UNIQUEIDENTIFIER user_id FK
@@ -210,10 +222,13 @@ erDiagram
 
     %% ============ RELATIONSHIPS ============
 
-    %% Users & Passengers & Reservations & Bookings
+    %% Users & Passengers & Reservations & Bookings & Roles
     Users ||--o{ Passengers   : "user_id"
     Users ||--o{ Reservations : "user_id"
     Users ||--o{ Bookings     : "user_id"
+    Users }o--o{ Roles        : "UserRoles (user_id, role_code)"
+    Roles ||--o{ UserRoles    : "role_code"
+    Roles ||--o{ UserRoles    : "role_code"
 
     %% Airports & Routes
     Airports ||--o{ Routes : "origin/destination"
@@ -262,9 +277,11 @@ erDiagram
 
 ## Giải thích ngắn gọn (BE-focused)
 
-- **Users & Passengers**
+- **Users & Passengers & Roles**
   - Users: tài khoản đăng nhập, quản lý bảo mật và trạng thái.
   - Passengers: hồ sơ hành khách dùng cho bay/ra vé; `user_id` NULL để hỗ trợ khách vãng lai/đại lý.
+  - Roles: Vai trò trong hệ thống (CUSTOMER, ADMIN, REVENUE_ANALYST, SCHEDULE_PLANNER, etc.) - Role-Based Access Control (RBAC)
+  - UserRoles: Many-to-many relationship giữa Users và Roles (một user có thể có nhiều roles, một role có thể được gán cho nhiều users)
 
 - **Airports & Routes**
   - Airports: chuẩn hóa IATA/ICAO, timezone phục vụ hiển thị/convert giờ.

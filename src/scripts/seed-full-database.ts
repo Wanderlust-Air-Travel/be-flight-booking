@@ -23,6 +23,9 @@ import { FareClass } from 'src/shared/entities/fare/fare-class.entity';
 import { SeatConfiguration } from 'src/shared/entities/seat/seat-configuration.entity';
 import { User } from 'src/shared/entities/user/user.entity';
 import { Passenger } from 'src/shared/entities/passenger/passenger.entity';
+import { Role } from 'src/shared/entities/role/role.entity';
+import { UserRole } from 'src/shared/entities/user/user-role.entity';
+import { SystemRole } from 'src/shared/constants/roles';
 import { Currency } from 'src/shared/entities/currency/currency.entity';
 import { PaymentMethod } from 'src/shared/entities/payment/payment-method.entity';
 import { Reservation } from 'src/shared/entities/reservation/reservation.entity';
@@ -212,6 +215,8 @@ async function run() {
 		bookingSegment: ds.getRepository(BookingSegment),
 		ticket: ds.getRepository(Ticket),
 		payment: ds.getRepository(Payment),
+		role: ds.getRepository(Role),
+		userRole: ds.getRepository(UserRole),
 	};
 
 	// ============================================================
@@ -594,6 +599,231 @@ async function run() {
 	
 	console.log(`  Completed: Created ${createdCount} users, skipped ${skippedCount} duplicates`);
 	console.log(`Created ${users.length} users with passengers`);
+
+	// ============================================================
+	// 7.5. ASSIGN ROLES TO USERS
+	// ============================================================
+	console.log('\nAssigning roles to users...');
+	
+	// Get all roles from database
+	const allRoles = await repos.role.find();
+	const rolesMap = new Map<string, Role>();
+	allRoles.forEach(role => {
+		rolesMap.set(role.role_code, role);
+	});
+
+	// Ensure CUSTOMER role exists
+	const customerRole = rolesMap.get(SystemRole.CUSTOMER);
+	if (!customerRole) {
+		console.error('  ERROR: CUSTOMER role not found in database. Please run migrations first.');
+	} else {
+		// Assign CUSTOMER role to all users (default role)
+		console.log('  Assigning CUSTOMER role to all users...');
+		let customerAssigned = 0;
+		for (const user of users) {
+			try {
+				const existing = await repos.userRole.findOne({
+					where: { user_id: user.user_id, role_code: SystemRole.CUSTOMER }
+				});
+				if (!existing) {
+					await repos.userRole.save(repos.userRole.create({
+						user_id: user.user_id,
+						role_code: SystemRole.CUSTOMER,
+					}));
+					customerAssigned++;
+				}
+			} catch (error: any) {
+				console.error(`  Error assigning CUSTOMER role to user ${user.email}:`, error.message);
+			}
+		}
+		console.log(`  Assigned CUSTOMER role to ${customerAssigned} users`);
+	}
+
+	// Create specific users with specific roles for testing
+	console.log('\n  Creating test users with specific roles...');
+	const testUsers: Array<{ email: string; fullname: string; phone: string; roles: SystemRole[] }> = [
+		{
+			email: 'admin@flightbooking.com',
+			fullname: 'System Administrator',
+			phone: '0900000001',
+			roles: [SystemRole.ADMIN, SystemRole.CUSTOMER]
+		},
+		{
+			email: 'revenue.analyst@flightbooking.com',
+			fullname: 'Revenue Analyst',
+			phone: '0900000002',
+			roles: [SystemRole.REVENUE_ANALYST, SystemRole.CUSTOMER]
+		},
+		{
+			email: 'schedule.planner@flightbooking.com',
+			fullname: 'Schedule Planner',
+			phone: '0900000003',
+			roles: [SystemRole.SCHEDULE_PLANNER, SystemRole.CUSTOMER]
+		},
+		{
+			email: 'call.center@flightbooking.com',
+			fullname: 'Call Center Staff',
+			phone: '0900000004',
+			roles: [SystemRole.CALL_CENTER, SystemRole.CUSTOMER]
+		},
+		{
+			email: 'ancillary.manager@flightbooking.com',
+			fullname: 'Ancillary Manager',
+			phone: '0900000005',
+			roles: [SystemRole.ANCILLARY_MANAGER, SystemRole.CUSTOMER]
+		},
+		{
+			email: 'accounting@flightbooking.com',
+			fullname: 'Accounting Staff',
+			phone: '0900000006',
+			roles: [SystemRole.ACCOUNTING_STAFF, SystemRole.CUSTOMER]
+		},
+		{
+			email: 'distribution.manager@flightbooking.com',
+			fullname: 'Distribution Manager',
+			phone: '0900000007',
+			roles: [SystemRole.DISTRIBUTION_MANAGER, SystemRole.CUSTOMER]
+		},
+		{
+			email: 'fraud.analyst@flightbooking.com',
+			fullname: 'Fraud Analyst',
+			phone: '0900000008',
+			roles: [SystemRole.FRAUD_ANALYST, SystemRole.CUSTOMER]
+		},
+		{
+			email: 'travel.agent@flightbooking.com',
+			fullname: 'Travel Agent',
+			phone: '0900000009',
+			roles: [SystemRole.TRAVEL_AGENT, SystemRole.CUSTOMER]
+		},
+		{
+			email: 'multi.role@flightbooking.com',
+			fullname: 'Multi Role User',
+			phone: '0900000010',
+			roles: [SystemRole.REVENUE_ANALYST, SystemRole.SCHEDULE_PLANNER, SystemRole.CUSTOMER]
+		}
+	];
+
+	let testUsersCreated = 0;
+	let testUsersSkipped = 0;
+
+	for (const testUserData of testUsers) {
+		try {
+			// Check if user already exists
+			let user = await repos.user.findOne({ where: { email: testUserData.email } });
+			
+			if (!user) {
+				// Create new user
+				user = await repos.user.save(repos.user.create({
+					user_id: uuidv7(),
+					fullname: testUserData.fullname,
+					email: testUserData.email,
+					password_hash: passwordHash,
+					phone: testUserData.phone,
+					is_active: true,
+				}));
+				testUsersCreated++;
+				console.log(`    Created test user: ${testUserData.email}`);
+			} else {
+				testUsersSkipped++;
+				console.log(`    Test user already exists: ${testUserData.email}`);
+			}
+
+			// Assign roles to user
+			for (const roleCode of testUserData.roles) {
+				try {
+					const role = rolesMap.get(roleCode);
+					if (!role) {
+						console.error(`    ERROR: Role ${roleCode} not found in database`);
+						continue;
+					}
+
+					const existing = await repos.userRole.findOne({
+						where: { user_id: user.user_id, role_code: roleCode }
+					});
+
+					if (!existing) {
+						await repos.userRole.save(repos.userRole.create({
+							user_id: user.user_id,
+							role_code: roleCode,
+						}));
+						console.log(`      Assigned role ${roleCode} to ${testUserData.email}`);
+					}
+				} catch (roleError: any) {
+					console.error(`    Error assigning role ${roleCode} to ${testUserData.email}:`, roleError.message);
+				}
+			}
+
+			// Create a passenger for test user
+			try {
+				const existingPassenger = await repos.passenger.findOne({
+					where: { user_id: user.user_id }
+				});
+				if (!existingPassenger) {
+					await repos.passenger.save(repos.passenger.create({
+						passenger_id: uuidv7(),
+						user,
+						fullname: testUserData.fullname,
+						dob: randomDate(new Date(1980, 0, 1), new Date(1995, 11, 31)),
+						gender: randomElement(['Male', 'Female']),
+						document_number: generateDocumentNumber(),
+					}));
+				}
+			} catch (passengerError: any) {
+				console.error(`    Error creating passenger for test user ${testUserData.email}:`, passengerError.message);
+			}
+		} catch (error: any) {
+			console.error(`  Error creating test user ${testUserData.email}:`, error.message);
+		}
+	}
+
+	console.log(`  Test users: Created ${testUsersCreated}, Skipped ${testUsersSkipped}`);
+	console.log('  All test users have password: Password123!');
+
+	// Assign random roles to some regular users (for testing)
+	console.log('\n  Assigning random roles to regular users (for testing)...');
+	const roleCodes = [
+		SystemRole.TRAVEL_AGENT,
+		SystemRole.CALL_CENTER,
+		SystemRole.REVENUE_ANALYST,
+		SystemRole.SCHEDULE_PLANNER,
+	];
+	
+	let randomRolesAssigned = 0;
+	const usersToAssignRoles = users.slice(0, Math.min(50, users.length)); // Assign to first 50 users
+	
+	for (const user of usersToAssignRoles) {
+		// Skip if user is one of the test users
+		if (testUsers.some(tu => tu.email === user.email)) {
+			continue;
+		}
+
+		// 30% chance to assign an additional role
+		if (Math.random() < 0.3) {
+			const randomRole = randomElement(roleCodes);
+			const role = rolesMap.get(randomRole);
+			
+			if (role) {
+				try {
+					const existing = await repos.userRole.findOne({
+						where: { user_id: user.user_id, role_code: randomRole }
+					});
+					
+					if (!existing) {
+						await repos.userRole.save(repos.userRole.create({
+							user_id: user.user_id,
+							role_code: randomRole,
+						}));
+						randomRolesAssigned++;
+					}
+				} catch (error: any) {
+					// Silently continue
+				}
+			}
+		}
+	}
+	
+	console.log(`  Assigned additional roles to ${randomRolesAssigned} regular users`);
 
 	// ============================================================
 	// 8. FLIGHT SCHEDULES

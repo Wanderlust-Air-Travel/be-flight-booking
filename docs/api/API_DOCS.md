@@ -28,6 +28,17 @@ http://localhost:3000
 - Token có hiệu lực 15 phút, dùng `refresh_token` để lấy token mới
 - Nếu không có token hoặc không có booking state, phải truyền đầy đủ query parameters
 
+### Role-Based Access Control (RBAC)
+- **Hệ thống phân quyền**: Hệ thống sử dụng Role-Based Access Control (RBAC) để quản lý quyền truy cập
+- **Admin APIs**: Tất cả Admin APIs yêu cầu authentication và role phù hợp
+- **Roles**: Xem chi tiết tại [ROLES_AND_PERMISSIONS.md](../ROLES_AND_PERMISSIONS.md)
+- **Các nhóm roles chính**:
+  - **Người dùng Cuối**: `CUSTOMER`, `TRAVEL_AGENT`
+  - **Nghiệp vụ Cốt lõi**: `SCHEDULE_PLANNER`, `REVENUE_ANALYST`, `ANCILLARY_MANAGER`, `CALL_CENTER`
+  - **Hỗ trợ & Quản trị**: `ADMIN`, `ACCOUNTING_STAFF`, `DISTRIBUTION_MANAGER`, `FRAUD_ANALYST`
+- **Authorization**: Mỗi Admin API endpoint được bảo vệ bởi `@Roles()` decorator, chỉ cho phép các roles cụ thể truy cập
+- **Error Response**: Nếu user không có quyền, sẽ nhận `403 Forbidden` với message: "Access denied. Required roles: {roles}"
+
 ### Định dạng
 - ID: Tất cả ID là mã UUID dạng `xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx`
 - Ngày: Format `YYYY-MM-DD` (ví dụ: `2025-11-17`)

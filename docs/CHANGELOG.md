@@ -4,9 +4,73 @@ Lịch sử các thay đổi quan trọng của dự án.
 
 ## [Unreleased]
 
+### Hệ thống Phân quyền Role-Based Access Control (RBAC) (2025-12-03)
+
+- **Feature**: Triển khai hệ thống phân quyền dựa trên vai trò (Role-Based Access Control) theo best practices của ngành hàng không
+- **Implementation**:
+  - **Role System**: Tạo hệ thống roles với 3 nhóm chính:
+    - **Nhóm Người dùng Cuối**: `CUSTOMER`, `TRAVEL_AGENT`
+    - **Nhóm Nghiệp vụ Cốt lõi**: `SCHEDULE_PLANNER`, `REVENUE_ANALYST`, `ANCILLARY_MANAGER`, `CALL_CENTER`
+    - **Nhóm Hỗ trợ & Quản trị**: `ADMIN`, `ACCOUNTING_STAFF`, `DISTRIBUTION_MANAGER`, `FRAUD_ANALYST`
+  - **Database Schema**: 
+    - Tạo bảng `Roles` và `UserRoles` (many-to-many relationship)
+    - Migration `1700000001000-AddRolesAndUserRoles.ts` - Tạo schema và roles cơ bản
+    - Migration `1700000002000-AddNewRoles.ts` - Thêm các roles chuyên nghiệp
+  - **Authorization Guards**: 
+    - `RolesGuard` - Kiểm tra quyền truy cập dựa trên roles
+    - `@Roles()` decorator - Đánh dấu endpoints cần roles cụ thể
+    - Tích hợp với JWT authentication
+  - **Admin Module**: 
+    - Fare Management APIs (CRUD fare classes)
+    - Flight Schedule Management APIs (CRUD flight schedules)
+    - Flight Instance Management APIs (CRUD flight instances)
+    - User Role Management APIs (assign/remove roles)
+  - **Permissions System**: 
+    - Định nghĩa permissions chi tiết cho từng role
+    - `ROLE_PERMISSIONS` mapping trong `src/shared/constants/roles.ts`
+  - **Legacy Support**: Giữ lại các legacy roles (`FARE_MANAGER`, `FLIGHT_MANAGER`, `OPERATIONS`, `SALES`) để tương thích ngược
+- **Files Changed**:
+  - `src/shared/entities/role/role.entity.ts` - Role entity
+  - `src/shared/entities/user/user-role.entity.ts` - UserRole join table
+  - `src/shared/entities/user/user.entity.ts` - Thêm relationship với roles
+  - `src/shared/constants/roles.ts` - SystemRole enum và ROLE_PERMISSIONS
+  - `src/shared/decorators/roles.decorator.ts` - @Roles() decorator
+  - `src/shared/guards/roles.guard.ts` - RolesGuard implementation
+  - `src/migrations/1700000001000-AddRolesAndUserRoles.ts` - Initial roles migration
+  - `src/migrations/1700000002000-AddNewRoles.ts` - New roles migration
+  - `src/api-gateway/modules/admin/` - Admin module (service, controller, DTOs)
+  - `docs/ROLES_AND_PERMISSIONS.md` - Tài liệu chi tiết về roles và permissions
+- **API Endpoints**:
+  - `POST /api/v1/admin/fare-classes` - Tạo hạng vé (ADMIN, REVENUE_ANALYST)
+  - `GET /api/v1/admin/fare-classes` - Lấy tất cả hạng vé
+  - `GET /api/v1/admin/fare-classes/:code` - Lấy hạng vé theo code
+  - `PUT /api/v1/admin/fare-classes/:code` - Cập nhật hạng vé
+  - `DELETE /api/v1/admin/fare-classes/:code` - Xóa hạng vé
+  - `POST /api/v1/admin/flight-schedules` - Tạo lịch chuyến bay (ADMIN, SCHEDULE_PLANNER)
+  - `GET /api/v1/admin/flight-schedules` - Lấy tất cả lịch chuyến bay
+  - `PUT /api/v1/admin/flight-schedules/:id` - Cập nhật lịch chuyến bay
+  - `DELETE /api/v1/admin/flight-schedules/:id` - Xóa lịch chuyến bay
+  - `POST /api/v1/admin/flight-instances` - Tạo chuyến bay thực tế
+  - `GET /api/v1/admin/flight-instances` - Lấy tất cả chuyến bay
+  - `PUT /api/v1/admin/flight-instances/:id` - Cập nhật chuyến bay
+  - `DELETE /api/v1/admin/flight-instances/:id` - Xóa chuyến bay
+  - `POST /api/v1/admin/users/:userId/roles` - Gán quyền cho user (ADMIN only)
+  - `DELETE /api/v1/admin/users/:userId/roles/:roleCode` - Xóa quyền của user
+  - `GET /api/v1/admin/users/:userId/roles` - Lấy quyền của user
+  - `GET /api/v1/admin/roles` - Lấy tất cả roles
+- **Best Practice**: 
+  - Separation of concerns - Mỗi role có quyền riêng biệt
+  - Principle of least privilege - Users chỉ có quyền cần thiết
+  - Scalable architecture - Dễ dàng thêm roles và permissions mới
+  - Backward compatibility - Giữ lại legacy roles
+- **Documentation**: 
+  - `docs/ROLES_AND_PERMISSIONS.md` - Tài liệu chi tiết về tất cả roles và permissions
+  - `docs/api/API_DOCS.md` - Thêm section Admin APIs
+  - `docs/CHANGELOG.md` - Ghi lại thay đổi này
+
 ### Cải tiến Frontend Error Handling & Browser Data (2025-12-01)
 
-- **Professional Error Handling & Toast Notifications (2025-12-XX)**
+- **Professional Error Handling & Toast Notifications (2025-12-01)**
   - **Feature**: Cải thiện toàn diện error handling và toast notifications với thông báo lỗi chuyên nghiệp, rõ ràng
   - **Implementation**:
     - **Professional Error Messages**: Thay thế các thông báo lỗi generic ("fetch failed", "Network Error") bằng thông báo chuyên nghiệp, rõ ràng bằng tiếng Việt
@@ -27,7 +91,7 @@ Lịch sử các thay đổi quan trọng của dự án.
     - `booking/lib/axios-instance.ts` - Cải thiện axios interceptor để xử lý network errors tốt hơn
   - **Best Practice**: Professional error messages improve user experience and reduce support burden
 
-- **Browser Data Update - Baseline Browser Mapping (2025-12-XX)**
+- **Browser Data Update - Baseline Browser Mapping (2025-12-01)**
   - **Feature**: Cập nhật browser compatibility data và thêm script tự động cập nhật
   - **Implementation**:
     - Update Browserslist Database: Cập nhật `caniuse-lite` database lên version mới nhất
