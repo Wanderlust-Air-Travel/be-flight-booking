@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Patch, Body, Param, Query, Req, UseGuards, BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Param, Query, Req, UseGuards, BadRequestException, InternalServerErrorException, NotFoundException, ServiceUnavailableException, Logger } from '@nestjs/common';
 import {
 	ApiBadRequestResponse,
 	ApiOkResponse,
@@ -791,20 +791,80 @@ export class BookingController {
 				this.client.send<CheckInBookingResponseDto>(BOOKING_MS.PATTERN.CHECK_IN_BOOKING, dto),
 			);
 		} catch (error: any) {
-			this.logger.error('Check-in booking error:', error);
-			if (error?.statusCode && error?.message) {
+			this.logger.error('Check-in booking error:', {
+				error: error?.message || error,
+				statusCode: error?.statusCode,
+				response: error?.response,
+				status: error?.status,
+				code: error?.code,
+			});
+
+			// Re-throw HttpException instances directly
+			if (error instanceof BadRequestException || error instanceof NotFoundException) {
 				throw error;
 			}
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+
+			// Handle microservice connection errors - these are infrastructure issues (503)
+			const errorMessage = error?.message || error?.toString() || '';
+			const errorCode = error?.code || '';
+
+			// Connection refused - microservice is not running
+			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
 				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
 			}
-			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
+
+			// Connection closed - microservice disconnected
+			if (errorMessage.includes('Connection closed')) {
+				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+			}
+
+			// Timeout errors - microservice not responding
+			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
 				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
 			}
-			if (error?.status === 'error' && error?.message) {
-				throw new BadRequestException(`Check-in failed: ${error.message}`);
+
+			// Handle RpcException - NestJS microservice exceptions
+			// RpcException wraps the error with response property
+			if (error?.response && typeof error.response === 'object') {
+				const message = error.response.message || error.message || '';
+				const statusCode = error.response.statusCode || error.status || 400;
+				if (statusCode === 400) {
+					throw new BadRequestException(message);
+				}
+				if (statusCode === 404) {
+					throw new NotFoundException(message);
+				}
+				throw new BadRequestException(message);
 			}
-			throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`);
+
+			// Handle microservice error format: { status: 'error', message: '...' }
+			if (error?.status === 'error' && error?.message) {
+				throw new BadRequestException(error.message);
+			}
+
+			// Try to extract message from various error formats
+			// Microservice exceptions can be serialized in different ways
+			let extractedMessage: string | null = null;
+
+			// Try error.message (direct) - but skip generic "Internal server error"
+			if (error?.message && typeof error.message === 'string' && error.message !== 'Internal server error') {
+				extractedMessage = error.message;
+			}
+			// Try error.response (nested)
+			else if (error?.response && typeof error.response === 'string') {
+				extractedMessage = error.response;
+			}
+			// Try error.toString() if it contains useful info
+			else if (error?.toString && !error.toString().includes('[object Object]')) {
+				const str = error.toString();
+				if (str.length > 0 && str !== '[object Object]') {
+					extractedMessage = str;
+				}
+			}
+
+			// Use extracted message or provide descriptive default
+			const finalMessage = extractedMessage || COMMON_MESSAGES.ERROR.OPERATION_FAILED;
+			throw new BadRequestException(finalMessage);
 		}
 	}
 }

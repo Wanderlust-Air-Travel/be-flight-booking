@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, Inject, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException, Inject, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { ClientProxy } from '@nestjs/microservices';
@@ -1744,10 +1744,11 @@ export class BookingService {
 			throw new NotFoundException(`Booking ${bookingId} not found`);
 		}
 
-		// Check if booking is paid
-		if (booking.status !== 'paid') {
+		// Check if booking is paid or confirmed (both allow ticket creation)
+		// Note: 'confirmed' status also allows ticket creation (for guest bookings that are confirmed but payment may be processed separately)
+		if (booking.status !== 'paid' && booking.status !== 'confirmed') {
 			throw new BadRequestException(
-				`Cannot create tickets for booking ${bookingId}. Booking status is ${booking.status}, expected 'paid'.`,
+				`Cannot create tickets for booking ${bookingId}. Booking status is ${booking.status}, expected 'paid' or 'confirmed'.`,
 			);
 		}
 
@@ -2426,6 +2427,7 @@ export class BookingService {
 				where: { pnr_code: bookingCode.toUpperCase() },
 				relations: [
 					'currency',
+					'user', // Load user relation (nullable for guest bookings)
 					'booking_segments',
 					'booking_segments.flight_instance',
 					'booking_segments.flight_instance.flight_schedule',
@@ -2452,6 +2454,7 @@ export class BookingService {
 				where: { booking_id: bookingCode },
 				relations: [
 					'currency',
+					'user', // Load user relation (nullable for guest bookings)
 					'booking_segments',
 					'booking_segments.flight_instance',
 					'booking_segments.flight_instance.flight_schedule',
@@ -2538,13 +2541,23 @@ export class BookingService {
 			// Step 1: Get booking by code (PNR or booking ID)
 			const booking = await this.getBookingByCode(dto.bookingCode);
 
-			// Step 2: Validate booking status
-			// Booking must be paid or confirmed to check in
-			if (booking.status !== 'paid' && booking.status !== 'confirmed') {
-				throw new BadRequestException(
-					`Cannot check in booking with status: ${booking.status}. Booking must be paid or confirmed.`,
-				);
-			}
+		// Step 2: Validate booking status
+		// Booking must be paid or confirmed to check in
+		// Note: Guest bookings are supported - no user validation needed
+		if (booking.status !== 'paid' && booking.status !== 'confirmed') {
+			throw new BadRequestException(
+				`Cannot check in booking with status: ${booking.status}. Booking must be paid or confirmed.`,
+			);
+		}
+
+		// Check if this is a guest booking (no user relation)
+		// Note: getBookingByCode returns a DTO, not the entity, so we check the original booking entity
+		const bookingForGuestCheck = await queryRunner.manager.findOne(Booking, {
+			where: { booking_id: booking.bookingId },
+			relations: ['user'],
+		});
+		const isGuestBooking = !bookingForGuestCheck?.user;
+		this.logger.log(`Check-in validation passed for booking ${dto.bookingCode} (status: ${booking.status}, guest: ${isGuestBooking})`);
 
 			// Step 3: Check if tickets already exist (already checked in)
 			const existingBooking = await queryRunner.manager.findOne(Booking, {
@@ -2686,7 +2699,9 @@ export class BookingService {
 			}
 
 			// Step 6: Create tickets
+			this.logger.log(`Creating tickets for booking ${booking.bookingId}...`);
 			const tickets = await this.createTicketsFromBooking(booking.bookingId, queryRunner.manager);
+			this.logger.log(`Successfully created ${tickets.length} tickets for booking ${booking.bookingId}`);
 
 			// Step 7: Send ticket confirmation email
 			const bookingEntity = await queryRunner.manager.findOne(Booking, {
@@ -2726,10 +2741,15 @@ export class BookingService {
 			};
 		} catch (error: any) {
 			await queryRunner.rollbackTransaction();
+			
+			// Enhanced error logging for debugging
 			this.logger.error('Check-in booking error:', {
 				error: error?.message || error,
 				stack: error?.stack,
 				bookingCode: dto.bookingCode,
+				errorName: error?.name,
+				statusCode: error?.statusCode,
+				errorType: error?.constructor?.name,
 			});
 
 			// Re-throw NestJS exceptions as-is
@@ -2739,12 +2759,23 @@ export class BookingService {
 
 			// Re-throw exceptions with statusCode property
 			if (error?.statusCode && error?.message) {
+				// Preserve original exception type if possible
+				if (error?.statusCode === 400) {
+					throw new BadRequestException(error.message);
+				}
+				if (error?.statusCode === 404) {
+					throw new NotFoundException(error.message);
+				}
+				if (error?.statusCode === 500) {
+					throw new InternalServerErrorException(error.message);
+				}
 				throw error;
 			}
 
-			// Handle generic errors
+			// Handle generic errors - provide more context
 			const errorMessage = error?.message || error?.toString() || 'Unknown error';
-			throw new BadRequestException(`Failed to check in booking: ${errorMessage}`);
+			this.logger.error(`Check-in failed with generic error: ${errorMessage}`, error?.stack);
+			throw new BadRequestException(`Check-in failed: ${errorMessage}`);
 		} finally {
 			await queryRunner.release();
 		}

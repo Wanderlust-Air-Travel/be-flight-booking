@@ -12,6 +12,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { Module } from '@nestjs/common';
+import { BookingRpcExceptionFilter } from './filters/booking-rpc-exception.filter';
 
 @Module({
 	imports: [
@@ -47,6 +48,7 @@ async function bootstrap() {
 		},
 	});
 	app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+	app.useGlobalFilters(new BookingRpcExceptionFilter());
 	await app.listen();
 	console.log(`Booking microservice is listening on ${BOOKING_MS.TCP_HOST}:${BOOKING_MS.TCP_PORT}`);
 }

@@ -251,10 +251,12 @@ export class SearchService {
 		}
 
 		// Get all fare classes for the requested cabin types
+		// Use DISTINCT to avoid duplicates if there are multiple entries with same fare_class_code
 		const fareClasses = await this.fareClassRepo
 			.createQueryBuilder('fare')
 			.innerJoinAndSelect('fare.cabin_class', 'cabin')
 			.where('cabin.cabin_class_code IN (:...codes)', { codes: cabinClassCodes })
+			.distinct(true)
 			.getMany();
 
 		if (fareClasses.length === 0) {
@@ -307,10 +309,57 @@ export class SearchService {
 		// Filter out fare options with no available seats
 		const availableFareOptions = fareOptions.filter((option) => option.availableSeats > 0);
 
-		// Remove duplicates based on fare_class_code (keep first occurrence)
-		const uniqueFareOptions = availableFareOptions.filter((option, index, self) =>
-			index === self.findIndex((o) => o.fareClassCode === option.fareClassCode)
-		);
+		// Step 1: Remove duplicates based on fare_class_code (keep option with highest available seats)
+		// This handles true duplicates where same fare class code appears multiple times
+		const fareOptionsByCode = new Map<string, FareOptionDto>();
+		for (const option of availableFareOptions) {
+			const existing = fareOptionsByCode.get(option.fareClassCode);
+			if (!existing || option.availableSeats > existing.availableSeats) {
+				fareOptionsByCode.set(option.fareClassCode, option);
+			}
+		}
+		let uniqueFareOptions = Array.from(fareOptionsByCode.values());
+
+		// Step 2: Handle fare class variants with same display name and price
+		// Business rule: If multiple fare classes have identical name, price, and descriptions,
+		// keep only the primary variant (shorter code = primary, e.g., "JF" over "JFLX")
+		// However, if descriptions differ, keep both as they represent different products
+		const namePriceKeyMap = new Map<string, FareOptionDto[]>();
+		for (const option of uniqueFareOptions) {
+			const key = `${option.name}|${option.price}`;
+			if (!namePriceKeyMap.has(key)) {
+				namePriceKeyMap.set(key, []);
+			}
+			namePriceKeyMap.get(key)!.push(option);
+		}
+
+		const finalFareOptions: FareOptionDto[] = [];
+		for (const [key, options] of namePriceKeyMap.entries()) {
+			if (options.length === 1) {
+				// No duplicates, keep as is
+				finalFareOptions.push(options[0]);
+			} else {
+				// Multiple options with same name+price
+				// Check if they have identical descriptions
+				const descriptionsByOption = options.map(opt => 
+					JSON.stringify(opt.desc.sort((a, b) => a.text.localeCompare(b.text)))
+				);
+				const allSameDescriptions = descriptionsByOption.every(desc => desc === descriptionsByOption[0]);
+
+				if (allSameDescriptions) {
+					// All have identical descriptions - keep only primary (shortest code)
+					const primary = options.reduce((prev, curr) => 
+						curr.fareClassCode.length < prev.fareClassCode.length ? curr : prev
+					);
+					finalFareOptions.push(primary);
+				} else {
+					// Different descriptions - keep all as they represent different products
+					finalFareOptions.push(...options);
+				}
+			}
+		}
+
+		uniqueFareOptions = finalFareOptions;
 
 		// Sort by price (ascending)
 		uniqueFareOptions.sort((a, b) => a.price - b.price);
@@ -351,38 +400,94 @@ export class SearchService {
 				},
 			});
 
+			// Use Set to track unique descriptions (text + status combination)
+			const seenDescriptions = new Set<string>();
+
 			// First, add default rules (like "Hành lý xách tay: 7kg")
 			const defaultRules = allRules.filter((rule) => rule.is_default);
 			for (const rule of defaultRules) {
-				desc.push({
-					text: rule.description_text,
-					status: rule.status,
-				});
+				const key = `${rule.description_text}|${rule.status}`;
+				if (!seenDescriptions.has(key)) {
+					desc.push({
+						text: rule.description_text,
+						status: rule.status,
+					});
+					seenDescriptions.add(key);
+				}
 			}
 
 			// Then, find matching rules based on fare class code pattern
-			const matchingRules: FareDescriptionRule[] = [];
-
+			// Use hierarchical matching: exact > prefix > contains (all with longest-first priority)
+			const exactMatchRules: FareDescriptionRule[] = [];
+			const prefixMatchRules = new Map<string, FareDescriptionRule[]>(); // pattern -> rules
+			const containsMatchRules = new Map<string, FareDescriptionRule[]>(); // pattern -> rules
+			
 			for (const rule of allRules) {
 				if (rule.is_default) continue; // Skip default rules, already added
 
 				const pattern = rule.fare_class_code_pattern.toUpperCase();
 
-				// Check if pattern matches:
-				// 1. Exact match (e.g., "Y", "J")
-				// 2. Contains match (e.g., "SMX", "FLX", "SM", "FLEX")
-				if (code === pattern || code.includes(pattern)) {
-					matchingRules.push(rule);
+				// 1. Exact match (highest priority)
+				if (code === pattern) {
+					exactMatchRules.push(rule);
+				}
+				// 2. Prefix match (code starts with pattern) - more specific than contains
+				else if (code.startsWith(pattern)) {
+					if (!prefixMatchRules.has(pattern)) {
+						prefixMatchRules.set(pattern, []);
+					}
+					prefixMatchRules.get(pattern)!.push(rule);
+				}
+				// 3. Contains match (code contains pattern) - least specific
+				else if (code.includes(pattern)) {
+					if (!containsMatchRules.has(pattern)) {
+						containsMatchRules.set(pattern, []);
+					}
+					containsMatchRules.get(pattern)!.push(rule);
 				}
 			}
 
-			// Sort matching rules by display_order and add to descriptions
-			matchingRules.sort((a, b) => a.display_order - b.display_order);
-			for (const rule of matchingRules) {
-				desc.push({
-					text: rule.description_text,
-					status: rule.status,
-				});
+			// Select rules based on hierarchy: exact > longest prefix > longest contains
+			let selectedRules: FareDescriptionRule[] = [];
+
+			if (exactMatchRules.length > 0) {
+				// Use exact match rules
+				selectedRules = exactMatchRules;
+			} else if (prefixMatchRules.size > 0) {
+				// Use longest prefix match
+				let longestPrefix = '';
+				for (const pattern of prefixMatchRules.keys()) {
+					if (pattern.length > longestPrefix.length) {
+						longestPrefix = pattern;
+					}
+				}
+				selectedRules = prefixMatchRules.get(longestPrefix)!;
+			} else if (containsMatchRules.size > 0) {
+				// Use longest contains match
+				let longestContains = '';
+				for (const pattern of containsMatchRules.keys()) {
+					if (pattern.length > longestContains.length) {
+						longestContains = pattern;
+					}
+				}
+				selectedRules = containsMatchRules.get(longestContains)!;
+			}
+
+			// Sort selected rules by display_order
+			if (selectedRules.length > 0) {
+				selectedRules.sort((a, b) => a.display_order - b.display_order);
+				
+				// Add matching rules to descriptions, avoiding duplicates
+				for (const rule of selectedRules) {
+					const key = `${rule.description_text}|${rule.status}`;
+					if (!seenDescriptions.has(key)) {
+						desc.push({
+							text: rule.description_text,
+							status: rule.status,
+						});
+						seenDescriptions.add(key);
+					}
+				}
 			}
 		} catch (error) {
 			this.logger.error(`Error fetching fare description rules for ${fareClassCode}/${cabinTypeString}:`, error);
