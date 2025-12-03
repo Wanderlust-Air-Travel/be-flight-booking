@@ -68,8 +68,9 @@ const ds = new DataSource({
 	entities: [
 		Airport, Route, FlightSchedule, FlightInstance, FlightSeat,
 		AircraftType, Aircraft, CabinClass, FareClass, SeatConfiguration,
-		User, Passenger, Currency, PaymentMethod, Reservation,
+		User, Passenger, Role, UserRole, Currency, PaymentMethod, Reservation,
 		Booking, BookingPassenger, BookingSegment, Ticket, Payment,
+		RouteFarePrice, BaggageAllowance, CabinService,
 	],
 	synchronize: false,
 });
@@ -295,12 +296,15 @@ async function run() {
 	const fareClasses = [
 		// Economy fare classes
 		{ fare_class_code: 'YSM', cabin_class: economyCabin, description: 'Economy Saver Max', change_rule: 'Change before departure: 600,000 VND', refund_rule: 'Non-refundable' },
+		{ fare_class_code: 'YSMX', cabin_class: economyCabin, description: 'Economy Saver Max Extended', change_rule: 'Change before departure: 600,000 VND', refund_rule: 'Non-refundable' },
 		{ fare_class_code: 'YS', cabin_class: economyCabin, description: 'Economy Smart', change_rule: 'Change before departure: 450,000 VND', refund_rule: 'Refund before departure: 450,000 VND' },
 		{ fare_class_code: 'YF', cabin_class: economyCabin, description: 'Economy Flex', change_rule: 'Free changes', refund_rule: 'Refund before departure: 300,000 VND' },
+		{ fare_class_code: 'YFLX', cabin_class: economyCabin, description: 'Economy Flex Extended', change_rule: 'Free changes', refund_rule: 'Refund before departure: 300,000 VND' },
 		{ fare_class_code: 'Y', cabin_class: economyCabin, description: 'Economy Standard', change_rule: 'Change before departure: 500,000 VND', refund_rule: 'Refund before departure: 400,000 VND' },
 		// Business fare classes
 		{ fare_class_code: 'JS', cabin_class: businessCabin, description: 'Business Smart', change_rule: 'Change before departure: 300,000 VND', refund_rule: 'Refund before departure: 450,000 VND' },
 		{ fare_class_code: 'JF', cabin_class: businessCabin, description: 'Business Flex', change_rule: 'Free changes', refund_rule: 'Refund before departure: 300,000 VND' },
+		{ fare_class_code: 'JFLX', cabin_class: businessCabin, description: 'Business Flex Extended', change_rule: 'Free changes', refund_rule: 'Refund before departure: 300,000 VND' },
 		{ fare_class_code: 'J', cabin_class: businessCabin, description: 'Business Standard', change_rule: 'Change before departure: 350,000 VND', refund_rule: 'Refund before departure: 400,000 VND' },
 	];
 	for (const fc of fareClasses) {

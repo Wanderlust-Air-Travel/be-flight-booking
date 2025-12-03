@@ -90,6 +90,47 @@ erDiagram
         NVARCHAR refund_rule
     }
 
+    RouteFarePrices {
+        UNIQUEIDENTIFIER route_fare_price_id PK
+        UNIQUEIDENTIFIER route_id FK
+        VARCHAR fare_class_code FK
+        DECIMAL base_price
+        DECIMAL tax_rate
+        DECIMAL fee_rate
+        DATE effective_from
+        DATE effective_to
+        BIT is_active
+        INT priority
+        NVARCHAR notes
+    }
+
+    BaggageAllowances {
+        UNIQUEIDENTIFIER baggage_allowance_id PK
+        VARCHAR fare_class_code FK
+        INT checked_baggage_kg
+        INT checked_baggage_pieces
+        INT carry_on_kg
+        INT carry_on_pieces
+        VARCHAR carry_on_dimensions
+        BIT is_domestic
+        BIT is_international
+        NVARCHAR notes
+    }
+
+    CabinServices {
+        UNIQUEIDENTIFIER cabin_service_id PK
+        VARCHAR cabin_class_code FK
+        VARCHAR fare_class_code FK
+        VARCHAR service_type
+        NVARCHAR service_name
+        NVARCHAR description
+        BIT is_included
+        DECIMAL price
+        BIT is_active
+        INT display_order
+        NVARCHAR icon_url
+    }
+
     SeatConfigurations {
         UNIQUEIDENTIFIER seat_config_id PK
         UNIQUEIDENTIFIER aircraft_type_id FK
@@ -241,10 +282,15 @@ erDiagram
     AircraftTypes ||--o{ SeatConfigurations  : "aircraft_type_id"
     AircraftTypes ||--o{ FlightSchedules     : "aircraft_type_id"
 
-    %% Cabin / Fare / SeatConfig
+    %% Cabin / Fare / SeatConfig / Pricing / Services
     CabinClasses ||--o{ FareClasses         : "cabin_class_code"
     CabinClasses ||--o{ SeatConfigurations  : "cabin_class_code"
+    CabinClasses ||--o{ CabinServices       : "cabin_class_code"
     FareClasses  ||--o{ BookingSegments     : "fare_class_code"
+    FareClasses  ||--o{ RouteFarePrices     : "fare_class_code"
+    FareClasses  ||--o{ BaggageAllowances   : "fare_class_code"
+    FareClasses  ||--o{ CabinServices       : "fare_class_code"
+    Routes       ||--o{ RouteFarePrices      : "route_id"
 
     %% FlightSchedules -> FlightInstances
     FlightSchedules ||--o{ FlightInstances : "flight_schedule_id"
@@ -273,6 +319,48 @@ erDiagram
     BookingPassengers ||--o{ Tickets           : "booking_passenger_id"
 
     Bookings          ||--o{ Payments          : "booking_id"
+
+    %% ============ DYNAMIC PRICING & SERVICES ============
+    RouteFarePrices {
+        UNIQUEIDENTIFIER route_fare_price_id PK
+        UNIQUEIDENTIFIER route_id FK
+        VARCHAR fare_class_code FK
+        DECIMAL base_price
+        DECIMAL tax_rate
+        DECIMAL fee_rate
+        DATE effective_from
+        DATE effective_to
+        BIT is_active
+        INT priority
+        NVARCHAR notes
+    }
+
+    BaggageAllowances {
+        UNIQUEIDENTIFIER baggage_allowance_id PK
+        VARCHAR fare_class_code FK
+        INT checked_baggage_kg
+        INT checked_baggage_pieces
+        INT carry_on_kg
+        INT carry_on_pieces
+        VARCHAR carry_on_dimensions
+        BIT is_domestic
+        BIT is_international
+        NVARCHAR notes
+    }
+
+    CabinServices {
+        UNIQUEIDENTIFIER cabin_service_id PK
+        VARCHAR cabin_class_code FK
+        VARCHAR fare_class_code FK
+        VARCHAR service_type
+        NVARCHAR service_name
+        NVARCHAR description
+        BIT is_included
+        DECIMAL price
+        BIT is_active
+        INT display_order
+        NVARCHAR icon_url
+    }
 ```
 
 ## Giải thích ngắn gọn (BE-focused)
@@ -304,6 +392,25 @@ erDiagram
     - Business seats: Rows 1-3 (18 ghế)
     - Economy seats: Rows 4-30 (162 ghế)
     - **Constants**: Tên ghế được định nghĩa cố định trong business logic, seed file tuân theo constants này
+
+- **Dynamic Pricing & Services**
+  - RouteFarePrices: Giá vé động theo route và fare class, hỗ trợ effective dates và priority system.
+    - `base_price`: Giá cơ bản
+    - `tax_rate`: Tỷ lệ thuế (decimal, ví dụ: 0.1 = 10%)
+    - `fee_rate`: Tỷ lệ phí (decimal, ví dụ: 0.05 = 5%)
+    - `effective_from` / `effective_to`: Thời gian hiệu lực
+    - `priority`: Độ ưu tiên (cao hơn = ưu tiên hơn khi có nhiều prices cho cùng route/fare class)
+    - Fallback pricing logic nếu không tìm thấy trong database
+  - BaggageAllowances: Quy định hành lý theo fare class và route type (domestic/international).
+    - `checked_baggage_kg` / `checked_baggage_pieces`: Hành lý ký gửi
+    - `carry_on_kg` / `carry_on_pieces` / `carry_on_dimensions`: Hành lý xách tay
+    - `is_domestic` / `is_international`: Áp dụng cho route nội địa/quốc tế
+  - CabinServices: Dịch vụ cabin (meals, entertainment, WiFi, priority boarding, lounge access, etc.).
+    - `cabin_class_code` hoặc `fare_class_code`: Áp dụng cho cabin class hoặc fare class cụ thể
+    - `service_type`: Loại dịch vụ (meal, entertainment, wifi, priority_boarding, lounge_access, seat_selection, extra_legroom, other)
+    - `is_included`: Dịch vụ miễn phí (true) hoặc có giá (false)
+    - `price`: Giá dịch vụ (null nếu is_included = true)
+    - `display_order`: Thứ tự hiển thị trong UI
 
 - **Operation**
   - FlightSchedules: lịch định nghĩa (route, loại máy bay, dải hiệu lực, ngày hoạt động).

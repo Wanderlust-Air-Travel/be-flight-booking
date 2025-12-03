@@ -1,5 +1,33 @@
 # API Documentation Changelog
 
+## [2025-12-03] - Bug Fix: TypeORM Entity Metadata Error in Seed Script
+
+### Bug Fix
+
+#### TypeORM Entity Metadata Error in Seed Script
+
+**Bug**: Seed script failed với error `TypeORMError: Entity metadata for User#userRoles was not found`
+
+**Root Cause**: Thiếu `Role`, `UserRole`, `RouteFarePrice`, `BaggageAllowance`, và `CabinService` entities trong DataSource configuration của seed script
+
+**Fix**: Thêm các entities còn thiếu vào mảng `entities` trong `seed-full-database.ts`:
+- `Role` - Role entity
+- `UserRole` - UserRole join table entity
+- `RouteFarePrice` - Route fare price entity
+- `BaggageAllowance` - Baggage allowance entity
+- `CabinService` - Cabin service entity
+
+**Impact**: Seed script giờ có thể chạy thành công và seed đầy đủ dữ liệu bao gồm roles, route fare prices, baggage allowances, và cabin services
+
+**Files Changed**:
+- `src/scripts/seed-full-database.ts` - Thêm các entities vào DataSource configuration
+
+**Documentation Updates**:
+- Updated `docs/CHANGELOG.md` với bug fix entry
+- Updated `docs/database/ERD.md` với RouteFarePrices, BaggageAllowances, CabinServices entities và relationships
+
+---
+
 ## [2025-12-03] - Dynamic Pricing & Management APIs
 
 ### Tính năng mới
