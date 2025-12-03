@@ -727,7 +727,7 @@ async function run() {
 	
 	const passwordHash = await bcrypt.hash('Password123!', 10);
 	const users: User[] = [];
-	const totalUsers = 500;
+	const totalUsers = 50; // Reduced from 500 to 50 for faster seeding
 	let createdCount = 0;
 	let skippedCount = 0;
 
@@ -982,7 +982,7 @@ async function run() {
 	];
 	
 	let randomRolesAssigned = 0;
-	const usersToAssignRoles = users.slice(0, Math.min(50, users.length)); // Assign to first 50 users
+	const usersToAssignRoles = users.slice(0, Math.min(10, users.length)); // Reduced from 50 to 10
 	
 	for (const user of usersToAssignRoles) {
 		// Skip if user is one of the test users
@@ -1023,9 +1023,9 @@ async function run() {
 	console.log('\nSeeding Flight Schedules...');
 	
 	// Set dates to December 2025 for flight schedules and instances
-	// from = 1/12/2025 00:00:00, to = 31/12/2025 23:59:59
+	// from = 1/12/2025 00:00:00, to = 15/12/2025 23:59:59
 	const from = new Date(2025, 11, 1, 0, 0, 0, 0); // December 1, 2025 (month is 0-indexed, so 11 = December)
-	const to = new Date(2025, 11, 31, 23, 59, 59, 999); // December 31, 2025
+	const to = new Date(2025, 11, 15, 23, 59, 59, 999); // December 15, 2025
 	
 	console.log(`  Flight schedules effective period: ${from.toLocaleDateString()} to ${to.toLocaleDateString()}`);
 
@@ -1075,15 +1075,15 @@ async function run() {
 	
 	// Combine: popular routes first, then others
 	const routesToUse = [...popularRoutes, ...otherRoutes];
-	const maxRoutes = Math.min(200, routesToUse.length); // Use up to 200 routes for more flight schedules in December 2025
+	const maxRoutes = Math.min(50, routesToUse.length); // Reduced from 200 to 50 for faster seeding
 	
 	let schedulesCreated = 0;
 	// Track used flight numbers to avoid duplicates within the same period
 	const usedFlightNumbers = new Set<string>();
 	
 	for (const route of routesToUse.slice(0, maxRoutes)) {
-		// Create 3-5 schedules per route for more variety in December 2025
-		const numSchedules = randomInt(3, 5);
+		// Create 1-2 schedules per route (reduced from 3-5 for faster seeding)
+		const numSchedules = randomInt(1, 2);
 		
 		// Ensure at least one daily schedule per route for guaranteed flights every day
 		let hasDailySchedule = false;
@@ -1194,16 +1194,17 @@ async function run() {
 	console.log('\nSeeding Flight Instances and Seats...');
 	
 	let instanceCount = 0;
-	// Generate instances for entire December 2025 (1st to 31st)
+	// Generate instances for December 1-15, 2025 (reduced from 31 days to 15 days)
 	const startDate = new Date(2025, 11, 1, 0, 0, 0, 0); // December 1, 2025
-	const endDate = new Date(2025, 11, 31, 23, 59, 59, 999); // December 31, 2025
+	const endDate = new Date(2025, 11, 15, 23, 59, 59, 999); // December 15, 2025
 	
 	console.log(`  Generating flight instances from ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`);
 
-	// Process more schedules to create many flight instances for December 2025
-	// Process up to 200 schedules to ensure plenty of flights (one way and round trip)
-	const schedulesToProcess = schedules.slice(0, Math.min(200, schedules.length));
-	console.log(`  Processing ${schedulesToProcess.length} schedules for December 2025...`);
+	// Process schedules to create ~1000 flight instances for December 1-15, 2025
+	// Limit to ~100 schedules to achieve ~1000 instances target
+	const maxSchedulesToProcess = Math.min(100, schedules.length);
+	const schedulesToProcess = schedules.slice(0, maxSchedulesToProcess);
+	console.log(`  Processing ${schedulesToProcess.length} schedules for December 1-15, 2025 (target: ~1000 instances)...`);
 
 	for (const schedule of schedulesToProcess) {
 		// Create a new date object for each schedule to avoid mutation issues
@@ -1302,12 +1303,21 @@ async function run() {
 					}
 
 					instanceCount++;
+					// Stop if we've reached ~1000 instances
+					if (instanceCount >= 1000) {
+						console.log(`  Reached target of 1000 flight instances, stopping...`);
+						break;
+					}
 					if (instanceCount % 100 === 0) {
 						console.log(`  Created ${instanceCount} flight instances...`);
 					}
 				}
 			}
 			currentDate.setDate(currentDate.getDate() + 1);
+		}
+		// Break outer loop if we've reached target
+		if (instanceCount >= 1000) {
+			break;
 		}
 	}
 	console.log(`Created ${instanceCount} flight instances with seats`);
@@ -1323,7 +1333,7 @@ async function run() {
 		.leftJoinAndSelect('fi.aircraft', 'aircraft')
 		.leftJoinAndSelect('aircraft.aircraft_type', 'aircraft_type')
 		.orderBy('fi.flight_date', 'ASC')
-		.take(500)
+		.take(100) // Reduced from 500 to 100
 		.getMany();
 	
 	let reservationCount = 0;
@@ -1332,7 +1342,7 @@ async function run() {
 	// Get flight instances for reservations
 	const reservationInstances = allInstancesForReservations;
 	
-	for (let i = 0; i < Math.min(200, users.length); i++) {
+	for (let i = 0; i < Math.min(20, users.length); i++) { // Reduced from 200 to 20
 		const user = users[i];
 		
 		// Create 1-2 reservations per user
@@ -1426,14 +1436,13 @@ async function run() {
 	// ============================================================
 	console.log('\nSeeding Bookings and related data...');
 	
-	// Get all available flight instances (limit to 500 to avoid SQL Server 2100 parameter limit)
-	// Reduced from 10000 to prevent query with too many parameters in IN clause
+	// Get all available flight instances (limit to 200 for faster seeding)
 	const allInstances = await repos.instance
 		.createQueryBuilder('fi')
 		.leftJoinAndSelect('fi.aircraft', 'aircraft')
 		.leftJoinAndSelect('aircraft.aircraft_type', 'aircraft_type')
 		.orderBy('fi.flight_date', 'ASC')
-		.take(500)
+		.take(200) // Reduced from 500
 		.getMany();
 	
 	console.log(`  Found ${allInstances.length} flight instances for bookings`);
@@ -1443,7 +1452,7 @@ async function run() {
 	if (allInstances.length === 0) {
 		console.log('  No flight instances available. Skipping bookings...');
 	} else {
-		const maxBookings = Math.min(1000, Math.floor(allInstances.length * 0.5)); // 50% of instances or max 1000
+		const maxBookings = Math.min(100, Math.floor(allInstances.length * 0.3)); // 30% of instances or max 100 (reduced from 1000)
 		console.log(`  Creating up to ${maxBookings} bookings...`);
 		
 		for (let i = 0; i < maxBookings; i++) {

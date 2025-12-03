@@ -95,7 +95,7 @@ export class AuthController{
     @UseGuards(JwtAuthGuard)
     @ApiBearerAuth('access-token')
     @Get('me')
-    async me(@Req() req: Request & { user: Express.User }) {
+    async me(@Req() req: Request & { user: { userId: string; email: string } }) {
         return await this.auth.getUserWithRoles(req.user.userId);
     }
 
