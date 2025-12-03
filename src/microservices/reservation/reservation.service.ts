@@ -181,28 +181,36 @@ export class ReservationService {
 				throw new BadRequestException('Session ID is required for guest users to retrieve booking state from Redis');
 			}
 			
-			// Get cabin and seat selection from Redis (Backend manages state)
-			let cabinSelection, seatSelection, seatsArray;
+			// Get cabin selection from Redis (Backend manages state)
+			// NEW FLOW: Only cabin is required, seat selection is done during check-in
+			let cabinSelection;
 			try {
 				const identifier = userId || sessionId!;
 				
-				const selections = await this.bookingStateService.getSelectionsForReservation(
+				const bookingState = await this.bookingStateService.getBookingState(
 					identifier,
 					segmentDto.flightInstanceId,
 					isGuest,
 				);
-				cabinSelection = selections.cabin;
-				seatSelection = selections.seat; // For backward compatibility
-				seatsArray = selections.seats || []; // Array of seats for multiple passengers
+				
+				if (!bookingState) {
+					throw new NotFoundException(`Booking state not found for flight ${segmentDto.flightInstanceId}`);
+				}
+				
+				if (!bookingState.cabin) {
+					throw new BadRequestException(`Cabin selection is required. Please select cabin first using /api/v1/booking-state/cabin endpoint.`);
+				}
+				
+				cabinSelection = bookingState.cabin;
 			} catch (error: any) {
 				// Re-throw custom booking state exceptions with context
 				if (error instanceof NotFoundException || error instanceof BadRequestException) {
-					// Ensure error message contains keywords that tests expect (cabin|seat|booking state)
+					// Ensure error message contains keywords that tests expect (cabin|booking state)
 					const errorMsg = error.message || '';
-					const hasKeywords = /cabin|seat|booking state/i.test(errorMsg);
+					const hasKeywords = /cabin|booking state/i.test(errorMsg);
 					const message = hasKeywords 
-						? `Cannot create reservation: ${errorMsg}. Please select cabin and seat first using /api/v1/booking-state endpoints.`
-						: `Cannot create reservation: ${errorMsg || 'Cabin and seat selection missing from booking state'}. Please select cabin and seat first using /api/v1/booking-state endpoints.`;
+						? `Cannot create reservation: ${errorMsg}. Please select cabin first using /api/v1/booking-state/cabin endpoint.`
+						: `Cannot create reservation: ${errorMsg || 'Cabin selection missing from booking state'}. Please select cabin first using /api/v1/booking-state/cabin endpoint.`;
 					throw new BadRequestException(message);
 				}
 				// Re-throw other exceptions as-is
@@ -222,41 +230,10 @@ export class ReservationService {
 			const cabinType =
 				fareClass.cabin_class.cabin_class_code === 'Y' ? CabinType.ECONOMY : CabinType.BUSINESS;
 
-			// Validate and assign seat from Redis state
-			const flightSeat = await this.flightSeatRepo.findOne({
-				where: { flight_seat_id: seatSelection.flightSeatId },
-				relations: ['seat_config', 'seat_config.cabin_class', 'flight_instance'],
-			});
-
-			if (!flightSeat) {
-				throw new NotFoundException(`Flight seat ${seatSelection.flightSeatId} not found`);
-			}
-
-			// Validate seat belongs to the correct flight instance
-			if (flightSeat.flight_instance_id !== segmentDto.flightInstanceId) {
-				throw new BadRequestException(
-					`Seat ${seatSelection.flightSeatId} does not belong to flight instance ${segmentDto.flightInstanceId}`,
-				);
-			}
-
-			// Validate seat belongs to the correct cabin class
-			if (flightSeat.seat_config.cabin_class.cabin_class_code !== fareClass.cabin_class.cabin_class_code) {
-				throw new BadRequestException(
-					`Seat ${seatSelection.flightSeatId} does not belong to cabin class ${fareClass.cabin_class.cabin_class_code}`,
-				);
-			}
-
-			// Validate seat is available
-			if (!flightSeat.is_available) {
-				throw new BadRequestException(`Seat ${flightSeat.seat_number} is not available`);
-			}
-
-			// Mark seat as unavailable (hold the seat)
-			flightSeat.is_available = false;
-			await this.flightSeatRepo.save(flightSeat);
-
-			const flightSeatId = flightSeat.flight_seat_id;
-			const seatNumber = flightSeat.seat_number;
+			// NEW FLOW: No seat assignment during reservation
+			// Seats will be assigned during check-in process
+			const flightSeatId = null;
+			const seatNumber = null;
 
 			// Calculate price
 			const baseFare = this.calculateFarePrice(fareClass.fare_class_code, cabinType);
@@ -278,8 +255,8 @@ export class ReservationService {
 				baseFare,
 				taxAmount,
 				feeAmount,
-				flightSeatId: seatSelection.flightSeatId,
-				seatNumber: seatSelection.seatNumber,
+				flightSeatId: null, // No seat assignment during reservation
+				seatNumber: null, // No seat assignment during reservation
 			});
 
 			totalAmount += segmentTotal;
@@ -404,15 +381,8 @@ export class ReservationService {
 			const now = new Date();
 			const expiresAt = new Date(reservation.expiresAt);
 			if (expiresAt < now) {
-				// Release seats before marking as expired
-				for (const segment of reservation.segments) {
-					if (segment.flightSeatId) {
-						await this.flightSeatRepo.update(
-							{ flight_seat_id: segment.flightSeatId },
-							{ is_available: true },
-						);
-					}
-				}
+				// NEW FLOW: No seats to release during reservation expiration
+				// Seats are only assigned during check-in, not during reservation
 				// Update status to 'expired' for consistency (optimization)
 				reservation.status = 'expired';
 				await this.redisService.del(reservationKey);
@@ -449,16 +419,8 @@ export class ReservationService {
 		// Update status to 'expired' if expired and still marked as 'pending' (lazy update)
 		const now = new Date();
 		if (dbReservation.expires_at < now && dbReservation.status === 'pending') {
-			// Release seats before marking as expired
-			const segments = JSON.parse(dbReservation.segments_json);
-			for (const segment of segments) {
-				if (segment.flightSeatId) {
-					await this.flightSeatRepo.update(
-						{ flight_seat_id: segment.flightSeatId },
-						{ is_available: true },
-					);
-				}
-			}
+			// NEW FLOW: No seats to release during reservation expiration
+			// Seats are only assigned during check-in, not during reservation
 			dbReservation.status = 'expired';
 			await this.reservationRepo.save(dbReservation);
 		}
@@ -495,15 +457,8 @@ export class ReservationService {
 			throw new BadRequestException(`Cannot cancel reservation with status: ${reservation.status}`);
 		}
 
-		// Release seats if any were reserved
-		for (const segment of reservation.segments) {
-			if (segment.flightSeatId) {
-				await this.flightSeatRepo.update(
-					{ flight_seat_id: segment.flightSeatId },
-					{ is_available: true },
-				);
-			}
-		}
+		// NEW FLOW: No seats to release during reservation cancellation
+		// Seats are only assigned during check-in, not during reservation
 
 		// 1. Update Database status
 		await this.reservationRepo.update({ reservation_id: reservationId }, { status: 'cancelled' });
@@ -650,18 +605,8 @@ export class ReservationService {
 			},
 		});
 
-		// Release seats for expired reservations
-		for (const reservation of expiredReservations) {
-			const segments = JSON.parse(reservation.segments_json);
-			for (const segment of segments) {
-				if (segment.flightSeatId) {
-					await this.flightSeatRepo.update(
-						{ flight_seat_id: segment.flightSeatId },
-						{ is_available: true },
-					);
-				}
-			}
-		}
+		// NEW FLOW: No seats to release during reservation cleanup
+		// Seats are only assigned during check-in, not during reservation
 
 		// Update status to expired
 		const result = await this.reservationRepo.update(

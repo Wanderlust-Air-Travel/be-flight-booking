@@ -1338,77 +1338,20 @@ export class BookingService {
 				reservation.segments.map((seg) => [seg.flightInstanceId, seg]),
 			);
 
-			// Step 15: Get seats array from booking state for each segment
-			// This allows us to assign seats to each passenger (ADT + CHD, INF don't need seats)
-			const seatsBySegment = new Map<string, Array<{ flightSeatId: string; seatNumber: string }>>();
-			
-			// Determine identifier for booking state (userId for authenticated, try to get from request context for guest)
-			// For guest bookings, we need to get sessionId from the request context or reservation metadata
-			// Since we don't have direct access to sessionId here, we'll try userId first, then fallback to reservation segments
-			const isGuest = !userId;
-			let identifier: string | null = userId;
-			
-			// For guest bookings, we might need to get sessionId from somewhere else
-			// For now, we'll try to get seats from booking state using userId (if available) or skip if guest
-			// In production, you might want to pass sessionId through the request or store it in reservation metadata
-			
-			// Try to get seats from booking state
-			// For authenticated users, use userId; for guests, we'll use reservation segment seat info as fallback
-			if (identifier) {
-				for (const validatedSegment of validatedSegments) {
-					try {
-						const bookingState = await this.bookingStateService.getBookingState(
-							identifier,
-							validatedSegment.flightInstance.flight_instance_id,
-							isGuest,
-						);
-						
-						if (bookingState?.seats && bookingState.seats.length > 0) {
-							seatsBySegment.set(validatedSegment.flightInstance.flight_instance_id, bookingState.seats);
-							this.logger.log(`Found ${bookingState.seats.length} seat(s) in booking state for flight ${validatedSegment.flightInstance.flight_instance_id}`);
-						} else if (bookingState?.seat) {
-							// Fallback to single seat for backward compatibility
-							seatsBySegment.set(validatedSegment.flightInstance.flight_instance_id, [{
-								flightSeatId: bookingState.seat.flightSeatId,
-								seatNumber: bookingState.seat.seatNumber,
-							}]);
-							this.logger.log(`Found single seat in booking state for flight ${validatedSegment.flightInstance.flight_instance_id}`);
-						}
-					} catch (error) {
-						this.logger.warn(`Could not get booking state for flight ${validatedSegment.flightInstance.flight_instance_id}: ${error instanceof Error ? error.message : String(error)}. Will use reservation segment seat info as fallback.`);
-					}
-				}
-			}
-			
-			// Fallback: If no seats from booking state, use reservation segment seat info
-			// This handles cases where booking state is not available (e.g., guest bookings without sessionId)
-			for (const validatedSegment of validatedSegments) {
-				if (!seatsBySegment.has(validatedSegment.flightInstance.flight_instance_id)) {
-					const reservationSegment = reservationSegmentMap.get(validatedSegment.flightInstance.flight_instance_id);
-					if (reservationSegment?.flightSeatId) {
-						seatsBySegment.set(validatedSegment.flightInstance.flight_instance_id, [{
-							flightSeatId: reservationSegment.flightSeatId,
-							seatNumber: reservationSegment.seatNumber || '',
-						}]);
-						this.logger.log(`Using reservation segment seat as fallback for flight ${validatedSegment.flightInstance.flight_instance_id}`);
-					}
-				}
-			}
+			// Step 15: NEW FLOW - No seat assignment during booking creation
+			// Seats will be assigned during check-in process
+			// This simplifies the booking flow and allows users to choose seats later
 
 			// Step 16: Create booking segments from reservation (supports multiple segments)
-
-			// Track seat index for each segment to assign seats to passengers
-			const seatIndexBySegment = new Map<string, number>();
-
 			// Create booking segments: Each passenger needs a segment for each flight
 			// For INF, no seat is assigned (they sit on adult's lap)
+			// NEW FLOW: No seats are assigned during booking - seats will be chosen during check-in
 			for (let passengerIndex = 0; passengerIndex < bookingPassengers.length; passengerIndex++) {
 				const bookingPassenger = bookingPassengers[passengerIndex];
 				const passengerDto = dto.passengers[passengerIndex];
 
 				for (let segmentIndex = 0; segmentIndex < validatedSegments.length; segmentIndex++) {
 					const validatedSegment = validatedSegments[segmentIndex];
-					const reservationSegment = reservationSegmentMap.get(validatedSegment.flightInstance.flight_instance_id);
 
 					// Calculate fare for this passenger type
 					const fareDetails = this.passengerPricingService.calculateTotalFare(
@@ -1419,60 +1362,10 @@ export class BookingService {
 						validatedSegment.feeRate,
 					);
 
-					// INF cannot have a seat
-					// For other passengers, assign seat from booking state seats array
-					let flightSeat: FlightSeat | null = null;
-					if (passengerDto.passengerType !== PassengerType.INF) {
-						// Get seats array for this segment
-						const segmentSeats = seatsBySegment.get(validatedSegment.flightInstance.flight_instance_id);
-						
-						if (segmentSeats && segmentSeats.length > 0) {
-							// Get current seat index for this segment
-							const currentSeatIndex = seatIndexBySegment.get(validatedSegment.flightInstance.flight_instance_id) || 0;
-							
-							if (currentSeatIndex < segmentSeats.length) {
-								const seatItem = segmentSeats[currentSeatIndex];
-								
-								flightSeat = await queryRunner.manager.findOne(FlightSeat, {
-									where: { flight_seat_id: seatItem.flightSeatId },
-								});
-								
-								if (!flightSeat) {
-									this.logger.warn(
-										`Flight seat ${seatItem.flightSeatId} from booking state not found. Creating segment without seat assignment.`,
-									);
-								} else {
-									// Validate seat belongs to correct flight instance
-									if (flightSeat.flight_instance_id !== validatedSegment.flightInstance.flight_instance_id) {
-										this.logger.warn(
-											`Flight seat ${seatItem.flightSeatId} does not belong to flight ${validatedSegment.flightInstance.flight_instance_id}. Skipping seat assignment.`,
-										);
-										flightSeat = null;
-									} else {
-										// Ensure seat is still unavailable (should be from reservation)
-										flightSeat.is_available = false;
-										await queryRunner.manager.save(flightSeat);
-										
-										// Increment seat index for next passenger
-										seatIndexBySegment.set(validatedSegment.flightInstance.flight_instance_id, currentSeatIndex + 1);
-									}
-								}
-							} else {
-								this.logger.warn(
-									`Not enough seats in booking state for flight ${validatedSegment.flightInstance.flight_instance_id}. Required: ${currentSeatIndex + 1}, Available: ${segmentSeats.length}`,
-								);
-							}
-						} else if (reservationSegment?.flightSeatId) {
-							// Fallback: use seat from reservation (backward compatibility)
-							flightSeat = await queryRunner.manager.findOne(FlightSeat, {
-								where: { flight_seat_id: reservationSegment.flightSeatId },
-							});
-							if (flightSeat) {
-								flightSeat.is_available = false;
-								await queryRunner.manager.save(flightSeat);
-							}
-						}
-					}
+					// NEW FLOW: No seat assignment during booking
+					// Seats will be assigned during check-in process
+					// INF passengers never get seats (they sit on adult's lap)
+					const flightSeat: FlightSeat | null = null;
 
 					const bookingSegment = this.bookingSegmentRepo.create({
 						booking_segment_id: uuidv7(),
@@ -1510,7 +1403,16 @@ export class BookingService {
 			// Commit transaction
 			await queryRunner.commitTransaction();
 
-			// Booking confirmation email removed - tickets will be sent after payment success
+			// NEW FLOW: Send booking confirmation email immediately after booking creation
+			// This notifies the user that their booking was created successfully
+			// Tickets will be sent after check-in (when seats are selected)
+			try {
+				await this.notificationService.sendBookingConfirmation(savedBooking);
+				this.logger.log(`Booking confirmation email sent for booking ${savedBooking.booking_id}`);
+			} catch (error: any) {
+				// Log error but don't fail booking creation
+				this.logger.error(`Failed to send booking confirmation email: ${error?.message || error}`, error?.stack);
+			}
 
 			return {
 				bookingId: savedBooking.booking_id,
@@ -2539,6 +2441,346 @@ export class BookingService {
 			bookingId: ticket.booking.booking_id,
 			bookingStatus: ticket.booking.status,
 		};
+	}
+
+	/**
+	 * Get booking by PNR code or booking ID
+	 * Used for check-in flow
+	 */
+	async getBookingByCode(bookingCode: string): Promise<any> {
+		// Check if it's a PNR code (6 alphanumeric characters) or booking ID (UUID v7)
+		const isPnrCode = /^[A-Z0-9]{6}$/i.test(bookingCode);
+		
+		let booking: Booking | null = null;
+		
+		if (isPnrCode) {
+			// Search by PNR code
+			booking = await this.bookingRepo.findOne({
+				where: { pnr_code: bookingCode.toUpperCase() },
+				relations: [
+					'currency',
+					'booking_segments',
+					'booking_segments.flight_instance',
+					'booking_segments.flight_instance.flight_schedule',
+					'booking_segments.flight_instance.flight_schedule.route',
+					'booking_segments.flight_instance.flight_schedule.route.origin_airport',
+					'booking_segments.flight_instance.flight_schedule.route.destination_airport',
+					'booking_segments.fare_class',
+					'booking_segments.fare_class.cabin_class',
+					'booking_segments.booking_passenger',
+					'booking_segments.booking_passenger.passenger',
+					'booking_segments.flight_seat',
+					'booking_passengers',
+					'booking_passengers.passenger',
+				],
+			});
+		} else {
+			// Search by booking ID (UUID v7)
+			const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+			if (!uuidRegex.test(bookingCode)) {
+				throw new BadRequestException('Invalid booking code format. Expected PNR code (6 alphanumeric) or booking ID (UUID v7).');
+			}
+			
+			booking = await this.bookingRepo.findOne({
+				where: { booking_id: bookingCode },
+				relations: [
+					'currency',
+					'booking_segments',
+					'booking_segments.flight_instance',
+					'booking_segments.flight_instance.flight_schedule',
+					'booking_segments.flight_instance.flight_schedule.route',
+					'booking_segments.flight_instance.flight_schedule.route.origin_airport',
+					'booking_segments.flight_instance.flight_schedule.route.destination_airport',
+					'booking_segments.fare_class',
+					'booking_segments.fare_class.cabin_class',
+					'booking_segments.booking_passenger',
+					'booking_segments.booking_passenger.passenger',
+					'booking_segments.flight_seat',
+					'booking_passengers',
+					'booking_passengers.passenger',
+				],
+			});
+		}
+
+		if (!booking) {
+			throw new NotFoundException(`Booking not found with code: ${bookingCode}`);
+		}
+
+		// Transform to response format (similar to getBooking)
+		const segments = booking.booking_segments.map((bs) => {
+			const flightInstance = bs.flight_instance;
+			const route = flightInstance.flight_schedule.route;
+			const fareClass = bs.fare_class;
+
+			return {
+				segmentId: bs.booking_segment_id,
+				flightInstanceId: flightInstance.flight_instance_id,
+				flightNumber: flightInstance.flight_number,
+				originAirport: route.origin_airport.iata_code,
+				originAirportName: route.origin_airport.name,
+				originCity: route.origin_airport.city,
+				destinationAirport: route.destination_airport.iata_code,
+				destinationAirportName: route.destination_airport.name,
+				destinationCity: route.destination_airport.city,
+				departureDateTime: flightInstance.departure_datetime_local,
+				arrivalDateTime: flightInstance.arrival_datetime_local,
+				fareClassCode: fareClass.fare_class_code,
+				fareClassName: fareClass.description || fareClass.fare_class_code,
+				cabinType: fareClass.cabin_class.cabin_class_code === 'Y' ? 'economy' : 'business',
+				seatNumber: bs.flight_seat?.seat_number || null,
+				passengerId: bs.booking_passenger.booking_passenger_id,
+				passengerType: bs.booking_passenger.passenger_type,
+			};
+		});
+
+		const passengers = booking.booking_passengers.map((bp) => {
+			return {
+				passengerId: bp.booking_passenger_id,
+				fullname: bp.passenger.fullname,
+				dob: bp.passenger.dob,
+				gender: bp.passenger.gender,
+				passengerType: bp.passenger_type,
+				documentNumber: bp.passenger.document_number,
+			};
+		});
+
+		return {
+			bookingId: booking.booking_id,
+			pnrCode: booking.pnr_code,
+			status: booking.status,
+			totalAmount: Number(booking.total_amount),
+			currencyCode: booking.currency.currency_code,
+			contactFullname: booking.contact_fullname || undefined,
+			contactEmail: booking.contact_email || undefined,
+			contactPhone: booking.contact_phone || undefined,
+			segments,
+			passengers,
+		};
+	}
+
+	/**
+	 * Check-in booking: Assign seats and create tickets
+	 * This is the new flow where seats are selected during check-in, not during booking
+	 */
+	async checkInBooking(dto: any): Promise<any> {
+		const queryRunner = this.dataSource.createQueryRunner();
+		await queryRunner.connect();
+		await queryRunner.startTransaction();
+
+		try {
+			// Step 1: Get booking by code (PNR or booking ID)
+			const booking = await this.getBookingByCode(dto.bookingCode);
+
+			// Step 2: Validate booking status
+			// Booking must be paid or confirmed to check in
+			if (booking.status !== 'paid' && booking.status !== 'confirmed') {
+				throw new BadRequestException(
+					`Cannot check in booking with status: ${booking.status}. Booking must be paid or confirmed.`,
+				);
+			}
+
+			// Step 3: Check if tickets already exist (already checked in)
+			const existingBooking = await queryRunner.manager.findOne(Booking, {
+				where: { booking_id: booking.bookingId },
+				relations: ['tickets'],
+			});
+
+			if (existingBooking?.tickets && existingBooking.tickets.length > 0) {
+				throw new BadRequestException(
+					`Booking ${dto.bookingCode} has already been checked in. Tickets have already been issued.`,
+				);
+			}
+
+			// Step 4: Validate seat selections match booking segments
+			const segmentMap = new Map(
+				booking.segments.map((seg: any) => [seg.flightInstanceId, seg]),
+			);
+
+			// Group segments by flight instance to handle multiple passengers
+			const segmentsByFlight = new Map<string, any[]>();
+			for (const segment of booking.segments) {
+				const flightInstanceId = segment.flightInstanceId;
+				if (!segmentsByFlight.has(flightInstanceId)) {
+					segmentsByFlight.set(flightInstanceId, []);
+				}
+				segmentsByFlight.get(flightInstanceId)!.push(segment);
+			}
+
+			// Validate seat selections
+			const seatAssignments = new Map<string, Array<{ segmentId: string; flightSeatId: string; seatNumber: string }>>();
+
+			for (const checkInSegment of dto.segments) {
+				const bookingSegments = segmentsByFlight.get(checkInSegment.flightInstanceId);
+				if (!bookingSegments || bookingSegments.length === 0) {
+					throw new BadRequestException(
+						`Flight instance ${checkInSegment.flightInstanceId} not found in booking ${dto.bookingCode}`,
+					);
+				}
+
+				// Count passengers needing seats (excluding infants)
+				const passengersNeedingSeats = bookingSegments.filter(
+					(seg: any) => seg.passengerType !== 'INF',
+				).length;
+
+				if (checkInSegment.seats.length !== passengersNeedingSeats) {
+					throw new BadRequestException(
+						`Number of seat selections (${checkInSegment.seats.length}) does not match number of passengers needing seats (${passengersNeedingSeats}) for flight ${checkInSegment.flightInstanceId}`,
+					);
+				}
+
+				// Validate and assign seats
+				for (let i = 0; i < checkInSegment.seats.length; i++) {
+					const seatSelection = checkInSegment.seats[i];
+					const bookingSegment = bookingSegments.find(
+						(seg: any) => seg.passengerType !== 'INF' && !seatAssignments.has(seg.segmentId),
+					);
+
+					if (!bookingSegment) {
+						throw new BadRequestException(
+							`Cannot assign seat ${seatSelection.seatNumber} - no available passenger segment`,
+						);
+					}
+
+					// Validate seat exists and is available
+					const flightSeat = await queryRunner.manager.findOne(FlightSeat, {
+						where: { flight_seat_id: seatSelection.flightSeatId },
+						relations: ['seat_config', 'seat_config.cabin_class', 'flight_instance'],
+					});
+
+					if (!flightSeat) {
+						throw new NotFoundException(`Flight seat ${seatSelection.flightSeatId} not found`);
+					}
+
+					// Validate seat belongs to correct flight instance
+					if (flightSeat.flight_instance_id !== checkInSegment.flightInstanceId) {
+						throw new BadRequestException(
+							`Seat ${seatSelection.seatNumber} does not belong to flight instance ${checkInSegment.flightInstanceId}`,
+						);
+					}
+
+					// Validate seat belongs to correct cabin class (from booking segment)
+					const bookingSegmentEntity = await queryRunner.manager.findOne(BookingSegment, {
+						where: { booking_segment_id: bookingSegment.segmentId },
+						relations: ['fare_class', 'fare_class.cabin_class'],
+					});
+
+					if (!bookingSegmentEntity) {
+						throw new NotFoundException(`Booking segment ${bookingSegment.segmentId} not found`);
+					}
+
+					const expectedCabinCode = bookingSegmentEntity.fare_class.cabin_class.cabin_class_code;
+					if (flightSeat.seat_config.cabin_class.cabin_class_code !== expectedCabinCode) {
+						throw new BadRequestException(
+							`Seat ${seatSelection.seatNumber} does not belong to cabin class ${expectedCabinCode}. Booking was made for ${expectedCabinCode} cabin.`,
+						);
+					}
+
+					// Validate seat is available
+					if (!flightSeat.is_available) {
+						throw new BadRequestException(`Seat ${seatSelection.seatNumber} is not available`);
+					}
+
+					// Mark seat as unavailable
+					flightSeat.is_available = false;
+					await queryRunner.manager.save(flightSeat);
+
+					// Store assignment
+					if (!seatAssignments.has(bookingSegment.segmentId)) {
+						seatAssignments.set(bookingSegment.segmentId, []);
+					}
+					seatAssignments.get(bookingSegment.segmentId)!.push({
+						segmentId: bookingSegment.segmentId,
+						flightSeatId: seatSelection.flightSeatId,
+						seatNumber: seatSelection.seatNumber,
+					});
+				}
+			}
+
+			// Step 5: Update booking segments with seat assignments
+			for (const [segmentId, assignments] of seatAssignments.entries()) {
+				if (assignments.length > 0) {
+					const assignment = assignments[0]; // Each segment gets one seat
+					const bookingSegment = await queryRunner.manager.findOne(BookingSegment, {
+						where: { booking_segment_id: segmentId },
+						relations: ['flight_seat'],
+					});
+
+					if (bookingSegment) {
+						const flightSeat = await queryRunner.manager.findOne(FlightSeat, {
+							where: { flight_seat_id: assignment.flightSeatId },
+						});
+
+						if (flightSeat) {
+							bookingSegment.flight_seat = flightSeat;
+							await queryRunner.manager.save(bookingSegment);
+						}
+					}
+				}
+			}
+
+			// Step 6: Create tickets
+			const tickets = await this.createTicketsFromBooking(booking.bookingId, queryRunner.manager);
+
+			// Step 7: Send ticket confirmation email
+			const bookingEntity = await queryRunner.manager.findOne(Booking, {
+				where: { booking_id: booking.bookingId },
+				relations: [
+					'booking_segments',
+					'booking_segments.booking_passenger',
+					'booking_segments.flight_instance',
+					'booking_segments.flight_instance.flight_schedule',
+					'booking_segments.flight_instance.flight_schedule.route',
+					'booking_segments.fare_class',
+					'booking_segments.fare_class.cabin_class',
+					'booking_segments.flight_seat',
+					'user',
+					'currency',
+				],
+			});
+
+			if (bookingEntity) {
+				try {
+					await this.notificationService.sendTicketConfirmation(bookingEntity, tickets);
+					this.logger.log(`Ticket confirmation email sent for booking ${booking.bookingId}`);
+				} catch (error: any) {
+					// Log error but don't fail check-in
+					this.logger.error(`Failed to send ticket confirmation email: ${error?.message || error}`, error?.stack);
+				}
+			}
+
+			// Commit transaction
+			await queryRunner.commitTransaction();
+
+			return {
+				bookingId: booking.bookingId,
+				pnrCode: booking.pnrCode,
+				ticketCount: tickets.length,
+				message: 'Check-in completed successfully. Tickets have been issued and sent to your email.',
+			};
+		} catch (error: any) {
+			await queryRunner.rollbackTransaction();
+			this.logger.error('Check-in booking error:', {
+				error: error?.message || error,
+				stack: error?.stack,
+				bookingCode: dto.bookingCode,
+			});
+
+			// Re-throw NestJS exceptions as-is
+			if (error instanceof BadRequestException || error instanceof NotFoundException) {
+				throw error;
+			}
+
+			// Re-throw exceptions with statusCode property
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+
+			// Handle generic errors
+			const errorMessage = error?.message || error?.toString() || 'Unknown error';
+			throw new BadRequestException(`Failed to check in booking: ${errorMessage}`);
+		} finally {
+			await queryRunner.release();
+		}
 	}
 }
 

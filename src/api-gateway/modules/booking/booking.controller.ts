@@ -29,6 +29,8 @@ import { MyTicketsResponseDto } from 'src/microservices/booking/dto/my-tickets-r
 import { MyJourneyResponseDto } from 'src/microservices/booking/dto/my-journey-response.dto';
 import { GetMyTicketsDto } from 'src/microservices/booking/dto/get-my-tickets.dto';
 import { GetBookingResponseDto } from 'src/microservices/booking/dto/get-booking-response.dto';
+import { CheckInBookingDto } from 'src/microservices/booking/dto/check-in-booking.dto';
+import { CheckInBookingResponseDto } from 'src/microservices/booking/dto/check-in-booking-response.dto';
 import { CancelBookingDto } from './dto/cancel-booking.dto';
 import { CancelTicketDto } from './dto/cancel-ticket.dto';
 import { AuthService } from '../auth/auth.service';
@@ -718,6 +720,91 @@ export class BookingController {
 			// Fallback
 			const errorMessage = error?.message || error?.error?.message || 'Unknown error';
 			throw new BadRequestException(`Cancel ticket failed: ${errorMessage}`);
+		}
+	}
+
+	@Get('code/:code')
+	@UseGuards(OptionalJwtAuthGuard)
+	@ApiOperation({
+		summary: 'Get booking by PNR code or booking ID',
+		description: 'Get booking details by PNR code (6 alphanumeric) or booking ID (UUID v7). Used for check-in flow. Public endpoint - no authentication required.',
+	})
+	@ApiParam({
+		name: 'code',
+		description: 'PNR code (6 alphanumeric) or booking ID (UUID v7)',
+		example: 'ABC123',
+	})
+	@ApiOkResponse({
+		description: 'Booking details retrieved successfully',
+		type: GetBookingResponseDto,
+	})
+	@ApiBadRequestResponse({
+		description: 'Invalid booking code format or booking not found',
+	})
+	async getBookingByCode(@Param('code') bookingCode: string): Promise<GetBookingResponseDto> {
+		try {
+			return await firstValueFrom(
+				this.client.send<GetBookingResponseDto>(BOOKING_MS.PATTERN.GET_BOOKING_BY_CODE, bookingCode),
+			);
+		} catch (error: any) {
+			this.logger.error('Get booking by code error:', error);
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
+			}
+			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
+				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
+			}
+			if (error?.status === 'error' && error?.message) {
+				throw new BadRequestException(`Get booking by code failed: ${error.message}`);
+			}
+			throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`);
+		}
+	}
+
+	@Post('check-in')
+	@UseGuards(OptionalJwtAuthGuard)
+	@ApiOperation({
+		summary: 'Check-in booking: Assign seats and create tickets',
+		description: 'Check-in a booking by assigning seats and creating tickets. Booking must be paid or confirmed. Seats must match the cabin class selected during booking. Public endpoint - no authentication required.',
+	})
+	@ApiOkResponse({
+		description: 'Check-in completed successfully',
+		schema: {
+			type: 'object',
+			properties: {
+				bookingId: { type: 'string', example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71' },
+				pnrCode: { type: 'string', example: 'ABC123' },
+				ticketCount: { type: 'number', example: 2 },
+				message: { type: 'string', example: 'Check-in completed successfully. Tickets have been issued and sent to your email.' },
+			},
+		},
+	})
+	@ApiBadRequestResponse({
+		description: 'Invalid request, booking not found, booking already checked in, or seat validation failed',
+	})
+	async checkInBooking(@Body() dto: CheckInBookingDto): Promise<CheckInBookingResponseDto> {
+		try {
+			return await firstValueFrom(
+				this.client.send<CheckInBookingResponseDto>(BOOKING_MS.PATTERN.CHECK_IN_BOOKING, dto),
+			);
+		} catch (error: any) {
+			this.logger.error('Check-in booking error:', error);
+			if (error?.statusCode && error?.message) {
+				throw error;
+			}
+			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
+				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
+			}
+			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
+				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
+			}
+			if (error?.status === 'error' && error?.message) {
+				throw new BadRequestException(`Check-in failed: ${error.message}`);
+			}
+			throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`);
 		}
 	}
 }

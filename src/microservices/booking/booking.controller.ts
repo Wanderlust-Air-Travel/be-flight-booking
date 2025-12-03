@@ -12,6 +12,8 @@ import { MyTicketsResponseDto } from './dto/my-tickets-response.dto';
 import { MyJourneyResponseDto } from './dto/my-journey-response.dto';
 import { GetMyTicketsDto } from './dto/get-my-tickets.dto';
 import { GetBookingResponseDto } from './dto/get-booking-response.dto';
+import { CheckInBookingDto } from './dto/check-in-booking.dto';
+import { CheckInBookingResponseDto } from './dto/check-in-booking-response.dto';
 
 @Controller()
 export class BookingMsController {
@@ -203,6 +205,31 @@ export class BookingMsController {
 			return result;
 		} catch (error: any) {
 			this.logger.error('Get ticket info error:', error);
+			throw error;
+		}
+	}
+
+	@MessagePattern(BOOKING_MS.PATTERN.GET_BOOKING_BY_CODE)
+	async handleGetBookingByCode(bookingCode: string): Promise<GetBookingResponseDto> {
+		try {
+			this.logger.log(`Get booking by code: ${bookingCode}`);
+			const result = await this.bookingService.getBookingByCode(bookingCode);
+			return result;
+		} catch (error: any) {
+			this.logger.error('Get booking by code error:', error);
+			throw error;
+		}
+	}
+
+	@MessagePattern(BOOKING_MS.PATTERN.CHECK_IN_BOOKING)
+	async handleCheckInBooking(dto: CheckInBookingDto): Promise<CheckInBookingResponseDto> {
+		try {
+			this.logger.log(`Check-in booking: ${dto.bookingCode}`);
+			const result = await this.bookingService.checkInBooking(dto);
+			this.logger.log(`Check-in completed for booking ${dto.bookingCode}, created ${result.ticketCount} tickets`);
+			return result;
+		} catch (error: any) {
+			this.logger.error('Check-in booking error:', error);
 			throw error;
 		}
 	}

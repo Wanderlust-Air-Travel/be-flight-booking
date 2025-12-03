@@ -16,6 +16,7 @@ import { EmailClientModule } from './modules/email/email.client.module';
 import { HealthModule } from './modules/health/health.module';
 import { BookingStateModule } from './modules/booking-state/booking-state.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
+import { AdminModule } from './modules/admin/admin.module';
 import { CommonModule } from 'src/shared/modules/common/common.module';
 
 @Module({
@@ -56,6 +57,7 @@ import { CommonModule } from 'src/shared/modules/common/common.module';
     HealthModule,
     BookingStateModule,
     RealtimeModule,
+    AdminModule,
     CommonModule,
   ],
   controllers: [],

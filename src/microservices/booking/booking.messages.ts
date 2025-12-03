@@ -5,6 +5,7 @@ export const BOOKING_MS = {
 		CREATE_BOOKING: 'booking.create',
 		CREATE_BOOKING_FROM_RESERVATION: 'booking.create-from-reservation',
 		GET_BOOKING: 'booking.get',
+		GET_BOOKING_BY_CODE: 'booking.get-by-code',
 		GET_FARE_DETAILS: 'booking.get-fare-details',
 		UPDATE_PASSENGERS: 'booking.update-passengers',
 		GET_PAYMENT_INFO: 'booking.get-payment-info',
@@ -14,5 +15,6 @@ export const BOOKING_MS = {
 		CANCEL_BOOKING: 'booking.cancel',
 		CANCEL_TICKET: 'booking.cancel-ticket',
 		GET_TICKET_INFO: 'booking.get-ticket-info',
+		CHECK_IN_BOOKING: 'booking.check-in',
 	},
 } as const;

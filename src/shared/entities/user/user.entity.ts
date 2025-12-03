@@ -1,7 +1,9 @@
-import { Column, CreateDateColumn, Entity, OneToMany, PrimaryColumn, UpdateDateColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, JoinTable, ManyToMany, OneToMany, PrimaryColumn, UpdateDateColumn } from "typeorm";
 import { Passenger } from "src/shared/entities/passenger/passenger.entity";
 import { Booking } from "src/shared/entities/booking/booking.entity";
 import { Reservation } from "src/shared/entities/reservation/reservation.entity";
+import { Role } from "src/shared/entities/role/role.entity";
+import { UserRole } from "./user-role.entity";
 
 @Entity({ name: 'Users', schema: 'dbo' })
 export class User {
@@ -52,4 +54,17 @@ export class User {
 	// 1 User -> N Reservations (nullable user_id in Reservations)
 	@OneToMany(() => Reservation, (r) => r.user, { cascade: false })
 	reservations: Reservation[];
+
+	// Many-to-Many: Users <-> Roles (via UserRoles join table)
+	@OneToMany(() => UserRole, (ur) => ur.user, { cascade: true })
+	userRoles: UserRole[];
+
+	@ManyToMany(() => Role, (role) => role.users)
+	@JoinTable({
+		name: 'UserRoles',
+		schema: 'dbo',
+		joinColumn: { name: 'user_id', referencedColumnName: 'user_id' },
+		inverseJoinColumn: { name: 'role_code', referencedColumnName: 'role_code' },
+	})
+	roles: Role[];
 }
