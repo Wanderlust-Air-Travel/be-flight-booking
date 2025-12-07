@@ -10,15 +10,20 @@ async function waitForDatabaseCreated(): Promise<boolean> {
   console.log(`Waiting for database '${dbName}' to be created...`);
   const maxAttempts = 30;
   
+  // Detect if running locally (not in Docker container)
+  let dbHost = process.env.DB_HOST;
+  if (!dbHost) {
+    dbHost = 'localhost'; // Default to localhost for local development
+  }
+  const isDockerNetwork = dbHost === 'sqlserver' || dbHost.includes('.docker');
+  const defaultPort = isDockerNetwork ? 1433 : 1434;
+  const dbPort = parseInt(process.env.DB_PORT || defaultPort.toString(), 10);
+  
   for (let i = 0; i < maxAttempts; i++) {
     try {
-      const dbHost = process.env.DB_HOST || 'sqlserver';
-      const isDockerNetwork = dbHost === 'sqlserver' || dbHost.includes('.docker');
-      const defaultPort = isDockerNetwork ? 1433 : 1434;
-      
       const config: SqlConfig = {
         server: dbHost,
-        port: parseInt(process.env.DB_PORT || defaultPort.toString(), 10),
+        port: dbPort,
         user: process.env.DB_USER || 'sa',
         password: process.env.DB_PASS || process.env.SA_PASSWORD || 'Passw0rd123!',
         database: dbName, // Try to connect to the target database

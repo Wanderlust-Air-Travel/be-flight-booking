@@ -15,13 +15,17 @@ async function createDatabase(): Promise<boolean> {
     const dbPassword = process.env.DB_PASS || process.env.SA_PASSWORD || 'Passw0rd123!';
     // When connecting from Docker container to another container, use container port (1433)
     // When connecting from host to container, use host port (1434)
-    const dbHost = process.env.DB_HOST || 'sqlserver';
+    let dbHost = process.env.DB_HOST;
+    if (!dbHost) {
+      dbHost = 'localhost'; // Default to localhost for local development
+    }
     const isDockerNetwork = dbHost === 'sqlserver' || dbHost.includes('.docker');
     const defaultPort = isDockerNetwork ? 1433 : 1434;
+    const dbPort = parseInt(process.env.DB_PORT || defaultPort.toString(), 10);
     
     const config: SqlConfig = {
       server: dbHost,
-      port: parseInt(process.env.DB_PORT || defaultPort.toString(), 10),
+      port: dbPort,
       user: dbUser,
       password: dbPassword,
       database: 'master',
@@ -66,14 +70,18 @@ async function runMigrations(): Promise<boolean> {
     // In Docker, environment variables are set from docker-compose.yml
     // When connecting from Docker container to another container, use container port (1433)
     // When connecting from host to container, use host port (1434)
-    const dbHost = process.env.DB_HOST || 'sqlserver';
+    let dbHost = process.env.DB_HOST;
+    if (!dbHost) {
+      dbHost = 'localhost'; // Default to localhost for local development
+    }
     const isDockerNetwork = dbHost === 'sqlserver' || dbHost.includes('.docker');
     const defaultPort = isDockerNetwork ? 1433 : 1434;
+    const dbPort = parseInt(process.env.DB_PORT || defaultPort.toString(), 10);
     
     const dataSource = new DataSource({
       type: 'mssql',
       host: dbHost,
-      port: parseInt(process.env.DB_PORT || defaultPort.toString(), 10),
+      port: dbPort,
       username: process.env.DB_USER || 'sa',
       password: process.env.DB_PASS || 'Passw0rd123!',
       database: process.env.DB_NAME || 'flight_booking_db',
@@ -131,14 +139,18 @@ async function runMigrations(): Promise<boolean> {
 async function verifyDatabase(): Promise<boolean> {
   console.log('Verifying database is accessible...');
   try {
-    const dbHost = process.env.DB_HOST || 'sqlserver';
+    let dbHost = process.env.DB_HOST;
+    if (!dbHost) {
+      dbHost = 'localhost'; // Default to localhost for local development
+    }
     const isDockerNetwork = dbHost === 'sqlserver' || dbHost.includes('.docker');
     const defaultPort = isDockerNetwork ? 1433 : 1434;
+    const dbPort = parseInt(process.env.DB_PORT || defaultPort.toString(), 10);
     
     const dataSource = new DataSource({
       type: 'mssql',
       host: dbHost,
-      port: parseInt(process.env.DB_PORT || defaultPort.toString(), 10),
+      port: dbPort,
       username: process.env.DB_USER || 'sa',
       password: process.env.DB_PASS || process.env.SA_PASSWORD || 'Passw0rd123!',
       database: process.env.DB_NAME || 'flight_booking_db',

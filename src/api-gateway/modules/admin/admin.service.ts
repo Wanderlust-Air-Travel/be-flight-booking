@@ -704,6 +704,26 @@ export class AdminService {
 		});
 	}
 
+	/**
+	 * Get all users with their roles
+	 */
+	async getAllUsers(): Promise<User[]> {
+		return await this.userRepo.find({
+			relations: ['userRoles', 'userRoles.role'],
+			order: { created_at: 'DESC' },
+		});
+	}
+
+	/**
+	 * Get all routes with airports
+	 */
+	async getAllRoutes(): Promise<Route[]> {
+		return await this.routeRepo.find({
+			relations: ['origin_airport', 'destination_airport'],
+			order: { created_at: 'DESC' },
+		});
+	}
+
 	// ==================== ROUTE FARE PRICE MANAGEMENT (REVENUE_ANALYST) ====================
 
 	/**
@@ -751,7 +771,12 @@ export class AdminService {
 	 */
 	async getAllRouteFarePrices(): Promise<RouteFarePrice[]> {
 		return await this.routeFarePriceRepo.find({
-			relations: ['route', 'fare_class'],
+			relations: [
+				'route',
+				'route.origin_airport',
+				'route.destination_airport',
+				'fare_class',
+			],
 			order: { created_at: 'DESC' },
 		});
 	}
@@ -762,7 +787,12 @@ export class AdminService {
 	async getRouteFarePriceById(routeFarePriceId: string): Promise<RouteFarePrice> {
 		const routeFarePrice = await this.routeFarePriceRepo.findOne({
 			where: { route_fare_price_id: routeFarePriceId },
-			relations: ['route', 'fare_class'],
+			relations: [
+				'route',
+				'route.origin_airport',
+				'route.destination_airport',
+				'fare_class',
+			],
 		});
 
 		if (!routeFarePrice) {

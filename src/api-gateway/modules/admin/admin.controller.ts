@@ -48,6 +48,8 @@ import { FareDescriptionRule } from 'src/shared/entities/fare/fare-description-r
 import { FlightSchedule } from 'src/shared/entities/flight/flight-schedule.entity';
 import { FlightInstance } from 'src/shared/entities/flight/flight-instance.entity';
 import { Role } from 'src/shared/entities/role/role.entity';
+import { User } from 'src/shared/entities/user/user.entity';
+import { Route } from 'src/shared/entities/route/route.entity';
 import { COMMON_MESSAGES } from 'src/shared/constants/messages';
 
 @ApiTags('admin')
@@ -626,6 +628,48 @@ export class AdminController {
 			this.logger.error('Get all roles error:', error);
 			throw new InternalServerErrorException(
 				`Failed to retrieve roles: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
+			);
+		}
+	}
+
+	@Get('users')
+	@Roles(SystemRole.ADMIN)
+	@ApiOperation({
+		summary: 'Get all users',
+		description: 'Get all users in the system with their roles. Requires ADMIN role.',
+	})
+	@ApiOkResponse({
+		description: 'Users retrieved successfully',
+		type: [User],
+	})
+	async getAllUsers(): Promise<User[]> {
+		try {
+			return await this.adminService.getAllUsers();
+		} catch (error: any) {
+			this.logger.error('Get all users error:', error);
+			throw new InternalServerErrorException(
+				`Failed to retrieve users: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
+			);
+		}
+	}
+
+	@Get('routes')
+	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST, SystemRole.SCHEDULE_PLANNER, SystemRole.FLIGHT_MANAGER)
+	@ApiOperation({
+		summary: 'Get all routes',
+		description: 'Get all routes in the system with airport information. Requires ADMIN, REVENUE_ANALYST, SCHEDULE_PLANNER, or FLIGHT_MANAGER role.',
+	})
+	@ApiOkResponse({
+		description: 'Routes retrieved successfully',
+		type: [Route],
+	})
+	async getAllRoutes(): Promise<Route[]> {
+		try {
+			return await this.adminService.getAllRoutes();
+		} catch (error: any) {
+			this.logger.error('Get all routes error:', error);
+			throw new InternalServerErrorException(
+				`Failed to retrieve routes: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
 			);
 		}
 	}
