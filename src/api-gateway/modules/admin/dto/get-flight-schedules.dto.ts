@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsInt, Min, Max, IsIn } from 'class-validator';
+import { IsOptional, IsInt, Min, Max, IsIn, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class GetFlightSchedulesDto {
@@ -30,5 +30,14 @@ export class GetFlightSchedulesDto {
 		message: 'limit must be one of: 20, 50, 100, 200',
 	})
 	limit?: number = 20;
+
+	@ApiProperty({
+		description: 'Search query to filter by flight number, route, or aircraft type',
+		example: 'QH101',
+		required: false,
+	})
+	@IsOptional()
+	@IsString()
+	search?: string;
 }
 

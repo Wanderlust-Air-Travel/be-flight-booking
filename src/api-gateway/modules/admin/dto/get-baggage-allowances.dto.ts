@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsInt, Min, Max, IsIn } from 'class-validator';
+import { IsOptional, IsInt, Min, Max, IsIn, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class GetBaggageAllowancesDto {
@@ -28,5 +28,14 @@ export class GetBaggageAllowancesDto {
 	@IsInt()
 	@IsIn([20, 50, 100, 200])
 	limit?: number = 20;
+
+	@ApiProperty({
+		description: 'Search query to filter by fare class code or description',
+		example: 'Y',
+		required: false,
+	})
+	@IsOptional()
+	@IsString()
+	search?: string;
 }
 

@@ -45,6 +45,7 @@ import { GetBaggageAllowancesDto } from './dto/get-baggage-allowances.dto';
 import { BaggageAllowancesResponseDto } from './dto/baggage-allowances-response.dto';
 import { GetUsersDto } from './dto/get-users.dto';
 import { UsersResponseDto } from './dto/users-response.dto';
+import { GetCabinServicesDto } from './dto/get-cabin-services.dto';
 import { CreateBaggageAllowanceDto } from './dto/create-baggage-allowance.dto';
 import { UpdateBaggageAllowanceDto } from './dto/update-baggage-allowance.dto';
 import { CreateCabinServiceDto } from './dto/create-cabin-service.dto';
@@ -75,10 +76,10 @@ export class AdminController {
 	// ==================== FARE MANAGEMENT ====================
 
 	@Post('fare-classes')
-	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST, SystemRole.FARE_MANAGER)
+	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST, SystemRole.FARE_MANAGER, SystemRole.DISTRIBUTION_MANAGER)
 	@ApiOperation({
 		summary: 'Create a new fare class',
-		description: 'Create a new fare class. Requires ADMIN or FARE_MANAGER role.',
+		description: 'Create a new fare class. Requires ADMIN, REVENUE_ANALYST, FARE_MANAGER, or DISTRIBUTION_MANAGER role.',
 	})
 	@ApiOkResponse({
 		description: 'Fare class created successfully',
@@ -102,10 +103,10 @@ export class AdminController {
 	}
 
 	@Get('fare-classes')
-	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST, SystemRole.FARE_MANAGER, SystemRole.DISTRIBUTION_MANAGER)
+	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST, SystemRole.FARE_MANAGER, SystemRole.DISTRIBUTION_MANAGER, SystemRole.ANCILLARY_MANAGER, SystemRole.CALL_CENTER)
 	@ApiOperation({
 		summary: 'Get all fare classes',
-		description: 'Get all fare classes. Requires ADMIN or FARE_MANAGER role.',
+		description: 'Get all fare classes. Requires ADMIN, REVENUE_ANALYST, FARE_MANAGER, DISTRIBUTION_MANAGER, ANCILLARY_MANAGER, or CALL_CENTER role.',
 	})
 	@ApiOkResponse({
 		description: 'Fare classes retrieved successfully',
@@ -123,10 +124,10 @@ export class AdminController {
 	}
 
 	@Get('fare-classes/:code')
-	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST, SystemRole.FARE_MANAGER, SystemRole.DISTRIBUTION_MANAGER)
+	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST, SystemRole.FARE_MANAGER, SystemRole.DISTRIBUTION_MANAGER, SystemRole.ANCILLARY_MANAGER, SystemRole.CALL_CENTER)
 	@ApiOperation({
 		summary: 'Get fare class by code',
-		description: 'Get fare class details by code. Requires ADMIN or FARE_MANAGER role.',
+		description: 'Get fare class details by code. Requires ADMIN, REVENUE_ANALYST, FARE_MANAGER, DISTRIBUTION_MANAGER, ANCILLARY_MANAGER, or CALL_CENTER role.',
 	})
 	@ApiParam({
 		name: 'code',
@@ -152,10 +153,10 @@ export class AdminController {
 	}
 
 	@Put('fare-classes/:code')
-	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST, SystemRole.FARE_MANAGER)
+	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST, SystemRole.FARE_MANAGER, SystemRole.DISTRIBUTION_MANAGER)
 	@ApiOperation({
 		summary: 'Update fare class',
-		description: 'Update fare class details. Requires ADMIN or FARE_MANAGER role.',
+		description: 'Update fare class details. Requires ADMIN, REVENUE_ANALYST, FARE_MANAGER, or DISTRIBUTION_MANAGER role.',
 	})
 	@ApiParam({
 		name: 'code',
@@ -184,10 +185,10 @@ export class AdminController {
 	}
 
 	@Delete('fare-classes/:code')
-	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST, SystemRole.FARE_MANAGER)
+	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST, SystemRole.FARE_MANAGER, SystemRole.DISTRIBUTION_MANAGER)
 	@ApiOperation({
 		summary: 'Delete fare class',
-		description: 'Delete a fare class. Requires ADMIN or FARE_MANAGER role.',
+		description: 'Delete a fare class. Requires ADMIN, REVENUE_ANALYST, FARE_MANAGER, or DISTRIBUTION_MANAGER role.',
 	})
 	@ApiParam({
 		name: 'code',
@@ -722,10 +723,10 @@ export class AdminController {
 	}
 
 	@Get('routes')
-	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST, SystemRole.SCHEDULE_PLANNER, SystemRole.FLIGHT_MANAGER)
+	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST, SystemRole.SCHEDULE_PLANNER, SystemRole.FLIGHT_MANAGER, SystemRole.DISTRIBUTION_MANAGER)
 	@ApiOperation({
 		summary: 'Get all routes',
-		description: 'Get all routes in the system with airport information. Requires ADMIN, REVENUE_ANALYST, SCHEDULE_PLANNER, or FLIGHT_MANAGER role.',
+		description: 'Get all routes in the system with airport information. Requires ADMIN, REVENUE_ANALYST, SCHEDULE_PLANNER, FLIGHT_MANAGER, or DISTRIBUTION_MANAGER role.',
 	})
 	@ApiOkResponse({
 		description: 'Routes retrieved successfully',
@@ -745,10 +746,10 @@ export class AdminController {
 	// ==================== ROUTE FARE PRICE MANAGEMENT (REVENUE_ANALYST) ====================
 
 	@Post('route-fare-prices')
-	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST)
+	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST, SystemRole.DISTRIBUTION_MANAGER)
 	@ApiOperation({
 		summary: 'Create a new route fare price',
-		description: 'Create a new route fare price. Requires ADMIN or REVENUE_ANALYST role.',
+		description: 'Create a new route fare price. Requires ADMIN, REVENUE_ANALYST, or DISTRIBUTION_MANAGER role.',
 	})
 	@ApiOkResponse({
 		description: 'Route fare price created successfully',
@@ -851,10 +852,10 @@ export class AdminController {
 	}
 
 	@Put('route-fare-prices/:id')
-	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST)
+	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST, SystemRole.DISTRIBUTION_MANAGER)
 	@ApiOperation({
 		summary: 'Update route fare price',
-		description: 'Update route fare price details. Requires ADMIN or REVENUE_ANALYST role.',
+		description: 'Update route fare price details. Requires ADMIN, REVENUE_ANALYST, or DISTRIBUTION_MANAGER role.',
 	})
 	@ApiParam({
 		name: 'id',
@@ -883,10 +884,10 @@ export class AdminController {
 	}
 
 	@Delete('route-fare-prices/:id')
-	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST)
+	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST, SystemRole.DISTRIBUTION_MANAGER)
 	@ApiOperation({
 		summary: 'Delete route fare price',
-		description: 'Delete a route fare price. Requires ADMIN or REVENUE_ANALYST role.',
+		description: 'Delete a route fare price. Requires ADMIN, REVENUE_ANALYST, or DISTRIBUTION_MANAGER role.',
 	})
 	@ApiParam({
 		name: 'id',
@@ -920,10 +921,10 @@ export class AdminController {
 	// ==================== BAGGAGE ALLOWANCE MANAGEMENT (ANCILLARY_MANAGER) ====================
 
 	@Post('baggage-allowances')
-	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER)
+	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER, SystemRole.DISTRIBUTION_MANAGER)
 	@ApiOperation({
 		summary: 'Create a new baggage allowance',
-		description: 'Create a new baggage allowance for a fare class. Requires ADMIN or ANCILLARY_MANAGER role.',
+		description: 'Create a new baggage allowance for a fare class. Requires ADMIN, ANCILLARY_MANAGER, or DISTRIBUTION_MANAGER role.',
 	})
 	@ApiOkResponse({
 		description: 'Baggage allowance created successfully',
@@ -997,10 +998,10 @@ export class AdminController {
 	}
 
 	@Put('baggage-allowances/:id')
-	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER)
+	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER, SystemRole.DISTRIBUTION_MANAGER)
 	@ApiOperation({
 		summary: 'Update baggage allowance',
-		description: 'Update baggage allowance details. Requires ADMIN or ANCILLARY_MANAGER role.',
+		description: 'Update baggage allowance details. Requires ADMIN, ANCILLARY_MANAGER, or DISTRIBUTION_MANAGER role.',
 	})
 	@ApiParam({
 		name: 'id',
@@ -1029,10 +1030,10 @@ export class AdminController {
 	}
 
 	@Delete('baggage-allowances/:id')
-	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER)
+	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER, SystemRole.DISTRIBUTION_MANAGER)
 	@ApiOperation({
 		summary: 'Delete baggage allowance',
-		description: 'Delete a baggage allowance. Requires ADMIN or ANCILLARY_MANAGER role.',
+		description: 'Delete a baggage allowance. Requires ADMIN, ANCILLARY_MANAGER, or DISTRIBUTION_MANAGER role.',
 	})
 	@ApiParam({
 		name: 'id',
@@ -1066,10 +1067,10 @@ export class AdminController {
 	// ==================== CABIN SERVICE MANAGEMENT (ANCILLARY_MANAGER) ====================
 
 	@Post('cabin-services')
-	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER)
+	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER, SystemRole.DISTRIBUTION_MANAGER)
 	@ApiOperation({
 		summary: 'Create a new cabin service',
-		description: 'Create a new cabin service. Requires ADMIN or ANCILLARY_MANAGER role.',
+		description: 'Create a new cabin service. Requires ADMIN, ANCILLARY_MANAGER, or DISTRIBUTION_MANAGER role.',
 	})
 	@ApiOkResponse({
 		description: 'Cabin service created successfully',
@@ -1096,15 +1097,15 @@ export class AdminController {
 	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER, SystemRole.CALL_CENTER, SystemRole.DISTRIBUTION_MANAGER)
 	@ApiOperation({
 		summary: 'Get all cabin services',
-		description: 'Get all cabin services. Requires ADMIN, ANCILLARY_MANAGER, CALL_CENTER, or DISTRIBUTION_MANAGER role.',
+		description: 'Get all cabin services with optional search and filter. Requires ADMIN, ANCILLARY_MANAGER, CALL_CENTER, or DISTRIBUTION_MANAGER role.',
 	})
 	@ApiOkResponse({
 		description: 'Cabin services retrieved successfully',
 		type: [CabinService],
 	})
-	async getAllCabinServices(): Promise<CabinService[]> {
+	async getAllCabinServices(@Query() query: GetCabinServicesDto): Promise<CabinService[]> {
 		try {
-			return await this.adminService.getAllCabinServices();
+			return await this.adminService.getAllCabinServices(query);
 		} catch (error: any) {
 			this.logger.error('Get all cabin services error:', error);
 			throw new InternalServerErrorException(
@@ -1143,10 +1144,10 @@ export class AdminController {
 	}
 
 	@Put('cabin-services/:id')
-	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER)
+	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER, SystemRole.DISTRIBUTION_MANAGER)
 	@ApiOperation({
 		summary: 'Update cabin service',
-		description: 'Update cabin service details. Requires ADMIN or ANCILLARY_MANAGER role.',
+		description: 'Update cabin service details. Requires ADMIN, ANCILLARY_MANAGER, or DISTRIBUTION_MANAGER role.',
 	})
 	@ApiParam({
 		name: 'id',
@@ -1175,10 +1176,10 @@ export class AdminController {
 	}
 
 	@Delete('cabin-services/:id')
-	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER)
+	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER, SystemRole.DISTRIBUTION_MANAGER)
 	@ApiOperation({
 		summary: 'Delete cabin service',
-		description: 'Delete a cabin service. Requires ADMIN or ANCILLARY_MANAGER role.',
+		description: 'Delete a cabin service. Requires ADMIN, ANCILLARY_MANAGER, or DISTRIBUTION_MANAGER role.',
 	})
 	@ApiParam({
 		name: 'id',

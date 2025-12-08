@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsInt, Min, Max, IsIn } from 'class-validator';
+import { IsOptional, IsInt, Min, Max, IsIn, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class GetRouteFarePricesDto {
@@ -30,5 +30,27 @@ export class GetRouteFarePricesDto {
 		message: 'limit must be one of: 20, 50, 100, 200',
 	})
 	limit?: number = 20;
+
+	@ApiProperty({
+		description: 'Search query to filter by route, fare class, city (origin/destination), airport code, etc.',
+		example: 'Hà Nội',
+		required: false,
+	})
+	@IsOptional()
+	@IsString()
+	search?: string;
+
+	@ApiProperty({
+		description: 'Filter by active status',
+		example: 'all',
+		enum: ['all', 'active', 'inactive'],
+		required: false,
+	})
+	@IsOptional()
+	@IsString()
+	@IsIn(['all', 'active', 'inactive'], {
+		message: 'filterActive must be one of: all, active, inactive',
+	})
+	filterActive?: 'all' | 'active' | 'inactive' = 'all';
 }
 

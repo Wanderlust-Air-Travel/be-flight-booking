@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, Like } from 'typeorm';
 import { FareClass } from 'src/shared/entities/fare/fare-class.entity';
 import { CabinClass } from 'src/shared/entities/cabin/cabin-class.entity';
 import { FlightSchedule } from 'src/shared/entities/flight/flight-schedule.entity';
@@ -115,9 +115,11 @@ export class AdminService {
 	 * Get all fare classes
 	 */
 	async getAllFareClasses(): Promise<FareClass[]> {
+		// Note: FareClass doesn't have created_at in schema, so we sort by fare_class_code
+		// If you need created_at sorting, you'll need to add created_at column to FareClasses table
 		return await this.fareClassRepo.find({
 			relations: ['cabin_class'],
-			order: { fare_class_code: 'ASC' },
+			order: { fare_class_code: 'DESC' },
 		});
 	}
 
@@ -333,13 +335,39 @@ export class AdminService {
 		const validLimit = limit;
 		const skip = (page - 1) * validLimit;
 
-		// Get total count and paginated results
-		const [schedules, totalItems] = await this.flightScheduleRepo.findAndCount({
-			relations: ['route', 'route.origin_airport', 'route.destination_airport', 'aircraft_type'],
-			order: { flight_number: 'ASC', effective_from: 'DESC' },
-			skip,
-			take: validLimit,
-		});
+		// Use query builder for search with joins
+		const queryBuilder = this.flightScheduleRepo
+			.createQueryBuilder('schedule')
+			.leftJoinAndSelect('schedule.route', 'route')
+			.leftJoinAndSelect('route.origin_airport', 'origin_airport')
+			.leftJoinAndSelect('route.destination_airport', 'destination_airport')
+			.leftJoinAndSelect('schedule.aircraft_type', 'aircraft_type')
+			.orderBy('schedule.effective_from', 'DESC')
+			.addOrderBy('schedule.flight_number', 'ASC');
+
+		// Add search condition if provided
+		if (dto.search && dto.search.trim()) {
+			const searchTerm = `%${dto.search.trim()}%`;
+			queryBuilder.where(
+				'(schedule.flight_number LIKE :search OR ' +
+				'origin_airport.iata_code LIKE :search OR ' +
+				'destination_airport.iata_code LIKE :search OR ' +
+				'origin_airport.name LIKE :search OR ' +
+				'destination_airport.name LIKE :search OR ' +
+				'aircraft_type.model LIKE :search OR ' +
+				'aircraft_type.manufacturer LIKE :search)',
+				{ search: searchTerm }
+			);
+		}
+
+		// Get total count
+		const totalItems = await queryBuilder.getCount();
+
+		// Get paginated results
+		const schedules = await queryBuilder
+			.skip(skip)
+			.take(validLimit)
+			.getMany();
 
 		const totalPages = Math.ceil(totalItems / validLimit);
 
@@ -931,18 +959,62 @@ export class AdminService {
 		const validLimit = limit;
 		const skip = (page - 1) * validLimit;
 
-		// Get total count and paginated results
-		const [routeFarePrices, totalItems] = await this.routeFarePriceRepo.findAndCount({
-			relations: [
-				'route',
-				'route.origin_airport',
-				'route.destination_airport',
-				'fare_class',
-			],
-			order: { created_at: 'DESC' },
-			skip,
-			take: validLimit,
-		});
+		// Use query builder for search with joins
+		const queryBuilder = this.routeFarePriceRepo
+			.createQueryBuilder('route_fare_price')
+			.leftJoinAndSelect('route_fare_price.route', 'route')
+			.leftJoinAndSelect('route.origin_airport', 'origin_airport')
+			.leftJoinAndSelect('route.destination_airport', 'destination_airport')
+			.leftJoinAndSelect('route_fare_price.fare_class', 'fare_class')
+			.orderBy('route_fare_price.created_at', 'DESC');
+
+		// Build where conditions array
+		const whereConditions: string[] = [];
+		const whereParams: any = {};
+
+		// Filter by active status first (if provided)
+		if (dto.filterActive && dto.filterActive !== 'all') {
+			if (dto.filterActive === 'active') {
+				whereConditions.push('CAST(route_fare_price.is_active AS INT) = 1');
+			} else if (dto.filterActive === 'inactive') {
+				whereConditions.push('CAST(route_fare_price.is_active AS INT) = 0');
+			}
+		}
+
+		// Add search condition if provided
+		if (dto.search && dto.search.trim()) {
+			const searchTerm = `%${dto.search.trim()}%`;
+			const searchCondition = 
+				'(origin_airport.iata_code LIKE :search OR ' +
+				'origin_airport.name LIKE :search OR ' +
+				'origin_airport.city LIKE :search OR ' +
+				'destination_airport.iata_code LIKE :search OR ' +
+				'destination_airport.name LIKE :search OR ' +
+				'destination_airport.city LIKE :search OR ' +
+				'fare_class.fare_class_code LIKE :search OR ' +
+				'fare_class.description LIKE :search)';
+			
+			if (whereConditions.length > 0) {
+				whereConditions.push(searchCondition);
+			} else {
+				whereConditions.push(searchCondition);
+			}
+			whereParams.search = searchTerm;
+		}
+
+		// Apply where conditions
+		if (whereConditions.length > 0) {
+			queryBuilder.where(whereConditions.join(' AND '), whereParams);
+		}
+
+		// Get total count
+		const totalItems = await queryBuilder.getCount();
+
+		// Get paginated results
+		const routeFarePrices = await queryBuilder
+			.skip(skip)
+			.take(validLimit)
+			.getMany();
 
 		const totalPages = Math.ceil(totalItems / validLimit);
 
@@ -1061,7 +1133,7 @@ export class AdminService {
 	}
 
 	/**
-	 * Get all baggage allowances with pagination
+	 * Get all baggage allowances with pagination and search
 	 */
 	async getAllBaggageAllowances(dto: GetBaggageAllowancesDto = { page: 1, limit: 20 }): Promise<BaggageAllowancesResponseDto> {
 		const page = dto.page || 1;
@@ -1072,13 +1144,29 @@ export class AdminService {
 		const allowedLimits = [20, 50, 100, 200];
 		const validLimit = allowedLimits.includes(limit) ? limit : 20;
 
-		// Get total count and paginated results
-		const [baggageAllowances, totalItems] = await this.baggageAllowanceRepo.findAndCount({
-			relations: ['fare_class'],
-			order: { fare_class_code: 'ASC' },
-			skip,
-			take: validLimit,
-		});
+		// Use query builder for search with join
+		const queryBuilder = this.baggageAllowanceRepo
+			.createQueryBuilder('baggage_allowance')
+			.leftJoinAndSelect('baggage_allowance.fare_class', 'fare_class')
+			.orderBy('baggage_allowance.created_at', 'DESC');
+
+		// Add search condition if provided
+		if (dto.search && dto.search.trim()) {
+			const searchTerm = `%${dto.search.trim()}%`;
+			queryBuilder.where(
+				'(fare_class.fare_class_code LIKE :search OR fare_class.description LIKE :search)',
+				{ search: searchTerm }
+			);
+		}
+
+		// Get total count
+		const totalItems = await queryBuilder.getCount();
+
+		// Get paginated results
+		const baggageAllowances = await queryBuilder
+			.skip(skip)
+			.take(validLimit)
+			.getMany();
 
 		const totalPages = Math.ceil(totalItems / validLimit);
 
@@ -1213,11 +1301,52 @@ export class AdminService {
 	/**
 	 * Get all cabin services
 	 */
-	async getAllCabinServices(): Promise<CabinService[]> {
-		return await this.cabinServiceRepo.find({
-			relations: ['cabin_class', 'fare_class'],
-			order: { display_order: 'ASC', service_type: 'ASC' },
-		});
+	async getAllCabinServices(dto?: { search?: string; filterActive?: 'all' | 'active' | 'inactive' }): Promise<CabinService[]> {
+		// Build query with filters at database level for better performance
+		const queryBuilder = this.cabinServiceRepo
+			.createQueryBuilder('cabin_service')
+			.leftJoinAndSelect('cabin_service.cabin_class', 'cabin_class')
+			.leftJoinAndSelect('cabin_service.fare_class', 'fare_class')
+			.orderBy('cabin_service.created_at', 'DESC');
+
+		// Filter by active status at database level
+		if (dto?.filterActive && dto.filterActive !== 'all') {
+			if (dto.filterActive === 'active') {
+				queryBuilder.where('cabin_service.is_active = :isActive', { isActive: true });
+			} else if (dto.filterActive === 'inactive') {
+				queryBuilder.where('cabin_service.is_active = :isActive', { isActive: false });
+			}
+		}
+
+		// Filter by search query
+		if (dto?.search && dto.search.trim()) {
+			const searchTerm = `%${dto.search.trim()}%`;
+			if (dto?.filterActive && dto.filterActive !== 'all') {
+				// Add AND condition if filterActive is already set
+				queryBuilder.andWhere(
+					'(cabin_service.service_type LIKE :search OR ' +
+					'cabin_service.service_name LIKE :search OR ' +
+					'cabin_service.description LIKE :search OR ' +
+					'cabin_class.name LIKE :search OR ' +
+					'fare_class.fare_class_code LIKE :search OR ' +
+					'fare_class.description LIKE :search)',
+					{ search: searchTerm }
+				);
+			} else {
+				// Use WHERE if filterActive is not set
+				queryBuilder.where(
+					'(cabin_service.service_type LIKE :search OR ' +
+					'cabin_service.service_name LIKE :search OR ' +
+					'cabin_service.description LIKE :search OR ' +
+					'cabin_class.name LIKE :search OR ' +
+					'fare_class.fare_class_code LIKE :search OR ' +
+					'fare_class.description LIKE :search)',
+					{ search: searchTerm }
+				);
+			}
+		}
+
+		return await queryBuilder.getMany();
 	}
 
 	/**
