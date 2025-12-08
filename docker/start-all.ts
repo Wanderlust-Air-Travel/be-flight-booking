@@ -7,13 +7,13 @@ function wait(ms: number): Promise<void> {
 }
 
 const services: Service[] = [
-  { name: 'Search MS', script: 'dist/microservices/search/main.search.js', port: 4001 },
-  { name: 'Services MS', script: 'dist/microservices/services/main.services.js', port: 4002 },
-  { name: 'Routes MS', script: 'dist/microservices/routes/main.routes.js', port: 4003 },
-  { name: 'Booking MS', script: 'dist/microservices/booking/main.booking.js', port: 4004 },
-  { name: 'Reservation MS', script: 'dist/microservices/reservation/main.reservation.js', port: 4005 },
-  { name: 'Payment MS', script: 'dist/microservices/payment/main.payment.js', port: 4006 },
-  { name: 'Email MS', script: 'dist/microservices/email/main.email.js', port: 4007 },
+  { name: 'Search MS', script: 'start:search:dev', port: 4001, useNodemon: true },
+  { name: 'Services MS', script: 'start:services:dev', port: 4002, useNodemon: true },
+  { name: 'Routes MS', script: 'start:routes:dev', port: 4003, useNodemon: true },
+  { name: 'Booking MS', script: 'start:booking:dev', port: 4004, useNodemon: true },
+  { name: 'Reservation MS', script: 'start:reservation:dev', port: 4005, useNodemon: true },
+  { name: 'Payment MS', script: 'start:payment:dev', port: 4006, useNodemon: true },
+  { name: 'Email MS', script: 'start:email:dev', port: 4007, useNodemon: true },
 ];
 
 const processes: ProcessInfo[] = [];
@@ -26,11 +26,19 @@ async function startServices() {
   await wait(10000); // Increased to 10 seconds
 
   // Start all microservices
-  console.log('Starting all microservices...');
+  console.log('Starting all microservices with watch mode (nodemon)...');
   services.forEach(service => {
-    const proc = spawn('node', [service.script], {
+    // Use npm scripts which already have nodemon configured properly
+    // This ensures nodemon.json config is used and prevents infinite restart loops
+    const command = service.useNodemon ? 'npm' : 'node';
+    const args = service.useNodemon 
+      ? ['run', service.script]
+      : [service.script];
+    
+    const proc = spawn(command, args, {
       stdio: 'inherit',
       cwd: process.cwd(),
+      shell: true, // Required for npm on Windows
     });
     
     proc.on('error', (error: Error) => {
@@ -44,15 +52,17 @@ async function startServices() {
     });
     
     processes.push({ name: service.name, process: proc });
-    console.log(`Started ${service.name} on port ${service.port}`);
+    console.log(`Started ${service.name} on port ${service.port} (with watch mode)`);
   });
 
   // Wait a bit for microservices to start
   setTimeout(() => {
-    console.log('Starting API Gateway...');
-    const apiGateway = spawn('node', ['dist/api-gateway/main.js'], {
+    console.log('Starting API Gateway with watch mode...');
+    // Use nest start --watch for hot reload
+    const apiGateway = spawn('npm', ['run', 'start:dev'], {
       stdio: 'inherit',
       cwd: process.cwd(),
+      shell: true, // Required for npm on Windows
     });
     
     apiGateway.on('error', (error: Error) => {

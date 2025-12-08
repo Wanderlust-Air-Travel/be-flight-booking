@@ -4,6 +4,8 @@ export interface Service {
   name: string;
   script: string;
   port: number;
+  useNodemon?: boolean;
+  watchDir?: string;
 }
 
 export interface ProcessInfo {

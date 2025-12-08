@@ -6,6 +6,7 @@ import {
 	Delete,
 	Body,
 	Param,
+	Query,
 	UseGuards,
 	Logger,
 	BadRequestException,
@@ -18,6 +19,7 @@ import {
 	ApiOkResponse,
 	ApiBadRequestResponse,
 	ApiParam,
+	ApiQuery,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guard/jwt-auth.guard';
 import { RolesGuard } from 'src/shared/guards/roles.guard';
@@ -28,12 +30,17 @@ import { CreateFareClassDto } from './dto/create-fare-class.dto';
 import { UpdateFareClassDto } from './dto/update-fare-class.dto';
 import { CreateFlightScheduleDto } from './dto/create-flight-schedule.dto';
 import { UpdateFlightScheduleDto } from './dto/update-flight-schedule.dto';
+import { FlightScheduleResponseDto } from './dto/flight-schedule-response.dto';
 import { CreateFlightInstanceDto } from './dto/create-flight-instance.dto';
 import { UpdateFlightInstanceDto } from './dto/update-flight-instance.dto';
 import { AssignRoleDto } from './dto/assign-role.dto';
 import { RemoveRoleDto } from './dto/remove-role.dto';
 import { CreateRouteFarePriceDto } from './dto/create-route-fare-price.dto';
 import { UpdateRouteFarePriceDto } from './dto/update-route-fare-price.dto';
+import { GetRouteFarePricesDto } from './dto/get-route-fare-prices.dto';
+import { RouteFarePricesResponseDto } from './dto/route-fare-prices-response.dto';
+import { GetBaggageAllowancesDto } from './dto/get-baggage-allowances.dto';
+import { BaggageAllowancesResponseDto } from './dto/baggage-allowances-response.dto';
 import { CreateBaggageAllowanceDto } from './dto/create-baggage-allowance.dto';
 import { UpdateBaggageAllowanceDto } from './dto/update-baggage-allowance.dto';
 import { CreateCabinServiceDto } from './dto/create-cabin-service.dto';
@@ -217,12 +224,12 @@ export class AdminController {
 	})
 	@ApiOkResponse({
 		description: 'Flight schedule created successfully',
-		type: FlightSchedule,
+		type: FlightScheduleResponseDto,
 	})
 	@ApiBadRequestResponse({
 		description: 'Invalid request or overlapping schedule exists',
 	})
-	async createFlightSchedule(@Body() dto: CreateFlightScheduleDto): Promise<FlightSchedule> {
+	async createFlightSchedule(@Body() dto: CreateFlightScheduleDto): Promise<FlightScheduleResponseDto> {
 		try {
 			return await this.adminService.createFlightSchedule(dto);
 		} catch (error: any) {
@@ -244,9 +251,9 @@ export class AdminController {
 	})
 	@ApiOkResponse({
 		description: 'Flight schedules retrieved successfully',
-		type: [FlightSchedule],
+		type: [FlightScheduleResponseDto],
 	})
-	async getAllFlightSchedules(): Promise<FlightSchedule[]> {
+	async getAllFlightSchedules(): Promise<FlightScheduleResponseDto[]> {
 		try {
 			return await this.adminService.getAllFlightSchedules();
 		} catch (error: any) {
@@ -270,9 +277,9 @@ export class AdminController {
 	})
 	@ApiOkResponse({
 		description: 'Flight schedule retrieved successfully',
-		type: FlightSchedule,
+		type: FlightScheduleResponseDto,
 	})
-	async getFlightScheduleById(@Param('id') flightScheduleId: string): Promise<FlightSchedule> {
+	async getFlightScheduleById(@Param('id') flightScheduleId: string): Promise<FlightScheduleResponseDto> {
 		try {
 			return await this.adminService.getFlightScheduleById(flightScheduleId);
 		} catch (error: any) {
@@ -299,12 +306,12 @@ export class AdminController {
 	})
 	@ApiOkResponse({
 		description: 'Flight schedule updated successfully',
-		type: FlightSchedule,
+		type: FlightScheduleResponseDto,
 	})
 	async updateFlightSchedule(
 		@Param('id') flightScheduleId: string,
 		@Body() dto: UpdateFlightScheduleDto,
-	): Promise<FlightSchedule> {
+	): Promise<FlightScheduleResponseDto> {
 		try {
 			return await this.adminService.updateFlightSchedule(flightScheduleId, dto);
 		} catch (error: any) {
@@ -706,16 +713,45 @@ export class AdminController {
 	@Get('route-fare-prices')
 	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST, SystemRole.DISTRIBUTION_MANAGER)
 	@ApiOperation({
-		summary: 'Get all route fare prices',
-		description: 'Get all route fare prices. Requires ADMIN, REVENUE_ANALYST, or DISTRIBUTION_MANAGER role.',
+		summary: 'Get all route fare prices with pagination',
+		description: 'Get all route fare prices with pagination. Requires ADMIN, REVENUE_ANALYST, or DISTRIBUTION_MANAGER role. Supports pagination with page and limit query parameters.',
+	})
+	@ApiQuery({
+		name: 'page',
+		required: false,
+		description: 'Page number (1-based)',
+		example: 1,
+		type: Number,
+	})
+	@ApiQuery({
+		name: 'limit',
+		required: false,
+		description: 'Number of items per page. Allowed values: 20, 50, 100, 200',
+		example: 20,
+		type: Number,
+		enum: [20, 50, 100, 200],
 	})
 	@ApiOkResponse({
 		description: 'Route fare prices retrieved successfully',
-		type: [RouteFarePrice],
+		type: RouteFarePricesResponseDto,
 	})
-	async getAllRouteFarePrices(): Promise<RouteFarePrice[]> {
+	async getAllRouteFarePrices(@Query() query: any): Promise<RouteFarePricesResponseDto> {
 		try {
-			return await this.adminService.getAllRouteFarePrices();
+			// Manually parse and validate query parameters to ensure they're processed correctly
+			const page = query.page ? Number(query.page) : 1;
+			const limit = query.limit ? Number(query.limit) : 20;
+			
+			// Validate limit is one of allowed values
+			const allowedLimits = [20, 50, 100, 200];
+			const validLimit = allowedLimits.includes(limit) ? limit : 20;
+			
+			// Create DTO with validated values
+			const dto: GetRouteFarePricesDto = {
+				page: page,
+				limit: validLimit,
+			};
+			
+			return await this.adminService.getAllRouteFarePrices(dto);
 		} catch (error: any) {
 			this.logger.error('Get all route fare prices error:', error);
 			throw new InternalServerErrorException(
@@ -852,16 +888,16 @@ export class AdminController {
 	@Get('baggage-allowances')
 	@Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER, SystemRole.CALL_CENTER, SystemRole.DISTRIBUTION_MANAGER)
 	@ApiOperation({
-		summary: 'Get all baggage allowances',
-		description: 'Get all baggage allowances. Requires ADMIN, ANCILLARY_MANAGER, CALL_CENTER, or DISTRIBUTION_MANAGER role.',
+		summary: 'Get all baggage allowances with pagination',
+		description: 'Get paginated baggage allowances. Requires ADMIN, ANCILLARY_MANAGER, CALL_CENTER, or DISTRIBUTION_MANAGER role. Supports pagination with page and limit query parameters.',
 	})
 	@ApiOkResponse({
 		description: 'Baggage allowances retrieved successfully',
-		type: [BaggageAllowance],
+		type: BaggageAllowancesResponseDto,
 	})
-	async getAllBaggageAllowances(): Promise<BaggageAllowance[]> {
+	async getAllBaggageAllowances(@Query() query: GetBaggageAllowancesDto): Promise<BaggageAllowancesResponseDto> {
 		try {
-			return await this.adminService.getAllBaggageAllowances();
+			return await this.adminService.getAllBaggageAllowances(query);
 		} catch (error: any) {
 			this.logger.error('Get all baggage allowances error:', error);
 			throw new InternalServerErrorException(

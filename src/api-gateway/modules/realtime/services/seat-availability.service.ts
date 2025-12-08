@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy, Inject, forwardRef, Optional } from '@nestjs/common';
 import { RealtimeGateway } from '../realtime.gateway';
 import { RealtimeService } from '../realtime.service';
 import { RedisService } from 'src/shared/modules/redis/redis.service';
@@ -23,8 +23,8 @@ export class SeatAvailabilityService implements OnModuleInit, OnModuleDestroy {
 	private readonly subscribedChannels = new Set<string>();
 
 	constructor(
-		@Inject(forwardRef(() => RealtimeGateway))
-		private readonly realtimeGateway: RealtimeGateway,
+		@Optional() @Inject(forwardRef(() => RealtimeGateway))
+		private readonly realtimeGateway: RealtimeGateway | null,
 		private readonly realtimeService: RealtimeService,
 		private readonly redisService: RedisService,
 	) {
@@ -129,13 +129,17 @@ export class SeatAvailabilityService implements OnModuleInit, OnModuleDestroy {
 			);
 
 			// Broadcast to all subscribed clients
-			const server = this.realtimeGateway.getServer();
-			for (const socketId of subscribedClients) {
-				server.to(socketId).emit('seat-availability:update', {
-					flightInstanceId: data.flightInstanceId,
-					changes: data.changes,
-					timestamp: data.timestamp,
-				});
+			if (this.realtimeGateway) {
+				const server = this.realtimeGateway.getServer();
+				for (const socketId of subscribedClients) {
+					server.to(socketId).emit('seat-availability:update', {
+						flightInstanceId: data.flightInstanceId,
+						changes: data.changes,
+						timestamp: data.timestamp,
+					});
+				}
+			} else {
+				this.logger.warn('RealtimeGateway not available, cannot broadcast seat availability update');
 			}
 
 			this.logger.debug(

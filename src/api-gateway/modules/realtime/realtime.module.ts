@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { RealtimeGateway } from './realtime.gateway';
 import { RealtimeService } from './realtime.service';
@@ -42,8 +42,8 @@ import { RESERVATION_MS } from 'src/microservices/reservation/reservation.messag
 		]),
 	],
 	providers: [
-		RealtimeGateway,
 		RealtimeService,
+		RealtimeGateway, // Put gateway first to ensure it's initialized before services that depend on it
 		SeatAvailabilityService,
 		ReservationCountdownService,
 		PaymentStatusService,

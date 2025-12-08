@@ -20,6 +20,10 @@ import { FareDescriptionRule } from 'src/shared/entities/fare/fare-description-r
 import { CreateFareClassDto } from './dto/create-fare-class.dto';
 import { CreateRouteFarePriceDto } from './dto/create-route-fare-price.dto';
 import { UpdateRouteFarePriceDto } from './dto/update-route-fare-price.dto';
+import { GetRouteFarePricesDto } from './dto/get-route-fare-prices.dto';
+import { GetBaggageAllowancesDto } from './dto/get-baggage-allowances.dto';
+import { BaggageAllowancesResponseDto } from './dto/baggage-allowances-response.dto';
+import { RouteFarePricesResponseDto } from './dto/route-fare-prices-response.dto';
 import { CreateBaggageAllowanceDto } from './dto/create-baggage-allowance.dto';
 import { UpdateBaggageAllowanceDto } from './dto/update-baggage-allowance.dto';
 import { CreateCabinServiceDto } from './dto/create-cabin-service.dto';
@@ -29,6 +33,7 @@ import { CreateFareDescriptionRuleDto } from './dto/create-fare-description-rule
 import { UpdateFareDescriptionRuleDto } from './dto/update-fare-description-rule.dto';
 import { CreateFlightScheduleDto } from './dto/create-flight-schedule.dto';
 import { UpdateFlightScheduleDto } from './dto/update-flight-schedule.dto';
+import { FlightScheduleResponseDto } from './dto/flight-schedule-response.dto';
 import { CreateFlightInstanceDto } from './dto/create-flight-instance.dto';
 import { UpdateFlightInstanceDto } from './dto/update-flight-instance.dto';
 import { AssignRoleDto } from './dto/assign-role.dto';
@@ -93,7 +98,13 @@ export class AdminService {
 			refund_rule: dto.refundRule || null,
 		});
 
-		return await this.fareClassRepo.save(fareClass);
+		const savedFareClass = await this.fareClassRepo.save(fareClass);
+		
+		// Reload with relations to ensure complete data
+		return await this.fareClassRepo.findOne({
+			where: { fare_class_code: savedFareClass.fare_class_code },
+			relations: ['cabin_class'],
+		}) || savedFareClass;
 	}
 
 	/**
@@ -174,9 +185,65 @@ export class AdminService {
 	// ==================== FLIGHT SCHEDULE MANAGEMENT ====================
 
 	/**
+	 * Transform FlightSchedule entity to Response DTO
+	 */
+	private transformFlightScheduleToDto(schedule: FlightSchedule): FlightScheduleResponseDto {
+		return {
+			flightScheduleId: schedule.flight_schedule_id,
+			flightNumber: schedule.flight_number,
+			routeId: schedule.route_id,
+			route: schedule.route
+				? {
+						routeId: schedule.route.route_id,
+						originAirport: schedule.route.origin_airport
+							? {
+									airportId: schedule.route.origin_airport.airport_id,
+									iataCode: schedule.route.origin_airport.iata_code,
+									icaoCode: schedule.route.origin_airport.icao_code,
+									name: schedule.route.origin_airport.name,
+									city: schedule.route.origin_airport.city,
+									country: schedule.route.origin_airport.country,
+									timezone: schedule.route.origin_airport.timezone,
+								}
+							: undefined,
+						destinationAirport: schedule.route.destination_airport
+							? {
+									airportId: schedule.route.destination_airport.airport_id,
+									iataCode: schedule.route.destination_airport.iata_code,
+									icaoCode: schedule.route.destination_airport.icao_code,
+									name: schedule.route.destination_airport.name,
+									city: schedule.route.destination_airport.city,
+									country: schedule.route.destination_airport.country,
+									timezone: schedule.route.destination_airport.timezone,
+								}
+							: undefined,
+						distanceKm: schedule.route.distance_km,
+						isDomestic: schedule.route.is_domestic,
+					}
+				: undefined,
+			aircraftTypeId: schedule.aircraft_type_id,
+			aircraftType: schedule.aircraft_type
+				? {
+						aircraftTypeId: schedule.aircraft_type.aircraft_type_id,
+						code: schedule.aircraft_type.code,
+						manufacturer: schedule.aircraft_type.manufacturer,
+						model: schedule.aircraft_type.model,
+						totalSeats: schedule.aircraft_type.total_seats,
+					}
+				: undefined,
+			departureTime: schedule.departure_time_local,
+			arrivalTime: schedule.arrival_time_local,
+			operatingDays: schedule.operating_days,
+			effectiveFrom: schedule.effective_from,
+			effectiveTo: schedule.effective_to,
+			status: schedule.status,
+		};
+	}
+
+	/**
 	 * Create a new flight schedule
 	 */
-	async createFlightSchedule(dto: CreateFlightScheduleDto): Promise<FlightSchedule> {
+	async createFlightSchedule(dto: CreateFlightScheduleDto): Promise<FlightScheduleResponseDto> {
 		// Validate route exists
 		const route = await this.routeRepo.findOne({
 			where: { route_id: dto.routeId },
@@ -234,23 +301,33 @@ export class AdminService {
 			status: dto.status || 'active',
 		});
 
-		return await this.flightScheduleRepo.save(flightSchedule);
+		const savedSchedule = await this.flightScheduleRepo.save(flightSchedule);
+
+		// Reload with relations to return complete data
+		const scheduleWithRelations = await this.flightScheduleRepo.findOne({
+			where: { flight_schedule_id: savedSchedule.flight_schedule_id },
+			relations: ['route', 'route.origin_airport', 'route.destination_airport', 'aircraft_type'],
+		});
+
+		return this.transformFlightScheduleToDto(scheduleWithRelations!);
 	}
 
 	/**
 	 * Get all flight schedules
 	 */
-	async getAllFlightSchedules(): Promise<FlightSchedule[]> {
-		return await this.flightScheduleRepo.find({
+	async getAllFlightSchedules(): Promise<FlightScheduleResponseDto[]> {
+		const schedules = await this.flightScheduleRepo.find({
 			relations: ['route', 'route.origin_airport', 'route.destination_airport', 'aircraft_type'],
 			order: { flight_number: 'ASC', effective_from: 'DESC' },
 		});
+
+		return schedules.map((schedule) => this.transformFlightScheduleToDto(schedule));
 	}
 
 	/**
 	 * Get flight schedule by ID
 	 */
-	async getFlightScheduleById(flightScheduleId: string): Promise<FlightSchedule> {
+	async getFlightScheduleById(flightScheduleId: string): Promise<FlightScheduleResponseDto> {
 		const schedule = await this.flightScheduleRepo.findOne({
 			where: { flight_schedule_id: flightScheduleId },
 			relations: ['route', 'route.origin_airport', 'route.destination_airport', 'aircraft_type'],
@@ -260,13 +337,13 @@ export class AdminService {
 			throw new NotFoundException(`Flight schedule ${flightScheduleId} not found`);
 		}
 
-		return schedule;
+		return this.transformFlightScheduleToDto(schedule);
 	}
 
 	/**
 	 * Update flight schedule
 	 */
-	async updateFlightSchedule(flightScheduleId: string, dto: UpdateFlightScheduleDto): Promise<FlightSchedule> {
+	async updateFlightSchedule(flightScheduleId: string, dto: UpdateFlightScheduleDto): Promise<FlightScheduleResponseDto> {
 		const schedule = await this.flightScheduleRepo.findOne({
 			where: { flight_schedule_id: flightScheduleId },
 		});
@@ -301,7 +378,15 @@ export class AdminService {
 			}
 		}
 
-		return await this.flightScheduleRepo.save(schedule);
+		await this.flightScheduleRepo.save(schedule);
+
+		// Reload with relations to return complete data
+		const updatedSchedule = await this.flightScheduleRepo.findOne({
+			where: { flight_schedule_id: flightScheduleId },
+			relations: ['route', 'route.origin_airport', 'route.destination_airport', 'aircraft_type'],
+		});
+
+		return this.transformFlightScheduleToDto(updatedSchedule!);
 	}
 
 	/**
@@ -767,10 +852,24 @@ export class AdminService {
 	}
 
 	/**
-	 * Get all route fare prices
+	 * Get all route fare prices with pagination
 	 */
-	async getAllRouteFarePrices(): Promise<RouteFarePrice[]> {
-		return await this.routeFarePriceRepo.find({
+	async getAllRouteFarePrices(dto: GetRouteFarePricesDto = { page: 1, limit: 20 }): Promise<RouteFarePricesResponseDto> {
+		// Ensure page and limit are numbers - handle both string and number inputs
+		const page = dto.page ? Number(dto.page) : 1;
+		let limit = dto.limit ? Number(dto.limit) : 20;
+		
+		// Validate limit is one of allowed values
+		const allowedLimits = [20, 50, 100, 200];
+		if (!allowedLimits.includes(limit)) {
+			limit = 20;
+		}
+		
+		const validLimit = limit;
+		const skip = (page - 1) * validLimit;
+
+		// Get total count and paginated results
+		const [routeFarePrices, totalItems] = await this.routeFarePriceRepo.findAndCount({
 			relations: [
 				'route',
 				'route.origin_airport',
@@ -778,7 +877,21 @@ export class AdminService {
 				'fare_class',
 			],
 			order: { created_at: 'DESC' },
+			skip,
+			take: validLimit,
 		});
+
+		const totalPages = Math.ceil(totalItems / validLimit);
+
+		return {
+			data: routeFarePrices,
+			currentPage: page,
+			pageSize: validLimit,
+			totalItems,
+			totalPages,
+			hasNextPage: page < totalPages,
+			hasPreviousPage: page > 1,
+		};
 	}
 
 	/**
@@ -885,13 +998,36 @@ export class AdminService {
 	}
 
 	/**
-	 * Get all baggage allowances
+	 * Get all baggage allowances with pagination
 	 */
-	async getAllBaggageAllowances(): Promise<BaggageAllowance[]> {
-		return await this.baggageAllowanceRepo.find({
+	async getAllBaggageAllowances(dto: GetBaggageAllowancesDto = { page: 1, limit: 20 }): Promise<BaggageAllowancesResponseDto> {
+		const page = dto.page || 1;
+		const limit = dto.limit || 20;
+		const skip = (page - 1) * limit;
+
+		// Validate limit is one of allowed values
+		const allowedLimits = [20, 50, 100, 200];
+		const validLimit = allowedLimits.includes(limit) ? limit : 20;
+
+		// Get total count and paginated results
+		const [baggageAllowances, totalItems] = await this.baggageAllowanceRepo.findAndCount({
 			relations: ['fare_class'],
 			order: { fare_class_code: 'ASC' },
+			skip,
+			take: validLimit,
 		});
+
+		const totalPages = Math.ceil(totalItems / validLimit);
+
+		return {
+			data: baggageAllowances,
+			currentPage: page,
+			pageSize: validLimit,
+			totalItems,
+			totalPages,
+			hasNextPage: page < totalPages,
+			hasPreviousPage: page > 1,
+		};
 	}
 
 	/**
