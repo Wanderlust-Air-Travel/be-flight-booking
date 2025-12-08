@@ -24,6 +24,8 @@ import { GetRouteFarePricesDto } from './dto/get-route-fare-prices.dto';
 import { GetBaggageAllowancesDto } from './dto/get-baggage-allowances.dto';
 import { BaggageAllowancesResponseDto } from './dto/baggage-allowances-response.dto';
 import { RouteFarePricesResponseDto } from './dto/route-fare-prices-response.dto';
+import { GetUsersDto } from './dto/get-users.dto';
+import { UsersResponseDto } from './dto/users-response.dto';
 import { CreateBaggageAllowanceDto } from './dto/create-baggage-allowance.dto';
 import { UpdateBaggageAllowanceDto } from './dto/update-baggage-allowance.dto';
 import { CreateCabinServiceDto } from './dto/create-cabin-service.dto';
@@ -34,6 +36,8 @@ import { UpdateFareDescriptionRuleDto } from './dto/update-fare-description-rule
 import { CreateFlightScheduleDto } from './dto/create-flight-schedule.dto';
 import { UpdateFlightScheduleDto } from './dto/update-flight-schedule.dto';
 import { FlightScheduleResponseDto } from './dto/flight-schedule-response.dto';
+import { GetFlightSchedulesDto } from './dto/get-flight-schedules.dto';
+import { FlightSchedulesResponseDto } from './dto/flight-schedules-response.dto';
 import { CreateFlightInstanceDto } from './dto/create-flight-instance.dto';
 import { UpdateFlightInstanceDto } from './dto/update-flight-instance.dto';
 import { AssignRoleDto } from './dto/assign-role.dto';
@@ -313,15 +317,41 @@ export class AdminService {
 	}
 
 	/**
-	 * Get all flight schedules
+	 * Get all flight schedules with pagination
 	 */
-	async getAllFlightSchedules(): Promise<FlightScheduleResponseDto[]> {
-		const schedules = await this.flightScheduleRepo.find({
+	async getAllFlightSchedules(dto: GetFlightSchedulesDto = { page: 1, limit: 20 }): Promise<FlightSchedulesResponseDto> {
+		// Ensure page and limit are numbers - handle both string and number inputs
+		const page = dto.page ? Number(dto.page) : 1;
+		let limit = dto.limit ? Number(dto.limit) : 20;
+		
+		// Validate limit is one of allowed values
+		const allowedLimits = [20, 50, 100, 200];
+		if (!allowedLimits.includes(limit)) {
+			limit = 20;
+		}
+		
+		const validLimit = limit;
+		const skip = (page - 1) * validLimit;
+
+		// Get total count and paginated results
+		const [schedules, totalItems] = await this.flightScheduleRepo.findAndCount({
 			relations: ['route', 'route.origin_airport', 'route.destination_airport', 'aircraft_type'],
 			order: { flight_number: 'ASC', effective_from: 'DESC' },
+			skip,
+			take: validLimit,
 		});
 
-		return schedules.map((schedule) => this.transformFlightScheduleToDto(schedule));
+		const totalPages = Math.ceil(totalItems / validLimit);
+
+		return {
+			data: schedules.map((schedule) => this.transformFlightScheduleToDto(schedule)),
+			currentPage: page,
+			pageSize: validLimit,
+			totalItems,
+			totalPages,
+			hasNextPage: page < totalPages,
+			hasPreviousPage: page > 1,
+		};
 	}
 
 	/**
@@ -790,13 +820,46 @@ export class AdminService {
 	}
 
 	/**
-	 * Get all users with their roles
+	 * Get all users with their roles (without pagination - for backward compatibility)
 	 */
 	async getAllUsers(): Promise<User[]> {
 		return await this.userRepo.find({
 			relations: ['userRoles', 'userRoles.role'],
 			order: { created_at: 'DESC' },
 		});
+	}
+
+	/**
+	 * Get all users with pagination
+	 */
+	async getAllUsersPaginated(dto: GetUsersDto = { page: 1, limit: 20 }): Promise<UsersResponseDto> {
+		const page = dto.page ? Number(dto.page) : 1;
+		let limit = dto.limit ? Number(dto.limit) : 20;
+		
+		// Validate limit is one of allowed values
+		const allowedLimits = [20, 50, 100, 200];
+		const validLimit = allowedLimits.includes(limit) ? limit : 20;
+		
+		const skip = (page - 1) * validLimit;
+
+		const [users, totalItems] = await this.userRepo.findAndCount({
+			relations: ['userRoles', 'userRoles.role'],
+			order: { created_at: 'DESC' },
+			skip,
+			take: validLimit,
+		});
+
+		const totalPages = Math.ceil(totalItems / validLimit);
+
+		return {
+			data: users,
+			currentPage: page,
+			pageSize: validLimit,
+			totalItems,
+			totalPages,
+			hasNextPage: page < totalPages,
+			hasPreviousPage: page > 1,
+		};
 	}
 
 	/**

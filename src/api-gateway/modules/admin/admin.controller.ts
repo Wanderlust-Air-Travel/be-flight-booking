@@ -31,6 +31,8 @@ import { UpdateFareClassDto } from './dto/update-fare-class.dto';
 import { CreateFlightScheduleDto } from './dto/create-flight-schedule.dto';
 import { UpdateFlightScheduleDto } from './dto/update-flight-schedule.dto';
 import { FlightScheduleResponseDto } from './dto/flight-schedule-response.dto';
+import { GetFlightSchedulesDto } from './dto/get-flight-schedules.dto';
+import { FlightSchedulesResponseDto } from './dto/flight-schedules-response.dto';
 import { CreateFlightInstanceDto } from './dto/create-flight-instance.dto';
 import { UpdateFlightInstanceDto } from './dto/update-flight-instance.dto';
 import { AssignRoleDto } from './dto/assign-role.dto';
@@ -41,6 +43,8 @@ import { GetRouteFarePricesDto } from './dto/get-route-fare-prices.dto';
 import { RouteFarePricesResponseDto } from './dto/route-fare-prices-response.dto';
 import { GetBaggageAllowancesDto } from './dto/get-baggage-allowances.dto';
 import { BaggageAllowancesResponseDto } from './dto/baggage-allowances-response.dto';
+import { GetUsersDto } from './dto/get-users.dto';
+import { UsersResponseDto } from './dto/users-response.dto';
 import { CreateBaggageAllowanceDto } from './dto/create-baggage-allowance.dto';
 import { UpdateBaggageAllowanceDto } from './dto/update-baggage-allowance.dto';
 import { CreateCabinServiceDto } from './dto/create-cabin-service.dto';
@@ -246,16 +250,44 @@ export class AdminController {
 	@Get('flight-schedules')
 	@Roles(SystemRole.ADMIN, SystemRole.SCHEDULE_PLANNER, SystemRole.FLIGHT_MANAGER, SystemRole.CALL_CENTER, SystemRole.OPERATIONS, SystemRole.DISTRIBUTION_MANAGER)
 	@ApiOperation({
-		summary: 'Get all flight schedules',
-		description: 'Get all flight schedules. Requires ADMIN, FLIGHT_MANAGER, or OPERATIONS role.',
+		summary: 'Get all flight schedules with pagination',
+		description: 'Get all flight schedules with pagination. Requires ADMIN, FLIGHT_MANAGER, or OPERATIONS role.',
+	})
+	@ApiQuery({
+		name: 'page',
+		required: false,
+		type: Number,
+		description: 'Page number (1-based)',
+		example: 1,
+	})
+	@ApiQuery({
+		name: 'limit',
+		required: false,
+		type: Number,
+		description: 'Number of items per page. Allowed values: 20, 50, 100, 200',
+		example: 20,
 	})
 	@ApiOkResponse({
 		description: 'Flight schedules retrieved successfully',
-		type: [FlightScheduleResponseDto],
+		type: FlightSchedulesResponseDto,
 	})
-	async getAllFlightSchedules(): Promise<FlightScheduleResponseDto[]> {
+	async getAllFlightSchedules(@Query() query: any): Promise<FlightSchedulesResponseDto> {
 		try {
-			return await this.adminService.getAllFlightSchedules();
+			// Manually parse and validate query parameters to ensure they're processed correctly
+			const page = query.page ? Number(query.page) : 1;
+			const limit = query.limit ? Number(query.limit) : 20;
+			
+			// Validate limit is one of allowed values
+			const allowedLimits = [20, 50, 100, 200];
+			const validLimit = allowedLimits.includes(limit) ? limit : 20;
+			
+			// Create DTO with validated values
+			const dto: GetFlightSchedulesDto = {
+				page: page,
+				limit: validLimit,
+			};
+			
+			return await this.adminService.getAllFlightSchedules(dto);
 		} catch (error: any) {
 			this.logger.error('Get all flight schedules error:', error);
 			throw new InternalServerErrorException(
@@ -642,16 +674,45 @@ export class AdminController {
 	@Get('users')
 	@Roles(SystemRole.ADMIN)
 	@ApiOperation({
-		summary: 'Get all users',
-		description: 'Get all users in the system with their roles. Requires ADMIN role.',
+		summary: 'Get all users with pagination',
+		description: 'Get all users in the system with their roles. Requires ADMIN role. Supports pagination with page and limit query parameters.',
+	})
+	@ApiQuery({
+		name: 'page',
+		required: false,
+		description: 'Page number (1-based)',
+		example: 1,
+		type: Number,
+	})
+	@ApiQuery({
+		name: 'limit',
+		required: false,
+		description: 'Number of items per page. Allowed values: 20, 50, 100, 200',
+		example: 20,
+		type: Number,
+		enum: [20, 50, 100, 200],
 	})
 	@ApiOkResponse({
 		description: 'Users retrieved successfully',
-		type: [User],
+		type: UsersResponseDto,
 	})
-	async getAllUsers(): Promise<User[]> {
+	async getAllUsers(@Query() query: any): Promise<UsersResponseDto> {
 		try {
-			return await this.adminService.getAllUsers();
+			// Manually parse and validate query parameters to ensure they're processed correctly
+			const page = query.page ? Number(query.page) : 1;
+			const limit = query.limit ? Number(query.limit) : 20;
+			
+			// Validate limit is one of allowed values
+			const allowedLimits = [20, 50, 100, 200];
+			const validLimit = allowedLimits.includes(limit) ? limit : 20;
+			
+			// Create DTO with validated values
+			const dto: GetUsersDto = {
+				page: page,
+				limit: validLimit,
+			};
+			
+			return await this.adminService.getAllUsersPaginated(dto);
 		} catch (error: any) {
 			this.logger.error('Get all users error:', error);
 			throw new InternalServerErrorException(
