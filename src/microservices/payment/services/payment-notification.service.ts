@@ -67,6 +67,9 @@ export class PaymentNotificationService {
 			// Build cabin & seat details per segment/passenger
 			const seatDetails = this.formatSeatDetails(detailedBooking);
 
+			// Calculate check-in time (2 hours before departure for domestic, 3 hours for international)
+			const checkInTime = this.calculateCheckInTime(detailedBooking);
+
 			// Send email via RabbitMQ (preferred) or TCP (fallback)
 			const emailDto = {
 				to: emailAddress,
@@ -80,6 +83,7 @@ export class PaymentNotificationService {
 					paymentMethod: payment.payment_method.name,
 					transactionRef: payment.transaction_ref,
 					seatDetails,
+					checkInTime,
 				},
 			};
 
@@ -193,7 +197,7 @@ export class PaymentNotificationService {
 			const seatNumber =
 				segment.flight_seat?.seat_number ||
 				segment.flight_seat?.seat_config?.seat_number ||
-				'Chưa chọn';
+				'N/A';
 
 			const cabinClass =
 				segment.flight_seat?.seat_config?.cabin_class?.name ||
@@ -202,14 +206,65 @@ export class PaymentNotificationService {
 				segment.fare_class?.fare_class_code ||
 				'N/A';
 
+			const flightInstance = segment.flight_instance;
+			const schedule = flightInstance?.flight_schedule;
+			const route = schedule?.route;
+			const flightNumber = schedule?.flight_number || flightInstance?.flight_number || 'N/A';
+			
+			const origin = route?.origin_airport?.iata_code || route?.origin_airport?.name || 'N/A';
+			const destination = route?.destination_airport?.iata_code || route?.destination_airport?.name || 'N/A';
+
+			const departureTime = flightInstance?.departure_datetime_local
+				? new Date(flightInstance.departure_datetime_local).toLocaleString('vi-VN', {
+						dateStyle: 'short',
+						timeStyle: 'short',
+					})
+				: 'N/A';
+
 			lines.push(
-				`Hành khách: ${passengerName}\n` +
-					`Cabin: ${cabinClass}\n` +
+				`Chuyến bay: ${flightNumber}\n` +
+					`Từ: ${origin} → Đến: ${destination}\n` +
+					`Giờ khởi hành: ${departureTime}\n` +
+					`Hành khách: ${passengerName}\n` +
+					`Hạng vé: ${cabinClass}\n` +
 					`Số ghế: ${seatNumber}`,
 			);
 		}
 
 		return lines.length > 0 ? lines.join('\n\n') : 'N/A';
+	}
+
+	/**
+	 * Calculate check-in time based on flight departure time
+	 * Default: 24 hours before departure
+	 */
+	private calculateCheckInTime(booking: Booking): string {
+		if (!booking.booking_segments || booking.booking_segments.length === 0) {
+			return 'N/A';
+		}
+
+		// Get first segment to determine check-in time
+		const firstSegment = booking.booking_segments[0];
+		const flightInstance = firstSegment?.flight_instance;
+
+		if (!flightInstance?.departure_datetime_local) {
+			return 'N/A';
+		}
+
+		const departureTime = new Date(flightInstance.departure_datetime_local);
+
+		// Calculate check-in time: 24 hours before departure (default)
+		const checkInHours = 24;
+		const checkInTime = new Date(departureTime.getTime() - checkInHours * 60 * 60 * 1000);
+
+		return checkInTime.toLocaleString('vi-VN', {
+			weekday: 'long',
+			year: 'numeric',
+			month: 'long',
+			day: 'numeric',
+			hour: '2-digit',
+			minute: '2-digit',
+		});
 	}
 
 	/**

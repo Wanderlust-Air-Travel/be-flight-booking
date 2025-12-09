@@ -144,6 +144,7 @@ export class EmailTemplateService {
 		const currency = data.currency || 'VND';
 		const passengerName = data.passengerName || 'Quý khách';
 		const seatDetails = data.seatDetails || 'N/A';
+		const checkInTime = data.checkInTime || 'N/A';
 
 		const subject = `Xác nhận thanh toán thành công - Mã đặt chỗ: ${pnrCode}`;
 		const htmlBody = `
@@ -205,6 +206,15 @@ export class EmailTemplateService {
 						}
 					</div>
 				</div>
+				<div class="info-row" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
+					<div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107;">
+						<div style="font-weight: bold; margin-bottom: 8px; color: #856404;">⏰ Lưu ý làm thủ tục:</div>
+						<p style="margin: 10px 0 0 0; color: #856404; font-size: 13px;">
+							Vui lòng có mặt tại sân bay đúng giờ để làm thủ tục check-in. 
+							Vui lòng có mặt trước giờ khởi hành ít nhất 24 giờ để làm thủ tục.
+						</p>
+					</div>
+				</div>
 			</div>
 			<p>Thông tin chi tiết về chuyến bay và chỗ ngồi đã được gửi kèm theo email này. Vui lòng kiểm tra email và lưu lại mã đặt chỗ để sử dụng tại sân bay.</p>
 			<p>Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi qua email hoặc hotline.</p>
@@ -226,6 +236,9 @@ Tổng tiền: ${totalAmount.toLocaleString()} ${currency}
 
 Thông tin chỗ ngồi:
 ${seatDetails}
+
+Vui lòng có mặt tại sân bay đúng giờ để làm thủ tục check-in. 
+Vui lòng có mặt trước giờ khởi hành ít nhất 24 giờ để làm thủ tục.
 
 Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi.`;
 
@@ -290,6 +303,7 @@ Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi.`;
 		const bookingId = data.bookingId || 'N/A';
 		const flightDetails = data.flightDetails || 'N/A';
 		const passengerName = data.passengerName || 'Quý khách';
+		const checkInTime = data.checkInTime || 'N/A';
 
 		const subject = `Xác nhận đặt chỗ - Mã đặt chỗ: ${pnrCode}`;
 		const htmlBody = `
@@ -325,6 +339,17 @@ Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi.`;
 						</div>`
 					).join('') : '<p>N/A</p>'}
 				</div>
+				${checkInTime !== 'N/A' ? `
+				<div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
+					<div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107;">
+						<div style="font-weight: bold; margin-bottom: 8px; color: #856404;">⏰ Lưu ý làm thủ tục:</div>
+						<p style="margin: 10px 0 0 0; color: #856404; font-size: 13px;">
+							Vui lòng có mặt tại sân bay đúng giờ để làm thủ tục check-in. 
+							Vui lòng có mặt trước giờ khởi hành ít nhất 24 giờ để làm thủ tục.
+						</p>
+					</div>
+				</div>
+				` : ''}
 			</div>
 			<p>Vui lòng thanh toán trong vòng 15 phút để hoàn tất đặt chỗ. Sau khi thanh toán thành công, bạn sẽ nhận được email xác nhận kèm theo vé điện tử.</p>
 			<div class="footer">
@@ -336,7 +361,7 @@ Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi.`;
 </html>
 		`;
 
-		const textBody = `Xác nhận đặt chỗ\n\nMã đặt chỗ (PNR): ${pnrCode}\nMã booking: ${bookingId}\n\nChi tiết chuyến bay:\n${flightDetails}\n\nVui lòng thanh toán trong vòng 15 phút để hoàn tất đặt chỗ.`;
+		const textBody = `Xác nhận đặt chỗ\n\nMã đặt chỗ (PNR): ${pnrCode}\nMã booking: ${bookingId}\n\nChi tiết chuyến bay:\n${flightDetails}\n\nVui lòng có mặt tại sân bay đúng giờ để làm thủ tục check-in. Vui lòng có mặt trước giờ khởi hành ít nhất 24 giờ để làm thủ tục.\n\nVui lòng thanh toán trong vòng 15 phút để hoàn tất đặt chỗ.`;
 
 		return { subject, htmlBody, textBody };
 	}
@@ -439,7 +464,7 @@ Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi.`;
 					<div style="display: flex; justify-content: space-between; align-items: center;">
 						<div>
 							<div class="info-label">Ghế ngồi</div>
-							<div class="info-value" style="font-size: 24px;">${ticket.seatNumber || 'Chưa chọn'}</div>
+							<div class="info-value" style="font-size: 24px;">${ticket.seatNumber || 'N/A'}</div>
 						</div>
 						<div style="text-align: right;">
 							<div class="info-label">Hạng ghế</div>
@@ -452,12 +477,10 @@ Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi.`;
 			`).join('')}
 
 			<div class="checkin-box">
-				<div class="info-label" style="text-align: center; margin-bottom: 10px;">⏰ Thời gian làm thủ tục</div>
-				<div class="checkin-time">${checkInTime}</div>
+				<div class="info-label" style="text-align: center; margin-bottom: 10px;">⏰ Lưu ý làm thủ tục</div>
 				<p style="text-align: center; margin: 10px 0 0 0; color: #856404; font-size: 14px;">
 					Vui lòng có mặt tại sân bay đúng giờ để làm thủ tục check-in. 
-					Đối với chuyến bay nội địa, vui lòng có mặt trước giờ khởi hành ít nhất 2 giờ. 
-					Đối với chuyến bay quốc tế, vui lòng có mặt trước giờ khởi hành ít nhất 3 giờ.
+					Vui lòng có mặt trước giờ khởi hành ít nhất 24 giờ để làm thủ tục.
 				</p>
 			</div>
 
@@ -497,15 +520,12 @@ Từ: ${ticket.originAirport || 'N/A'} (${ticket.originAirportName || ''}, ${tic
 Giờ khởi hành: ${ticket.departureTime || 'N/A'}
 Giờ đến nơi: ${ticket.arrivalTime || 'N/A'}
 Loại vé: ${ticket.fareClassName || 'N/A'}
-Ghế ngồi: ${ticket.seatNumber || 'Chưa chọn'}
+Ghế ngồi: ${ticket.seatNumber || 'N/A'}
 Hạng ghế: ${ticket.cabinClass === 'economy' ? 'Phổ thông' : ticket.cabinClass === 'business' ? 'Thương gia' : ticket.cabinClass || 'N/A'}
 `).join('\n---\n')}
 
-Thời gian làm thủ tục: ${checkInTime}
-
 Vui lòng có mặt tại sân bay đúng giờ để làm thủ tục check-in.
-Đối với chuyến bay nội địa, vui lòng có mặt trước giờ khởi hành ít nhất 2 giờ.
-Đối với chuyến bay quốc tế, vui lòng có mặt trước giờ khởi hành ít nhất 3 giờ.
+Vui lòng có mặt trước giờ khởi hành ít nhất 24 giờ để làm thủ tục.
 
 Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi.`;
 

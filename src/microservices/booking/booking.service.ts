@@ -1658,13 +1658,18 @@ export class BookingService {
 				try {
 					// Get segments for this ticket's passenger
 					// A passenger can have multiple segments (e.g., round trip), so we get the first one
-					// If booking_segments is not loaded, reload the booking with segments
+					// CRITICAL: Always reload booking with segments to ensure we have the latest seat information
+					// This is especially important after check-in when seats are assigned
 					let segments = ticket.booking?.booking_segments;
 					
-					if (!segments || segments.length === 0) {
-						// Reload booking with segments if not loaded
-						this.logger.warn(
-							`Booking segments not loaded for ticket ${ticket.ticket_id}, reloading booking...`,
+					// Check if segments are loaded and if flight_seat relation is properly loaded
+					const segmentsLoaded = segments && segments.length > 0;
+					const seatsLoaded = segmentsLoaded && segments.some((seg) => seg.flight_seat !== undefined);
+					
+					if (!segmentsLoaded || !seatsLoaded) {
+						// Reload booking with segments and seats if not loaded or seats are missing
+						this.logger.log(
+							`Reloading booking ${ticket.booking?.booking_id} for ticket ${ticket.ticket_id} to ensure seat information is loaded. Segments loaded: ${segmentsLoaded}, Seats loaded: ${seatsLoaded}`,
 						);
 						const reloadedBooking = await this.bookingRepo.findOne({
 							where: { booking_id: ticket.booking.booking_id },
@@ -1678,12 +1683,17 @@ export class BookingService {
 								'booking_segments.flight_instance.flight_schedule.route.destination_airport',
 								'booking_segments.fare_class',
 								'booking_segments.fare_class.cabin_class',
-								'booking_segments.flight_seat',
+								'booking_segments.flight_seat', // CRITICAL: Load seat information
 							],
 						});
 						segments = reloadedBooking?.booking_segments || [];
 						if (reloadedBooking) {
 							ticket.booking = reloadedBooking;
+							this.logger.log(
+								`Reloaded booking ${ticket.booking.booking_id} with ${segments.length} segments. Segments with seats: ${segments.filter((seg) => seg.flight_seat).length}`,
+							);
+						} else {
+							this.logger.error(`Failed to reload booking ${ticket.booking?.booking_id} for ticket ${ticket.ticket_id}`);
 						}
 					}
 
@@ -1704,7 +1714,20 @@ export class BookingService {
 
 					// Use the segment with a seat assigned (if any), otherwise use the first segment (for one-way) or the segment with earliest departure (for round trip)
 					// Priority: segment with seat > earliest departure
-					const segmentWithSeat = passengerSegments.find((seg) => seg.flight_seat?.seat_number);
+					// CRITICAL: Check all segments for seat assignment and log for debugging
+					for (const seg of passengerSegments) {
+						if (seg.flight_seat) {
+							this.logger.log(
+								`Ticket ${ticket.ticket_id}: Segment ${seg.booking_segment_id} has seat ${seg.flight_seat.seat_number} (${seg.flight_seat.flight_seat_id})`,
+							);
+						} else {
+							this.logger.warn(
+								`Ticket ${ticket.ticket_id}: Segment ${seg.booking_segment_id} does NOT have a seat assigned`,
+							);
+						}
+					}
+
+					const segmentWithSeat = passengerSegments.find((seg) => seg.flight_seat && seg.flight_seat.seat_number);
 					const segment = segmentWithSeat || passengerSegments.sort((a, b) => {
 						const aTime = a.flight_instance?.departure_datetime_local
 							? new Date(a.flight_instance.departure_datetime_local).getTime()
@@ -1714,6 +1737,17 @@ export class BookingService {
 							: 0;
 						return aTime - bTime;
 					})[0];
+
+					// Log which segment was selected
+					if (segmentWithSeat) {
+						this.logger.log(
+							`Ticket ${ticket.ticket_id}: Using segment ${segment.booking_segment_id} with seat ${segment.flight_seat?.seat_number}`,
+						);
+					} else {
+						this.logger.warn(
+							`Ticket ${ticket.ticket_id}: No segment with seat found, using segment ${segment.booking_segment_id} (earliest departure)`,
+						);
+					}
 
 					const flightInstance = segment.flight_instance;
 					if (!flightInstance) {
@@ -1774,7 +1808,19 @@ export class BookingService {
 									: fareClass.cabin_class?.cabin_class_code === 'C'
 										? 'business'
 										: 'economy',
-							seatNumber: segment.flight_seat?.seat_number || null,
+							seatNumber: (() => {
+								const seatNum = segment.flight_seat?.seat_number || null;
+								if (!seatNum) {
+									this.logger.warn(
+										`Ticket ${ticket.ticket_id}: Segment ${segment.booking_segment_id} has no seat number. Flight seat relation: ${segment.flight_seat ? 'loaded but no seat_number' : 'not loaded'}`,
+									);
+								} else {
+									this.logger.log(
+										`Ticket ${ticket.ticket_id}: Returning seat number ${seatNum} for segment ${segment.booking_segment_id}`,
+									);
+								}
+								return seatNum;
+							})(),
 							status: ticket.status || 'active',
 							issuedAt: ticket.issued_at,
 							bookingStatus,
@@ -1817,7 +1863,19 @@ export class BookingService {
 								: fareClass.cabin_class?.cabin_class_code === 'C'
 									? 'business'
 									: 'economy',
-						seatNumber: segment.flight_seat?.seat_number || null,
+						seatNumber: (() => {
+							const seatNum = segment.flight_seat?.seat_number || null;
+							if (!seatNum) {
+								this.logger.warn(
+									`Ticket ${ticket.ticket_id}: Segment ${segment.booking_segment_id} has no seat number. Flight seat relation: ${segment.flight_seat ? 'loaded but no seat_number' : 'not loaded'}`,
+								);
+							} else {
+								this.logger.log(
+									`Ticket ${ticket.ticket_id}: Returning seat number ${seatNum} for segment ${segment.booking_segment_id}`,
+								);
+							}
+							return seatNum;
+						})(),
 						status: ticket.status || 'active',
 						issuedAt: ticket.issued_at,
 						bookingStatus,
@@ -2778,16 +2836,32 @@ export class BookingService {
 				}
 
 				// Validate and assign seats
+				// IMPORTANT: Map seats to segments in order, ensuring each passenger gets their selected seat
+				// Filter out INF passengers (they don't need seats)
+				const segmentsNeedingSeats = bookingSegments.filter((seg: any) => seg.passengerType !== 'INF');
+				
+				if (checkInSegment.seats.length !== segmentsNeedingSeats.length) {
+					throw new BadRequestException(
+						`Number of seat selections (${checkInSegment.seats.length}) does not match number of segments needing seats (${segmentsNeedingSeats.length}) for flight ${checkInSegment.flightInstanceId}`,
+					);
+				}
+
 				for (let i = 0; i < checkInSegment.seats.length; i++) {
 					const seatSelection = checkInSegment.seats[i];
-					const bookingSegment = bookingSegments.find(
-						(seg: any) => seg.passengerType !== 'INF' && !seatAssignments.has(seg.segmentId),
-					);
+					const bookingSegment = segmentsNeedingSeats[i]; // Assign seats in order
 
 					if (!bookingSegment) {
 						throw new BadRequestException(
-							`Cannot assign seat ${seatSelection.seatNumber} - no available passenger segment`,
+							`Cannot assign seat ${seatSelection.seatNumber} - no available passenger segment at index ${i}`,
 						);
+					}
+
+					// Check if this segment already has a seat assigned (should not happen with ordered assignment)
+					if (seatAssignments.has(bookingSegment.segmentId)) {
+						this.logger.warn(
+							`Segment ${bookingSegment.segmentId} already has a seat assigned. This should not happen with ordered assignment.`,
+						);
+						continue; // Skip this segment if already assigned
 					}
 
 					// Validate seat exists and is available
@@ -2846,24 +2920,65 @@ export class BookingService {
 			}
 
 			// Step 5: Update booking segments with seat assignments
+			// CRITICAL: Save seat assignments to database for each booking segment
 			for (const [segmentId, assignments] of seatAssignments.entries()) {
 				if (assignments.length > 0) {
 					const assignment = assignments[0]; // Each segment gets one seat
+					
+					// Find booking segment entity from database
 					const bookingSegment = await queryRunner.manager.findOne(BookingSegment, {
 						where: { booking_segment_id: segmentId },
 						relations: ['flight_seat'],
 					});
 
-					if (bookingSegment) {
-						const flightSeat = await queryRunner.manager.findOne(FlightSeat, {
-							where: { flight_seat_id: assignment.flightSeatId },
-						});
-
-						if (flightSeat) {
-							bookingSegment.flight_seat = flightSeat;
-							await queryRunner.manager.save(bookingSegment);
-						}
+					if (!bookingSegment) {
+						this.logger.error(`Booking segment ${segmentId} not found when trying to assign seat ${assignment.seatNumber}`);
+						throw new NotFoundException(`Booking segment ${segmentId} not found`);
 					}
+
+					// Find flight seat entity
+					const flightSeat = await queryRunner.manager.findOne(FlightSeat, {
+						where: { flight_seat_id: assignment.flightSeatId },
+					});
+
+					if (!flightSeat) {
+						this.logger.error(`Flight seat ${assignment.flightSeatId} not found when trying to assign to segment ${segmentId}`);
+						throw new NotFoundException(`Flight seat ${assignment.flightSeatId} not found`);
+					}
+
+					// Assign seat to booking segment
+					// CRITICAL: Use update method to ensure foreign key is set correctly
+					await queryRunner.manager.update(
+						BookingSegment,
+						{ booking_segment_id: segmentId },
+						{ flight_seat: flightSeat },
+					);
+					
+					// Reload segment to verify seat was saved
+					const savedSegment = await queryRunner.manager.findOne(BookingSegment, {
+						where: { booking_segment_id: segmentId },
+						relations: ['flight_seat'],
+					});
+					
+					if (!savedSegment) {
+						throw new InternalServerErrorException(`Failed to reload booking segment ${segmentId} after seat assignment`);
+					}
+					
+					this.logger.log(
+						`Successfully assigned seat ${assignment.seatNumber} (${assignment.flightSeatId}) to booking segment ${segmentId} for booking ${dto.bookingCode}`,
+					);
+					
+					// Verify seat was saved correctly
+					if (!savedSegment.flight_seat || savedSegment.flight_seat.flight_seat_id !== assignment.flightSeatId) {
+						this.logger.error(
+							`Seat assignment verification failed for segment ${segmentId}. Expected seat ${assignment.flightSeatId}, got ${savedSegment.flight_seat?.flight_seat_id || 'null'}`,
+						);
+						throw new InternalServerErrorException(`Failed to save seat assignment for segment ${segmentId}`);
+					}
+					
+					this.logger.log(
+						`Verified: Segment ${segmentId} now has seat ${savedSegment.flight_seat.seat_number} (${savedSegment.flight_seat.flight_seat_id})`,
+					);
 				}
 			}
 
@@ -2873,23 +2988,48 @@ export class BookingService {
 			this.logger.log(`Successfully created ${tickets.length} tickets for booking ${booking.bookingId}`);
 
 			// Step 7: Send ticket confirmation email
+			// CRITICAL: Reload booking with ALL necessary relations including passenger and seat information
 			const bookingEntity = await queryRunner.manager.findOne(Booking, {
 				where: { booking_id: booking.bookingId },
 				relations: [
 					'booking_segments',
 					'booking_segments.booking_passenger',
+					'booking_segments.booking_passenger.passenger', // CRITICAL: Load passenger for name
 					'booking_segments.flight_instance',
 					'booking_segments.flight_instance.flight_schedule',
 					'booking_segments.flight_instance.flight_schedule.route',
+					'booking_segments.flight_instance.flight_schedule.route.origin_airport', // For airport details
+					'booking_segments.flight_instance.flight_schedule.route.destination_airport', // For airport details
 					'booking_segments.fare_class',
 					'booking_segments.fare_class.cabin_class',
-					'booking_segments.flight_seat',
+					'booking_segments.flight_seat', // CRITICAL: Load seat information
 					'user',
 					'currency',
 				],
 			});
 
-			if (bookingEntity) {
+			if (!bookingEntity) {
+				this.logger.error(`Booking ${booking.bookingId} not found when trying to send ticket confirmation email`);
+			} else {
+				// Verify seat information is loaded
+				const segmentsWithSeats = bookingEntity.booking_segments?.filter(
+					(seg) => seg.flight_seat && seg.flight_seat.seat_number,
+				) || [];
+				this.logger.log(
+					`Booking ${booking.bookingId} has ${segmentsWithSeats.length} segments with seats assigned out of ${bookingEntity.booking_segments?.length || 0} total segments`,
+				);
+
+				// Log seat details for debugging
+				for (const segment of bookingEntity.booking_segments || []) {
+					if (segment.flight_seat) {
+						this.logger.log(
+							`Segment ${segment.booking_segment_id} has seat ${segment.flight_seat.seat_number} (${segment.flight_seat.flight_seat_id})`,
+						);
+					} else {
+						this.logger.warn(`Segment ${segment.booking_segment_id} does NOT have a seat assigned`);
+					}
+				}
+
 				try {
 					await this.notificationService.sendTicketConfirmation(bookingEntity, tickets);
 					this.logger.log(`Ticket confirmation email sent for booking ${booking.bookingId}`);

@@ -1,4 +1,6 @@
 import { Injectable, Logger, Inject, Optional } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import { Booking } from 'src/shared/entities/booking/booking.entity';
@@ -20,6 +22,7 @@ export class BookingNotificationService {
 		@Optional() private readonly rabbitMQPublisher: RabbitMQPublisherService | null,
 		@Optional() @Inject('EMAIL_CLIENT') private readonly emailClient: ClientProxy | null,
 		@Optional() private readonly ticketPdfService: TicketPdfService | null,
+		@InjectRepository(Booking) private readonly bookingRepo: Repository<Booking>,
 	) {}
 
 	/**
@@ -29,7 +32,22 @@ export class BookingNotificationService {
 		this.logger.log(`Sending booking confirmation for booking ${booking.booking_id}`);
 
 		try {
-			const emailAddress = booking.contact_email || booking.user?.email;
+			// Reload booking with full relations to ensure we have all data needed for email
+			const detailedBooking = await this.bookingRepo.findOne({
+				where: { booking_id: booking.booking_id },
+				relations: [
+					'currency',
+					'user',
+					'booking_segments',
+					'booking_segments.flight_instance',
+					'booking_segments.flight_instance.flight_schedule',
+					'booking_segments.flight_instance.flight_schedule.route',
+					'booking_segments.fare_class',
+					'booking_segments.flight_seat', // Load flight_seat to show seat number if selected
+				],
+			}) || booking;
+
+			const emailAddress = detailedBooking.contact_email || detailedBooking.user?.email;
 			if (!emailAddress) {
 				this.logger.warn(
 					`Cannot send booking confirmation: No email address found for booking ${booking.booking_id}`,
@@ -37,22 +55,26 @@ export class BookingNotificationService {
 				return;
 			}
 
-		const passengerName = booking.contact_fullname || booking.user?.fullname || 'Quý khách';
+		const passengerName = detailedBooking.contact_fullname || detailedBooking.user?.fullname || 'Quý khách';
 
 		// Format flight details from booking segments
-		const flightDetails = this.formatFlightDetails(booking);
+		const flightDetails = this.formatFlightDetails(detailedBooking);
+
+		// Calculate check-in time (2 hours before departure for domestic, 3 hours for international)
+		const checkInTime = this.calculateCheckInTime(detailedBooking);
 
 		// Send email via RabbitMQ (preferred) or TCP (fallback)
 		const emailDto = {
 			to: emailAddress,
-			template: EmailTemplate.TICKET_CONFIRMATION,
+			template: EmailTemplate.BOOKING_CONFIRMATION,
 			templateData: {
-				pnrCode: booking.pnr_code,
-				bookingId: booking.booking_id,
-				totalAmount: booking.total_amount,
-				currency: booking.currency.currency_code,
+				pnrCode: detailedBooking.pnr_code,
+				bookingId: detailedBooking.booking_id,
+				totalAmount: detailedBooking.total_amount,
+				currency: detailedBooking.currency.currency_code,
 				passengerName,
 				flightDetails,
+				checkInTime,
 			},
 		};
 
@@ -61,7 +83,7 @@ export class BookingNotificationService {
 			try {
 				await this.rabbitMQPublisher.publishEmail(emailDto);
 				this.logger.log(
-					`Booking confirmation queued via RabbitMQ to ${emailAddress} for booking ${booking.pnr_code}`,
+					`Booking confirmation queued via RabbitMQ to ${emailAddress} for booking ${detailedBooking.pnr_code}`,
 				);
 				return;
 			} catch (error: any) {
@@ -73,7 +95,7 @@ export class BookingNotificationService {
 		if (this.emailClient) {
 			await firstValueFrom(this.emailClient.send(EMAIL_MS.PATTERN.SEND_EMAIL, emailDto));
 			this.logger.log(
-				`Booking confirmation sent via TCP to ${emailAddress} for booking ${booking.pnr_code}`,
+				`Booking confirmation sent via TCP to ${emailAddress} for booking ${detailedBooking.pnr_code}`,
 			);
 		} else {
 			this.logger.error('No email client available (neither RabbitMQ nor TCP)');
@@ -238,6 +260,7 @@ export class BookingNotificationService {
 	 */
 	private formatTicketDetails(booking: Booking, tickets: any[]): any[] {
 		if (!booking.booking_segments || booking.booking_segments.length === 0) {
+			this.logger.warn(`No booking segments found for booking ${booking.booking_id}`);
 			return [];
 		}
 
@@ -249,16 +272,27 @@ export class BookingNotificationService {
 				(t) => t.booking_passenger.booking_passenger_id === segment.booking_passenger.booking_passenger_id,
 			);
 
-			if (!ticket) continue;
+			if (!ticket) {
+				this.logger.warn(
+					`No ticket found for segment ${segment.booking_segment_id}, passenger ${segment.booking_passenger?.booking_passenger_id}`,
+				);
+				continue;
+			}
 
 			const flightInstance = segment.flight_instance;
-			if (!flightInstance) continue;
+			if (!flightInstance) {
+				this.logger.warn(`No flight instance found for segment ${segment.booking_segment_id}`);
+				continue;
+			}
 
 			const schedule = flightInstance.flight_schedule;
 			const route = schedule?.route;
 			const fareClass = segment.fare_class;
 
-			if (!route || !route.origin_airport || !route.destination_airport) continue;
+			if (!route || !route.origin_airport || !route.destination_airport) {
+				this.logger.warn(`Incomplete route data for segment ${segment.booking_segment_id}`);
+				continue;
+			}
 
 			// Format times
 			const departureTime = flightInstance.departure_datetime_local
@@ -294,8 +328,19 @@ export class BookingNotificationService {
 						? 'business'
 						: 'economy';
 
-			// Get seat number
-			const seatNumber = segment.flight_seat?.seat_number || 'Chưa chọn';
+			// Get seat number - CRITICAL: Check if seat is assigned
+			const seatNumber = segment.flight_seat?.seat_number || 'N/A';
+			
+			// Log seat information for debugging
+			if (segment.flight_seat) {
+				this.logger.log(
+					`Segment ${segment.booking_segment_id} has seat: ${segment.flight_seat.seat_number} (${segment.flight_seat.flight_seat_id})`,
+				);
+			} else {
+				this.logger.warn(
+					`Segment ${segment.booking_segment_id} does NOT have a seat assigned. This should not happen after check-in.`,
+				);
+			}
 
 			// Get passenger name
 			const passengerName =
@@ -326,8 +371,8 @@ export class BookingNotificationService {
 	}
 
 	/**
-	 * Calculate check-in time based on flight departure time and route type
-	 * Domestic: 2 hours before, International: 3 hours before
+	 * Calculate check-in time based on flight departure time
+	 * Default: 24 hours before departure
 	 */
 	private calculateCheckInTime(booking: Booking): string {
 		if (!booking.booking_segments || booking.booking_segments.length === 0) {
@@ -337,17 +382,15 @@ export class BookingNotificationService {
 		// Get first segment to determine check-in time
 		const firstSegment = booking.booking_segments[0];
 		const flightInstance = firstSegment?.flight_instance;
-		const route = flightInstance?.flight_schedule?.route;
 
-		if (!flightInstance?.departure_datetime_local || !route) {
+		if (!flightInstance?.departure_datetime_local) {
 			return 'N/A';
 		}
 
 		const departureTime = new Date(flightInstance.departure_datetime_local);
-		const isDomestic = route.is_domestic;
 
-		// Calculate check-in time (2 hours for domestic, 3 hours for international)
-		const checkInHours = isDomestic ? 2 : 3;
+		// Calculate check-in time: 24 hours before departure (default)
+		const checkInHours = 24;
 		const checkInTime = new Date(departureTime.getTime() - checkInHours * 60 * 60 * 1000);
 
 		return checkInTime.toLocaleString('vi-VN', {

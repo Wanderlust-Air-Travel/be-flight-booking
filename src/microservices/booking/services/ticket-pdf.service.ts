@@ -185,7 +185,7 @@ export class TicketPdfService {
 
 		doc.moveDown(0.5);
 		doc.text(`Hạng vé: ${fareClass?.description || fareClass?.fare_class_code || 'N/A'}`);
-		doc.text(`Ghế ngồi: ${seat?.seat_number || 'Chưa chọn'}`);
+		doc.text(`Ghế ngồi: ${seat?.seat_number || 'N/A'}`);
 		doc.moveDown(1);
 
 		// Booking Information
