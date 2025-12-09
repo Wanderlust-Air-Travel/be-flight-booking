@@ -16,6 +16,9 @@ import { SeatMapResponseDto } from './dto/seat-map-response.dto';
 import { SEARCH_MS } from 'src/microservices/search/search.messages';
 import { BookingStateService } from 'src/shared/services/booking-state.service';
 import { AirportListResponseDto } from './dto/airport-list-response.dto';
+import { GetCabinServicesDto } from './dto/get-cabin-services.dto';
+import { CabinServicesResponseDto, CabinServicePublicDto } from './dto/cabin-service-public.dto';
+import { CabinServiceService } from 'src/shared/services/cabin-service.service';
 
 @ApiTags('search')
 @Controller('search')
@@ -25,6 +28,7 @@ export class SearchController {
 	constructor(
 		@Inject('SEARCH_CLIENT') private readonly client: ClientProxy,
 		private readonly bookingStateService: BookingStateService,
+		private readonly cabinServiceService: CabinServiceService,
 	) {}
 
 	@Get('flights')
@@ -637,6 +641,61 @@ export class SearchController {
 			
 			// For any other unexpected errors, return 500 Internal Server Error
 			throw new InternalServerErrorException(`An unexpected error occurred while getting airports. Please try again later.`);
+		}
+	}
+
+	@Get('cabin-services')
+	@UseGuards(OptionalJwtAuthGuard)
+	@ApiBearerAuth('access-token')
+	@ApiOperation({
+		summary: 'Get cabin services for a fare class',
+		description: 'Get all available cabin services (meals, WiFi, etc.) for a specific fare class. Returns services that are included and services available for purchase.',
+	})
+	@ApiOkResponse({
+		description: 'List of cabin services for the fare class',
+		type: CabinServicesResponseDto,
+	})
+	@ApiBadRequestResponse({
+		description: 'Invalid request parameters',
+	})
+	async getCabinServices(@Query() query: GetCabinServicesDto): Promise<CabinServicesResponseDto> {
+		try {
+			const services = await this.cabinServiceService.getCabinServices(
+				query.fareClassCode,
+				query.cabinClassCode,
+			);
+
+			// Transform to public DTO
+			const serviceDtos: CabinServicePublicDto[] = services.map((service) => ({
+				cabinServiceId: service.cabin_service_id,
+				serviceType: service.service_type,
+				serviceName: service.service_name,
+				description: service.description,
+				isIncluded: service.is_included,
+				price: service.price,
+				displayOrder: service.display_order,
+				iconUrl: service.icon_url,
+			}));
+
+			// Calculate total price of services that are not included (for purchase)
+			const totalPrice = serviceDtos
+				.filter((s) => !s.isIncluded && s.price !== null)
+				.reduce((sum, s) => sum + (s.price || 0), 0);
+
+			return {
+				services: serviceDtos,
+				totalPrice,
+			};
+		} catch (error: any) {
+			this.logger.error('Get cabin services error:', error);
+			
+			if (error instanceof HttpException) {
+				throw error;
+			}
+			
+			throw new InternalServerErrorException(
+				`Failed to retrieve cabin services: ${error?.message || 'Unknown error'}`,
+			);
 		}
 	}
 }

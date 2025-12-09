@@ -107,6 +107,36 @@ CREATE TABLE Routes (
 );
 GO
 
+-- Giá vé theo route và fare class
+CREATE TABLE RouteFarePrices (
+    route_fare_price_id UNIQUEIDENTIFIER NOT NULL
+        CONSTRAINT PK_RouteFarePrices PRIMARY KEY,
+        -- Note: Application code must generate UUID v7 for route_fare_price_id
+    route_id UNIQUEIDENTIFIER NOT NULL,
+    fare_class_code VARCHAR(5) NOT NULL,
+    base_price DECIMAL(12,2) NOT NULL,         -- Giá cơ bản (VND)
+    tax_rate DECIMAL(5,4) NOT NULL DEFAULT 0.1, -- Thuế suất (10% = 0.1)
+    fee_rate DECIMAL(5,4) NOT NULL DEFAULT 0.05, -- Phí suất (5% = 0.05)
+    effective_from DATE NOT NULL,              -- Ngày bắt đầu áp dụng
+    effective_to DATE NULL,                    -- Ngày kết thúc (NULL = vô thời hạn)
+    is_active BIT NOT NULL DEFAULT 1,
+    priority INT NOT NULL DEFAULT 0,           -- Độ ưu tiên (cao hơn = ưu tiên hơn)
+    notes NVARCHAR(500) NULL,
+    created_at DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+    updated_at DATETIME2 NULL,
+
+    CONSTRAINT FK_RouteFarePrices_Routes
+        FOREIGN KEY (route_id) REFERENCES Routes(route_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_RouteFarePrices_FareClasses
+        FOREIGN KEY (fare_class_code) REFERENCES FareClasses(fare_class_code)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+);
+GO
+
 -- Trigger: Tự động generate image_url và service_link theo format chuẩn
 -- Format chuẩn (theo thực tế các doanh nghiệp):
 -- image_url: '/images/routes/{route_id}.jpg' (dùng route_id để xác định route)
@@ -199,6 +229,76 @@ CREATE TABLE FareClasses (
 
     CONSTRAINT FK_FareClasses_CabinClasses
         FOREIGN KEY (cabin_class_code) REFERENCES CabinClasses(cabin_class_code)
+);
+GO
+
+-- Quy định hành lý theo fare class
+CREATE TABLE BaggageAllowances (
+    baggage_allowance_id UNIQUEIDENTIFIER NOT NULL
+        CONSTRAINT PK_BaggageAllowances PRIMARY KEY,
+        -- Note: Application code must generate UUID v7 for baggage_allowance_id
+    fare_class_code VARCHAR(5) NOT NULL,
+    checked_baggage_kg INT NULL,              -- Hành lý ký gửi (kg)
+    checked_baggage_pieces INT NULL,          -- Số lượng kiện hành lý ký gửi
+    carry_on_kg INT NOT NULL DEFAULT 7,        -- Hành lý xách tay (kg)
+    carry_on_pieces INT NOT NULL DEFAULT 1,   -- Số lượng kiện hành lý xách tay
+    carry_on_dimensions NVARCHAR(50) NULL,    -- Kích thước hành lý xách tay
+    is_domestic BIT NOT NULL DEFAULT 1,       -- Áp dụng cho chuyến bay nội địa
+    is_international BIT NOT NULL DEFAULT 1,   -- Áp dụng cho chuyến bay quốc tế
+    notes NVARCHAR(500) NULL,
+    created_at DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+    updated_at DATETIME2 NULL,
+
+    CONSTRAINT FK_BaggageAllowances_FareClasses
+        FOREIGN KEY (fare_class_code) REFERENCES FareClasses(fare_class_code)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+);
+GO
+
+-- Dịch vụ cabin (meals, WiFi, entertainment, etc.)
+CREATE TABLE CabinServices (
+    cabin_service_id UNIQUEIDENTIFIER NOT NULL
+        CONSTRAINT PK_CabinServices PRIMARY KEY,
+        -- Note: Application code must generate UUID v7 for cabin_service_id
+    cabin_class_code VARCHAR(5) NULL,         -- NULL nếu service áp dụng cho fare class cụ thể
+    fare_class_code VARCHAR(5) NULL,          -- NULL nếu service áp dụng cho cabin class
+    service_type VARCHAR(50) NOT NULL,         -- meal, wifi, entertainment, etc.
+    service_name NVARCHAR(200) NOT NULL,
+    description NVARCHAR(1000) NULL,
+    is_included BIT NOT NULL DEFAULT 1,        -- true = included, false = available for purchase
+    price DECIMAL(12,2) NULL,                  -- Price if not included (VND)
+    is_active BIT NOT NULL DEFAULT 1,
+    display_order INT NOT NULL DEFAULT 0,
+    icon_url NVARCHAR(500) NULL,
+    created_at DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+    updated_at DATETIME2 NULL,
+
+    CONSTRAINT FK_CabinServices_CabinClasses
+        FOREIGN KEY (cabin_class_code) REFERENCES CabinClasses(cabin_class_code)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_CabinServices_FareClasses
+        FOREIGN KEY (fare_class_code) REFERENCES FareClasses(fare_class_code)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+);
+GO
+
+-- Quy tắc mô tả giá vé (fare description rules)
+CREATE TABLE FareDescriptionRules (
+    id UNIQUEIDENTIFIER NOT NULL
+        CONSTRAINT PK_FareDescriptionRules PRIMARY KEY DEFAULT NEWID(),
+    fare_class_code_pattern VARCHAR(50) NOT NULL,  -- Pattern để match fare class (e.g., 'YS', 'Y%', 'J%')
+    cabin_type VARCHAR(20) NOT NULL,               -- economy, business, first
+    description_text NVARCHAR(500) NOT NULL,        -- Mô tả (e.g., 'Hành lý xách tay: 7kg')
+    status BIT NOT NULL DEFAULT 1,                 -- included/excluded
+    display_order INT NOT NULL DEFAULT 0,
+    is_active BIT NOT NULL DEFAULT 1,
+    is_default BIT NOT NULL DEFAULT 0,             -- Rule mặc định cho cabin type
+    created_at DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+    updated_at DATETIME2 NULL
 );
 GO
 
@@ -401,6 +501,28 @@ CREATE TABLE BookingSegments (
 );
 GO
 
+-- Dịch vụ cabin đã chọn cho mỗi booking segment
+CREATE TABLE BookingSegmentServices (
+    booking_segment_service_id UNIQUEIDENTIFIER NOT NULL
+        CONSTRAINT PK_BookingSegmentServices PRIMARY KEY,
+        -- Note: Application code must generate UUID v7 for booking_segment_service_id
+    booking_segment_id UNIQUEIDENTIFIER NOT NULL,
+    cabin_service_id UNIQUEIDENTIFIER NOT NULL,
+    service_type VARCHAR(50) NOT NULL,        -- meal, wifi, entertainment, etc.
+    service_name NVARCHAR(200) NOT NULL,      -- denormalized for quick access
+    price DECIMAL(12,2) NULL,                 -- Price at time of booking (NULL if included)
+    is_included BIT NOT NULL DEFAULT 0,        -- Whether service was included (1) or purchased (0)
+    created_at DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+
+    CONSTRAINT FK_BookingSegmentServices_BookingSegments
+        FOREIGN KEY (booking_segment_id) REFERENCES BookingSegments(booking_segment_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT FK_BookingSegmentServices_CabinServices
+        FOREIGN KEY (cabin_service_id) REFERENCES CabinServices(cabin_service_id)
+);
+GO
+
 -- Vé điện tử (e-ticket) theo passenger
 CREATE TABLE Tickets (
     ticket_id UNIQUEIDENTIFIER NOT NULL 
@@ -481,6 +603,38 @@ GO
 CREATE INDEX IX_FlightInstances_FlightNumber_Date
     ON FlightInstances(flight_number, flight_date);
 
+CREATE INDEX IDX_BaggageAllowance_FareClass
+    ON BaggageAllowances(fare_class_code);
+
+CREATE INDEX IDX_CabinService_CabinClass
+    ON CabinServices(cabin_class_code);
+
+CREATE INDEX IDX_CabinService_FareClass
+    ON CabinServices(fare_class_code);
+
+CREATE INDEX IDX_CabinService_Active
+    ON CabinServices(is_active, cabin_class_code, fare_class_code);
+
+CREATE INDEX IDX_RouteFarePrice_Route_FareClass
+    ON RouteFarePrices(route_id, fare_class_code);
+
+CREATE INDEX IDX_RouteFarePrice_EffectiveDates
+    ON RouteFarePrices(effective_from, effective_to);
+
+CREATE INDEX IDX_RouteFarePrice_Active
+    ON RouteFarePrices(is_active, effective_from, effective_to);
+
+-- Unique constraint: one active price per route + fare class + date range
+CREATE UNIQUE INDEX UQ_RouteFarePrice_Active_Route_FareClass_DateRange
+    ON RouteFarePrices(route_id, fare_class_code, effective_from, effective_to)
+    WHERE is_active = 1 AND effective_to IS NOT NULL;
+
+CREATE INDEX IX_FareDescriptionRules_Pattern_CabinType_Active
+    ON FareDescriptionRules(fare_class_code_pattern, cabin_type, is_active);
+
+CREATE INDEX IX_FareDescriptionRules_CabinType_Order_Active
+    ON FareDescriptionRules(cabin_type, display_order, is_active);
+
 CREATE INDEX IX_Bookings_UserId
     ON Bookings(user_id);
 
@@ -490,6 +644,12 @@ CREATE INDEX IX_Bookings_UserId
 
 CREATE INDEX IX_BookingSegments_FlightInstance
     ON BookingSegments(flight_instance_id);
+
+CREATE INDEX IDX_BookingSegmentService_BookingSegment
+    ON BookingSegmentServices(booking_segment_id);
+
+CREATE INDEX IDX_BookingSegmentService_CabinService
+    ON BookingSegmentServices(cabin_service_id);
 
 CREATE INDEX IX_Payments_BookingId
     ON Payments(booking_id);

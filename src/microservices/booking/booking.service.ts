@@ -40,6 +40,8 @@ import { Ticket } from 'src/shared/entities/ticket/ticket.entity';
 import { Route } from 'src/shared/entities/route/route.entity';
 import { Airport } from 'src/shared/entities/airport/airport.entity';
 import { FarePricingService } from 'src/shared/services/fare-pricing.service';
+import { BookingSegmentService } from 'src/shared/entities/booking/booking-segment-service.entity';
+import { CabinService } from 'src/shared/entities/cabin/cabin-service.entity';
 
 @Injectable()
 export class BookingService {
@@ -59,6 +61,8 @@ export class BookingService {
 		@InjectRepository(Route) private readonly routeRepo: Repository<Route>,
 		@InjectRepository(Airport) private readonly airportRepo: Repository<Airport>,
 		@InjectRepository(FareDescriptionRule) private readonly fareDescriptionRuleRepo: Repository<FareDescriptionRule>,
+		@InjectRepository(BookingSegmentService) private readonly bookingSegmentServiceRepo: Repository<BookingSegmentService>,
+		@InjectRepository(CabinService) private readonly cabinServiceRepo: Repository<CabinService>,
 		@Inject('RESERVATION_CLIENT') private readonly reservationClient: ClientProxy,
 		private readonly dataSource: DataSource,
 		private readonly notificationService: BookingNotificationService,
@@ -1150,8 +1154,46 @@ export class BookingService {
 			// Step 10: Generate unique PNR
 			const pnrCode = await this.generateUniquePNR();
 
-			// Step 11: Calculate total amount: For each passenger, calculate fare for each segment based on passenger type
+			// Step 11: Get selected cabin services from booking state for each flight instance
+			// Services are stored per flight instance, so we need to get them for each segment
+			const servicesByFlightInstance = new Map<string, any[]>();
+			for (const validatedSegment of validatedSegments) {
+				try {
+					// Try to get booking state for this flight instance
+					// For guest users, we need sessionId from reservation or dto
+					const isGuest = !userId;
+					const identifier = userId || dto.sessionId || '';
+					
+					if (identifier) {
+						const bookingState = await this.bookingStateService.getBookingState(
+							identifier,
+							validatedSegment.flightInstance.flight_instance_id,
+							isGuest,
+						);
+						
+						if (bookingState?.selectedServices && bookingState.selectedServices.length > 0) {
+							servicesByFlightInstance.set(
+								validatedSegment.flightInstance.flight_instance_id,
+								bookingState.selectedServices,
+							);
+							this.logger.log(
+								`Found ${bookingState.selectedServices.length} selected services for flight ${validatedSegment.flightInstance.flight_instance_id}`,
+							);
+						}
+					}
+				} catch (error) {
+					// If booking state not found or error, continue without services (not critical)
+					this.logger.warn(
+						`Could not get booking state for flight ${validatedSegment.flightInstance.flight_instance_id}: ${error instanceof Error ? error.message : String(error)}`,
+					);
+				}
+			}
+
+			// Step 12: Calculate total amount: For each passenger, calculate fare for each segment based on passenger type
+			// Also add cabin services price (only for services that are not included)
 			let totalAmount = 0;
+			let totalServicesPrice = 0; // Track services price separately for logging
+			
 			for (const passengerDto of dto.passengers) {
 				for (const validatedSegment of validatedSegments) {
 					const fareDetails = this.passengerPricingService.calculateTotalFare(
@@ -1162,7 +1204,20 @@ export class BookingService {
 						validatedSegment.feeRate,
 					);
 					totalAmount += fareDetails.totalAmount;
+					
+					// Add cabin services price for this segment (only for purchased services, not included ones)
+					const segmentServices = servicesByFlightInstance.get(validatedSegment.flightInstance.flight_instance_id) || [];
+					for (const service of segmentServices) {
+						if (!service.isIncluded && service.price !== null && service.price > 0) {
+							totalServicesPrice += service.price;
+							totalAmount += service.price;
+						}
+					}
 				}
+			}
+			
+			if (totalServicesPrice > 0) {
+				this.logger.log(`Total cabin services price added to booking: ${totalServicesPrice} VND`);
 			}
 
 			// Step 12: Create booking
@@ -1346,11 +1401,42 @@ export class BookingService {
 						status: 'booked',
 						flight_seat: flightSeat,
 					});
-					await queryRunner.manager.save(bookingSegment);
+					const savedBookingSegment = await queryRunner.manager.save(bookingSegment);
+
+					// Step 17: Save selected cabin services for this booking segment
+					const segmentServices = servicesByFlightInstance.get(validatedSegment.flightInstance.flight_instance_id) || [];
+					if (segmentServices.length > 0) {
+						for (const service of segmentServices) {
+							// Get cabin service entity to ensure it exists
+							const cabinService = await queryRunner.manager.findOne(CabinService, {
+								where: { cabin_service_id: service.cabinServiceId },
+							});
+							
+							if (cabinService) {
+								const bookingSegmentService = this.bookingSegmentServiceRepo.create({
+									booking_segment_service_id: uuidv7(),
+									booking_segment: savedBookingSegment,
+									cabin_service: cabinService,
+									service_type: service.serviceType,
+									service_name: service.serviceName,
+									price: service.price,
+									is_included: service.isIncluded,
+								});
+								await queryRunner.manager.save(bookingSegmentService);
+							} else {
+								this.logger.warn(
+									`Cabin service ${service.cabinServiceId} not found in database, skipping for booking segment ${savedBookingSegment.booking_segment_id}`,
+								);
+							}
+						}
+						this.logger.log(
+							`Saved ${segmentServices.length} cabin service(s) for booking segment ${savedBookingSegment.booking_segment_id}`,
+						);
+					}
 				}
 			}
 
-			// Step 15: Mark reservation as converted after successful booking creation
+			// Step 18: Mark reservation as converted after successful booking creation
 			try {
 				await firstValueFrom(
 					this.reservationClient.send<void>(
@@ -1786,38 +1872,9 @@ export class BookingService {
 
 		this.logger.log(`Successfully created ${tickets.length} tickets for booking ${bookingId}`);
 
-		// PHASE 4: Send ticket confirmation email with detailed information
-		// Reload booking with all relations for email
-		const bookingForEmail = await repo.findOne(Booking, {
-			where: { booking_id: bookingId },
-			relations: [
-				'currency',
-				'booking_segments',
-				'booking_segments.booking_passenger',
-				'booking_segments.booking_passenger.passenger',
-				'booking_segments.flight_instance',
-				'booking_segments.flight_instance.flight_schedule',
-				'booking_segments.flight_instance.flight_schedule.route',
-				'booking_segments.flight_instance.flight_schedule.route.origin_airport',
-				'booking_segments.flight_instance.flight_schedule.route.destination_airport',
-				'booking_segments.fare_class',
-				'booking_segments.fare_class.cabin_class',
-				'booking_segments.flight_seat',
-				'user',
-			],
-		});
-
-		if (bookingForEmail) {
-			// Reload tickets with relations
-			const ticketsWithRelations = await repo.find(Ticket, {
-				where: { booking: { booking_id: bookingId } },
-				relations: ['booking_passenger'],
-			});
-
-			await this.notificationService.sendTicketConfirmation(bookingForEmail, ticketsWithRelations).catch((err) => {
-				this.logger.error(`Failed to send ticket confirmation email: ${err.message}`);
-			});
-		}
+		// NOTE: Email confirmation is NOT sent here.
+		// Email will only be sent after check-in is completed (in checkInBooking method).
+		// This ensures tickets are only sent to customers after they complete the check-in process.
 
 		return tickets;
 	}

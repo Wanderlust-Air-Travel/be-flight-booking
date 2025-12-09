@@ -30,6 +30,7 @@ import { CreateBaggageAllowanceDto } from './dto/create-baggage-allowance.dto';
 import { UpdateBaggageAllowanceDto } from './dto/update-baggage-allowance.dto';
 import { CreateCabinServiceDto } from './dto/create-cabin-service.dto';
 import { UpdateCabinServiceDto } from './dto/update-cabin-service.dto';
+import { CabinServiceResponseDto } from './dto/cabin-service-response.dto';
 import { UpdateFareClassDto } from './dto/update-fare-class.dto';
 import { CreateFareDescriptionRuleDto } from './dto/create-fare-description-rule.dto';
 import { UpdateFareDescriptionRuleDto } from './dto/update-fare-description-rule.dto';
@@ -44,6 +45,7 @@ import { AssignRoleDto } from './dto/assign-role.dto';
 import { RemoveRoleDto } from './dto/remove-role.dto';
 import { SystemRole } from 'src/shared/constants/roles';
 import { randomUUID } from 'crypto';
+import { DashboardResponseDto, DashboardItemDto } from './dto/dashboard-item.dto';
 
 @Injectable()
 export class AdminService {
@@ -120,6 +122,15 @@ export class AdminService {
 		return await this.fareClassRepo.find({
 			relations: ['cabin_class'],
 			order: { fare_class_code: 'DESC' },
+		});
+	}
+
+	/**
+	 * Get all cabin classes
+	 */
+	async getAllCabinClasses(): Promise<CabinClass[]> {
+		return await this.cabinClassRepo.find({
+			order: { cabin_class_code: 'ASC' },
 		});
 	}
 
@@ -1252,7 +1263,7 @@ export class AdminService {
 	/**
 	 * Create a new cabin service
 	 */
-	async createCabinService(dto: CreateCabinServiceDto): Promise<CabinService> {
+	async createCabinService(dto: CreateCabinServiceDto): Promise<CabinServiceResponseDto> {
 		// Validate cabin class if provided
 		if (dto.cabinClassCode) {
 			const cabinClass = await this.cabinClassRepo.findOne({
@@ -1295,18 +1306,34 @@ export class AdminService {
 			icon_url: dto.iconUrl || null,
 		});
 
-		return await this.cabinServiceRepo.save(cabinService);
+		const savedService = await this.cabinServiceRepo.save(cabinService);
+		
+		// Reload with relations to transform to DTO
+		const serviceWithRelations = await this.cabinServiceRepo
+			.createQueryBuilder('cabin_service')
+			.leftJoinAndSelect('cabin_service.cabin_class', 'cabin_class')
+			.leftJoinAndSelect('cabin_service.fare_class', 'fare_class')
+			.leftJoinAndSelect('fare_class.cabin_class', 'fare_class_cabin_class')
+			.where('cabin_service.cabin_service_id = :id', { id: savedService.cabin_service_id })
+			.getOne();
+
+		if (!serviceWithRelations) {
+			throw new NotFoundException(`Cabin service ${savedService.cabin_service_id} not found after creation`);
+		}
+
+		return this.transformCabinServiceToDto(serviceWithRelations);
 	}
 
 	/**
 	 * Get all cabin services
 	 */
-	async getAllCabinServices(dto?: { search?: string; filterActive?: 'all' | 'active' | 'inactive' }): Promise<CabinService[]> {
+	async getAllCabinServices(dto?: { search?: string; filterActive?: 'all' | 'active' | 'inactive' }): Promise<CabinServiceResponseDto[]> {
 		// Build query with filters at database level for better performance
 		const queryBuilder = this.cabinServiceRepo
 			.createQueryBuilder('cabin_service')
 			.leftJoinAndSelect('cabin_service.cabin_class', 'cabin_class')
 			.leftJoinAndSelect('cabin_service.fare_class', 'fare_class')
+			.leftJoinAndSelect('fare_class.cabin_class', 'fare_class_cabin_class')
 			.orderBy('cabin_service.created_at', 'DESC');
 
 		// Filter by active status at database level
@@ -1346,29 +1373,65 @@ export class AdminService {
 			}
 		}
 
-		return await queryBuilder.getMany();
+		const entities = await queryBuilder.getMany();
+		
+		// Transform entities to DTOs with camelCase properties
+		return entities.map(entity => this.transformCabinServiceToDto(entity));
+	}
+
+	/**
+	 * Transform CabinService entity to CabinServiceResponseDto
+	 */
+	private transformCabinServiceToDto(entity: CabinService): CabinServiceResponseDto {
+		return {
+			cabinServiceId: entity.cabin_service_id,
+			cabinClassCode: entity.cabin_class_code,
+			cabinClass: entity.cabin_class ? {
+				cabinClassCode: entity.cabin_class.cabin_class_code,
+				name: entity.cabin_class.name,
+			} : null,
+			fareClassCode: entity.fare_class_code,
+			fareClass: entity.fare_class ? {
+				fareClassCode: entity.fare_class.fare_class_code,
+				cabinClassCode: entity.fare_class.cabin_class?.cabin_class_code || '',
+				description: entity.fare_class.description || null,
+			} : null,
+			serviceType: entity.service_type,
+			serviceName: entity.service_name,
+			description: entity.description,
+			isIncluded: entity.is_included,
+			price: entity.price ? Number(entity.price) : null,
+			isActive: entity.is_active,
+			displayOrder: entity.display_order,
+			iconUrl: entity.icon_url,
+			createdAt: entity.created_at,
+			updatedAt: entity.updated_at,
+		};
 	}
 
 	/**
 	 * Get cabin service by ID
 	 */
-	async getCabinServiceById(cabinServiceId: string): Promise<CabinService> {
-		const cabinService = await this.cabinServiceRepo.findOne({
-			where: { cabin_service_id: cabinServiceId },
-			relations: ['cabin_class', 'fare_class'],
-		});
+	async getCabinServiceById(cabinServiceId: string): Promise<CabinServiceResponseDto> {
+		const cabinService = await this.cabinServiceRepo
+			.createQueryBuilder('cabin_service')
+			.leftJoinAndSelect('cabin_service.cabin_class', 'cabin_class')
+			.leftJoinAndSelect('cabin_service.fare_class', 'fare_class')
+			.leftJoinAndSelect('fare_class.cabin_class', 'fare_class_cabin_class')
+			.where('cabin_service.cabin_service_id = :id', { id: cabinServiceId })
+			.getOne();
 
 		if (!cabinService) {
 			throw new NotFoundException(`Cabin service ${cabinServiceId} not found`);
 		}
 
-		return cabinService;
+		return this.transformCabinServiceToDto(cabinService);
 	}
 
 	/**
 	 * Update cabin service
 	 */
-	async updateCabinService(cabinServiceId: string, dto: UpdateCabinServiceDto): Promise<CabinService> {
+	async updateCabinService(cabinServiceId: string, dto: UpdateCabinServiceDto): Promise<CabinServiceResponseDto> {
 		const cabinService = await this.cabinServiceRepo.findOne({
 			where: { cabin_service_id: cabinServiceId },
 		});
@@ -1388,7 +1451,22 @@ export class AdminService {
 
 		cabinService.updated_at = new Date();
 
-		return await this.cabinServiceRepo.save(cabinService);
+		await this.cabinServiceRepo.save(cabinService);
+
+		// Reload with relations to transform to DTO
+		const updatedService = await this.cabinServiceRepo
+			.createQueryBuilder('cabin_service')
+			.leftJoinAndSelect('cabin_service.cabin_class', 'cabin_class')
+			.leftJoinAndSelect('cabin_service.fare_class', 'fare_class')
+			.leftJoinAndSelect('fare_class.cabin_class', 'fare_class_cabin_class')
+			.where('cabin_service.cabin_service_id = :id', { id: cabinServiceId })
+			.getOne();
+
+		if (!updatedService) {
+			throw new NotFoundException(`Cabin service ${cabinServiceId} not found after update`);
+		}
+
+		return this.transformCabinServiceToDto(updatedService);
 	}
 
 	/**
@@ -1501,6 +1579,109 @@ export class AdminService {
 		return {
 			success: true,
 			message: `Fare description rule ${ruleId} deleted successfully`,
+		};
+	}
+
+	// ==================== DASHBOARD MANAGEMENT ====================
+
+	/**
+	 * Get dashboard items based on user roles
+	 */
+	async getDashboardItems(userId: string): Promise<DashboardResponseDto> {
+		// Get user roles
+		const userRoles = await this.userRoleRepo.find({
+			where: { user_id: userId },
+			relations: ['role'],
+		});
+
+		// Extract role codes
+		const userRoleCodes = userRoles
+			.map(ur => ur.role?.role_code)
+			.filter((code): code is string => !!code);
+
+		// Check if user has ADMIN role (admin has access to everything)
+		const isAdmin = userRoleCodes.includes(SystemRole.ADMIN);
+
+		// Define all dashboard items with their required roles
+		const allDashboardItems: DashboardItemDto[] = [
+			{
+				id: 'route-fare-prices',
+				title: 'Quản lý giá vé theo route',
+				description: 'Quản lý giá vé và giá cả',
+				href: '/admin/route-fare-prices',
+				icon: 'TrendingUp',
+				color: 'text-green-600',
+				bgColor: 'bg-green-50',
+				requiredRoles: [SystemRole.ADMIN, SystemRole.REVENUE_ANALYST, SystemRole.DISTRIBUTION_MANAGER],
+			},
+			{
+				id: 'baggage-allowances',
+				title: 'Quản lý quy định hành lý',
+				description: 'Quản lý quy định hành lý và giới hạn',
+				href: '/admin/baggage-allowances',
+				icon: 'Luggage',
+				color: 'text-orange-600',
+				bgColor: 'bg-orange-50',
+				requiredRoles: [SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER, SystemRole.CALL_CENTER, SystemRole.DISTRIBUTION_MANAGER],
+			},
+			{
+				id: 'cabin-services',
+				title: 'Quản lý dịch vụ cabin',
+				description: 'Quản lý dịch vụ cabin và tiện ích',
+				href: '/admin/cabin-services',
+				icon: 'Sparkles',
+				color: 'text-purple-600',
+				bgColor: 'bg-purple-50',
+				requiredRoles: [SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER, SystemRole.CALL_CENTER, SystemRole.DISTRIBUTION_MANAGER],
+			},
+			{
+				id: 'fare-classes',
+				title: 'Quản lý hạng vé',
+				description: 'Quản lý hạng vé và giá cả',
+				href: '/admin/fare-classes',
+				icon: 'DollarSign',
+				color: 'text-green-600',
+				bgColor: 'bg-green-50',
+				requiredRoles: [SystemRole.ADMIN, SystemRole.REVENUE_ANALYST, SystemRole.FARE_MANAGER, SystemRole.DISTRIBUTION_MANAGER, SystemRole.ANCILLARY_MANAGER, SystemRole.CALL_CENTER],
+			},
+			{
+				id: 'flight-schedules',
+				title: 'Quản lý lịch chuyến bay',
+				description: 'Quản lý lịch chuyến bay và chuyến bay thực tế',
+				href: '/admin/flight-schedules',
+				icon: 'Plane',
+				color: 'text-blue-600',
+				bgColor: 'bg-blue-50',
+				requiredRoles: [SystemRole.ADMIN, SystemRole.SCHEDULE_PLANNER, SystemRole.FLIGHT_MANAGER, SystemRole.CALL_CENTER, SystemRole.OPERATIONS, SystemRole.DISTRIBUTION_MANAGER],
+			},
+			{
+				id: 'users',
+				title: 'Quản lý người dùng',
+				description: 'Quản lý người dùng và phân quyền',
+				href: '/admin/users',
+				icon: 'Users',
+				color: 'text-purple-600',
+				bgColor: 'bg-purple-50',
+				requiredRoles: [SystemRole.ADMIN],
+			},
+		];
+
+		// Filter items based on user roles
+		const accessibleItems = allDashboardItems.filter(item => {
+			if (isAdmin) {
+				return true; // Admin has access to everything
+			}
+			// Check if user has any of the required roles
+			return item.requiredRoles?.some(role => userRoleCodes.includes(role)) ?? false;
+		});
+
+		// Remove requiredRoles from response (it's internal only)
+		const items = accessibleItems.map(({ requiredRoles, ...item }) => item);
+		const menuItems = accessibleItems.map(({ requiredRoles, ...item }) => item);
+
+		return {
+			items,
+			menuItems,
 		};
 	}
 }

@@ -46,6 +46,7 @@ import { BaggageAllowancesResponseDto } from './dto/baggage-allowances-response.
 import { GetUsersDto } from './dto/get-users.dto';
 import { UsersResponseDto } from './dto/users-response.dto';
 import { GetCabinServicesDto } from './dto/get-cabin-services.dto';
+import { CabinServiceResponseDto } from './dto/cabin-service-response.dto';
 import { CreateBaggageAllowanceDto } from './dto/create-baggage-allowance.dto';
 import { UpdateBaggageAllowanceDto } from './dto/update-baggage-allowance.dto';
 import { CreateCabinServiceDto } from './dto/create-cabin-service.dto';
@@ -53,6 +54,7 @@ import { UpdateCabinServiceDto } from './dto/update-cabin-service.dto';
 import { CreateFareDescriptionRuleDto } from './dto/create-fare-description-rule.dto';
 import { UpdateFareDescriptionRuleDto } from './dto/update-fare-description-rule.dto';
 import { FareClass } from 'src/shared/entities/fare/fare-class.entity';
+import { CabinClass } from 'src/shared/entities/cabin/cabin-class.entity';
 import { RouteFarePrice } from 'src/shared/entities/fare/route-fare-price.entity';
 import { BaggageAllowance } from 'src/shared/entities/fare/baggage-allowance.entity';
 import { CabinService } from 'src/shared/entities/cabin/cabin-service.entity';
@@ -63,6 +65,9 @@ import { Role } from 'src/shared/entities/role/role.entity';
 import { User } from 'src/shared/entities/user/user.entity';
 import { Route } from 'src/shared/entities/route/route.entity';
 import { COMMON_MESSAGES } from 'src/shared/constants/messages';
+import { DashboardResponseDto } from './dto/dashboard-item.dto';
+import { Req } from '@nestjs/common';
+import { Request } from 'express';
 
 @ApiTags('admin')
 @Controller('admin')
@@ -72,6 +77,29 @@ export class AdminController {
 	private readonly logger = new Logger(AdminController.name);
 
 	constructor(private readonly adminService: AdminService) {}
+
+	// ==================== DASHBOARD ====================
+
+	@Get('dashboard')
+	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST, SystemRole.FARE_MANAGER, SystemRole.DISTRIBUTION_MANAGER, SystemRole.ANCILLARY_MANAGER, SystemRole.CALL_CENTER, SystemRole.SCHEDULE_PLANNER, SystemRole.FLIGHT_MANAGER, SystemRole.OPERATIONS)
+	@ApiOperation({
+		summary: 'Get dashboard items',
+		description: 'Get dashboard items and menu items based on user roles. Returns only items the user has permission to access.',
+	})
+	@ApiOkResponse({
+		description: 'Dashboard items retrieved successfully',
+		type: DashboardResponseDto,
+	})
+	async getDashboard(@Req() req: Request & { user: { userId: string; email: string } }): Promise<DashboardResponseDto> {
+		try {
+			return await this.adminService.getDashboardItems(req.user.userId);
+		} catch (error: any) {
+			this.logger.error('Get dashboard error:', error);
+			throw new InternalServerErrorException(
+				`Failed to retrieve dashboard items: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
+			);
+		}
+	}
 
 	// ==================== FARE MANAGEMENT ====================
 
@@ -119,6 +147,27 @@ export class AdminController {
 			this.logger.error('Get all fare classes error:', error);
 			throw new InternalServerErrorException(
 				`Failed to retrieve fare classes: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
+			);
+		}
+	}
+
+	@Get('cabin-classes')
+	@Roles(SystemRole.ADMIN, SystemRole.REVENUE_ANALYST, SystemRole.FARE_MANAGER, SystemRole.DISTRIBUTION_MANAGER, SystemRole.ANCILLARY_MANAGER, SystemRole.CALL_CENTER)
+	@ApiOperation({
+		summary: 'Get all cabin classes',
+		description: 'Get all cabin classes. Requires ADMIN, REVENUE_ANALYST, FARE_MANAGER, DISTRIBUTION_MANAGER, ANCILLARY_MANAGER, or CALL_CENTER role.',
+	})
+	@ApiOkResponse({
+		description: 'Cabin classes retrieved successfully',
+		type: [CabinClass],
+	})
+	async getAllCabinClasses(): Promise<CabinClass[]> {
+		try {
+			return await this.adminService.getAllCabinClasses();
+		} catch (error: any) {
+			this.logger.error('Get all cabin classes error:', error);
+			throw new InternalServerErrorException(
+				`Failed to retrieve cabin classes: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`,
 			);
 		}
 	}
@@ -652,10 +701,10 @@ export class AdminController {
 	}
 
 	@Get('roles')
-	@Roles(SystemRole.ADMIN)
+	@Roles(SystemRole.ADMIN, SystemRole.DISTRIBUTION_MANAGER, SystemRole.CALL_CENTER)
 	@ApiOperation({
 		summary: 'Get all roles',
-		description: 'Get all available roles in the system. Requires ADMIN role.',
+		description: 'Get all available roles in the system. Requires ADMIN, DISTRIBUTION_MANAGER, or CALL_CENTER role.',
 	})
 	@ApiOkResponse({
 		description: 'Roles retrieved successfully',
@@ -1074,12 +1123,12 @@ export class AdminController {
 	})
 	@ApiOkResponse({
 		description: 'Cabin service created successfully',
-		type: CabinService,
+		type: CabinServiceResponseDto,
 	})
 	@ApiBadRequestResponse({
 		description: 'Invalid request or cabin/fare class not found',
 	})
-	async createCabinService(@Body() dto: CreateCabinServiceDto): Promise<CabinService> {
+	async createCabinService(@Body() dto: CreateCabinServiceDto): Promise<CabinServiceResponseDto> {
 		try {
 			return await this.adminService.createCabinService(dto);
 		} catch (error: any) {
@@ -1101,9 +1150,9 @@ export class AdminController {
 	})
 	@ApiOkResponse({
 		description: 'Cabin services retrieved successfully',
-		type: [CabinService],
+		type: [CabinServiceResponseDto],
 	})
-	async getAllCabinServices(@Query() query: GetCabinServicesDto): Promise<CabinService[]> {
+	async getAllCabinServices(@Query() query: GetCabinServicesDto): Promise<CabinServiceResponseDto[]> {
 		try {
 			return await this.adminService.getAllCabinServices(query);
 		} catch (error: any) {
@@ -1127,9 +1176,9 @@ export class AdminController {
 	})
 	@ApiOkResponse({
 		description: 'Cabin service retrieved successfully',
-		type: CabinService,
+		type: CabinServiceResponseDto,
 	})
-	async getCabinServiceById(@Param('id') cabinServiceId: string): Promise<CabinService> {
+	async getCabinServiceById(@Param('id') cabinServiceId: string): Promise<CabinServiceResponseDto> {
 		try {
 			return await this.adminService.getCabinServiceById(cabinServiceId);
 		} catch (error: any) {
@@ -1156,12 +1205,12 @@ export class AdminController {
 	})
 	@ApiOkResponse({
 		description: 'Cabin service updated successfully',
-		type: CabinService,
+		type: CabinServiceResponseDto,
 	})
 	async updateCabinService(
 		@Param('id') cabinServiceId: string,
 		@Body() dto: UpdateCabinServiceDto,
-	): Promise<CabinService> {
+	): Promise<CabinServiceResponseDto> {
 		try {
 			return await this.adminService.updateCabinService(cabinServiceId, dto);
 		} catch (error: any) {

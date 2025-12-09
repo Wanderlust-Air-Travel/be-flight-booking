@@ -36,6 +36,7 @@ import { Reservation } from 'src/shared/entities/reservation/reservation.entity'
 import { Booking } from 'src/shared/entities/booking/booking.entity';
 import { BookingPassenger } from 'src/shared/entities/booking/booking-passenger.entity';
 import { BookingSegment } from 'src/shared/entities/booking/booking-segment.entity';
+import { BookingSegmentService } from 'src/shared/entities/booking/booking-segment-service.entity';
 import { Ticket } from 'src/shared/entities/ticket/ticket.entity';
 import { Payment } from 'src/shared/entities/payment/payment.entity';
 import {
@@ -70,7 +71,7 @@ const ds = new DataSource({
 		Airport, Route, FlightSchedule, FlightInstance, FlightSeat,
 		AircraftType, Aircraft, CabinClass, FareClass, SeatConfiguration,
 		User, Passenger, Role, UserRole, Currency, PaymentMethod, Reservation,
-		Booking, BookingPassenger, BookingSegment, Ticket, Payment,
+		Booking, BookingPassenger, BookingSegment, BookingSegmentService, Ticket, Payment,
 		RouteFarePrice, BaggageAllowance, CabinService, FareDescriptionRule,
 	],
 	synchronize: false,

@@ -20,11 +20,20 @@ export interface SeatSelectionItem {
 	seatNumber: string;
 }
 
+export interface SelectedCabinService {
+	cabinServiceId: string;
+	serviceType: string;
+	serviceName: string;
+	price: number | null;
+	isIncluded: boolean;
+}
+
 export interface BookingState {
 	flightInstanceId: string;
 	cabin?: CabinSelection;
 	seat?: SeatSelection; // Deprecated: use seats instead for multiple seats
 	seats?: SeatSelectionItem[]; // Array of seat selections for multiple passengers
+	selectedServices?: SelectedCabinService[]; // Array of selected cabin services
 	updatedAt: Date;
 }
 

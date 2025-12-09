@@ -16,6 +16,8 @@ import { Route } from 'src/shared/entities/route/route.entity';
 import { Airport } from 'src/shared/entities/airport/airport.entity';
 import { RouteFarePrice } from 'src/shared/entities/fare/route-fare-price.entity';
 import { FareDescriptionRule } from 'src/shared/entities/fare/fare-description-rule.entity';
+import { BookingSegmentService } from 'src/shared/entities/booking/booking-segment-service.entity';
+import { CabinService } from 'src/shared/entities/cabin/cabin-service.entity';
 import { FarePricingService } from 'src/shared/services/fare-pricing.service';
 import { EmailClientModule } from 'src/shared/modules/email-client/email-client.module';
 import { RabbitMQModule } from 'src/shared/modules/rabbitmq/rabbitmq.module';
@@ -49,6 +51,8 @@ import { EMAIL_MS } from '../email/email.messages';
 			Airport,
 			RouteFarePrice,
 			FareDescriptionRule,
+			BookingSegmentService,
+			CabinService,
 		]),
 		EmailClientModule, // Add Email Client module for sending email notifications
 		RabbitMQModule, // Add RabbitMQ module for async messaging

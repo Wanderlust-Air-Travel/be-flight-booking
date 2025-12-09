@@ -18,6 +18,7 @@ import { Request } from 'express';
 import { BookingStateService } from 'src/shared/services/booking-state.service';
 import { SaveCabinSelectionDto } from './dto/save-cabin-selection.dto';
 import { SaveSeatSelectionDto } from './dto/save-seat-selection.dto';
+import { SaveCabinServicesDto } from './dto/save-cabin-services.dto';
 import { BookingStateResponseDto } from './dto/booking-state-response.dto';
 import { AllBookingStatesResponseDto } from './dto/all-booking-states-response.dto';
 import {
@@ -496,6 +497,79 @@ export class BookingStateController {
 		if (!deleted) {
 			// State didn't exist, but we still return 204 (idempotent behavior)
 			// This is acceptable as DELETE operations should be idempotent
+		}
+	}
+
+	@Post('cabin-services')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'Save selected cabin services',
+		description:
+			'Save selected cabin services (meals, WiFi, etc.) to Redis. Cabin must be selected first. State expires after 30 minutes. Supports both authenticated users and guest users (via X-Session-Id header).',
+	})
+	@ApiHeader({
+		name: 'X-Session-Id',
+		description: 'Session ID for guest users (optional, required if not authenticated)',
+		required: false,
+	})
+	@ApiOkResponse({
+		description: 'Cabin services saved successfully',
+		schema: {
+			type: 'object',
+			properties: {
+				success: { type: 'boolean', example: true },
+				message: { type: 'string', example: 'Cabin services saved successfully' },
+				sessionId: { type: 'string', example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71', description: 'Session ID (only for guest users)' },
+			},
+		},
+	})
+	@ApiBadRequestResponse({
+		description: 'Invalid request parameters or cabin not selected',
+	})
+	@ApiInternalServerErrorResponse({
+		description: 'Failed to save cabin services to Redis',
+	})
+	async saveCabinServices(
+		@Req() req: Request & { user?: { userId: string; email: string } },
+		@Headers('x-session-id') sessionIdHeader: string | undefined,
+		@Body() dto: SaveCabinServicesDto,
+	): Promise<{ success: boolean; message: string; sessionId?: string }> {
+		const userId = req.user?.userId || null;
+		const isGuest = !userId;
+		
+		// For guest users, get or generate session ID
+		let sessionId: string | null = null;
+		if (isGuest) {
+			sessionId = sessionIdHeader || SessionHelper.generateSessionId();
+		}
+		
+		const identifier = userId || sessionId!;
+		
+		try {
+			// Transform DTO to SelectedCabinService[]
+			const services = dto.services.map((s) => ({
+				cabinServiceId: s.cabinServiceId,
+				serviceType: s.serviceType,
+				serviceName: s.serviceName,
+				price: s.price,
+				isIncluded: s.isIncluded,
+			}));
+
+			const result = await this.bookingStateService.saveCabinServices(identifier, dto.flightInstanceId, services, isGuest);
+			
+			// Return sessionId for guest users so frontend can use it in subsequent requests
+			if (isGuest) {
+				return { ...result, sessionId: sessionId! };
+			}
+			
+			return result;
+		} catch (error) {
+			// Re-throw custom exceptions as-is
+			if (error instanceof BookingStateException) {
+				throw error;
+			}
+			// Wrap unexpected errors
+			throw new BookingStateStorageException('save cabin services', error instanceof Error ? error.message : String(error));
 		}
 	}
 }

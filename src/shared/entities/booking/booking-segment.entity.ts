@@ -1,9 +1,10 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn, OneToMany } from "typeorm";
 import { Booking } from "./booking.entity";
 import { BookingPassenger } from "./booking-passenger.entity";
 import { FlightInstance } from "src/shared/entities/flight/flight-instance.entity";
 import { FlightSeat } from "src/shared/entities/flight/flight-seat.entity";
 import { FareClass } from "src/shared/entities/fare/fare-class.entity";
+import { BookingSegmentService } from "./booking-segment-service.entity";
 
 @Entity({ name: 'BookingSegments', schema: 'dbo' })
 export class BookingSegment {
@@ -41,6 +42,9 @@ export class BookingSegment {
 
 	@Column({ type: 'varchar', length: 20, nullable: false, default: 'booked' })
 	status: string;
+
+	@OneToMany(() => BookingSegmentService, (bss) => bss.booking_segment)
+	services: BookingSegmentService[];
 }
 
 

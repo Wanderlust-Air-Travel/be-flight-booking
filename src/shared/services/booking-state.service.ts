@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { BookingStateRepository } from '../repositories/booking-state.repository';
-import { CabinSelection, SeatSelection, SeatSelectionItem, BookingState } from '../types/booking-state.types';
+import { CabinSelection, SeatSelection, SeatSelectionItem, BookingState, SelectedCabinService } from '../types/booking-state.types';
 import {
 	BookingStateNotFoundException,
 	CabinNotSelectedException,
@@ -297,6 +297,56 @@ export class BookingStateService {
 	async getAllBookingStates(identifier: string, isGuest: boolean = false): Promise<Array<{ flightInstanceId: string; state: BookingState }>> {
 		this.logger.log(`Getting all booking states for ${isGuest ? 'guest session' : 'user'} ${identifier}`);
 		return await this.bookingStateRepository.findAllByIdentifier(identifier, isGuest);
+	}
+
+	/**
+	 * Save selected cabin services to Redis
+	 * Business logic: Validates cabin is selected first, then updates selected services
+	 * 
+	 * @param identifier - User ID (authenticated) or session ID (guest)
+	 * @param flightInstanceId - Flight instance ID
+	 * @param services - Array of selected cabin services
+	 * @param isGuest - Whether this is a guest session
+	 * @returns Success response
+	 * @throws CabinNotSelectedException if cabin is not selected
+	 */
+	async saveCabinServices(
+		identifier: string,
+		flightInstanceId: string,
+		services: SelectedCabinService[],
+		isGuest: boolean = false,
+	): Promise<{ success: boolean; message: string }> {
+		this.logger.log(`Saving cabin services for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${flightInstanceId}, ${services.length} service(s)`);
+
+		// Get existing state or create new
+		let state = await this.bookingStateRepository.findOne(identifier, flightInstanceId, isGuest);
+		
+		if (!state) {
+			state = {
+				flightInstanceId,
+				updatedAt: new Date(),
+			};
+		}
+
+		// Validate cabin is selected
+		if (!state.cabin) {
+			this.logger.warn(`Cabin not selected for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${flightInstanceId}`);
+			throw new CabinNotSelectedException(flightInstanceId);
+		}
+
+		// Update selected services
+		state.selectedServices = services;
+		state.updatedAt = new Date();
+
+		// Save to Redis via repository
+		await this.bookingStateRepository.save(identifier, flightInstanceId, state, isGuest);
+
+		this.logger.log(`Cabin services saved successfully for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${flightInstanceId}`);
+		
+		return {
+			success: true,
+			message: 'Cabin services saved successfully',
+		};
 	}
 }
 

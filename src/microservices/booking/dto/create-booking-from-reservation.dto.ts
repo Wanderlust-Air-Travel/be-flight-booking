@@ -46,6 +46,15 @@ export class CreateBookingFromReservationDto {
 	channel?: string;
 
 	@ApiProperty({
+		description: 'Session ID for guest users (required if not authenticated)',
+		example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+		required: false,
+	})
+	@IsOptional()
+	@IsString()
+	sessionId?: string;
+
+	@ApiProperty({
 		description: 'List of passengers for the booking',
 		type: [CreateBookingPassengerDto],
 	})

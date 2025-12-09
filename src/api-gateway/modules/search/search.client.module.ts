@@ -1,9 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { SEARCH_MS } from 'src/microservices/search/search.messages';
 import { SearchController } from './search.controller';
 import { BookingStateModule } from '../booking-state/booking-state.module';
 import { AuthModule } from '../auth/auth.module';
+import { CabinService } from 'src/shared/entities/cabin/cabin-service.entity';
+import { BaggageAllowance } from 'src/shared/entities/fare/baggage-allowance.entity';
+import { CabinServiceService } from 'src/shared/services/cabin-service.service';
 
 @Module({
 	imports: [
@@ -17,10 +21,13 @@ import { AuthModule } from '../auth/auth.module';
 				},
 			},
 		]),
+		TypeOrmModule.forFeature([CabinService, BaggageAllowance]),
 		BookingStateModule,
 		AuthModule, // Import AuthModule to use OptionalJwtAuthGuard
 	],
 	controllers: [SearchController],
+	providers: [CabinServiceService],
+	exports: [CabinServiceService],
 })
 export class SearchClientModule {}
 
