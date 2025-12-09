@@ -10,6 +10,7 @@ import { Payment } from 'src/shared/entities/payment/payment.entity';
 import { PaymentMethod } from 'src/shared/entities/payment/payment-method.entity';
 import { Booking } from 'src/shared/entities/booking/booking.entity';
 import { Currency } from 'src/shared/entities/currency/currency.entity';
+import { User } from 'src/shared/entities/user/user.entity';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { PaymentResponseDto } from './dto/payment-response.dto';
 import { UpdatePaymentStatusDto } from './dto/update-payment-status.dto';
@@ -555,8 +556,33 @@ export class PaymentService {
 		// System (webhook) can update any payment
 		if (userId !== 'system') {
 			// For authenticated users, check ownership
-			if (!payment.booking.user || payment.booking.user.user_id !== userId) {
-				throw new BadRequestException('Payment does not belong to the current user');
+			// Case 1: Booking belongs to a user - must match userId
+			if (payment.booking.user) {
+				if (payment.booking.user.user_id !== userId) {
+					throw new BadRequestException('Payment does not belong to the current user');
+				}
+			} else {
+				// Case 2: Guest booking (booking.user is null)
+				// Allow authenticated user to mark payment as success if contact email matches user email
+				// This handles the case where user creates booking as guest, then logs in to complete payment
+				if (payment.booking.contact_email) {
+					// Get user to check email match
+					const user = await manager.findOne(User, {
+						where: { user_id: userId },
+					});
+					if (user && user.email && user.email.toLowerCase() === payment.booking.contact_email.toLowerCase()) {
+						// Email matches - allow update
+						this.logger.log(
+							`Allowing authenticated user ${userId} to update payment ${dto.paymentId} for guest booking with matching contact email`,
+						);
+					} else {
+						// Email doesn't match - deny access
+						throw new BadRequestException('Payment does not belong to the current user');
+					}
+				} else {
+					// No contact email - deny access for security
+					throw new BadRequestException('Payment does not belong to the current user');
+				}
 			}
 		}
 		// If userId === 'system', skip ownership check (webhook calls)

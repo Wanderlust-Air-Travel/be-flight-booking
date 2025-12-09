@@ -696,8 +696,32 @@ export class BookingService {
 		// Validate ownership: if userId is provided, booking must belong to that user
 		// If userId is null (guest), booking must not have a user
 		if (userId !== null) {
-			if (!booking.user || booking.user.user_id !== userId) {
-				throw new BadRequestException('Booking does not belong to the current user');
+			if (booking.user) {
+				// Booking belongs to a user - must match userId
+				if (booking.user.user_id !== userId) {
+					throw new BadRequestException('Booking does not belong to the current user');
+				}
+			} else {
+				// Guest booking (booking.user is null)
+				// Allow authenticated user to view booking if contact email matches user email
+				// This handles the case where user creates booking as guest, then logs in to view it
+				if (booking.contact_email) {
+					const user = await this.userRepo.findOne({
+						where: { user_id: userId },
+					});
+					if (user && user.email && user.email.toLowerCase() === booking.contact_email.toLowerCase()) {
+						// Email matches - allow access
+						this.logger.log(
+							`Allowing authenticated user ${userId} to view guest booking ${bookingId} with matching contact email`,
+						);
+					} else {
+						// Email doesn't match - deny access
+						throw new BadRequestException('Booking does not belong to the current user');
+					}
+				} else {
+					// No contact email - deny access for security
+					throw new BadRequestException('Booking does not belong to the current user');
+				}
 			}
 		} else {
 			// Guest booking - should not have a user
@@ -1154,9 +1178,10 @@ export class BookingService {
 			// Step 10: Generate unique PNR
 			const pnrCode = await this.generateUniquePNR();
 
-			// Step 11: Get selected cabin services from booking state for each flight instance
-			// Services are stored per flight instance, so we need to get them for each segment
+			// Step 11: Get selected cabin services and seat selections from booking state for each flight instance
+			// Services and seats are stored per flight instance, so we need to get them for each segment
 			const servicesByFlightInstance = new Map<string, any[]>();
+			const seatsByFlightInstance = new Map<string, any[]>();
 			for (const validatedSegment of validatedSegments) {
 				try {
 					// Try to get booking state for this flight instance
@@ -1180,9 +1205,33 @@ export class BookingService {
 								`Found ${bookingState.selectedServices.length} selected services for flight ${validatedSegment.flightInstance.flight_instance_id}`,
 							);
 						}
+
+						// Get seat selections from booking state
+						// Prefer seats array (for multiple passengers), fallback to single seat
+						if (bookingState?.seats && bookingState.seats.length > 0) {
+							seatsByFlightInstance.set(
+								validatedSegment.flightInstance.flight_instance_id,
+								bookingState.seats,
+							);
+							this.logger.log(
+								`Found ${bookingState.seats.length} selected seat(s) for flight ${validatedSegment.flightInstance.flight_instance_id}`,
+							);
+						} else if (bookingState?.seat) {
+							// Fallback to single seat for backward compatibility
+							seatsByFlightInstance.set(
+								validatedSegment.flightInstance.flight_instance_id,
+								[{
+									flightSeatId: bookingState.seat.flightSeatId,
+									seatNumber: bookingState.seat.seatNumber,
+								}],
+							);
+							this.logger.log(
+								`Found 1 selected seat (legacy format) for flight ${validatedSegment.flightInstance.flight_instance_id}`,
+							);
+						}
 					}
 				} catch (error) {
-					// If booking state not found or error, continue without services (not critical)
+					// If booking state not found or error, continue without services/seats (not critical)
 					this.logger.warn(
 						`Could not get booking state for flight ${validatedSegment.flightInstance.flight_instance_id}: ${error instanceof Error ? error.message : String(error)}`,
 					);
@@ -1360,14 +1409,13 @@ export class BookingService {
 				reservation.segments.map((seg) => [seg.flightInstanceId, seg]),
 			);
 
-			// Step 15: NEW FLOW - No seat assignment during booking creation
-			// Seats will be assigned during check-in process
-			// This simplifies the booking flow and allows users to choose seats later
+			// Step 15: Get seat selections from booking state and assign to booking segments
+			// Seats are retrieved from Redis booking state if they were selected during the booking flow
+			// If no seats are selected, booking segments will be created without seats (seats can be assigned during check-in)
 
 			// Step 16: Create booking segments from reservation (supports multiple segments)
 			// Create booking segments: Each passenger needs a segment for each flight
 			// For INF, no seat is assigned (they sit on adult's lap)
-			// NEW FLOW: No seats are assigned during booking - seats will be chosen during check-in
 			for (let passengerIndex = 0; passengerIndex < bookingPassengers.length; passengerIndex++) {
 				const bookingPassenger = bookingPassengers[passengerIndex];
 				const passengerDto = dto.passengers[passengerIndex];
@@ -1384,10 +1432,35 @@ export class BookingService {
 						validatedSegment.feeRate,
 					);
 
-					// NEW FLOW: No seat assignment during booking
-					// Seats will be assigned during check-in process
+					// Get seat selection from booking state if available
 					// INF passengers never get seats (they sit on adult's lap)
-					const flightSeat: FlightSeat | null = null;
+					let flightSeat: FlightSeat | null = null;
+					if (passengerDto.passengerType !== PassengerType.INF) {
+						const seatsForFlight = seatsByFlightInstance.get(validatedSegment.flightInstance.flight_instance_id);
+						if (seatsForFlight && seatsForFlight.length > passengerIndex) {
+							const seatSelection = seatsForFlight[passengerIndex];
+							if (seatSelection && seatSelection.flightSeatId) {
+								try {
+									flightSeat = await queryRunner.manager.findOne(FlightSeat, {
+										where: { flight_seat_id: seatSelection.flightSeatId },
+									});
+									if (flightSeat) {
+										this.logger.log(
+											`Assigned seat ${seatSelection.seatNumber} (${seatSelection.flightSeatId}) to passenger ${passengerIndex} for flight ${validatedSegment.flightInstance.flight_instance_id}`,
+										);
+									} else {
+										this.logger.warn(
+											`Seat ${seatSelection.flightSeatId} not found in database for passenger ${passengerIndex}, flight ${validatedSegment.flightInstance.flight_instance_id}`,
+										);
+									}
+								} catch (error) {
+									this.logger.warn(
+										`Error retrieving seat ${seatSelection.flightSeatId} for passenger ${passengerIndex}, flight ${validatedSegment.flightInstance.flight_instance_id}: ${error instanceof Error ? error.message : String(error)}`,
+									);
+								}
+							}
+						}
+					}
 
 					const bookingSegment = this.bookingSegmentRepo.create({
 						booking_segment_id: uuidv7(),
@@ -1629,8 +1702,10 @@ export class BookingService {
 						return null;
 					}
 
-					// Use the first segment (for one-way) or the segment with earliest departure (for round trip)
-					const segment = passengerSegments.sort((a, b) => {
+					// Use the segment with a seat assigned (if any), otherwise use the first segment (for one-way) or the segment with earliest departure (for round trip)
+					// Priority: segment with seat > earliest departure
+					const segmentWithSeat = passengerSegments.find((seg) => seg.flight_seat?.seat_number);
+					const segment = segmentWithSeat || passengerSegments.sort((a, b) => {
 						const aTime = a.flight_instance?.departure_datetime_local
 							? new Date(a.flight_instance.departure_datetime_local).getTime()
 							: 0;
@@ -2143,8 +2218,33 @@ export class BookingService {
 				throw new BadRequestException('Only authenticated users can cancel bookings. Guest bookings must contact support.');
 			}
 
-			if (!booking.user || booking.user.user_id !== userId) {
-				throw new BadRequestException('Booking does not belong to the current user');
+			// Check ownership
+			if (booking.user) {
+				// Booking belongs to a user - must match userId
+				if (booking.user.user_id !== userId) {
+					throw new BadRequestException('Booking does not belong to the current user');
+				}
+			} else {
+				// Guest booking (booking.user is null)
+				// Allow authenticated user to cancel booking if contact email matches user email
+				// This handles the case where user creates booking as guest, then logs in to cancel it
+				if (booking.contact_email) {
+					const user = await queryRunner.manager.findOne(User, {
+						where: { user_id: userId },
+					});
+					if (user && user.email && user.email.toLowerCase() === booking.contact_email.toLowerCase()) {
+						// Email matches - allow cancel
+						this.logger.log(
+							`Allowing authenticated user ${userId} to cancel guest booking ${bookingId} with matching contact email`,
+						);
+					} else {
+						// Email doesn't match - deny access
+						throw new BadRequestException('Booking does not belong to the current user');
+					}
+				} else {
+					// No contact email - deny access for security
+					throw new BadRequestException('Booking does not belong to the current user');
+				}
 			}
 
 			// Check if booking is already cancelled

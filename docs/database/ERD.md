@@ -16,18 +16,6 @@ erDiagram
         BIT is_active
     }
 
-    Roles {
-        VARCHAR role_code PK
-        NVARCHAR name
-        NVARCHAR description
-        BIT is_active
-    }
-
-    UserRoles {
-        UNIQUEIDENTIFIER user_id PK,FK
-        VARCHAR role_code PK,FK
-    }
-
     Passengers {
         UNIQUEIDENTIFIER passenger_id PK
         UNIQUEIDENTIFIER user_id FK
@@ -102,6 +90,8 @@ erDiagram
         BIT is_active
         INT priority
         NVARCHAR notes
+        DATETIME2 created_at
+        DATETIME2 updated_at
     }
 
     BaggageAllowances {
@@ -111,10 +101,12 @@ erDiagram
         INT checked_baggage_pieces
         INT carry_on_kg
         INT carry_on_pieces
-        VARCHAR carry_on_dimensions
+        NVARCHAR carry_on_dimensions
         BIT is_domestic
         BIT is_international
         NVARCHAR notes
+        DATETIME2 created_at
+        DATETIME2 updated_at
     }
 
     CabinServices {
@@ -129,6 +121,21 @@ erDiagram
         BIT is_active
         INT display_order
         NVARCHAR icon_url
+        DATETIME2 created_at
+        DATETIME2 updated_at
+    }
+
+    FareDescriptionRules {
+        UNIQUEIDENTIFIER id PK
+        VARCHAR fare_class_code_pattern
+        VARCHAR cabin_type
+        NVARCHAR description_text
+        BIT status
+        INT display_order
+        BIT is_active
+        BIT is_default
+        DATETIME2 created_at
+        DATETIME2 updated_at
     }
 
     SeatConfigurations {
@@ -238,6 +245,17 @@ erDiagram
         VARCHAR status
     }
 
+    BookingSegmentServices {
+        UNIQUEIDENTIFIER booking_segment_service_id PK
+        UNIQUEIDENTIFIER booking_segment_id FK
+        UNIQUEIDENTIFIER cabin_service_id FK
+        VARCHAR service_type
+        NVARCHAR service_name
+        DECIMAL price
+        BIT is_included
+        DATETIME2 created_at
+    }
+
     Tickets {
         UNIQUEIDENTIFIER ticket_id PK
         UNIQUEIDENTIFIER booking_id FK
@@ -263,13 +281,10 @@ erDiagram
 
     %% ============ RELATIONSHIPS ============
 
-    %% Users & Passengers & Reservations & Bookings & Roles
+    %% Users & Passengers & Reservations & Bookings
     Users ||--o{ Passengers   : "user_id"
     Users ||--o{ Reservations : "user_id"
     Users ||--o{ Bookings     : "user_id"
-    Users }o--o{ Roles        : "UserRoles (user_id, role_code)"
-    Roles ||--o{ UserRoles    : "role_code"
-    Roles ||--o{ UserRoles    : "role_code"
 
     %% Airports & Routes
     Airports ||--o{ Routes : "origin/destination"
@@ -314,62 +329,21 @@ erDiagram
 
     Bookings          ||--o{ BookingSegments   : "booking_id"
     BookingPassengers ||--o{ BookingSegments   : "booking_passenger_id"
+    BookingSegments   ||--o{ BookingSegmentServices : "booking_segment_id"
+    CabinServices     ||--o{ BookingSegmentServices : "cabin_service_id"
 
     Bookings          ||--o{ Tickets           : "booking_id"
     BookingPassengers ||--o{ Tickets           : "booking_passenger_id"
 
     Bookings          ||--o{ Payments          : "booking_id"
 
-    %% ============ DYNAMIC PRICING & SERVICES ============
-    RouteFarePrices {
-        UNIQUEIDENTIFIER route_fare_price_id PK
-        UNIQUEIDENTIFIER route_id FK
-        VARCHAR fare_class_code FK
-        DECIMAL base_price
-        DECIMAL tax_rate
-        DECIMAL fee_rate
-        DATE effective_from
-        DATE effective_to
-        BIT is_active
-        INT priority
-        NVARCHAR notes
-    }
-
-    BaggageAllowances {
-        UNIQUEIDENTIFIER baggage_allowance_id PK
-        VARCHAR fare_class_code FK
-        INT checked_baggage_kg
-        INT checked_baggage_pieces
-        INT carry_on_kg
-        INT carry_on_pieces
-        VARCHAR carry_on_dimensions
-        BIT is_domestic
-        BIT is_international
-        NVARCHAR notes
-    }
-
-    CabinServices {
-        UNIQUEIDENTIFIER cabin_service_id PK
-        VARCHAR cabin_class_code FK
-        VARCHAR fare_class_code FK
-        VARCHAR service_type
-        NVARCHAR service_name
-        NVARCHAR description
-        BIT is_included
-        DECIMAL price
-        BIT is_active
-        INT display_order
-        NVARCHAR icon_url
-    }
 ```
 
 ## Giải thích ngắn gọn (BE-focused)
 
-- **Users & Passengers & Roles**
+- **Users & Passengers**
   - Users: tài khoản đăng nhập, quản lý bảo mật và trạng thái.
   - Passengers: hồ sơ hành khách dùng cho bay/ra vé; `user_id` NULL để hỗ trợ khách vãng lai/đại lý.
-  - Roles: Vai trò trong hệ thống (CUSTOMER, ADMIN, REVENUE_ANALYST, SCHEDULE_PLANNER, etc.) - Role-Based Access Control (RBAC)
-  - UserRoles: Many-to-many relationship giữa Users và Roles (một user có thể có nhiều roles, một role có thể được gán cho nhiều users)
 
 - **Airports & Routes**
   - Airports: chuẩn hóa IATA/ICAO, timezone phục vụ hiển thị/convert giờ.
@@ -400,17 +374,28 @@ erDiagram
     - `fee_rate`: Tỷ lệ phí (decimal, ví dụ: 0.05 = 5%)
     - `effective_from` / `effective_to`: Thời gian hiệu lực
     - `priority`: Độ ưu tiên (cao hơn = ưu tiên hơn khi có nhiều prices cho cùng route/fare class)
+    - `created_at` / `updated_at`: Timestamps để tracking
     - Fallback pricing logic nếu không tìm thấy trong database
   - BaggageAllowances: Quy định hành lý theo fare class và route type (domestic/international).
     - `checked_baggage_kg` / `checked_baggage_pieces`: Hành lý ký gửi
     - `carry_on_kg` / `carry_on_pieces` / `carry_on_dimensions`: Hành lý xách tay
     - `is_domestic` / `is_international`: Áp dụng cho route nội địa/quốc tế
+    - `created_at` / `updated_at`: Timestamps để tracking
   - CabinServices: Dịch vụ cabin (meals, entertainment, WiFi, priority boarding, lounge access, etc.).
     - `cabin_class_code` hoặc `fare_class_code`: Áp dụng cho cabin class hoặc fare class cụ thể
     - `service_type`: Loại dịch vụ (meal, entertainment, wifi, priority_boarding, lounge_access, seat_selection, extra_legroom, other)
     - `is_included`: Dịch vụ miễn phí (true) hoặc có giá (false)
     - `price`: Giá dịch vụ (null nếu is_included = true)
     - `display_order`: Thứ tự hiển thị trong UI
+    - `created_at` / `updated_at`: Timestamps để tracking
+  - FareDescriptionRules: Quy tắc mô tả giá vé theo pattern fare class và cabin type.
+    - `fare_class_code_pattern`: Pattern để match fare class (e.g., 'YS', 'Y%', 'J%')
+    - `cabin_type`: Loại cabin (economy, business, first)
+    - `description_text`: Mô tả chi tiết (e.g., 'Hành lý xách tay: 7kg')
+    - `status`: included/excluded
+    - `is_default`: Rule mặc định cho cabin type
+    - `display_order`: Thứ tự hiển thị
+    - `is_active`: Trạng thái hoạt động
 
 - **Operation**
   - FlightSchedules: lịch định nghĩa (route, loại máy bay, dải hiệu lực, ngày hoạt động).
@@ -434,6 +419,11 @@ erDiagram
   - Bookings: PNR unique, `user_id` nullable, tổng tiền/trạng thái + thông tin liên hệ.
   - BookingPassengers: mapping Passenger vào Booking; unique (booking_id, passenger_id).
   - BookingSegments: mỗi hành khách trên mỗi chặng (flight_instance), có thể có `flight_seat_id`, `fare_class_code`, giá (base/tax/fee), trạng thái.
+  - BookingSegmentServices: Dịch vụ cabin đã chọn cho mỗi booking segment.
+    - `cabin_service_id`: Reference đến CabinServices
+    - `service_type` / `service_name`: Denormalized để truy vấn nhanh
+    - `price`: Giá tại thời điểm booking (NULL nếu included)
+    - `is_included`: Dịch vụ được bao gồm (1) hoặc mua thêm (0)
   - Tickets: vé điện tử (ticket_number unique), gắn Booking + BookingPassenger.
   - Payments: thanh toán cho Booking (số tiền, tiền tệ, phương thức, trạng thái, transaction_ref).
     - `idempotency_key`: Idempotency key để prevent duplicate payments.
