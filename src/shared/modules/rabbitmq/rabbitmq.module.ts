@@ -2,6 +2,9 @@ import { Module, Global, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/c
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { RabbitMQService } from './rabbitmq.service';
 import { RabbitMQPublisherService } from './rabbitmq-publisher.service';
+import { RabbitMQMonitoringService } from './rabbitmq-monitoring.service';
+import { RedisModule } from '../redis/redis.module';
+import { CommonModule } from '../common/common.module';
 
 /**
  * RabbitMQ Module
@@ -15,12 +18,16 @@ import { RabbitMQPublisherService } from './rabbitmq-publisher.service';
  * - Queue and exchange declaration
  * - Publisher and consumer patterns
  * - Dead letter queue support
+ * - Message deduplication (idempotency)
+ * - Correlation IDs for tracing
+ * - Message TTL and priority
+ * - Monitoring and metrics
  */
 @Global()
 @Module({
-	imports: [ConfigModule],
-	providers: [RabbitMQService, RabbitMQPublisherService],
-	exports: [RabbitMQService, RabbitMQPublisherService],
+	imports: [ConfigModule, RedisModule, CommonModule],
+	providers: [RabbitMQService, RabbitMQPublisherService, RabbitMQMonitoringService],
+	exports: [RabbitMQService, RabbitMQPublisherService, RabbitMQMonitoringService],
 })
 export class RabbitMQModule implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(RabbitMQModule.name);

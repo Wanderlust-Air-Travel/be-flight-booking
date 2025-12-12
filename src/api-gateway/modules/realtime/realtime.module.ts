@@ -26,8 +26,8 @@ import { RESERVATION_MS } from 'src/microservices/reservation/reservation.messag
 	imports: [
 		RedisModule,
 		BookingStateModule,
-		ReservationClientModule,
-		PaymentClientModule,
+		forwardRef(() => ReservationClientModule),
+		forwardRef(() => PaymentClientModule),
 		AuthModule,
 		// Register RESERVATION_CLIENT for ReservationCountdownService
 		ClientsModule.register([

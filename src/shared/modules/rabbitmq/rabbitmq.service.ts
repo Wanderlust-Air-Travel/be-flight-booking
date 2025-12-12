@@ -222,7 +222,11 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
 	/**
 	 * Send message to queue (direct queue)
 	 */
-	async sendToQueue(queue: string, message: any, options?: Options.Publish): Promise<boolean> {
+	async sendToQueue(
+		queue: string,
+		message: any,
+		options?: Options.Publish & { ttl?: number; priority?: number; correlationId?: string; messageId?: string },
+	): Promise<boolean> {
 		const channel = await this.getChannel('publisher');
 		const messageBuffer = Buffer.from(JSON.stringify(message));
 
@@ -232,6 +236,10 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
 		const defaultOptions: Options.Publish = {
 			persistent: true,
 			timestamp: Date.now(),
+			...(options?.correlationId && { correlationId: options.correlationId }),
+			...(options?.messageId && { messageId: options.messageId }),
+			...(options?.priority !== undefined && { priority: options.priority }),
+			...(options?.ttl && { expiration: options.ttl.toString() }),
 			...options,
 		};
 
@@ -244,13 +252,15 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
 	async consume(
 		queue: string,
 		onMessage: (msg: ConsumeMessage | null) => void | Promise<void>,
-		options?: Options.Consume,
+		options?: Options.Consume & { maxRetries?: number },
 	): Promise<string> {
 		const channel = await this.getChannel(`consumer-${queue}`);
 
-		// Ensure queue exists
-		await this.assertQueue(queue, channel);
+		// NOTE: Queue should already be asserted by assertQueueWithDLQ before calling consume
+		// Do NOT call assertQueue here as it may conflict with existing queue configuration (TTL, DLQ, etc.)
+		// If you need to ensure queue exists, use assertQueueWithDLQ or checkQueue instead
 
+		const maxRetries = options?.maxRetries || 3;
 		const defaultOptions: Options.Consume = {
 			noAck: false, // Manual acknowledgment
 			...options,
@@ -266,8 +276,64 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
 				channel.ack(msg);
 			} catch (error) {
 				this.logger.error(`Error processing message from queue ${queue}: ${error.message}`);
-				// Reject and requeue (or send to DLQ)
-				channel.nack(msg, false, true);
+
+				// Parse message content to check retry count
+				let messageContent: any;
+				let retryCount = 0;
+				try {
+					messageContent = JSON.parse(msg.content.toString());
+					retryCount = messageContent._retryCount || 0;
+				} catch {
+					// If message is not JSON or doesn't have retry count, treat as first attempt
+					retryCount = 0;
+				}
+
+				if (retryCount < maxRetries) {
+					// Increment retry count and republish with delay
+					const updatedContent = {
+						...messageContent,
+						_retryCount: retryCount + 1,
+						_firstRetryTime: messageContent._firstRetryTime || Date.now(),
+					};
+
+					// Calculate exponential backoff delay
+					const delay = Math.min(1000 * Math.pow(2, retryCount), 30000); // Max 30s
+
+					// Nack without requeue (to avoid duplicate)
+					channel.nack(msg, false, false);
+
+					// Republish with updated retry count and delay
+					setTimeout(async () => {
+						try {
+							const sent = channel.sendToQueue(
+								queue,
+								Buffer.from(JSON.stringify(updatedContent)),
+								{
+									persistent: true,
+									timestamp: Date.now(),
+									priority: msg.properties.priority,
+									correlationId: msg.properties.correlationId,
+									messageId: msg.properties.messageId,
+								},
+							);
+							if (!sent) {
+								this.logger.error('Failed to republish message after retry: sendToQueue returned false');
+							}
+						} catch (err: any) {
+							this.logger.error(`Failed to republish message after retry: ${err.message}`);
+						}
+					}, delay);
+
+					this.logger.warn(
+						`Message requeued with retry count ${retryCount + 1}/${maxRetries} after ${delay}ms delay`,
+					);
+				} else {
+					// Max retries reached, reject without requeue (will go to DLQ)
+					this.logger.error(
+						`Message exceeded max retries (${retryCount}/${maxRetries}), sending to DLQ`,
+					);
+					channel.nack(msg, false, false); // Don't requeue, will go to DLQ
+				}
 			}
 		}, defaultOptions);
 
@@ -291,6 +357,151 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
 		};
 
 		return ch.assertQueue(queue, defaultOptions);
+	}
+
+	/**
+	 * Assert queue with Dead Letter Queue (DLQ) support
+	 * 
+	 * @param queue - Main queue name
+	 * @param dlqName - Dead letter queue name (default: {queue}.dlq)
+	 * @param maxRetries - Maximum retry attempts before sending to DLQ (default: 3)
+	 * @param messageTtl - Message TTL in milliseconds (optional)
+	 * @param priority - Queue priority (0-255, optional)
+	 * @param channel - Channel to use (optional)
+	 */
+	async assertQueueWithDLQ(
+		queue: string,
+		dlqName?: string,
+		maxRetries: number = 3,
+		messageTtl?: number,
+		priority?: number,
+		channel?: Channel,
+	): Promise<{ mainQueue: Replies.AssertQueue; dlq: Replies.AssertQueue }> {
+		const ch = channel || (await this.getChannel('default'));
+		const dlq = dlqName || `${queue}.dlq`;
+
+		// Assert DLQ first (durable, no special args)
+		const dlqResult = await ch.assertQueue(dlq, {
+			durable: true,
+		});
+
+		// Prepare queue arguments
+		const queueArgs: any = {
+			'x-dead-letter-exchange': '',
+			'x-dead-letter-routing-key': dlq,
+		};
+
+		// Add message TTL if provided
+		if (messageTtl) {
+			queueArgs['x-message-ttl'] = messageTtl;
+		}
+
+		// Add priority if provided
+		if (priority !== undefined && priority >= 0 && priority <= 255) {
+			queueArgs['x-max-priority'] = 255; // Enable priority support
+		}
+
+		// Try to assert queue with new config
+		// If queue exists with different config, try to delete and recreate (only in dev)
+		try {
+			const mainQueueResult = await ch.assertQueue(queue, {
+				durable: true,
+				arguments: queueArgs,
+			});
+
+			this.logger.log(
+				`Queue ${queue} configured with DLQ ${dlq}, maxRetries: ${maxRetries}, TTL: ${messageTtl || 'none'}, Priority: ${priority !== undefined ? priority : 'disabled'}`,
+			);
+
+			return {
+				mainQueue: mainQueueResult,
+				dlq: dlqResult,
+			};
+		} catch (error: any) {
+			// If queue exists with different config, handle gracefully
+			if (error.message?.includes('PRECONDITION_FAILED') || error.message?.includes('inequivalent')) {
+				this.logger.warn(
+					`Queue ${queue} already exists with different configuration. Attempting to delete and recreate...`,
+				);
+
+				try {
+					// Delete existing queue (only in development)
+					if (process.env.NODE_ENV !== 'production') {
+						// CRITICAL: Channel may be closed after PRECONDITION_FAILED error
+						// Create a new channel for delete operation
+						let deleteChannel = ch;
+						try {
+							// Test if channel is still open
+							await ch.checkQueue(queue);
+						} catch (channelError: any) {
+							// Channel is closed, create a new one
+							this.logger.warn(`Channel closed, creating new channel for queue deletion`);
+							deleteChannel = await this.getChannel('queue-management');
+						}
+
+						await deleteChannel.deleteQueue(queue);
+						this.logger.log(`Deleted existing queue ${queue} to recreate with new config`);
+
+						// Use the delete channel or create a new one for assert
+						const assertChannel = deleteChannel !== ch ? deleteChannel : await this.getChannel('queue-management');
+						
+						// Recreate with new config
+						const mainQueueResult = await assertChannel.assertQueue(queue, {
+							durable: true,
+							arguments: queueArgs,
+						});
+
+						this.logger.log(
+							`Queue ${queue} recreated with DLQ ${dlq}, maxRetries: ${maxRetries}, TTL: ${messageTtl || 'none'}, Priority: ${priority !== undefined ? priority : 'disabled'}`,
+						);
+
+						return {
+							mainQueue: mainQueueResult,
+							dlq: dlqResult,
+						};
+					} else {
+						// In production, just log warning and use existing queue
+						this.logger.warn(
+							`Queue ${queue} exists with different config. Using existing queue. Please manually delete and recreate in production.`,
+						);
+						// Try to assert without new args (use existing config) - use a new channel
+						const fallbackChannel = await this.getChannel('queue-management');
+						const mainQueueResult = await fallbackChannel.assertQueue(queue, {
+							durable: true,
+						});
+						return {
+							mainQueue: mainQueueResult,
+							dlq: dlqResult,
+						};
+					}
+				} catch (deleteError: any) {
+					this.logger.error(
+						`Failed to delete/recreate queue ${queue}: ${deleteError.message}. Using existing queue.`,
+					);
+					// Fallback: use existing queue with a new channel
+					try {
+						const fallbackChannel = await this.getChannel('queue-management');
+						const mainQueueResult = await fallbackChannel.assertQueue(queue, {
+							durable: true,
+						});
+						return {
+							mainQueue: mainQueueResult,
+							dlq: dlqResult,
+						};
+					} catch (fallbackError: any) {
+						this.logger.error(
+							`Failed to assert queue ${queue} even with fallback: ${fallbackError.message}`,
+						);
+						// Last resort: return DLQ result only
+						return {
+							mainQueue: { queue: queue } as any,
+							dlq: dlqResult,
+						};
+					}
+				}
+			}
+			throw error;
+		}
 	}
 
 	/**

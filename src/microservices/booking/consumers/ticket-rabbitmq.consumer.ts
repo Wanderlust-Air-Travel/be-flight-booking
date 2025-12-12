@@ -44,12 +44,17 @@ export class TicketRabbitMQConsumer implements OnModuleInit, OnModuleDestroy {
 	 */
 	private async startConsuming(): Promise<void> {
 		try {
-			// Ensure queue exists
-			await this.rabbitMQService.assertQueue(this.queueName, undefined, {
-				durable: true,
-			});
+			// Ensure queue exists with DLQ support
+			// Ticket TTL: 24 hours (86400000 ms), max retries: 3, priority: 100 (high)
+			await this.rabbitMQService.assertQueueWithDLQ(
+				this.queueName,
+				`${this.queueName}.dlq`,
+				3, // maxRetries
+				86400000, // messageTtl: 24 hours
+				100, // priority: high (tickets are critical)
+			);
 
-			// Start consuming
+			// Start consuming with max retries
 			this.consumerTag = await this.rabbitMQService.consume(
 				this.queueName,
 				async (msg) => {
@@ -58,25 +63,43 @@ export class TicketRabbitMQConsumer implements OnModuleInit, OnModuleDestroy {
 					}
 
 					try {
-						const payload: { bookingId: string } = JSON.parse(msg.content.toString());
-						this.logger.log(`Processing ticket creation message from queue: ${payload.bookingId}`);
+						const messageContent = JSON.parse(msg.content.toString());
+						// Extract correlation ID if present
+						const correlationId = messageContent.correlationId || msg.properties.correlationId || 'unknown';
+						const messageId = messageContent.messageId || msg.properties.messageId || 'unknown';
+
+						// Remove metadata before processing
+						const {
+							correlationId: _,
+							messageId: __,
+							timestamp: ___,
+							idempotencyKey: ____,
+							...payload
+						} = messageContent;
+
+						this.logger.log(
+							`Processing ticket creation message from queue: ${payload.bookingId} [correlationId: ${correlationId}, messageId: ${messageId}]`,
+						);
 
 						// Create tickets from booking
 						await this.bookingService.createTicketsFromBooking(payload.bookingId);
 
-						this.logger.log(`Tickets created successfully for booking: ${payload.bookingId}`);
+						this.logger.log(
+							`Tickets created successfully for booking: ${payload.bookingId} [correlationId: ${correlationId}]`,
+						);
 					} catch (error: any) {
 						this.logger.error(`Error processing ticket creation message: ${error.message}`, error.stack);
-						// Message will be nacked and requeued by RabbitMQService
+						// Message will be handled by RabbitMQService (retry or DLQ)
 						throw error;
 					}
 				},
 				{
 					noAck: false, // Manual acknowledgment
+					maxRetries: 3, // Max retries before DLQ
 				},
 			);
 
-			this.logger.log(`Started consuming ticket creation messages from queue: ${this.queueName}`);
+			this.logger.log(`Started consuming ticket creation messages from queue: ${this.queueName} (with DLQ support)`);
 		} catch (error: any) {
 			this.logger.error(`Failed to start consuming ticket creation messages: ${error.message}`, error.stack);
 		}
