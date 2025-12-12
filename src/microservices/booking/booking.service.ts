@@ -471,21 +471,9 @@ export class BookingService {
 							existingPassenger.fullname.trim().toLowerCase() === passengerDto.fullname.trim().toLowerCase();
 						const genderMatches = existingPassenger.gender.toLowerCase() === passengerDto.gender.toLowerCase();
 
-						if (!dobMatches || !fullnameMatches || !genderMatches) {
-							// Information mismatch - could be different person or data error
-							// Log warning but allow booking (user might have updated their info)
-							console.warn(
-								`Passenger reuse warning: Document number ${passengerDto.documentNumber} exists but information differs. ` +
-									`Existing: ${existingPassenger.fullname}, ${existingPassenger.dob}, ${existingPassenger.gender}. ` +
-									`New: ${passengerDto.fullname}, ${passengerDto.dob}, ${passengerDto.gender}. ` +
-									`Using existing passenger record.`,
-							);
-						} else {
-							console.log(
-								`Reusing existing passenger: ${existingPassenger.passenger_id} (${existingPassenger.fullname}, ${existingPassenger.document_number})`,
-							);
-						}
-
+						// Information mismatch - could be different person or data error
+						// Allow booking (user might have updated their info)
+						
 						// Reuse existing passenger (best practice: avoid duplicates)
 						passenger = existingPassenger;
 					} else {
@@ -501,9 +489,6 @@ export class BookingService {
 							loyalty_number: passengerDto.loyaltyNumber || null,
 						});
 						passenger = await queryRunner.manager.save(passenger);
-						console.log(
-							`Created new passenger: ${passenger.passenger_id} (${passenger.fullname}, ${passenger.document_number || 'N/A (CHD/INF)'})`,
-						);
 					}
 				}
 
@@ -1356,21 +1341,9 @@ export class BookingService {
 							existingPassenger.fullname.trim().toLowerCase() === passengerDto.fullname.trim().toLowerCase();
 						const genderMatches = existingPassenger.gender.toLowerCase() === passengerDto.gender.toLowerCase();
 
-						if (!dobMatches || !fullnameMatches || !genderMatches) {
-							// Information mismatch - could be different person or data error
-							// Log warning but allow booking (user might have updated their info)
-							console.warn(
-								`Passenger reuse warning: Document number ${passengerDto.documentNumber} exists but information differs. ` +
-									`Existing: ${existingPassenger.fullname}, ${existingPassenger.dob}, ${existingPassenger.gender}. ` +
-									`New: ${passengerDto.fullname}, ${passengerDto.dob}, ${passengerDto.gender}. ` +
-									`Using existing passenger record.`,
-							);
-						} else {
-							console.log(
-								`Reusing existing passenger: ${existingPassenger.passenger_id} (${existingPassenger.fullname}, ${existingPassenger.document_number})`,
-							);
-						}
-
+						// Information mismatch - could be different person or data error
+						// Allow booking (user might have updated their info)
+						
 						// Reuse existing passenger (best practice: avoid duplicates)
 						passenger = existingPassenger;
 					} else {
@@ -1388,9 +1361,6 @@ export class BookingService {
 							loyalty_number: passengerDto.loyaltyNumber || null,
 						});
 						passenger = await queryRunner.manager.save(passenger);
-						console.log(
-							`Created new passenger: ${passenger.passenger_id} (${passenger.fullname}, ${passenger.document_number || 'N/A (CHD/INF)'}) ${user ? `for user ${user.user_id}` : 'as guest'}`,
-						);
 					}
 				}
 
@@ -2774,16 +2744,48 @@ export class BookingService {
 		const isGuestBooking = !bookingForGuestCheck?.user;
 		this.logger.log(`Check-in validation passed for booking ${dto.bookingCode} (status: ${booking.status}, guest: ${isGuestBooking})`);
 
-			// Step 3: Check if tickets already exist (already checked in)
-			// Make check-in idempotent: if already checked in, return existing tickets info
-			const existingBooking = await queryRunner.manager.findOne(Booking, {
-				where: { booking_id: booking.bookingId },
-				relations: ['tickets'],
-			});
+		// Step 3: Check if tickets already exist (already checked in)
+		// Make check-in idempotent: if already checked in, return existing tickets info
+		const existingBooking = await queryRunner.manager.findOne(Booking, {
+			where: { booking_id: booking.bookingId },
+			relations: ['tickets', 'booking_segments', 'booking_segments.flight_instance', 'booking_segments.flight_seat', 'booking_segments.booking_passenger'],
+		});
 
-			if (existingBooking?.tickets && existingBooking.tickets.length > 0) {
+		if (existingBooking?.tickets && existingBooking.tickets.length > 0) {
+			// Check if seats have changed - if so, update them
+			// This allows users to re-check-in with different seat selections
+			let seatsHaveChanged = false;
+			this.logger.log(`[Re-check-in] Checking for seat changes on booking ${dto.bookingCode}`);
+			
+			for (const checkInSegment of dto.segments) {
+				const existingSegments = existingBooking.booking_segments.filter(
+					(seg: any) => seg.flight_instance?.flight_instance_id === checkInSegment.flightInstanceId
+				);
+				
+				// Filter out INF (infant) passengers - they don't get seats
+				const existingSegmentsNeedingSeats = existingSegments.filter((seg: any) => seg.booking_passenger?.passenger_type !== 'INF');
+				this.logger.log(`[Re-check-in] Flight ${checkInSegment.flightInstanceId}: ${existingSegmentsNeedingSeats.length} existing seats, ${checkInSegment.seats.length} new seats`);
+				
+				for (let i = 0; i < checkInSegment.seats.length; i++) {
+					const newSeat = checkInSegment.seats[i];
+					const existingSegment = existingSegmentsNeedingSeats[i];
+					const oldSeatId = existingSegment?.flight_seat?.flight_seat_id;
+					const newSeatId = newSeat.flightSeatId;
+					this.logger.log(`[Re-check-in] Passenger ${i}: old seat ${oldSeatId} vs new seat ${newSeatId}`);
+					
+					if (oldSeatId !== newSeatId) {
+						seatsHaveChanged = true;
+						this.logger.log(`[Re-check-in] ✓ SEAT CHANGE DETECTED: ${oldSeatId} → ${newSeatId}`);
+						break;
+					}
+				}
+				
+				if (seatsHaveChanged) break;
+			}
+			
+			if (!seatsHaveChanged) {
 				this.logger.log(
-					`Booking ${dto.bookingCode} has already been checked in. Returning existing tickets info (idempotent operation). Found ${existingBooking.tickets.length} tickets.`,
+					`Booking ${dto.bookingCode} has already been checked in with same seats. Returning existing tickets info (idempotent operation). Found ${existingBooking.tickets.length} tickets.`,
 				);
 				// Release query runner since we're not making any changes
 				await queryRunner.rollbackTransaction();
@@ -2797,6 +2799,11 @@ export class BookingService {
 					alreadyCheckedIn: true,
 				};
 			}
+			
+			// Seats have changed - update them
+			this.logger.log(
+				`Booking ${dto.bookingCode} was already checked in but seats have changed. Updating seat assignments...`,
+			);
 
 			// Step 4: Validate seat selections match booking segments
 			const segmentMap = new Map(
@@ -2825,6 +2832,7 @@ export class BookingService {
 				}
 
 				// Count passengers needing seats (excluding infants)
+				// Note: bookingSegments is from DTO (getBookingByCode), so it has passengerType (camelCase)
 				const passengersNeedingSeats = bookingSegments.filter(
 					(seg: any) => seg.passengerType !== 'INF',
 				).length;
@@ -2838,6 +2846,7 @@ export class BookingService {
 				// Validate and assign seats
 				// IMPORTANT: Map seats to segments in order, ensuring each passenger gets their selected seat
 				// Filter out INF passengers (they don't need seats)
+				// Note: bookingSegments is from DTO (getBookingByCode), so it has passengerType (camelCase)
 				const segmentsNeedingSeats = bookingSegments.filter((seg: any) => seg.passengerType !== 'INF');
 				
 				if (checkInSegment.seats.length !== segmentsNeedingSeats.length) {
@@ -2928,12 +2937,25 @@ export class BookingService {
 					// Find booking segment entity from database
 					const bookingSegment = await queryRunner.manager.findOne(BookingSegment, {
 						where: { booking_segment_id: segmentId },
-						relations: ['flight_seat'],
+						relations: ['flight_seat', 'booking'],
 					});
 
 					if (!bookingSegment) {
 						this.logger.error(`Booking segment ${segmentId} not found when trying to assign seat ${assignment.seatNumber}`);
 						throw new NotFoundException(`Booking segment ${segmentId} not found`);
+					}
+
+					// If re-checking-in (booking already has tickets), release the old seat first
+					if (bookingSegment.flight_seat?.flight_seat_id && bookingSegment.flight_seat.flight_seat_id !== assignment.flightSeatId) {
+						this.logger.log(`[Re-check-in] Releasing old seat ${bookingSegment.flight_seat.seat_number} (${bookingSegment.flight_seat.flight_seat_id}) from segment ${segmentId}`);
+						const oldSeat = await queryRunner.manager.findOne(FlightSeat, {
+							where: { flight_seat_id: bookingSegment.flight_seat.flight_seat_id },
+						});
+						if (oldSeat) {
+							oldSeat.is_available = true;
+							await queryRunner.manager.save(oldSeat);
+							this.logger.log(`[Re-check-in] Released old seat ${oldSeat.seat_number}`);
+						}
 					}
 
 					// Find flight seat entity
@@ -2953,6 +2975,8 @@ export class BookingService {
 						{ booking_segment_id: segmentId },
 						{ flight_seat: flightSeat },
 					);
+				
+					this.logger.log(`[Re-check-in] Updated booking segment ${segmentId} to seat ${assignment.seatNumber} (${assignment.flightSeatId})`);
 					
 					// Reload segment to verify seat was saved
 					const savedSegment = await queryRunner.manager.findOne(BookingSegment, {
@@ -2982,74 +3006,93 @@ export class BookingService {
 				}
 			}
 
-			// Step 6: Create tickets
-			this.logger.log(`Creating tickets for booking ${booking.bookingId}...`);
-			const tickets = await this.createTicketsFromBooking(booking.bookingId, queryRunner.manager);
-			this.logger.log(`Successfully created ${tickets.length} tickets for booking ${booking.bookingId}`);
-
-			// Step 7: Send ticket confirmation email
-			// CRITICAL: Reload booking with ALL necessary relations including passenger and seat information
-			const bookingEntity = await queryRunner.manager.findOne(Booking, {
-				where: { booking_id: booking.bookingId },
-				relations: [
-					'booking_segments',
-					'booking_segments.booking_passenger',
-					'booking_segments.booking_passenger.passenger', // CRITICAL: Load passenger for name
-					'booking_segments.flight_instance',
-					'booking_segments.flight_instance.flight_schedule',
-					'booking_segments.flight_instance.flight_schedule.route',
-					'booking_segments.flight_instance.flight_schedule.route.origin_airport', // For airport details
-					'booking_segments.flight_instance.flight_schedule.route.destination_airport', // For airport details
-					'booking_segments.fare_class',
-					'booking_segments.fare_class.cabin_class',
-					'booking_segments.flight_seat', // CRITICAL: Load seat information
-					'user',
-					'currency',
-				],
-			});
-
-			if (!bookingEntity) {
-				this.logger.error(`Booking ${booking.bookingId} not found when trying to send ticket confirmation email`);
-			} else {
-				// Verify seat information is loaded
-				const segmentsWithSeats = bookingEntity.booking_segments?.filter(
-					(seg) => seg.flight_seat && seg.flight_seat.seat_number,
-				) || [];
-				this.logger.log(
-					`Booking ${booking.bookingId} has ${segmentsWithSeats.length} segments with seats assigned out of ${bookingEntity.booking_segments?.length || 0} total segments`,
-				);
-
-				// Log seat details for debugging
-				for (const segment of bookingEntity.booking_segments || []) {
-					if (segment.flight_seat) {
-						this.logger.log(
-							`Segment ${segment.booking_segment_id} has seat ${segment.flight_seat.seat_number} (${segment.flight_seat.flight_seat_id})`,
-						);
-					} else {
-						this.logger.warn(`Segment ${segment.booking_segment_id} does NOT have a seat assigned`);
-					}
-				}
-
-				try {
-					await this.notificationService.sendTicketConfirmation(bookingEntity, tickets);
-					this.logger.log(`Ticket confirmation email sent for booking ${booking.bookingId}`);
-				} catch (error: any) {
-					// Log error but don't fail check-in
-					this.logger.error(`Failed to send ticket confirmation email: ${error?.message || error}`, error?.stack);
-				}
-			}
-
-			// Commit transaction
+			// For re-check-in (seats updated): Commit and return without creating new tickets
+			this.logger.log(`[Re-check-in] Committing seat updates for booking ${dto.bookingCode}...`);
 			await queryRunner.commitTransaction();
+			await queryRunner.release();
+			this.logger.log(`[Re-check-in] ✓ Seat update completed and committed for booking ${dto.bookingCode}`);
 
+			// Return success without creating new tickets (they already exist)
 			return {
 				bookingId: booking.bookingId,
 				pnrCode: booking.pnrCode,
-				ticketCount: tickets.length,
-				message: 'Check-in completed successfully. Tickets have been issued and sent to your email.',
-				alreadyCheckedIn: false,
+				ticketCount: existingBooking.tickets.length,
+				message: 'Seat selection has been updated successfully. Your ticket details have been updated.',
+				alreadyCheckedIn: true,
 			};
-		} catch (error: any) {
+		}
+
+		// Step 7: For initial check-in (no existing tickets), create tickets and send confirmation
+		// Create tickets within the same transaction using the queryRunner manager
+		let tickets: Ticket[] = [];
+		if (!existingBooking?.tickets || existingBooking.tickets.length === 0) {
+			tickets = await this.createTicketsFromBooking(booking.bookingId, queryRunner.manager);
+			this.logger.log(`Created ${tickets.length} tickets for booking ${booking.bookingId} during check-in`);
+		}
+
+		// CRITICAL: Reload booking with ALL necessary relations including passenger and seat information
+		const bookingEntity = await queryRunner.manager.findOne(Booking, {
+			where: { booking_id: booking.bookingId },
+			relations: [
+				'booking_segments',
+				'booking_segments.booking_passenger',
+				'booking_segments.booking_passenger.passenger', // CRITICAL: Load passenger for name
+				'booking_segments.flight_instance',
+				'booking_segments.flight_instance.flight_schedule',
+				'booking_segments.flight_instance.flight_schedule.route',
+				'booking_segments.flight_instance.flight_schedule.route.origin_airport', // For airport details
+				'booking_segments.flight_instance.flight_schedule.route.destination_airport', // For airport details
+				'booking_segments.fare_class',
+				'booking_segments.fare_class.cabin_class',
+				'booking_segments.flight_seat', // CRITICAL: Load seat information
+				'user',
+				'currency',
+			],
+		});
+
+		if (!bookingEntity) {
+			this.logger.error(`Booking ${booking.bookingId} not found when trying to send ticket confirmation email`);
+		} else {
+			// Use a non-null typed alias so TypeScript understands the value is present
+			const bookingBe = bookingEntity as Booking;
+
+			// Verify seat information is loaded
+			const segmentsWithSeats = bookingBe.booking_segments?.filter((seg) => seg.flight_seat && seg.flight_seat.seat_number) || [];
+			this.logger.log(
+				`Booking ${booking.bookingId} has ${segmentsWithSeats.length} segments with seats assigned out of ${bookingBe.booking_segments?.length || 0} total segments`,
+			);
+
+			// Log seat details for debugging
+			for (const segment of bookingBe.booking_segments || []) {
+				if (segment.flight_seat) {
+					this.logger.log(
+						`Segment ${segment.booking_segment_id} has seat ${segment.flight_seat.seat_number} (${segment.flight_seat.flight_seat_id})`,
+					);
+				} else {
+					this.logger.warn(`Segment ${segment.booking_segment_id} does NOT have a seat assigned`);
+				}
+			}
+
+			try {
+				await this.notificationService.sendTicketConfirmation(bookingBe, tickets);
+				this.logger.log(`Ticket confirmation email sent for booking ${booking.bookingId}`);
+			} catch (error: any) {
+				// Log error but don't fail check-in
+				this.logger.error(`Failed to send ticket confirmation email: ${error?.message || error}`, error?.stack);
+			}
+		}
+
+		// Commit transaction
+		await queryRunner.commitTransaction();
+
+		return {
+			bookingId: booking.bookingId,
+			pnrCode: booking.pnrCode,
+			ticketCount: tickets.length,
+			message: 'Check-in completed successfully. Tickets have been issued and sent to your email.',
+			alreadyCheckedIn: false,
+		};
+	} catch (error: any) {
 			await queryRunner.rollbackTransaction();
 			
 			// Enhanced error logging for debugging

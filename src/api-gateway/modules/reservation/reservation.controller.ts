@@ -18,13 +18,20 @@ import { Request } from 'express';
 import { RESERVATION_MS } from 'src/microservices/reservation/reservation.messages';
 import { ParseUUIDv7Pipe } from 'src/shared/pipes/parse-uuid-v7.pipe';
 import { RESERVATION_MESSAGES, COMMON_MESSAGES } from 'src/shared/constants/messages';
+import { SeatAvailabilityService } from '../realtime/services/seat-availability.service';
+import { Logger } from '@nestjs/common';
 
 @ApiTags('reservations')
 @Controller('reservations')
 @UseGuards(OptionalJwtAuthGuard)
 @ApiBearerAuth('access-token')
 export class ReservationController {
-	constructor(@Inject('RESERVATION_CLIENT') private readonly client: ClientProxy) {}
+	private readonly logger = new Logger(ReservationController.name);
+
+	constructor(
+		@Inject('RESERVATION_CLIENT') private readonly client: ClientProxy,
+		private readonly seatAvailabilityService: SeatAvailabilityService,
+	) {}
 
 	@Post()
 	@HttpCode(HttpStatus.OK)
@@ -61,13 +68,35 @@ export class ReservationController {
 			}
 			
 			// Send userId (null for guests) and sessionId to microservice
-			return await firstValueFrom(
+			const reservation = await firstValueFrom(
 				this.client.send<ReservationResponseDto>(RESERVATION_MS.PATTERN.CREATE_RESERVATION, {
 					userId, // null for guest users
 					sessionId: isGuest ? sessionIdHeader : undefined, // sessionId for guest users
 					dto,
 				}),
 			);
+
+			// Publish seat availability changes to WebSocket clients (real-time updates)
+			// When seats are reserved, notify all clients viewing the same flight
+			try {
+				for (const segment of reservation.segments) {
+					if (segment.flightSeatId && segment.seatNumber) {
+						await this.seatAvailabilityService.publishSeatChange(segment.flightInstanceId, [
+							{
+								flightSeatId: segment.flightSeatId,
+								seatNumber: segment.seatNumber,
+								status: 'reserved',
+								changedBy: userId || sessionIdHeader || 'guest',
+							},
+						]);
+					}
+				}
+			} catch (error) {
+				// Log error but don't fail the request - WebSocket is best effort
+				this.logger.warn(`Failed to publish seat availability changes: ${error.message}`);
+			}
+
+			return reservation;
 		} catch (error: any) {
 			// BEST PRACTICE: Re-throw HttpException instances first (BadRequestException, NotFoundException, etc.)
 			if (error instanceof HttpException) {
@@ -110,6 +139,11 @@ export class ReservationController {
 			// Connection refused - microservice is not running
 			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
 				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
+			}
+			
+			// Connection reset - microservice closed connection unexpectedly (ECONNRESET)
+			if (errorCode === 'ECONNRESET' || errorMessage.includes('ECONNRESET') || errorMessage.includes('read ECONNRESET')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
 			}
 			
 			// Connection closed - microservice disconnected
@@ -205,13 +239,19 @@ export class ReservationController {
 			const errorCode = error?.code || '';
 			
 			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
-				throw new ServiceUnavailableException('Reservation microservice is not available. Please ensure the service is running.');
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
 			}
+			
+			// Connection reset - microservice closed connection unexpectedly (ECONNRESET)
+			if (errorCode === 'ECONNRESET' || errorMessage.includes('ECONNRESET') || errorMessage.includes('read ECONNRESET')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+			}
+			
 			if (errorMessage.includes('Connection closed')) {
-				throw new ServiceUnavailableException('Reservation microservice connection was closed. Please ensure the service is running.');
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
 			}
 			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
-				throw new ServiceUnavailableException('Reservation microservice request timeout. The service may be unavailable or overloaded.');
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
 			}
 			
 			if (error?.status === 'error' && error?.message) {
@@ -267,13 +307,19 @@ export class ReservationController {
 			const errorCode = error?.code || '';
 			
 			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
-				throw new ServiceUnavailableException('Reservation microservice is not available. Please ensure the service is running.');
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
 			}
+			
+			// Connection reset - microservice closed connection unexpectedly (ECONNRESET)
+			if (errorCode === 'ECONNRESET' || errorMessage.includes('ECONNRESET') || errorMessage.includes('read ECONNRESET')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+			}
+			
 			if (errorMessage.includes('Connection closed')) {
-				throw new ServiceUnavailableException('Reservation microservice connection was closed. Please ensure the service is running.');
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
 			}
 			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
-				throw new ServiceUnavailableException('Reservation microservice request timeout. The service may be unavailable or overloaded.');
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
 			}
 			
 			if (error?.status === 'error' && error?.message) {
@@ -311,12 +357,47 @@ export class ReservationController {
 		@Param('id', ParseUUIDv7Pipe) reservationId: string,
 	): Promise<{ success: boolean; message: string }> {
 		try {
-			return await firstValueFrom(
+			// Get reservation before canceling to publish seat release events
+			let reservation: ReservationResponseDto | null = null;
+			try {
+				reservation = await firstValueFrom(
+					this.client.send<ReservationResponseDto>(RESERVATION_MS.PATTERN.GET_RESERVATION, reservationId),
+				);
+			} catch (error) {
+				// If reservation not found, still proceed with cancel (might be already cancelled)
+				this.logger.warn(`Could not fetch reservation ${reservationId} before cancel: ${error.message}`);
+			}
+
+			const result = await firstValueFrom(
 				this.client.send<{ success: boolean; message: string }>(
 					RESERVATION_MS.PATTERN.CANCEL_RESERVATION,
 					reservationId,
 				),
 			);
+
+			// Publish seat availability changes to WebSocket clients (real-time updates)
+			// When reservation is cancelled, release any reserved seats
+			if (reservation && result.success) {
+				try {
+					for (const segment of reservation.segments) {
+						if (segment.flightSeatId && segment.seatNumber) {
+							await this.seatAvailabilityService.publishSeatChange(segment.flightInstanceId, [
+								{
+									flightSeatId: segment.flightSeatId,
+									seatNumber: segment.seatNumber,
+									status: 'available',
+									changedBy: 'system',
+								},
+							]);
+						}
+					}
+				} catch (error) {
+					// Log error but don't fail the request - WebSocket is best effort
+					this.logger.warn(`Failed to publish seat availability changes on cancel: ${error.message}`);
+				}
+			}
+
+			return result;
 		} catch (error: any) {
 			// Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
 			if (error instanceof HttpException) {
@@ -333,13 +414,19 @@ export class ReservationController {
 			const errorCode = error?.code || '';
 			
 			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
-				throw new ServiceUnavailableException('Reservation microservice is not available. Please ensure the service is running.');
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
 			}
+			
+			// Connection reset - microservice closed connection unexpectedly (ECONNRESET)
+			if (errorCode === 'ECONNRESET' || errorMessage.includes('ECONNRESET') || errorMessage.includes('read ECONNRESET')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+			}
+			
 			if (errorMessage.includes('Connection closed')) {
-				throw new ServiceUnavailableException('Reservation microservice connection was closed. Please ensure the service is running.');
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
 			}
 			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
-				throw new ServiceUnavailableException('Reservation microservice request timeout. The service may be unavailable or overloaded.');
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
 			}
 			
 			if (error?.status === 'error' && error?.message) {
@@ -385,13 +472,19 @@ export class ReservationController {
 			const errorCode = error?.code || '';
 			
 			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
-				throw new ServiceUnavailableException('Reservation microservice is not available. Please ensure the service is running.');
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
 			}
+			
+			// Connection reset - microservice closed connection unexpectedly (ECONNRESET)
+			if (errorCode === 'ECONNRESET' || errorMessage.includes('ECONNRESET') || errorMessage.includes('read ECONNRESET')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+			}
+			
 			if (errorMessage.includes('Connection closed')) {
-				throw new ServiceUnavailableException('Reservation microservice connection was closed. Please ensure the service is running.');
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
 			}
 			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
-				throw new ServiceUnavailableException('Reservation microservice request timeout. The service may be unavailable or overloaded.');
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
 			}
 			
 			if (error?.status === 'error' && error?.message) {
@@ -450,13 +543,19 @@ export class ReservationController {
 			const errorCode = error?.code || '';
 			
 			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
-				throw new ServiceUnavailableException('Reservation microservice is not available. Please ensure the service is running.');
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
 			}
+			
+			// Connection reset - microservice closed connection unexpectedly (ECONNRESET)
+			if (errorCode === 'ECONNRESET' || errorMessage.includes('ECONNRESET') || errorMessage.includes('read ECONNRESET')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+			}
+			
 			if (errorMessage.includes('Connection closed')) {
-				throw new ServiceUnavailableException('Reservation microservice connection was closed. Please ensure the service is running.');
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
 			}
 			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
-				throw new ServiceUnavailableException('Reservation microservice request timeout. The service may be unavailable or overloaded.');
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
 			}
 			
 			if (error?.status === 'error' && error?.message) {

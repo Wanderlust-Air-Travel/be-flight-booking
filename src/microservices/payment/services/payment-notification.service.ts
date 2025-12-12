@@ -221,13 +221,18 @@ export class PaymentNotificationService {
 					})
 				: 'N/A';
 
+			// Check if seat is assigned (before check-in, seat will be null/N/A)
+			const seatInfo = seatNumber === 'N/A' || !seatNumber
+				? 'Sẽ được chọn khi làm thủ tục check-in'
+				: seatNumber;
+
 			lines.push(
 				`Chuyến bay: ${flightNumber}\n` +
 					`Từ: ${origin} → Đến: ${destination}\n` +
 					`Giờ khởi hành: ${departureTime}\n` +
 					`Hành khách: ${passengerName}\n` +
 					`Hạng vé: ${cabinClass}\n` +
-					`Số ghế: ${seatNumber}`,
+					`Số ghế: ${seatInfo}`,
 			);
 		}
 

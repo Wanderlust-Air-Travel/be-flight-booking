@@ -15,27 +15,31 @@ export class LoggingInterceptor implements NestInterceptor {
 
 	intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
 		const request = context.switchToHttp().getRequest();
-		const { method, url, body, query, params } = request;
+		const { method, url } = request;
 		const requestId = (request as any).requestId || 'unknown';
 
 		const now = Date.now();
-
-		this.logger.log(
-			`→ ${method} ${url} [Request ID: ${requestId}]`,
-			JSON.stringify({ query, params, body: this.sanitizeBody(body) }, null, 2),
-		);
+		
+		// Chỉ log các request quan trọng (POST, PUT, DELETE, PATCH) và errors
+		// Bỏ qua GET requests để giảm noise
+		const shouldLog = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method);
 
 		return next.handle().pipe(
 			tap(() => {
 				const response = context.switchToHttp().getResponse();
 				const delay = Date.now() - now;
-				this.logger.log(
-					`← ${method} ${url} ${response.statusCode} - ${delay}ms [Request ID: ${requestId}]`,
-				);
+				
+				// Chỉ log nếu là request quan trọng hoặc có lỗi (status >= 400)
+				if (shouldLog || response.statusCode >= 400) {
+					this.logger.log(
+						`${method} ${url} ${response.statusCode} - ${delay}ms [Request ID: ${requestId}]`,
+					);
+				}
 			}),
 			catchError((error) => {
 				const delay = Date.now() - now;
 				const status = error?.status || error?.statusCode || 500;
+				// Luôn log errors
 				this.logger.error(
 					`✗ ${method} ${url} ${status} - ${delay}ms [Request ID: ${requestId}]`,
 					error?.stack || error?.message,

@@ -9,7 +9,9 @@ import { join } from 'path';
 import { NestExpressApplication } from '@nestjs/platform-express';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    logger: ['error', 'warn'], // Chỉ log errors và warnings, tắt RouterExplorer và InstanceLoader logs
+  });
   
   // Enable API versioning
   app.setGlobalPrefix('api');

@@ -193,13 +193,23 @@ export class EmailTemplateService {
 								? seatDetails
 										.split('\n\n')
 										.map(
-											(block) => `
-							<div style="margin: 8px 0; padding: 8px; background-color: #f5f5f5; border-radius: 4px;">
-								${block
-									.split('\n')
-									.map((line) => `<p style="margin: 2px 0;">${line}</p>`)
-									.join('')}
-							</div>`,
+											(block) => {
+												// Check if this block contains "Sẽ được chọn khi làm thủ tục check-in"
+												const hasSeatToBeSelected = block.includes('Sẽ được chọn khi làm thủ tục check-in');
+												const blockLines = block.split('\n');
+												const formattedLines = blockLines.map((line) => {
+													// Highlight seat selection notice
+													if (line.includes('Sẽ được chọn khi làm thủ tục check-in')) {
+														return `<p style="margin: 2px 0; color: #856404; font-style: italic;">${line}</p>`;
+													}
+													return `<p style="margin: 2px 0;">${line}</p>`;
+												}).join('');
+												
+												return `
+							<div style="margin: 8px 0; padding: 8px; background-color: ${hasSeatToBeSelected ? '#fff3cd' : '#f5f5f5'}; border-radius: 4px; ${hasSeatToBeSelected ? 'border-left: 3px solid #ffc107;' : ''}">
+								${formattedLines}
+							</div>`;
+											},
 										)
 										.join('')
 								: '<p>Không có thông tin chỗ ngồi.</p>'
@@ -210,6 +220,11 @@ export class EmailTemplateService {
 					<div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107;">
 						<div style="font-weight: bold; margin-bottom: 8px; color: #856404;">⏰ Lưu ý làm thủ tục:</div>
 						<p style="margin: 10px 0 0 0; color: #856404; font-size: 13px;">
+							${
+								seatDetails !== 'N/A' && seatDetails.includes('Sẽ được chọn khi làm thủ tục check-in')
+									? '<strong>Quan trọng:</strong> Số ghế ngồi sẽ được chọn khi bạn làm thủ tục check-in. Vui lòng có mặt tại sân bay đúng giờ để làm thủ tục check-in và chọn ghế ngồi. '
+									: ''
+							}
 							Vui lòng có mặt tại sân bay đúng giờ để làm thủ tục check-in. 
 							Vui lòng có mặt trước giờ khởi hành ít nhất 24 giờ để làm thủ tục.
 						</p>
@@ -228,6 +243,11 @@ export class EmailTemplateService {
 </html>
 		`;
 
+		const hasSeatToBeSelected = seatDetails !== 'N/A' && seatDetails.includes('Sẽ được chọn khi làm thủ tục check-in');
+		const checkInNote = hasSeatToBeSelected
+			? 'QUAN TRỌNG: Số ghế ngồi sẽ được chọn khi bạn làm thủ tục check-in. '
+			: '';
+
 		const textBody = `Thanh toán thành công
 
 Mã đặt chỗ (PNR): ${pnrCode}
@@ -237,7 +257,7 @@ Tổng tiền: ${totalAmount.toLocaleString()} ${currency}
 Thông tin chỗ ngồi:
 ${seatDetails}
 
-Vui lòng có mặt tại sân bay đúng giờ để làm thủ tục check-in. 
+${checkInNote}Vui lòng có mặt tại sân bay đúng giờ để làm thủ tục check-in. 
 Vui lòng có mặt trước giờ khởi hành ít nhất 24 giờ để làm thủ tục.
 
 Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi.`;
@@ -297,13 +317,20 @@ Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi.`;
 
 	/**
 	 * Render Booking Confirmation template
+	 * This email is sent immediately after booking creation (before check-in)
+	 * So it should not include ticket details yet
 	 */
 	private renderBookingConfirmationTemplate(data: Record<string, any>): TemplateResult {
 		const pnrCode = data.pnrCode || 'N/A';
 		const bookingId = data.bookingId || 'N/A';
-		const flightDetails = data.flightDetails || 'N/A';
+		const flightDetails = data.flightDetails || '';
 		const passengerName = data.passengerName || 'Quý khách';
 		const checkInTime = data.checkInTime || 'N/A';
+		const totalAmount = data.totalAmount || 0;
+		const currency = data.currency || 'VND';
+		
+		// Check if flight details are actually available (not empty, null, or 'N/A')
+		const hasFlightDetails = flightDetails && flightDetails !== 'N/A' && flightDetails.trim().length > 0;
 
 		const subject = `Xác nhận đặt chỗ - Mã đặt chỗ: ${pnrCode}`;
 		const htmlBody = `
@@ -317,43 +344,78 @@ Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi.`;
 		.header { background-color: #007bff; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
 		.content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 5px 5px; }
 		.info-box { background-color: white; padding: 20px; margin: 20px 0; border-radius: 5px; border-left: 4px solid #007bff; }
+		.step-box { background-color: white; padding: 15px; margin: 15px 0; border-radius: 5px; border-left: 4px solid #17a2b8; }
+		.step-number { display: inline-block; background-color: #17a2b8; color: white; width: 30px; height: 30px; border-radius: 50%; text-align: center; line-height: 30px; font-weight: bold; margin-right: 10px; }
+		.warning-box { background-color: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107; margin: 20px 0; }
 		.footer { margin-top: 20px; font-size: 12px; color: #666; text-align: center; }
 	</style>
 </head>
 <body>
 	<div class="container">
 		<div class="header">
-			<h1>✓ Xác nhận đặt chỗ</h1>
+			<h1>✓ Xác nhận đặt chỗ thành công</h1>
 		</div>
 		<div class="content">
 			<p>Xin chào <strong>${passengerName}</strong>,</p>
-			<p>Đặt chỗ của bạn đã được xác nhận thành công.</p>
+			<p>Đặt chỗ của bạn đã được tạo thành công. Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi!</p>
+			
 			<div class="info-box">
-				<p><strong>Mã đặt chỗ (PNR):</strong> ${pnrCode}</p>
+				<h3 style="margin-top: 0; color: #007bff;">📌 Thông tin đặt chỗ</h3>
+				<p><strong>Mã đặt chỗ (PNR):</strong> <span style="font-size: 18px; color: #007bff; font-weight: bold;">${pnrCode}</span></p>
 				<p><strong>Mã booking:</strong> ${bookingId}</p>
-				<p><strong>Chi tiết chuyến bay:</strong></p>
-				<div style="background-color: #f0f0f0; padding: 15px; border-radius: 5px; margin-top: 10px;">
-					${flightDetails !== 'N/A' ? flightDetails.split('\n\n').map(detail => 
+				<p><strong>Tổng tiền:</strong> ${totalAmount.toLocaleString()} ${currency}</p>
+			</div>
+
+			<div class="warning-box">
+				<strong>🔔 Các bước tiếp theo:</strong>
+				<div style="margin-top: 15px;">
+					<div class="step-box">
+						<span class="step-number">1</span>
+						<strong>Thanh toán</strong> - Vui lòng thanh toán trong vòng 15 phút để hoàn tất đặt chỗ
+					</div>
+					<div class="step-box">
+						<span class="step-number">2</span>
+						<strong>Nhận email xác nhận</strong> - Sau khi thanh toán, bạn sẽ nhận được email xác nhận thanh toán
+					</div>
+					<div class="step-box">
+						<span class="step-number">3</span>
+						<strong>Làm thủ tục check-in</strong> - Sử dụng mã đặt chỗ trên để làm thủ tục check-in
+					</div>
+					<div class="step-box">
+						<span class="step-number">4</span>
+						<strong>Nhận vé máy bay</strong> - Sau khi check-in, bạn sẽ nhận được vé máy bay qua email
+					</div>
+				</div>
+			</div>
+
+			${hasFlightDetails ? `
+			<div class="info-box">
+				<h3 style="margin-top: 0; color: #007bff;">✈️ Chi tiết chuyến bay</h3>
+				<div style="background-color: #f0f0f0; padding: 15px; border-radius: 5px;">
+					${flightDetails.split('\n\n').map(detail => 
 						`<div style="margin-bottom: 15px; padding: 10px; background-color: white; border-left: 3px solid #007bff; border-radius: 3px;">
 							${detail.split('\n').map(line => `<p style="margin: 5px 0;">${line}</p>`).join('')}
 						</div>`
-					).join('') : '<p>N/A</p>'}
+					).join('')}
 				</div>
-				${checkInTime !== 'N/A' ? `
-				<div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
-					<div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107;">
-						<div style="font-weight: bold; margin-bottom: 8px; color: #856404;">⏰ Lưu ý làm thủ tục:</div>
-						<p style="margin: 10px 0 0 0; color: #856404; font-size: 13px;">
-							Vui lòng có mặt tại sân bay đúng giờ để làm thủ tục check-in. 
-							Vui lòng có mặt trước giờ khởi hành ít nhất 24 giờ để làm thủ tục.
-						</p>
-					</div>
-				</div>
-				` : ''}
 			</div>
-			<p>Vui lòng thanh toán trong vòng 15 phút để hoàn tất đặt chỗ. Sau khi thanh toán thành công, bạn sẽ nhận được email xác nhận kèm theo vé điện tử.</p>
+			` : ''}
+
+			<div class="warning-box">
+				<strong>⏰ Lưu ý làm thủ tục:</strong>
+				<p style="margin: 10px 0 0 0; font-size: 14px;">
+					Vui lòng có mặt tại sân bay trước giờ khởi hành ít nhất 24 giờ để làm thủ tục check-in. 
+					Hãy lưu lại mã đặt chỗ <strong>${pnrCode}</strong> để sử dụng tại sân bay.
+				</p>
+			</div>
+
+			<p style="font-size: 13px; color: #666;">
+				Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi qua email hoặc hotline của chúng tôi.
+			</p>
+
 			<div class="footer">
 				<p>Đây là email tự động, vui lòng không trả lời email này.</p>
+				<p>© 2025 Flight Booking System. All rights reserved.</p>
 			</div>
 		</div>
 	</div>
@@ -361,7 +423,27 @@ Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi.`;
 </html>
 		`;
 
-		const textBody = `Xác nhận đặt chỗ\n\nMã đặt chỗ (PNR): ${pnrCode}\nMã booking: ${bookingId}\n\nChi tiết chuyến bay:\n${flightDetails}\n\nVui lòng có mặt tại sân bay đúng giờ để làm thủ tục check-in. Vui lòng có mặt trước giờ khởi hành ít nhất 24 giờ để làm thủ tục.\n\nVui lòng thanh toán trong vòng 15 phút để hoàn tất đặt chỗ.`;
+		const textBody = `Xác nhận đặt chỗ thành công
+
+Mã đặt chỗ (PNR): ${pnrCode}
+Mã booking: ${bookingId}
+Tổng tiền: ${totalAmount.toLocaleString()} ${currency}
+
+CÁC BƯỚC TIẾP THEO:
+1. Thanh toán - Vui lòng thanh toán trong vòng 15 phút để hoàn tất đặt chỗ
+2. Nhận email xác nhận - Sau khi thanh toán, bạn sẽ nhận được email xác nhận thanh toán
+3. Làm thủ tục check-in - Sử dụng mã đặt chỗ để làm thủ tục check-in
+4. Nhận vé máy bay - Sau khi check-in, bạn sẽ nhận được vé máy bay qua email
+
+${hasFlightDetails ? `CHI TIẾT CHUYẾN BAY:
+${flightDetails}` : `CHI TIẾT CHUYẾN BAY:
+Thông tin chi tiết chuyến bay sẽ được gửi sau khi thanh toán`}
+
+LƯU Ý:
+Vui lòng có mặt tại sân bay trước giờ khởi hành ít nhất 24 giờ để làm thủ tục check-in.
+Hãy lưu lại mã đặt chỗ ${pnrCode} để sử dụng tại sân bay.
+
+Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi!`;
 
 		return { subject, htmlBody, textBody };
 	}

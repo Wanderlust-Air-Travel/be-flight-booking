@@ -10,14 +10,6 @@ export class ValidationExceptionFilter implements ExceptionFilter {
 		const status = exception.getStatus();
 		const exceptionResponse = exception.getResponse();
 
-		// Log validation errors for debugging
-		console.log('[DEBUG] Validation error:', {
-			url: request.url,
-			query: request.query,
-			body: request.body,
-			error: exceptionResponse,
-		});
-
 		response.status(status).json(exceptionResponse);
 	}
 }

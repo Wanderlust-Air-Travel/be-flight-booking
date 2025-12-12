@@ -42,6 +42,60 @@ import { BOOKING_MESSAGES, COMMON_MESSAGES } from 'src/shared/constants/messages
 export class BookingController {
 	private readonly logger = new Logger(BookingController.name);
 
+	/**
+	 * Helper method to handle microservice connection errors
+	 * BEST PRACTICE: Centralized error handling for consistency
+	 */
+	private handleMicroserviceError(error: any, context: string): never {
+		// BEST PRACTICE: Re-throw HttpException instances first
+		if (error instanceof BadRequestException || error instanceof NotFoundException || error instanceof ServiceUnavailableException) {
+			throw error;
+		}
+
+		// Handle NestJS HTTP exceptions
+		if (error?.statusCode && error?.message) {
+			throw error;
+		}
+
+		// Handle microservice error format: { status: 'error', message: '...' }
+		if (error?.status === 'error' && error?.message) {
+			throw new BadRequestException(`${context} failed: ${error.message}`);
+		}
+
+		// Handle microservice connection errors - these are infrastructure issues (503)
+		const errorMessage = error?.message || error?.toString() || '';
+		const errorCode = error?.code || '';
+
+		// Connection refused - microservice is not running
+		if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
+			throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
+		}
+
+		// Connection reset - microservice closed connection unexpectedly (ECONNRESET)
+		if (errorCode === 'ECONNRESET' || errorMessage.includes('ECONNRESET') || errorMessage.includes('read ECONNRESET')) {
+			throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+		}
+
+		// Connection closed - microservice disconnected
+		if (errorMessage.includes('Connection closed')) {
+			throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+		}
+
+		// Invalid TCP data reception - microservice may be restarting or connection issue
+		if (errorMessage.includes('InvalidTcpDataReceptionException') || errorMessage.includes('invalid received message from tcp server')) {
+			throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+		}
+
+		// Timeout errors - microservice not responding
+		if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+			throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
+		}
+
+		// Handle other errors
+		const finalErrorMessage = errorMessage || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR;
+		throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${finalErrorMessage}`);
+	};
+
 	constructor(
 		@Inject('BOOKING_CLIENT') private readonly client: ClientProxy,
 		@InjectRepository(User) private readonly userRepo: Repository<User>,
@@ -106,30 +160,7 @@ export class BookingController {
 			);
 		} catch (error: any) {
 			console.error('Create booking error:', error);
-			
-			// Handle NestJS HTTP exceptions
-			if (error?.statusCode && error?.message) {
-				throw error;
-			}
-			
-			// Handle microservice error format: { status: 'error', message: '...' }
-			if (error?.status === 'error' && error?.message) {
-				throw new BadRequestException(`Create booking failed: ${error.message}`);
-			}
-			
-			// Handle connection errors
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
-			}
-			
-			// Handle timeout errors
-			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
-			}
-			
-			// Handle other errors
-			const errorMessage = error?.message || error?.toString() || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR;
-			throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${errorMessage}`);
+			this.handleMicroserviceError(error, 'Create booking');
 		}
 	}
 
@@ -164,19 +195,7 @@ export class BookingController {
 			);
 		} catch (error: any) {
 			console.error('Get booking fare details error:', error);
-			if (error?.statusCode && error?.message) {
-				throw error;
-			}
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
-			}
-			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
-			}
-			if (error?.status === 'error' && error?.message) {
-				throw new BadRequestException(`Get booking fare details failed: ${error.message}`);
-			}
-			throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`);
+			this.handleMicroserviceError(error, 'Get booking fare details');
 		}
 	}
 
@@ -223,19 +242,7 @@ export class BookingController {
 			);
 		} catch (error: any) {
 			console.error('Update booking passengers error:', error);
-			if (error?.statusCode && error?.message) {
-				throw error;
-			}
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
-			}
-			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
-			}
-			if (error?.status === 'error' && error?.message) {
-				throw new BadRequestException(`Update booking passengers failed: ${error.message}`);
-			}
-			throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`);
+			this.handleMicroserviceError(error, 'Update booking passengers');
 		}
 	}
 
@@ -270,19 +277,7 @@ export class BookingController {
 			);
 		} catch (error: any) {
 			console.error('Get booking payment info error:', error);
-			if (error?.statusCode && error?.message) {
-				throw error;
-			}
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
-			}
-			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
-			}
-			if (error?.status === 'error' && error?.message) {
-				throw new BadRequestException(`Get booking payment info failed: ${error.message}`);
-			}
-			throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`);
+			this.handleMicroserviceError(error, 'Get booking payment info');
 		}
 	}
 
@@ -331,19 +326,7 @@ export class BookingController {
 			);
 		} catch (error: any) {
 			console.error('Get my tickets error:', error);
-			if (error?.statusCode && error?.message) {
-				throw error;
-			}
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
-			}
-			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
-			}
-			if (error?.status === 'error' && error?.message) {
-				throw new BadRequestException(`Get my tickets failed: ${error.message}`);
-			}
-			throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`);
+			this.handleMicroserviceError(error, 'Get my tickets');
 		}
 	}
 
@@ -369,19 +352,7 @@ export class BookingController {
 			);
 		} catch (error: any) {
 			console.error('Get my journey error:', error);
-			if (error?.statusCode && error?.message) {
-				throw error;
-			}
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
-			}
-			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
-			}
-			if (error?.status === 'error' && error?.message) {
-				throw new BadRequestException(`Get my journey failed: ${error.message}`);
-			}
-			throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`);
+			this.handleMicroserviceError(error, 'Get my journey');
 		}
 	}
 
@@ -427,19 +398,7 @@ export class BookingController {
 			);
 		} catch (error: any) {
 			console.error('Get booking error:', error);
-			if (error?.statusCode && error?.message) {
-				throw error;
-			}
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
-			}
-			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
-			}
-			if (error?.status === 'error' && error?.message) {
-				throw new BadRequestException(`Get booking failed: ${error.message}`);
-			}
-			throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`);
+			this.handleMicroserviceError(error, 'Get booking');
 		}
 	}
 
@@ -524,28 +483,37 @@ export class BookingController {
 				throw error;
 			}
 			
-			// Handle connection errors
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
+			// Handle microservice connection errors first
+			const errorMessage = error?.message || error?.toString() || '';
+			const errorCode = error?.code || '';
+			
+			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
 			}
-			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
+			if (errorCode === 'ECONNRESET' || errorMessage.includes('ECONNRESET') || errorMessage.includes('read ECONNRESET')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+			}
+			if (errorMessage.includes('Connection closed')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+			}
+			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
 			}
 			
 			// Handle microservice error format (status: 'error')
 			if (error?.status === 'error' && error?.message) {
 				// Extract the actual error message from microservice response
-				const errorMessage = error.message;
+				const errorMsg = error.message;
 				// If it's a BadRequestException from microservice, preserve the message
-				if (errorMessage.includes('Cannot cancel') || errorMessage.includes('already cancelled') || errorMessage.includes('does not belong')) {
-					throw new BadRequestException(errorMessage);
+				if (errorMsg.includes('Cannot cancel') || errorMsg.includes('already cancelled') || errorMsg.includes('does not belong')) {
+					throw new BadRequestException(errorMsg);
 				}
-				throw new BadRequestException(`Cancel booking failed: ${errorMessage}`);
+				throw new BadRequestException(`Cancel booking failed: ${errorMsg}`);
 			}
 			
 			// Fallback: try to extract message from error object
-			const errorMessage = error?.message || error?.error?.message || 'Unknown error';
-			throw new BadRequestException(`Cancel booking failed: ${errorMessage}`);
+			const finalErrorMessage = error?.message || error?.error?.message || errorMessage || 'Unknown error';
+			throw new BadRequestException(`Cancel booking failed: ${finalErrorMessage}`);
 		}
 	}
 
@@ -596,23 +564,7 @@ export class BookingController {
 			return result;
 		} catch (error: any) {
 			this.logger.error('Get ticket info error:', error);
-
-			// Handle NestJS exceptions
-			if (error?.statusCode && error?.message) {
-				throw error;
-			}
-
-			// Handle connection errors
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
-			}
-			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
-			}
-
-			// Fallback
-			const errorMessage = error?.message || error?.error?.message || 'Unknown error';
-			throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${errorMessage}`);
+			this.handleMicroserviceError(error, 'Get ticket info');
 		}
 	}
 
@@ -700,26 +652,35 @@ export class BookingController {
 				throw error;
 			}
 
-			// Handle connection errors
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
+			// Handle microservice connection errors first
+			const errorMessage = error?.message || error?.toString() || '';
+			const errorCode = error?.code || '';
+
+			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
 			}
-			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
+			if (errorCode === 'ECONNRESET' || errorMessage.includes('ECONNRESET') || errorMessage.includes('read ECONNRESET')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+			}
+			if (errorMessage.includes('Connection closed')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+			}
+			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
 			}
 
 			// Handle microservice error format
 			if (error?.status === 'error' && error?.message) {
-				const errorMessage = error.message;
-				if (errorMessage.includes('Cannot cancel') || errorMessage.includes('already cancelled') || errorMessage.includes('does not belong')) {
-					throw new BadRequestException(errorMessage);
+				const errorMsg = error.message;
+				if (errorMsg.includes('Cannot cancel') || errorMsg.includes('already cancelled') || errorMsg.includes('does not belong')) {
+					throw new BadRequestException(errorMsg);
 				}
-				throw new BadRequestException(`Cancel ticket failed: ${errorMessage}`);
+				throw new BadRequestException(`Cancel ticket failed: ${errorMsg}`);
 			}
 
 			// Fallback
-			const errorMessage = error?.message || error?.error?.message || 'Unknown error';
-			throw new BadRequestException(`Cancel ticket failed: ${errorMessage}`);
+			const finalErrorMessage = error?.message || error?.error?.message || errorMessage || 'Unknown error';
+			throw new BadRequestException(`Cancel ticket failed: ${finalErrorMessage}`);
 		}
 	}
 
@@ -748,19 +709,7 @@ export class BookingController {
 			);
 		} catch (error: any) {
 			this.logger.error('Get booking by code error:', error);
-			if (error?.statusCode && error?.message) {
-				throw error;
-			}
-			if (error?.code === 'ECONNREFUSED' || error?.message?.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
-			}
-			if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout')) {
-				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
-			}
-			if (error?.status === 'error' && error?.message) {
-				throw new BadRequestException(`Get booking by code failed: ${error.message}`);
-			}
-			throw new BadRequestException(`${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`);
+			this.handleMicroserviceError(error, 'Get booking by code');
 		}
 	}
 
@@ -810,17 +759,22 @@ export class BookingController {
 
 			// Connection refused - microservice is not running
 			if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
-				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
+			}
+
+			// Connection reset - microservice closed connection unexpectedly (ECONNRESET)
+			if (errorCode === 'ECONNRESET' || errorMessage.includes('ECONNRESET') || errorMessage.includes('read ECONNRESET')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
 			}
 
 			// Connection closed - microservice disconnected
 			if (errorMessage.includes('Connection closed')) {
-				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
 			}
 
 			// Timeout errors - microservice not responding
 			if (errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
-				throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT);
 			}
 
 			// Handle RpcException - NestJS microservice exceptions

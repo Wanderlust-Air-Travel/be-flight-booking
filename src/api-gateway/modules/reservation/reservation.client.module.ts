@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { RESERVATION_MS } from 'src/microservices/reservation/reservation.messages';
 import { ReservationController } from './reservation.controller';
+import { RealtimeModule } from '../realtime/realtime.module';
 
 @Module({
 	imports: [
@@ -15,6 +16,7 @@ import { ReservationController } from './reservation.controller';
 				},
 			},
 		]),
+		RealtimeModule,
 	],
 	controllers: [ReservationController],
 })

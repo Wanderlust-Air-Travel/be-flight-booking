@@ -22,11 +22,18 @@ import { Request } from 'express';
 import { PAYMENT_MS } from 'src/microservices/payment/payment.messages';
 import { JwtAuthGuard } from '../auth/guard/jwt-auth.guard';
 import { PAYMENT_MESSAGES, COMMON_MESSAGES } from 'src/shared/constants/messages';
+import { PaymentStatusService } from '../realtime/services/payment-status.service';
+import { Logger } from '@nestjs/common';
 
 @ApiTags('payments')
 @Controller('payments')
 export class PaymentController {
-	constructor(@Inject('PAYMENT_CLIENT') private readonly client: ClientProxy) {}
+	private readonly logger = new Logger(PaymentController.name);
+
+	constructor(
+		@Inject('PAYMENT_CLIENT') private readonly client: ClientProxy,
+		private readonly paymentStatusService: PaymentStatusService,
+	) {}
 
 	@Post('bookings/:bookingId')
 	@UseGuards(JwtAuthGuard)
@@ -107,8 +114,18 @@ export class PaymentController {
 				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
 			}
 			
+			// Connection reset - microservice closed connection unexpectedly (ECONNRESET)
+			if (errorCode === 'ECONNRESET' || errorMessage.includes('ECONNRESET') || errorMessage.includes('read ECONNRESET')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+			}
+			
 			// Connection closed - microservice disconnected
-			if (errorMessage.includes('Connection closed') || errorMessage.includes('Connection closed')) {
+			if (errorMessage.includes('Connection closed')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+			}
+			
+			// Invalid TCP data reception - microservice may be restarting or connection issue
+			if (errorMessage.includes('InvalidTcpDataReceptionException') || errorMessage.includes('invalid received message from tcp server')) {
 				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
 			}
 			
@@ -198,7 +215,7 @@ export class PaymentController {
 			// BEST PRACTICE: Payment processing can be slow due to payment gateway integration and database transactions
 			// Set timeout to 60 seconds (payment processing is more complex)
 			// userId can be null for guest users
-			return await firstValueFrom(
+			const payment = await firstValueFrom(
 				this.client.send<PaymentResponseDto>(PAYMENT_MS.PATTERN.PROCESS_PAYMENT, {
 					userId, // null for guest users
 					dto: {
@@ -218,6 +235,24 @@ export class PaymentController {
 					}),
 				),
 			);
+
+			// Publish payment status change to WebSocket clients (real-time updates)
+			try {
+				await this.paymentStatusService.publishPaymentStatusChange(
+					payment.bookingId,
+					payment.paymentId,
+					payment.status,
+					{
+						transactionRef: payment.transactionRef,
+						paymentMethodCode: payment.paymentMethodCode,
+					},
+				);
+			} catch (error) {
+				// Log error but don't fail the request - WebSocket is best effort
+				this.logger.warn(`Failed to publish payment status change: ${error.message}`);
+			}
+
+			return payment;
 		} catch (error: any) {
 			// Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
 			if (error instanceof HttpException) {
@@ -256,8 +291,18 @@ export class PaymentController {
 				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
 			}
 			
+			// Connection reset - microservice closed connection unexpectedly (ECONNRESET)
+			if (errorCode === 'ECONNRESET' || errorMessage.includes('ECONNRESET') || errorMessage.includes('read ECONNRESET')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+			}
+			
 			// Connection closed - microservice disconnected
-			if (errorMessage.includes('Connection closed') || errorMessage.includes('Connection closed')) {
+			if (errorMessage.includes('Connection closed')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+			}
+			
+			// Invalid TCP data reception - microservice may be restarting or connection issue
+			if (errorMessage.includes('InvalidTcpDataReceptionException') || errorMessage.includes('invalid received message from tcp server')) {
 				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
 			}
 			
@@ -375,8 +420,18 @@ export class PaymentController {
 				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
 			}
 			
+			// Connection reset - microservice closed connection unexpectedly (ECONNRESET)
+			if (errorCode === 'ECONNRESET' || errorMessage.includes('ECONNRESET') || errorMessage.includes('read ECONNRESET')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+			}
+			
 			// Connection closed - microservice disconnected
-			if (errorMessage.includes('Connection closed') || errorMessage.includes('Connection closed')) {
+			if (errorMessage.includes('Connection closed')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+			}
+			
+			// Invalid TCP data reception - microservice may be restarting or connection issue
+			if (errorMessage.includes('InvalidTcpDataReceptionException') || errorMessage.includes('invalid received message from tcp server')) {
 				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
 			}
 			
@@ -489,8 +544,18 @@ export class PaymentController {
 				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
 			}
 			
+			// Connection reset - microservice closed connection unexpectedly (ECONNRESET)
+			if (errorCode === 'ECONNRESET' || errorMessage.includes('ECONNRESET') || errorMessage.includes('read ECONNRESET')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+			}
+			
 			// Connection closed - microservice disconnected
-			if (errorMessage.includes('Connection closed') || errorMessage.includes('Connection closed')) {
+			if (errorMessage.includes('Connection closed')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+			}
+			
+			// Invalid TCP data reception - microservice may be restarting or connection issue
+			if (errorMessage.includes('InvalidTcpDataReceptionException') || errorMessage.includes('invalid received message from tcp server')) {
 				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
 			}
 			
@@ -612,8 +677,18 @@ export class PaymentController {
 				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
 			}
 			
+			// Connection reset - microservice closed connection unexpectedly (ECONNRESET)
+			if (errorCode === 'ECONNRESET' || errorMessage.includes('ECONNRESET') || errorMessage.includes('read ECONNRESET')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+			}
+			
 			// Connection closed - microservice disconnected
-			if (errorMessage.includes('Connection closed') || errorMessage.includes('Connection closed')) {
+			if (errorMessage.includes('Connection closed')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+			}
+			
+			// Invalid TCP data reception - microservice may be restarting or connection issue
+			if (errorMessage.includes('InvalidTcpDataReceptionException') || errorMessage.includes('invalid received message from tcp server')) {
 				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
 			}
 			
@@ -696,8 +771,8 @@ export class PaymentController {
 			// Forward webhook to payment microservice
 			// BEST PRACTICE: Webhook processing can be slow due to payment gateway verification and database operations
 			// Set timeout to 60 seconds (webhook processing can involve external API calls)
-			await firstValueFrom(
-				this.client.send(PAYMENT_MS.PATTERN.HANDLE_WEBHOOK, {
+			const result = await firstValueFrom(
+				this.client.send<{ success: boolean; payment?: PaymentResponseDto }>(PAYMENT_MS.PATTERN.HANDLE_WEBHOOK, {
 					gateway,
 					signature: signature || '',
 					payload,
@@ -714,6 +789,24 @@ export class PaymentController {
 					}),
 				),
 			);
+
+			// Publish payment status change to WebSocket clients (real-time updates)
+			if (result.payment) {
+				try {
+					await this.paymentStatusService.publishPaymentStatusChange(
+						result.payment.bookingId,
+						result.payment.paymentId,
+						result.payment.status,
+						{
+							transactionRef: result.payment.transactionRef,
+							paymentMethodCode: result.payment.paymentMethodCode,
+						},
+					);
+				} catch (error) {
+					// Log error but don't fail the request - WebSocket is best effort
+					this.logger.warn(`Failed to publish payment status change from webhook: ${error.message}`);
+				}
+			}
 
 			return {
 				success: true,
@@ -740,8 +833,18 @@ export class PaymentController {
 				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED);
 			}
 			
+			// Connection reset - microservice closed connection unexpectedly (ECONNRESET)
+			if (errorCode === 'ECONNRESET' || errorMessage.includes('ECONNRESET') || errorMessage.includes('read ECONNRESET')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+			}
+			
 			// Connection closed - microservice disconnected
-			if (errorMessage.includes('Connection closed') || errorMessage.includes('Connection closed')) {
+			if (errorMessage.includes('Connection closed')) {
+				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
+			}
+			
+			// Invalid TCP data reception - microservice may be restarting or connection issue
+			if (errorMessage.includes('InvalidTcpDataReceptionException') || errorMessage.includes('invalid received message from tcp server')) {
 				throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED);
 			}
 			

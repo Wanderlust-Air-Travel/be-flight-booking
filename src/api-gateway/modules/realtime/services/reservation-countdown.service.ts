@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleInit, OnModuleDestroy, Inject, forwardRef }
 import { RealtimeGateway } from '../realtime.gateway';
 import { RealtimeService } from '../realtime.service';
 import { ClientProxy } from '@nestjs/microservices';
-import { interval, Subscription } from 'rxjs';
+import { interval, Subscription, firstValueFrom } from 'rxjs';
 import { ReservationCountdownUpdateEvent, ReservationCountdownExpiredEvent } from '../types/reservation-countdown.types';
 
 /**
@@ -85,9 +85,9 @@ export class ReservationCountdownService implements OnModuleInit, OnModuleDestro
 		const subscription = interval(this.checkInterval).subscribe(async () => {
 			try {
 				// Get reservation from Reservation Service via TCP
-				const reservation = await this.reservationClient
-					.send('reservation.get', reservationId)
-					.toPromise();
+				const reservation = await firstValueFrom(
+					this.reservationClient.send('reservation.get', reservationId),
+				);
 
 				if (!reservation) {
 					// Reservation not found, stop countdown

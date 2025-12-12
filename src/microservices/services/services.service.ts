@@ -104,14 +104,10 @@ export class ServicesService {
 		
 		// Nếu không có giá từ database, bỏ qua route này
 		if (avgPrice === null || avgPrice === 0) {
-			const routeInfo = `${route.origin_airport.iata_code} -> ${route.destination_airport.iata_code}`;
-			console.log(`[Services] Route ${routeInfo}: No booking data found, skipping route`);
 			return null;
 		}
 
-		// Log để debug
 		const routeInfo = `${route.origin_airport.iata_code} -> ${route.destination_airport.iata_code}`;
-		console.log(`[Services] Route ${routeInfo}: Average price ${avgPrice} VND (from database)`);
 
 		// Format route title - handle "Tp." prefix for Ho Chi Minh City
 		const originCity = route.origin_airport.city;
@@ -296,11 +292,8 @@ export class ServicesService {
 			const segments = await query.getMany();
 
 			if (segments.length === 0) {
-				console.log(`[Services] No booking segments found for route ${routeId}${flightInstanceId ? `, instance ${flightInstanceId}` : ''}`);
 				return null;
 			}
-
-			console.log(`[Services] Found ${segments.length} booking segments for route ${routeId}${flightInstanceId ? `, instance ${flightInstanceId}` : ''}`);
 
 			// Tính tổng giá (base_fare + tax + fee) cho mỗi segment
 			const totalPrices = segments.map(seg => {
@@ -317,14 +310,11 @@ export class ServicesService {
 			// Tính giá trung bình
 			const avgPrice = totalPrices.reduce((sum, price) => sum + price, 0) / totalPrices.length;
 			
-			// Log chi tiết để verify data thật
-			console.log(`[Services] Route ${routeId}: Calculated average from ${totalPrices.length} bookings. Min: ${Math.min(...totalPrices).toLocaleString('vi-VN')}, Max: ${Math.max(...totalPrices).toLocaleString('vi-VN')}, Avg: ${Math.round(avgPrice).toLocaleString('vi-VN')} VND`);
-			
 			// Làm tròn về số nguyên
 			return Math.round(avgPrice);
 		} catch (error) {
-			console.error(`[Services] Error getting historical price for route ${routeId}:`, error);
-			return null; // Nếu có lỗi, trả về null
+			// Silently fail - return null if error occurs
+			return null;
 		}
 	}
 }

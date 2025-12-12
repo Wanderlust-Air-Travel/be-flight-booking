@@ -63,7 +63,6 @@ export class SearchService {
 
 	async search(dto: SearchFlightsDto) {
 		const totalPax = dto.adults + dto.minors;
-		console.log(`[DEBUG] Search request: ${dto.origin} -> ${dto.destination}, date: ${dto.departDate}, passengers: ${totalPax}`);
 		
 		const [origin, destination] = await Promise.all([
 			this.airportRepo.findOne({ where: { iata_code: dto.origin.toUpperCase() } }),
@@ -71,8 +70,6 @@ export class SearchService {
 		]);
 		if (!origin) throw new NotFoundException('Origin airport not found');
 		if (!destination) throw new NotFoundException('Destination airport not found');
-		
-		console.log(`[DEBUG] Found airports: ${origin.iata_code} (${origin.airport_id}) -> ${destination.iata_code} (${destination.airport_id})`);
 
 		// Query route bằng QueryBuilder vì origin_airport_id, destination_airport_id là @RelationId properties
 		const route = await this.routeRepo
@@ -82,11 +79,8 @@ export class SearchService {
 			.andWhere('route.is_domestic = :domestic', { domestic: true })
 			.getOne();
 		if (!route) {
-			console.log(`[DEBUG] No route found for ${origin.iata_code} -> ${destination.iata_code}`);
 			throw new NotFoundException('No domestic route for selected airports');
 		}
-		
-		console.log(`[DEBUG] Found route: ${route.route_id}`);
 
 		const outboundDate = new Date(dto.departDate);
 		const outbound = await this.findFlightsForDate(route.route_id, outboundDate, totalPax, origin, destination);
@@ -118,8 +112,6 @@ export class SearchService {
 		// Format date as YYYY-MM-DD for SQL Server comparison
 		const dateStr = date.toISOString().slice(0, 10);
 		
-		console.log(`[DEBUG] Finding flights for route ${routeId}, date: ${dateStr}, minSeats: ${minSeats}`);
-		
 		const instances = await this.instanceRepo.createQueryBuilder('fi')
 			.innerJoin('fi.flight_schedule', 'fs')
 			.where('fs.route_id = :routeId', { routeId })
@@ -127,8 +119,6 @@ export class SearchService {
 			.andWhere('fi.status IN (:...st)', { st: ['scheduled', 'on_time', 'delayed'] })
 			.orderBy('fi.departure_datetime_local', 'ASC')
 			.getMany();
-
-		console.log(`[DEBUG] Found ${instances.length} flight instances for date ${dateStr}`);
 
 		// Calculate available seats for each instance, grouped by cabin type
 		const withAvailability = await Promise.all(instances.map(async (fi) => {
@@ -172,12 +162,11 @@ export class SearchService {
 
 				// Only include cabin types with available seats >= minSeats
 				if (count >= minSeats) {
-					cabinTypes.push({ cabinType, availableSeats: count });
-				}
+				cabinTypes.push({ cabinType, availableSeats: count });
 			}
+		}
 
-			console.log(`[DEBUG] Flight ${fi.flight_number} (${fi.flight_instance_id}): ${availableSeats} total available seats, cabin types: ${JSON.stringify(cabinTypes)}`);
-			return { fi, availableSeats, cabinTypes };
+		return { fi, availableSeats, cabinTypes };
 		}));
 
 		// Map to FlightResult, only include flights with valid flightInstanceId and enough seats
@@ -186,15 +175,6 @@ export class SearchService {
 				const hasEnoughSeats = x.availableSeats >= minSeats;
 				const hasValidId = !!x.fi.flight_instance_id;
 				const hasAvailableCabinTypes = x.cabinTypes.length > 0;
-				if (!hasEnoughSeats) {
-					console.log(`[DEBUG] Filtered out ${x.fi.flight_number}: only ${x.availableSeats} seats (need ${minSeats})`);
-				}
-				if (!hasValidId) {
-					console.log(`[DEBUG] Filtered out ${x.fi.flight_number}: no flight_instance_id`);
-				}
-				if (!hasAvailableCabinTypes) {
-					console.log(`[DEBUG] Filtered out ${x.fi.flight_number}: no cabin types with enough seats`);
-				}
 				return hasEnoughSeats && hasValidId && hasAvailableCabinTypes;
 			})
 			.map(x => ({
@@ -208,7 +188,6 @@ export class SearchService {
 				cabinTypes: x.cabinTypes,
 			}));
 
-		console.log(`[DEBUG] Returning ${results.length} flights with enough seats`);
 		// Note: Removed fallback to schedules because fare-options API requires flightInstanceId
 		// If no instances exist, return empty array - user needs to run seed:full to generate instances
 		return results;

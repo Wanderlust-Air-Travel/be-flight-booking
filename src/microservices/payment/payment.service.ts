@@ -670,7 +670,7 @@ export class PaymentService {
 	 * Handle webhook from payment gateway
 	 * Phase 2: Webhook Handling
 	 */
-	async handleWebhook(gatewayName: string, signature: string, payload: any): Promise<void> {
+	async handleWebhook(gatewayName: string, signature: string, payload: any): Promise<PaymentResponseDto | null> {
 		this.logger.log(`Received webhook from ${gatewayName}: ${JSON.stringify(payload)}`);
 
 		try {
@@ -698,11 +698,11 @@ export class PaymentService {
 
 			if (!payment) {
 				this.logger.warn(`Payment not found for transaction: ${result.transactionId}`);
-				return;
+				return null;
 			}
 
 			// Update payment status (use 'system' as userId for webhook updates)
-			await this.updatePaymentStatus(
+			const updatedPayment = await this.updatePaymentStatus(
 				'system',
 				{
 					paymentId: payment.payment_id,
@@ -714,6 +714,8 @@ export class PaymentService {
 			this.logger.log(
 				`Webhook processed successfully for payment ${payment.payment_id}, status: ${result.status}`,
 			);
+
+			return updatedPayment;
 		} catch (error) {
 			this.logger.error(`Error processing webhook: ${error.message}`, error.stack);
 			throw error;
