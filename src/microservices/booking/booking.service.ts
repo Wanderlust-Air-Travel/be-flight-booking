@@ -2773,7 +2773,15 @@ export class BookingService {
 		// Make check-in idempotent: if already checked in, return existing tickets info
 		const existingBooking = await queryRunner.manager.findOne(Booking, {
 			where: { booking_id: booking.bookingId },
-			relations: ['tickets', 'booking_segments', 'booking_segments.flight_instance', 'booking_segments.flight_seat', 'booking_segments.booking_passenger'],
+			relations: [
+				'tickets',
+				'tickets.booking_passenger', // CRITICAL: Load booking_passenger for tickets
+				'tickets.booking_passenger.passenger', // Load passenger details for tickets
+				'booking_segments',
+				'booking_segments.flight_instance',
+				'booking_segments.flight_seat',
+				'booking_segments.booking_passenger',
+			],
 		});
 
 		this.logger.log(`[checkInBooking] Existing booking has ${existingBooking?.tickets?.length || 0} tickets`);
@@ -3069,6 +3077,60 @@ export class BookingService {
 			}
 			
 			this.logger.log(`[Re-check-in] ✓ Seat update completed and committed for booking ${dto.bookingCode}`);
+
+			// CRITICAL: Send updated ticket confirmation email after seat assignment
+			this.logger.log(`[Re-check-in] Preparing to send updated ticket confirmation email for booking ${booking.bookingId}...`);
+			
+			// Reload booking with ALL necessary relations for email
+			const bookingForEmail = await this.bookingRepo.findOne({
+				where: { booking_id: booking.bookingId },
+				relations: [
+					'booking_segments',
+					'booking_segments.booking_passenger',
+					'booking_segments.booking_passenger.passenger',
+					'booking_segments.flight_instance',
+					'booking_segments.flight_instance.flight_schedule',
+					'booking_segments.flight_instance.flight_schedule.route',
+					'booking_segments.flight_instance.flight_schedule.route.origin_airport',
+					'booking_segments.flight_instance.flight_schedule.route.destination_airport',
+					'booking_segments.fare_class',
+					'booking_segments.fare_class.cabin_class',
+					'booking_segments.flight_seat', // CRITICAL: Load seat information
+					'tickets', // Load existing tickets
+					'tickets.booking_passenger', // CRITICAL: Load booking_passenger for tickets
+					'tickets.booking_passenger.passenger', // Load passenger details for tickets
+					'user',
+					'currency',
+				],
+			});
+
+			if (bookingForEmail) {
+				this.logger.log(`[Re-check-in] Booking ${booking.bookingId} loaded successfully. Tickets count: ${existingBooking.tickets.length}, Segments with seats: ${bookingForEmail.booking_segments?.filter(seg => seg.flight_seat).length || 0}`);
+				
+				// Verify seat information is loaded
+				for (const segment of bookingForEmail.booking_segments || []) {
+					if (segment.flight_seat) {
+						this.logger.log(`[Re-check-in] Segment ${segment.booking_segment_id} has seat ${segment.flight_seat.seat_number} for email`);
+					} else {
+						this.logger.warn(`[Re-check-in] Segment ${segment.booking_segment_id} does NOT have seat for email`);
+					}
+				}
+				
+				try {
+					this.logger.log(`[Re-check-in] Calling sendTicketConfirmation for booking ${booking.bookingId}...`);
+					// CRITICAL: Use tickets from bookingForEmail (reloaded with relations) instead of existingBooking.tickets
+					// existingBooking.tickets may not have all relations loaded
+					const ticketsForEmail = bookingForEmail.tickets || existingBooking.tickets;
+					this.logger.log(`[Re-check-in] Using ${ticketsForEmail.length} tickets for email. Tickets have booking_passenger: ${ticketsForEmail.filter(t => t.booking_passenger).length}/${ticketsForEmail.length}`);
+					await this.notificationService.sendTicketConfirmation(bookingForEmail, ticketsForEmail);
+					this.logger.log(`[Re-check-in] ✓ Updated ticket confirmation email sent successfully for booking ${booking.bookingId} with seat assignments`);
+				} catch (error: any) {
+					// Log error but don't fail check-in
+					this.logger.error(`[Re-check-in] ✗ Failed to send updated ticket confirmation email: ${error?.message || error}`, error?.stack);
+				}
+			} else {
+				this.logger.error(`[Re-check-in] ✗ Booking ${booking.bookingId} not found when trying to send updated ticket confirmation email`);
+			}
 
 			// Return success without creating new tickets (they already exist)
 			return {

@@ -268,8 +268,29 @@ export class BookingNotificationService {
 
 		// Map tickets to segments
 		for (const segment of booking.booking_segments) {
+			// CRITICAL: Check if segment has booking_passenger
+			if (!segment.booking_passenger) {
+				this.logger.warn(`Segment ${segment.booking_segment_id} does not have booking_passenger relation loaded`);
+				continue;
+			}
+
+			// Log tickets for debugging
+			this.logger.log(`[formatTicketDetails] Looking for ticket for segment ${segment.booking_segment_id}, passenger ${segment.booking_passenger.booking_passenger_id}. Available tickets: ${tickets.length}`);
+			for (const t of tickets) {
+				if (!t.booking_passenger) {
+					this.logger.warn(`[formatTicketDetails] Ticket ${t.ticket_id || t.ticket_number || 'unknown'} does not have booking_passenger relation loaded`);
+				} else {
+					this.logger.log(`[formatTicketDetails] Ticket ${t.ticket_id || t.ticket_number || 'unknown'} has passenger ${t.booking_passenger.booking_passenger_id}`);
+				}
+			}
+
 			const ticket = tickets.find(
-				(t) => t.booking_passenger.booking_passenger_id === segment.booking_passenger.booking_passenger_id,
+				(t) => {
+					if (!t.booking_passenger) {
+						return false;
+					}
+					return t.booking_passenger.booking_passenger_id === segment.booking_passenger.booking_passenger_id;
+				},
 			);
 
 			if (!ticket) {
