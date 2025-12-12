@@ -264,7 +264,16 @@ export class BookingNotificationService {
 			return [];
 		}
 
+		if (!tickets || tickets.length === 0) {
+			this.logger.warn(`No tickets provided for booking ${booking.booking_id}`);
+			return [];
+		}
+
 		const ticketDetails: any[] = [];
+
+		// Log tickets status for debugging
+		const ticketsWithPassenger = tickets.filter(t => t.booking_passenger).length;
+		this.logger.log(`[formatTicketDetails] Processing ${booking.booking_segments.length} segments with ${tickets.length} tickets (${ticketsWithPassenger} have booking_passenger relation)`);
 
 		// Map tickets to segments
 		for (const segment of booking.booking_segments) {
@@ -274,24 +283,22 @@ export class BookingNotificationService {
 				continue;
 			}
 
-			// Log tickets for debugging
-			this.logger.log(`[formatTicketDetails] Looking for ticket for segment ${segment.booking_segment_id}, passenger ${segment.booking_passenger.booking_passenger_id}. Available tickets: ${tickets.length}`);
+			// CRITICAL: Find ticket by matching booking_passenger_id
+			// Handle case where tickets may not have booking_passenger relation loaded
+			let ticket: any = null;
+			
 			for (const t of tickets) {
-				if (!t.booking_passenger) {
-					this.logger.warn(`[formatTicketDetails] Ticket ${t.ticket_id || t.ticket_number || 'unknown'} does not have booking_passenger relation loaded`);
-				} else {
-					this.logger.log(`[formatTicketDetails] Ticket ${t.ticket_id || t.ticket_number || 'unknown'} has passenger ${t.booking_passenger.booking_passenger_id}`);
+				// Check if ticket has booking_passenger relation
+				if (!t || !t.booking_passenger) {
+					continue; // Skip tickets without booking_passenger relation
+				}
+				
+				// Match by booking_passenger_id
+				if (t.booking_passenger.booking_passenger_id === segment.booking_passenger.booking_passenger_id) {
+					ticket = t;
+					break;
 				}
 			}
-
-			const ticket = tickets.find(
-				(t) => {
-					if (!t.booking_passenger) {
-						return false;
-					}
-					return t.booking_passenger.booking_passenger_id === segment.booking_passenger.booking_passenger_id;
-				},
-			);
 
 			if (!ticket) {
 				this.logger.warn(
