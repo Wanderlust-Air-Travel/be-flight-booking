@@ -1,64 +1,4 @@
 services:
-  # SQL Server Database
-  sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: sqlserver
-    environment:
-      - ACCEPT_EULA=Y
-      - SA_PASSWORD=Passw0rd123!
-      - MSSQL_PID=Developer
-      # - MSSQL_TCP_PORT=1434
-      # - MSSQL_IP_ADDRESS=0.0.0.0
-    ports:
-      - "1434:1433"  # Đổi port host thành 1434 để tránh conflict với SQL Server local
-    volumes:
-      - sqlserver-data:/var/opt/mssql
-    healthcheck:
-      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "Passw0rd123!" -C -Q "SELECT 1" || exit 1
-      interval: 10s
-      timeout: 3s
-      retries: 10
-      start_period: 30s
-    restart: unless-stopped
-
-  # Redis Cache
-  redis:
-    image: redis:7-alpine
-    container_name: redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    command: redis-server --appendonly yes
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-
-  # RabbitMQ Message Broker
-  rabbitmq:
-    image: rabbitmq:3.13-management-alpine
-    container_name: rabbitmq
-    hostname: rabbitmq
-    environment:
-      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-admin}
-      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS:-admin123}
-      - RABBITMQ_DEFAULT_VHOST=${RABBITMQ_VHOST:-/}
-    ports:
-      - "5672:5672"   # AMQP port
-      - "15672:15672" # Management UI port
-    volumes:
-      - rabbitmq-data:/var/lib/rabbitmq
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    restart: unless-stopped
-
   # Backend Application
   backend:
     build:
@@ -68,29 +8,22 @@ services:
     env_file:
       - .env  # Load environment variables from .env file (app.config.ts will use defaults if not set)
     environment:
-      - NODE_ENV=development
-      # Docker-specific overrides only (different from localhost defaults in app.config.ts)
-      # Database: Use Docker service name and container port
-      - DB_HOST=sqlserver  # Override: Docker service name (app.config.ts default: localhost)
-      - DB_PORT=1433  # Override: Container port inside Docker network (app.config.ts default: 1433 for local SQL Server)
-      # Redis: Use Docker service name
-      - REDIS_HOST=redis  # Override: Docker service name (app.config.ts default: localhost)
-      # RabbitMQ: Use Docker service name
-      - RABBITMQ_HOST=rabbitmq  # Override: Docker service name (app.config.ts default: localhost)
-      - RABBITMQ_PORT=5672  # AMQP port
-      - RABBITMQ_USER=${RABBITMQ_USER:-admin}
-      - RABBITMQ_PASS=${RABBITMQ_PASS:-admin123}
-      # Microservices: Bind to 0.0.0.0 to accept connections from host machine via port forwarding
-      - SEARCH_MS_HOST=0.0.0.0  # Bind to all interfaces to accept connections from host
-      - SERVICES_MS_HOST=0.0.0.0
-      - ROUTES_MS_HOST=0.0.0.0
-      - BOOKING_MS_HOST=0.0.0.0
-      - RESERVATION_MS_HOST=0.0.0.0
-      - PAYMENT_MS_HOST=0.0.0.0
-      - EMAIL_MS_HOST=0.0.0.0
-      # SA password for init scripts (not in app.config.ts)
-      - SA_PASSWORD=${SA_PASSWORD:-${DB_PASS:-Passw0rd123!}}
-      # All other configs will use defaults from app.config.ts or values from .env file
+      - NODE_ENV=${NODE_ENV}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - REDIS_HOST=${REDIS_HOST}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_PORT=${RABBITMQ_PORT}
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASS=${RABBITMQ_PASS}
+      - SEARCH_MS_HOST=${SEARCH_MS_HOST}
+      - SERVICES_MS_HOST=${SERVICES_MS_HOST}
+      - ROUTES_MS_HOST=${ROUTES_MS_HOST}
+      - BOOKING_MS_HOST=${BOOKING_MS_HOST}
+      - RESERVATION_MS_HOST=${RESERVATION_MS_HOST}
+      - PAYMENT_MS_HOST=${PAYMENT_MS_HOST}
+      - EMAIL_MS_HOST=${EMAIL_MS_HOST}
+      - SA_PASSWORD=${SA_PASSWORD}
     ports:
       - "3000:3000"  # API Gateway
       - "4001:4001"  # Search MS
@@ -113,15 +46,12 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     command: sh -c "npm run wait-for-sqlserver && npm run wait-for-rabbitmq && npm run init-db && npm run wait-for-db && npm run seed:if-empty && npm run gmail:auth && npm run start:all"
-    # command: sh -c "npm run wait-for-sqlserver && npm run init-db && npm run wait-for-db && npm run seed:if-empty && npm run start"
     restart: unless-stopped
-
-volumes:
-  # SQL Server data persistence
-  sqlserver-data:
-  # Redis data persistence
-  redis-data:
-  # RabbitMQ data persistence
-  rabbitmq-data:
 

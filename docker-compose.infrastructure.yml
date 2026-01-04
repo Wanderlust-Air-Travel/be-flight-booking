@@ -3,18 +3,20 @@ services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: sqlserver
+    env_file:
+      - .env
     environment:
       - ACCEPT_EULA=Y
-      - SA_PASSWORD=Passw0rd123!
+      - SA_PASSWORD=${SA_PASSWORD}
       - MSSQL_PID=Developer
       # - MSSQL_TCP_PORT=1434
       # - MSSQL_IP_ADDRESS=0.0.0.0
     ports:
-      - "1434:1433"  # Đổi port host thành 1434 để tránh conflict với SQL Server local
+      - "${DB_PORT}:1433"  # Map from .env DB_PORT to SQL Server default port 1433
     volumes:
       - sqlserver-data:/var/opt/mssql
     healthcheck:
-      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "Passw0rd123!" -C -Q "SELECT 1" || exit 1
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "${SA_PASSWORD}" -C -Q "SELECT 1" || exit 1
       interval: 10s
       timeout: 3s
       retries: 10
@@ -25,8 +27,10 @@ services:
   redis:
     image: redis:7-alpine
     container_name: redis
+    env_file:
+      - .env
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT}:6379"  # Map from .env REDIS_PORT to Redis default port 6379
     volumes:
       - redis-data:/data
     command: redis-server --appendonly yes
@@ -42,12 +46,14 @@ services:
     image: rabbitmq:3.13-management-alpine
     container_name: rabbitmq
     hostname: rabbitmq
+    env_file:
+      - .env
     environment:
-      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-admin}
-      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS:-admin123}
-      - RABBITMQ_DEFAULT_VHOST=${RABBITMQ_VHOST:-/}
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS}
+      - RABBITMQ_DEFAULT_VHOST=${RABBITMQ_VHOST}
     ports:
-      - "5672:5672"   # AMQP port
+      - "${RABBITMQ_PORT}:5672"   # AMQP port (from .env)
       - "15672:15672" # Management UI port
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
@@ -66,9 +72,3 @@ volumes:
   redis-data:
   # RabbitMQ data persistence
   rabbitmq-data:
-
-networks:
-  default:
-    name: flight-booking-services
-    driver: bridge
-
