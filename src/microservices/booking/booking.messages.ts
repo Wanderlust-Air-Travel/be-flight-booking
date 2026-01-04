@@ -1,6 +1,6 @@
 export const BOOKING_MS = {
-	TCP_PORT: Number(process.env.BOOKING_MS_PORT ?? 4004),
-	TCP_HOST: process.env.BOOKING_MS_HOST ?? '127.0.0.1',
+	TCP_PORT: Number(process.env.BOOKING_MS_PORT),
+	TCP_HOST: process.env.BOOKING_MS_HOST,
 	PATTERN: {
 		CREATE_BOOKING: 'booking.create',
 		CREATE_BOOKING_FROM_RESERVATION: 'booking.create-from-reservation',

@@ -20,8 +20,8 @@ export class BookingStateRepository {
 		private readonly configService: ConfigService,
 	) {
 		const redisConfig = this.configService.get('redis');
-		// State expires after 30 minutes (longer than reservation TTL of 15 minutes)
-		this.stateTtl = redisConfig?.ttl?.bookingState || 1800; // 30 minutes default
+		// State expires after the configured TTL from .env (REDIS_BOOKING_STATE_TTL)
+		this.stateTtl = redisConfig?.ttl?.bookingState;
 	}
 
 	/**

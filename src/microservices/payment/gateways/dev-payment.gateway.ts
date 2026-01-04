@@ -27,7 +27,7 @@ export class DevPaymentGateway implements IPaymentGateway {
     );
 
     // paymentUrl trỏ tới trang FE nội bộ để user chọn kết quả thanh toán
-    const appUrl = process.env.APP_URL || 'http://localhost:3001';
+    const appUrl = process.env.APP_URL;
     const paymentUrl = `${appUrl}/payments/dev?paymentId=${payment.payment_id}&bookingId=${booking.booking_id}`;
 
     return {

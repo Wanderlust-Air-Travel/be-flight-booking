@@ -33,7 +33,7 @@ import { CommonModule } from 'src/shared/modules/common/common.module';
     ]),
     TypeOrmModule.forRoot({
       type: 'mssql',
-      host: process.env.DB_HOST ?? 'localhost',
+      host: process.env.DB_HOST,
       port: Number(process.env.DB_PORT ?? 1434),
       username: process.env.DB_USER,
       password: process.env.DB_PASS,
