@@ -48,11 +48,11 @@ import {
 
 const ds = new DataSource({
 	type: 'mssql',
-	host: process.env.DB_HOST,
-	port: Number(process.env.DB_PORT),
-	username: process.env.DB_USER,
-	password: process.env.DB_PASS,
-	database: process.env.DB_NAME,
+	host: process.env.DB_HOST!,
+	port: Number(process.env.DB_PORT!),
+	username: process.env.DB_USER!,
+	password: process.env.DB_PASS!,
+	database: process.env.DB_NAME!,
 	options: {
 		encrypt: process.env.DB_ENCRYPT === 'true',
 		trustServerCertificate: process.env.DB_TRUST_CERT === 'true',
@@ -78,6 +78,58 @@ const ds = new DataSource({
 });
 
 // Helper functions
+/**
+ * Get realistic date ranges for seeding
+ * Uses current date for reservations/bookings, future dates for flight schedules
+ */
+function getDateRanges() {
+	const now = new Date();
+	
+	// Set to start of today
+	const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+	
+	// Past bookings/reservations: last 30 days
+	const bookingStartDate = new Date(today);
+	bookingStartDate.setDate(bookingStartDate.getDate() - 30);
+	
+	// Future flight schedules: starting tomorrow until 60 days from now (realistic booking window)
+	const scheduleStartDate = new Date(today);
+	scheduleStartDate.setDate(scheduleStartDate.getDate() + 1); // Tomorrow
+	
+	const scheduleEndDate = new Date(today);
+	scheduleEndDate.setDate(scheduleEndDate.getDate() + 60); // 60 days from now
+	
+	// Instance dates: generate for next 30 days only (not full 60 days)
+	const instanceStartDate = new Date(today);
+	instanceStartDate.setDate(instanceStartDate.getDate() + 1);
+	
+	const instanceEndDate = new Date(today);
+	instanceEndDate.setDate(instanceEndDate.getDate() + 30); // 30 days for actual flight instances
+	
+	return {
+		now,
+		today,
+		bookingStartDate,
+		scheduleStartDate,
+		scheduleEndDate,
+		instanceStartDate,
+		instanceEndDate,
+	};
+}
+
+/**
+ * Batch insert with automatic size optimization to avoid SQL Server 2100 parameter limit
+ * Each save operation is limited to 50 items (conservative estimate)
+ */
+async function batchInsert<T>(repo: any, items: T[], maxBatchSize: number = 50): Promise<void> {
+	if (items.length === 0) return;
+	
+	for (let i = 0; i < items.length; i += maxBatchSize) {
+		const batch = items.slice(i, i + maxBatchSize);
+		await repo.save(batch);
+	}
+}
+
 function randomInt(min: number, max: number): number {
 	return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -836,129 +888,130 @@ async function run() {
 	};
 
 	let pricesCreated = 0;
-	const today = new Date();
-	const effectiveFrom = new Date(today.getFullYear(), today.getMonth(), 1); // First day of current month
-	const effectiveTo = new Date(today.getFullYear() + 1, 11, 31); // End of next year
+    const dateRanges = getDateRanges();
+    const effectiveFrom = new Date(dateRanges.today);
+    const effectiveTo = new Date(dateRanges.scheduleEndDate);
 
-	// Create prices for each route and fare class combination
-	for (const route of routes) {
-		for (const fareClass of allFareClasses) {
-			try {
-				// Check if price already exists
-				const existing = await repos.routeFarePrice.findOne({
-					where: {
-						route_id: route.route_id,
-						fare_class_code: fareClass.fare_class_code,
-					},
-				});
+    // Pre-fetch all route IDs to avoid N+1 queries
+    const routeMap = new Map<string, Route>(routes.map(r => [r.route_id, r]));
+    
+    // Build all prices to insert (batch insert instead of individual inserts)
+    const routeFarePricesToInsert: RouteFarePrice[] = [];
+    
+    for (const route of routes) {
+        for (const fareClass of allFareClasses) {
+            // Check if price already exists
+            const existing = await repos.routeFarePrice.findOne({
+                where: {
+                    route_id: route.route_id,
+                    fare_class_code: fareClass.fare_class_code,
+                },
+            });
 
-				if (existing) {
-					continue; // Skip if already exists
-				}
+            if (existing) {
+                continue; // Skip if already exists
+            }
 
-				// Get pricing from structure or use default
-				const fareClassCode = fareClass.fare_class_code.toUpperCase();
-				const pricing = pricingStructure[fareClassCode] || getDefaultPricing(fareClass.cabin_class.cabin_class_code);
+            const fareClassCode = fareClass.fare_class_code.toUpperCase();
+            const pricing = pricingStructure[fareClassCode] || getDefaultPricing(fareClass.cabin_class.cabin_class_code);
 
-				// Create route fare price
-				const routeFarePrice = repos.routeFarePrice.create({
-					route_fare_price_id: uuidv7(),
-					route_id: route.route_id,
-					fare_class_code: fareClass.fare_class_code,
-					base_price: pricing.basePrice,
-					tax_rate: pricing.taxRate,
-					fee_rate: pricing.feeRate,
-					effective_from: effectiveFrom,
-					effective_to: effectiveTo,
-					is_active: true,
-					priority: 0,
-					notes: `Default price for ${fareClass.fare_class_code} on route ${route.route_id}`,
-				});
+            const routeFarePrice = repos.routeFarePrice.create({
+                route_fare_price_id: uuidv7(),
+                route_id: route.route_id,
+                fare_class_code: fareClass.fare_class_code,
+                base_price: pricing.basePrice,
+                tax_rate: pricing.taxRate,
+                fee_rate: pricing.feeRate,
+                effective_from: effectiveFrom,
+                effective_to: effectiveTo,
+                is_active: true,
+                priority: 0,
+                notes: `Default price for ${fareClass.fare_class_code} on route ${route.route_id}`,
+            });
 
-				await repos.routeFarePrice.save(routeFarePrice);
-				pricesCreated++;
-			} catch (error: any) {
-				console.error(
-					`  Error creating price for route ${route.route_id}, fare class ${fareClass.fare_class_code}:`,
-					error.message,
-				);
-			}
-		}
-	}
+            routeFarePricesToInsert.push(routeFarePrice);
+        }
+    }
 
-	console.log(`Created ${pricesCreated} route fare prices`);
+    // Batch insert all prices at once
+    if (routeFarePricesToInsert.length > 0) {
+        await batchInsert(repos.routeFarePrice, routeFarePricesToInsert, 50);
+        pricesCreated = routeFarePricesToInsert.length;
+    }
 
-	// ============================================================
-	// 7. USERS & PASSENGERS
-	// ============================================================
-	console.log('\nSeeding Users and Passengers...');
-	
-	const passwordHash = await bcrypt.hash('Password123!', 10);
-	const users: User[] = [];
-	const totalUsers = 50; // Reduced from 500 to 50 for faster seeding
-	let createdCount = 0;
-	let skippedCount = 0;
+    console.log(`Created ${pricesCreated} route fare prices`);
 
-	console.log(`  Creating up to ${totalUsers} users...`);
-	
-	for (let i = 0; i < totalUsers; i++) {
-		try {
-			const fullname = generateVietnameseName();
-			const email = generateEmail(fullname);
-			const phone = generatePhone();
+    // ============================================================
+    // 7. USERS & PASSENGERS
+    // ============================================================
+    console.log('\nSeeding Users and Passengers...');
+    
+    const passwordHash = await bcrypt.hash('Password123!', 10);
+    const users: User[] = [];
+    const totalUsers = 50; // Reduced from 500 to 50 for faster seeding
+    let createdCount = 0;
+    let skippedCount = 0;
 
-			const existing = await repos.user.findOne({ where: { email } });
-			if (!existing) {
-				const user = await repos.user.save(repos.user.create({
-					user_id: uuidv7(),
-					fullname,
-					email,
-					password_hash: passwordHash,
-					phone,
-					is_active: Math.random() > 0.05, // 95% active
-				}));
-				users.push(user);
-				createdCount++;
+    console.log(`  Creating up to ${totalUsers} users...`);
+    
+    for (let i = 0; i < totalUsers; i++) {
+        try {
+            const fullname = generateVietnameseName();
+            const email = generateEmail(fullname);
+            const phone = generatePhone();
 
-				// Create 1-3 passengers per user
-				const numPassengers = randomInt(1, 3);
-				for (let j = 0; j < numPassengers; j++) {
-					try {
-						const passengerName = j === 0 ? fullname : generateVietnameseName();
-						const dob = randomDate(new Date(1950, 0, 1), new Date(2010, 11, 31));
-						const gender = randomElement(['Male', 'Female']);
-						const documentNumber = generateDocumentNumber();
+            const existing = await repos.user.findOne({ where: { email } });
+            if (!existing) {
+                const user = await repos.user.save(repos.user.create({
+                    user_id: uuidv7(),
+                    fullname,
+                    email,
+                    password_hash: passwordHash,
+                    phone,
+                    is_active: Math.random() > 0.05, // 95% active
+                }));
+                users.push(user);
+                createdCount++;
 
-						await repos.passenger.save(repos.passenger.create({
-							passenger_id: uuidv7(),
-							user,
-							fullname: passengerName,
-							dob,
-							gender,
-							document_number: documentNumber,
-							loyalty_number: Math.random() > 0.7 ? `LOY${randomInt(100000, 999999)}` : null,
-						}));
-					} catch (passengerError: any) {
-						console.error(`  Error creating passenger for user ${email}:`, passengerError.message);
-						// Continue with next passenger
-					}
-				}
+                // Create 1-3 passengers per user
+                const numPassengers = randomInt(1, 3);
+                for (let j = 0; j < numPassengers; j++) {
+                    try {
+                        const passengerName = j === 0 ? fullname : generateVietnameseName();
+                        const dob = randomDate(new Date(1950, 0, 1), new Date(2010, 11, 31));
+                        const gender = randomElement(['Male', 'Female']);
+                        const documentNumber = generateDocumentNumber();
 
-				// Progress logging every 50 users
-				if (createdCount % 50 === 0) {
-					console.log(`  Progress: Created ${createdCount} users, skipped ${skippedCount} duplicates...`);
-				}
-			} else {
-				skippedCount++;
-			}
-		} catch (userError: any) {
-			console.error(`  Error creating user ${i + 1}:`, userError.message);
-			// Continue with next user
-		}
-	}
-	
-	console.log(`  Completed: Created ${createdCount} users, skipped ${skippedCount} duplicates`);
-	console.log(`Created ${users.length} users with passengers`);
+                        await repos.passenger.save(repos.passenger.create({
+                            passenger_id: uuidv7(),
+                            user,
+                            fullname: passengerName,
+                            dob,
+                            gender,
+                            document_number: documentNumber,
+                            loyalty_number: Math.random() > 0.7 ? `LOY${randomInt(100000, 999999)}` : null,
+                        }));
+                    } catch (passengerError: any) {
+                        console.error(`  Error creating passenger for user ${email}:`, passengerError.message);
+                        // Continue with next passenger
+                    }
+                }
+
+                // Progress logging every 50 users
+                if (createdCount % 50 === 0) {
+                    console.log(`  Progress: Created ${createdCount} users, skipped ${skippedCount} duplicates...`);
+                }
+            } else {
+                skippedCount++;
+            }
+        } catch (userError: any) {
+            console.error(`  Error creating user ${i + 1}:`, userError.message);
+            // Continue with next user
+        }
+    }
+    
+    console.log(`  Completed: Created ${createdCount} users, skipped ${skippedCount} duplicates`);
+    console.log(`Created ${users.length} users with passengers`);
 
 	// ============================================================
 	// 7.5. ASSIGN ROLES TO USERS
@@ -1190,649 +1243,595 @@ async function run() {
 	// ============================================================
 	console.log('\nSeeding Flight Schedules...');
 	
-	// Set dates to December 2025 for flight schedules and instances
-	// from = 1/12/2025 00:00:00, to = 15/12/2025 23:59:59
-	const from = new Date(2025, 11, 1, 0, 0, 0, 0); // December 1, 2025 (month is 0-indexed, so 11 = December)
-	const to = new Date(2025, 11, 15, 23, 59, 59, 999); // December 15, 2025
-	
-	console.log(`  Flight schedules effective period: ${from.toLocaleDateString()} to ${to.toLocaleDateString()}`);
+    // Use realistic booking window: flights for next 60 days, but instances only for next 30 days
+    console.log(`  Flight schedules effective period: ${dateRanges.scheduleStartDate.toLocaleDateString()} to ${dateRanges.scheduleEndDate.toLocaleDateString()}`);
 
-	const flightNumbers = ['BBO', 'VNA', 'VJ', 'QH'];
-	const operatingDaysPatterns = [
-		'1111111', // Daily - prioritize this for guaranteed flights every day
-		'1010101', // Mon, Wed, Fri, Sun
-		'0101010', // Tue, Thu, Sat
-		'1111100', // Mon-Fri
-		'0000011', // Sat-Sun
-	];
+    const flightNumbers = ['BBO', 'VNA', 'VJ', 'QH'];
+    const operatingDaysPatterns = [
+        '1111111', // Daily - prioritize this for guaranteed flights every day
+        '1010101', // Mon, Wed, Fri, Sun
+        '0101010', // Tue, Thu, Sat
+        '1111100', // Mon-Fri
+        '0000011', // Sat-Sun
+    ];
 
-	const schedules: FlightSchedule[] = [];
-	// Create multiple schedules per route for more variety
-	// All routes are domestic (Vietnam only)
-	const domesticRoutes = routes; // All routes are domestic since all airports are in Vietnam
-	
-	// Prioritize popular domestic routes (HAN-SGN, HAN-DAD, SGN-DAD, etc.) to ensure they have instances
-	const popularRouteCodes = [
-		'HAN-SGN', 'SGN-HAN', 
-		'HAN-DAD', 'DAD-HAN', 
-		'SGN-DAD', 'DAD-SGN', 
-		'HAN-HPH', 'HPH-HAN', 
-		'SGN-PQC', 'PQC-SGN',
-		'SGN-CXR', 'CXR-SGN',
-		'HAN-VDO', 'VDO-HAN',
-		'SGN-VCA', 'VCA-SGN',
-	];
-	const popularRoutes: Route[] = [];
-	const otherRoutes: Route[] = [];
-	
-	for (const route of domesticRoutes) {
-		// Find origin and destination airports for this route
-		const originAirport = savedAirports.find(a => a.airport_id === route.origin_airport_id);
-		const destAirport = savedAirports.find(a => a.airport_id === route.destination_airport_id);
-		if (originAirport && destAirport) {
-			const routeCode = `${originAirport.iata_code}-${destAirport.iata_code}`;
-			if (popularRouteCodes.includes(routeCode)) {
-				popularRoutes.push(route);
-			} else {
-				otherRoutes.push(route);
-			}
-		} else {
-			otherRoutes.push(route);
-		}
-	}
-	
-	// Combine: popular routes first, then others
-	const routesToUse = [...popularRoutes, ...otherRoutes];
-	const maxRoutes = Math.min(50, routesToUse.length); // Reduced from 200 to 50 for faster seeding
-	
-	let schedulesCreated = 0;
-	// Track used flight numbers to avoid duplicates within the same period
-	const usedFlightNumbers = new Set<string>();
-	
-	for (const route of routesToUse.slice(0, maxRoutes)) {
-		// Create 1-2 schedules per route (reduced from 3-5 for faster seeding)
-		const numSchedules = randomInt(1, 2);
-		
-		// Ensure at least one daily schedule per route for guaranteed flights every day
-		let hasDailySchedule = false;
-		
-		for (let s = 0; s < numSchedules; s++) {
-			const aircraftType = randomElement(savedAircraftTypes);
-			// First schedule must be daily to ensure flights every day
-			// Subsequent schedules can be random
-			const operatingDays = (s === 0 || !hasDailySchedule) 
-				? '1111111' // Daily
-				: randomElement(operatingDaysPatterns);
-			
-			if (operatingDays === '1111111') {
-				hasDailySchedule = true;
-			}
+    const schedules: FlightSchedule[] = [];
+    const domesticRoutes = routes; // All routes are domestic (Vietnam only)
+    
+    // Prioritize popular domestic routes
+    const popularRouteCodes = [
+        'HAN-SGN', 'SGN-HAN', 
+        'HAN-DAD', 'DAD-HAN', 
+        'SGN-DAD', 'DAD-SGN', 
+        'HAN-HPH', 'HPH-HAN', 
+        'SGN-PQC', 'PQC-SGN',
+        'SGN-CXR', 'CXR-SGN',
+    ];
+    
+    const popularRoutes: Route[] = [];
+    const otherRoutes: Route[] = [];
+    
+    for (const route of domesticRoutes) {
+        const originAirport = savedAirports.find(a => a.airport_id === route.origin_airport_id);
+        const destAirport = savedAirports.find(a => a.airport_id === route.destination_airport_id);
+        if (originAirport && destAirport) {
+            const routeCode = `${originAirport.iata_code}-${destAirport.iata_code}`;
+            if (popularRouteCodes.includes(routeCode)) {
+                popularRoutes.push(route);
+            } else {
+                otherRoutes.push(route);
+            }
+        } else {
+            otherRoutes.push(route);
+        }
+    }
+    
+    const routesToUse = [...popularRoutes, ...otherRoutes];
+    const maxRoutes = Math.min(60, routesToUse.length); // Increased from 50 to 60
+    
+    let schedulesCreated = 0;
+    const usedFlightNumbers = new Set<string>();
+    
+    for (const route of routesToUse.slice(0, maxRoutes)) {
+        // Create 1-2 schedules per route
+        const numSchedules = randomInt(1, 2);
+        
+        for (let s = 0; s < numSchedules; s++) {
+            const aircraftType = randomElement(savedAircraftTypes);
+            
+            // First schedule must be daily to ensure flights every day
+            const operatingDays = s === 0 ? '1111111' : randomElement(operatingDaysPatterns);
 
-			// Calculate flight duration based on distance
-			const distance = route.distance_km || 1000;
-			const durationMinutes = Math.floor(distance / 10) + randomInt(30, 120); // ~10km/min + buffer
-			const departureHour = randomInt(6, 22);
-			const departureMinute = randomInt(0, 59);
-			const arrivalTime = new Date(2000, 0, 1, departureHour, departureMinute);
-			arrivalTime.setMinutes(arrivalTime.getMinutes() + durationMinutes);
+            // Calculate flight duration
+            const distance = route.distance_km || 1000;
+            const durationMinutes = Math.floor(distance / 10) + randomInt(30, 120);
+            const departureHour = randomInt(6, 22);
+            const departureMinute = randomInt(0, 59);
+            
+            const arrivalTime = new Date(2000, 0, 1, departureHour, departureMinute);
+            arrivalTime.setMinutes(arrivalTime.getMinutes() + durationMinutes);
 
-			// Generate unique flight number (retry if duplicate)
-			let flightNum: string;
-			let attempts = 0;
-			const maxAttempts = 10;
-			
-			do {
-				const airline = randomElement(flightNumbers);
-				// Generate unique flight number with route identifier
-				const routeSuffix = randomInt(100, 999);
-				// Use route_id first char to make it more unique
-				const routeIdChar = route.route_id.substring(0, 1).toUpperCase();
-				flightNum = `${airline}${routeIdChar}${routeSuffix}`;
-				attempts++;
-				
-				// Check if this flight number + period combination already exists
-				const existing = await repos.schedule
-					.createQueryBuilder('fs')
-					.where('fs.flight_number = :flightNum', { flightNum })
-					.andWhere('CAST(fs.effective_from AS DATE) = CAST(:from AS DATE)', { from: from.toISOString().slice(0, 10) })
-					.andWhere('CAST(fs.effective_to AS DATE) = CAST(:to AS DATE)', { to: to.toISOString().slice(0, 10) })
-					.getOne();
-				
-				if (!existing && !usedFlightNumbers.has(flightNum)) {
-					usedFlightNumbers.add(flightNum);
-					break;
-				}
-				
-				// If max attempts reached, use timestamp to ensure uniqueness
-				if (attempts >= maxAttempts) {
-					const timestamp = Date.now().toString().slice(-4);
-					flightNum = `${airline}${timestamp}`;
-					usedFlightNumbers.add(flightNum);
-					break;
-				}
-			} while (attempts < maxAttempts);
+            // Generate unique flight number
+            let flightNum: string;
+            let attempts = 0;
+            
+            do {
+                const airline = randomElement(flightNumbers);
+                const routeSuffix = randomInt(100, 999);
+                flightNum = `${airline}${routeSuffix}`;
+                attempts++;
+                
+                if (attempts >= 5) {
+                    flightNum = `${airline}${Date.now().toString().slice(-4)}`;
+                    break;
+                }
+            } while (usedFlightNumbers.has(flightNum));
+            
+            usedFlightNumbers.add(flightNum);
 
-			// Final check before creating
-			const finalCheck = await repos.schedule
-				.createQueryBuilder('fs')
-				.where('fs.flight_number = :flightNum', { flightNum })
-				.andWhere('CAST(fs.effective_from AS DATE) = CAST(:from AS DATE)', { from: from.toISOString().slice(0, 10) })
-				.andWhere('CAST(fs.effective_to AS DATE) = CAST(:to AS DATE)', { to: to.toISOString().slice(0, 10) })
-				.getOne();
+            // Check for existing schedule
+            const existing = await repos.schedule.findOne({
+                where: {
+                    flight_number: flightNum,
+                },
+            });
 
-			if (!finalCheck) {
-				try {
-					const schedule = await repos.schedule.save(repos.schedule.create({
-						flight_schedule_id: uuidv7(),
-						flight_number: flightNum,
-						route,
-						aircraft_type: aircraftType,
-						departure_time_local: `${String(departureHour).padStart(2, '0')}:${String(departureMinute).padStart(2, '0')}`,
-						arrival_time_local: `${String(arrivalTime.getHours()).padStart(2, '0')}:${String(arrivalTime.getMinutes()).padStart(2, '0')}`,
-						operating_days: operatingDays,
-						effective_from: from,
-						effective_to: to,
-						status: 'active',
-					}));
-					schedules.push(schedule);
-					schedulesCreated++;
-				} catch (error: any) {
-					// If still duplicate (race condition), skip this schedule
-					if (error?.code === 'EREQUEST' && error?.number === 2627) {
-						console.log(`  Skipping duplicate schedule: ${flightNum}`);
-						continue;
-					}
-					throw error;
-				}
-			} else {
-				// Load existing schedule
-				schedules.push(finalCheck);
-			}
-		}
-		
-		if (schedulesCreated > 0 && schedulesCreated % 50 === 0) {
-			console.log(`  Created ${schedulesCreated} schedules...`);
-		}
-	}
-	console.log(`Created ${schedulesCreated} new schedules, total: ${schedules.length} schedules`);
+            if (!existing) {
+                const schedule = repos.schedule.create({
+                    flight_schedule_id: uuidv7(),
+                    flight_number: flightNum,
+                    route,
+                    aircraft_type: aircraftType,
+                    departure_time_local: `${String(departureHour).padStart(2, '0')}:${String(departureMinute).padStart(2, '0')}`,
+                    arrival_time_local: `${String(arrivalTime.getHours()).padStart(2, '0')}:${String(arrivalTime.getMinutes()).padStart(2, '0')}`,
+                    operating_days: operatingDays,
+                    effective_from: dateRanges.scheduleStartDate,
+                    effective_to: dateRanges.scheduleEndDate,
+                    status: 'active',
+                });
+                
+                const saved = await repos.schedule.save(schedule);
+                schedules.push(saved);
+                schedulesCreated++;
+            }
+        }
+        
+        if (schedulesCreated % 50 === 0) {
+            console.log(`  Created ${schedulesCreated} schedules...`);
+        }
+    }
+    
+    console.log(`Created ${schedulesCreated} new schedules`);
 
-	// ============================================================
-	// 9. FLIGHT INSTANCES & FLIGHT SEATS
-	// ============================================================
-	console.log('\nSeeding Flight Instances and Seats...');
-	
-	let instanceCount = 0;
-	// Generate instances for December 1-15, 2025 (reduced from 31 days to 15 days)
-	const startDate = new Date(2025, 11, 1, 0, 0, 0, 0); // December 1, 2025
-	const endDate = new Date(2025, 11, 15, 23, 59, 59, 999); // December 15, 2025
-	
-	console.log(`  Generating flight instances from ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`);
+    // ============================================================
+    // 9. FLIGHT INSTANCES & FLIGHT SEATS
+    // ============================================================
+    console.log('\nSeeding Flight Instances and Seats...');
+    
+    // Generate instances for next 30 days only (realistic availability window)
+    console.log(`  Generating flight instances from ${dateRanges.instanceStartDate.toLocaleDateString()} to ${dateRanges.instanceEndDate.toLocaleDateString()}`);
 
-	// Process schedules to create ~1000 flight instances for December 1-15, 2025
-	// Limit to ~100 schedules to achieve ~1000 instances target
-	const maxSchedulesToProcess = Math.min(100, schedules.length);
-	const schedulesToProcess = schedules.slice(0, maxSchedulesToProcess);
-	console.log(`  Processing ${schedulesToProcess.length} schedules for December 1-15, 2025 (target: ~1000 instances)...`);
+    let instanceCount = 0;
+    const maxSchedulesToProcess = Math.min(80, schedules.length);
+    const schedulesToProcess = schedules.slice(0, maxSchedulesToProcess);
+    console.log(`  Processing ${schedulesToProcess.length} schedules for next 30 days (target: ~1500 instances)...`);
 
-	for (const schedule of schedulesToProcess) {
-		// Create a new date object for each schedule to avoid mutation issues
-		const currentDate = new Date(startDate.getTime());
-		
-		while (currentDate <= endDate) {
-			// Use getDay() instead of getUTCDay() to use local timezone
-			// getDay() returns 0=Sunday, 1=Monday, ..., 6=Saturday
-			// operating_days format: '0101010' where index 0=Sunday, 1=Monday, ..., 6=Saturday
-			const dayOfWeek = currentDate.getDay();
-			const operatingDays = schedule.operating_days;
-			
-			// Validate operating_days format
-			if (!operatingDays || operatingDays.length !== 7) {
-				currentDate.setDate(currentDate.getDate() + 1);
-				continue;
-			}
-			
-			const bits = operatingDays.split('').map(c => (c === '1' ? 1 : 0));
-			
-			// Check if schedule operates on this day of week
-			// bits[0] = Sunday, bits[1] = Monday, ..., bits[6] = Saturday
-			if (bits[dayOfWeek] === 1) {
-				// Check if instance already exists
-				const existing = await repos.instance
-					.createQueryBuilder('fi')
-					.where('fi.flight_number = :flightNum', { flightNum: schedule.flight_number })
-					.andWhere('CAST(fi.flight_date AS DATE) = CAST(:date AS DATE)', { date: currentDate.toISOString().slice(0, 10) })
-					.getOne();
+    for (const schedule of schedulesToProcess) {
+        let currentDate = new Date(dateRanges.instanceStartDate.getTime());
+        
+        while (currentDate <= dateRanges.instanceEndDate) {
+            const dayOfWeek = currentDate.getDay();
+            const operatingDays = schedule.operating_days;
+            
+            if (!operatingDays || operatingDays.length !== 7) {
+                currentDate.setDate(currentDate.getDate() + 1);
+                continue;
+            }
+            
+            const bits = operatingDays.split('').map(c => (c === '1' ? 1 : 0));
+            
+            if (bits[dayOfWeek] === 1) {
+                // Check if instance already exists
+                const existing = await repos.instance.findOne({
+                    where: {
+                        flight_number: schedule.flight_number,
+                        flight_date: currentDate,
+                    },
+                });
 
-				if (!existing) {
-					// Get available aircraft
-					const availableAircraft = aircrafts.filter(a => a.in_service);
-					if (availableAircraft.length === 0) {
-						currentDate.setDate(currentDate.getDate() + 1);
-						continue;
-					}
+                if (!existing) {
+                    const availableAircraft = aircrafts.filter(a => a.in_service);
+                    if (availableAircraft.length === 0) {
+                        currentDate.setDate(currentDate.getDate() + 1);
+                        continue;
+                    }
 
-					const aircraft = randomElement(availableAircraft);
-					const [depHour, depMin] = schedule.departure_time_local.split(':').map(Number);
-					const [arrHour, arrMin] = schedule.arrival_time_local.split(':').map(Number);
-					
-					const departure = new Date(currentDate);
-					departure.setHours(depHour, depMin, 0, 0);
-					
-					const arrival = new Date(currentDate);
-					arrival.setHours(arrHour, arrMin, 0, 0);
-					if (arrival < departure) {
-						arrival.setDate(arrival.getDate() + 1); // Next day arrival
-					}
+                    const aircraft = randomElement(availableAircraft);
+                    const [depHour, depMin] = schedule.departure_time_local.split(':').map(Number);
+                    const [arrHour, arrMin] = schedule.arrival_time_local.split(':').map(Number);
+                    
+                    const departure = new Date(currentDate);
+                    departure.setHours(depHour, depMin, 0, 0);
+                    
+                    const arrival = new Date(currentDate);
+                    arrival.setHours(arrHour, arrMin, 0, 0);
+                    if (arrival < departure) {
+                        arrival.setDate(arrival.getDate() + 1);
+                    }
 
-					const instance = await repos.instance.save(repos.instance.create({
-						flight_instance_id: uuidv7(), // Generate UUID v7 (time-ordered) manually
-						flight_schedule: schedule,
-						flight_date: currentDate,
-						flight_number: schedule.flight_number,
-						aircraft,
-						departure_datetime_local: departure,
-						arrival_datetime_local: arrival,
-						status: randomElement(['scheduled', 'on_time', 'delayed']),
-					}));
+                    const instance = await repos.instance.save(repos.instance.create({
+                        flight_instance_id: uuidv7(),
+                        flight_schedule: schedule,
+                        flight_date: currentDate,
+                        flight_number: schedule.flight_number,
+                        aircraft,
+                        departure_datetime_local: departure,
+                        arrival_datetime_local: arrival,
+                        status: randomElement(['scheduled', 'on_time', 'delayed']),
+                    }));
 
-					// Create flight seats for this instance
-					const seatConfigs = await repos.seatConfig
-						.createQueryBuilder('sc')
-						.innerJoinAndSelect('sc.cabin_class', 'cabin')
-						.where('sc.aircraft_type_id = :aircraftTypeId', { aircraftTypeId: aircraft.aircraft_type.aircraft_type_id })
-						.getMany();
+                    // Create flight seats - optimize with batch insert
+                    const seatConfigs = await repos.seatConfig
+                        .createQueryBuilder('sc')
+                        .innerJoinAndSelect('sc.cabin_class', 'cabin')
+                        .where('sc.aircraft_type_id = :aircraftTypeId', { aircraftTypeId: aircraft.aircraft_type.aircraft_type_id })
+                        .getMany();
 
-					// Batch insert seats (reduced batch size to avoid SQL Server 2100 parameter limit)
-					// TypeORM save() with array can generate many parameters, so use very small batches
-					// Each flight seat has 4 fields, but TypeORM may generate more parameters for relations
-					// Using batch size 5 = ~20 parameters per batch (very safe, well below 2100 limit)
-					const batchSizeSeats = 5;
-					const entitiesToSave: FlightSeat[] = [];
-					
-					for (const seatConfig of seatConfigs) {
-						entitiesToSave.push(repos.seat.create({
-							flight_seat_id: uuidv7(),
-							flight_instance: instance, // Use relation object - TypeORM will extract flight_instance_id
-							seat_config: seatConfig, // Use relation object - TypeORM will extract seat_config_id
-							seat_number: seatConfig.seat_number,
-							is_available: Math.random() > 0.3, // 70% available
-						}));
-						
-						// Save in batches to avoid parameter limit
-						if (entitiesToSave.length >= batchSizeSeats) {
-							await repos.seat.save(entitiesToSave);
-							entitiesToSave.length = 0; // Clear array
-						}
-					}
-					
-					// Save remaining entities
-					if (entitiesToSave.length > 0) {
-						await repos.seat.save(entitiesToSave);
-					}
+                    const seatsToCreate = seatConfigs.map(seatConfig =>
+                        repos.seat.create({
+                            flight_seat_id: uuidv7(),
+                            flight_instance: instance,
+                            seat_config: seatConfig,
+                            seat_number: seatConfig.seat_number,
+                            is_available: Math.random() > 0.3, // 70% available
+                        }),
+                    );
 
-					instanceCount++;
-					// Stop if we've reached ~1000 instances
-					if (instanceCount >= 1000) {
-						console.log(`  Reached target of 1000 flight instances, stopping...`);
-						break;
-					}
-					if (instanceCount % 100 === 0) {
-						console.log(`  Created ${instanceCount} flight instances...`);
-					}
-				}
-			}
-			currentDate.setDate(currentDate.getDate() + 1);
-		}
-		// Break outer loop if we've reached target
-		if (instanceCount >= 1000) {
-			break;
-		}
-	}
-	console.log(`Created ${instanceCount} flight instances with seats`);
+                    await batchInsert(repos.seat, seatsToCreate, 50);
 
-	// ============================================================
-	// 10. RESERVATIONS (Sample reservations)
-	// ============================================================
-	console.log('\nSeeding Reservations...');
-	
-	// Get all available flight instances first (needed for reservations)
-	const allInstancesForReservations = await repos.instance
-		.createQueryBuilder('fi')
-		.leftJoinAndSelect('fi.aircraft', 'aircraft')
-		.leftJoinAndSelect('aircraft.aircraft_type', 'aircraft_type')
-		.orderBy('fi.flight_date', 'ASC')
-		.take(100) // Reduced from 500 to 100
-		.getMany();
-	
-	let reservationCount = 0;
-	const reservationStatuses = ['pending', 'expired', 'converted', 'cancelled'];
-	
-	// Get flight instances for reservations
-	const reservationInstances = allInstancesForReservations;
-	
-	for (let i = 0; i < Math.min(20, users.length); i++) { // Reduced from 200 to 20
-		const user = users[i];
-		
-		// Create 1-2 reservations per user
-		const numReservations = randomInt(1, 2);
-		
-		for (let j = 0; j < numReservations; j++) {
-			const status = randomElement(reservationStatuses);
-			const now = new Date();
-			const expiresAt = new Date(now);
-			expiresAt.setMinutes(expiresAt.getMinutes() + 15); // 15 minutes TTL
-			
-			// Generate unique reservation code
-			let reservationCode = generatePNR();
-			let attempts = 0;
-			while (await repos.reservation.findOne({ where: { reservation_code: reservationCode } }) && attempts < 10) {
-				reservationCode = generatePNR();
-				attempts++;
-			}
-			
-			// Select random flight instance for segments
-			const instance = randomElement(reservationInstances);
-			if (!instance) continue;
-			
-			// Create segments JSON
-			const segments = [{
-				flightInstanceId: instance.flight_instance_id,
-				flightNumber: instance.flight_number,
-				departureDatetime: instance.departure_datetime_local,
-				arrivalDatetime: instance.arrival_datetime_local,
-				segmentType: 'outbound',
-				fareClassCode: randomElement(['Y', 'YS', 'YSM']),
-				baseFare: randomInt(1000000, 5000000),
-				taxAmount: randomInt(100000, 500000),
-				feeAmount: randomInt(50000, 250000),
-			}];
-			
-			// 30% chance of round-trip (2 segments)
-			if (Math.random() > 0.7) {
-				const returnInstance = randomElement(reservationInstances.filter(inst => 
-					inst.flight_instance_id !== instance.flight_instance_id &&
-					inst.flight_date > instance.flight_date
-				));
-				if (returnInstance) {
-					segments.push({
-						flightInstanceId: returnInstance.flight_instance_id,
-						flightNumber: returnInstance.flight_number,
-						departureDatetime: returnInstance.departure_datetime_local,
-						arrivalDatetime: returnInstance.arrival_datetime_local,
-						segmentType: 'inbound',
-						fareClassCode: randomElement(['Y', 'YS', 'YSM']),
-						baseFare: randomInt(1000000, 5000000),
-						taxAmount: randomInt(100000, 500000),
-						feeAmount: randomInt(50000, 250000),
-					});
-				}
-			}
-			
-			const totalAmount = segments.reduce((sum, seg) => sum + seg.baseFare + seg.taxAmount + seg.feeAmount, 0);
-			const numberOfPassengers = randomInt(1, 4);
-			
-			// Set status-specific dates
-			let convertedAt: Date | null = null;
-			if (status === 'expired') {
-				expiresAt.setMinutes(expiresAt.getMinutes() - 20); // Expired 20 minutes ago
-			} else if (status === 'converted') {
-				const converted = new Date(now);
-				converted.setMinutes(converted.getMinutes() - 5); // Converted 5 minutes ago
-				convertedAt = converted;
-			}
-			
-			await repos.reservation.save(repos.reservation.create({
-				reservation_id: uuidv7(),
-				reservation_code: reservationCode,
-				user,
-				segments_json: JSON.stringify(segments),
-				number_of_passengers: numberOfPassengers,
-				total_amount: totalAmount,
-				currency: vnd,
-				status,
-				expires_at: expiresAt,
-				converted_at: convertedAt,
-			}));
-			
-			reservationCount++;
-		}
-	}
-	console.log(`Created ${reservationCount} reservations`);
+                    instanceCount++;
+                    if (instanceCount >= 1500) {
+                        console.log(`  Reached target of 1500 flight instances, stopping...`);
+                        break;
+                    }
+                    if (instanceCount % 100 === 0) {
+                        console.log(`  Created ${instanceCount} flight instances...`);
+                    }
+                }
+            }
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
+        
+        if (instanceCount >= 1500) {
+            break;
+        }
+    }
+    
+    
+    console.log(`Created ${instanceCount} flight instances with seats`);
 
-	// ============================================================
-	// 11. BOOKINGS, BOOKING PASSENGERS, SEGMENTS, TICKETS, PAYMENTS
-	// ============================================================
-	console.log('\nSeeding Bookings and related data...');
-	
-	// Get all available flight instances (limit to 200 for faster seeding)
-	const allInstances = await repos.instance
-		.createQueryBuilder('fi')
-		.leftJoinAndSelect('fi.aircraft', 'aircraft')
-		.leftJoinAndSelect('aircraft.aircraft_type', 'aircraft_type')
-		.orderBy('fi.flight_date', 'ASC')
-		.take(200) // Reduced from 500
-		.getMany();
-	
-	console.log(`  Found ${allInstances.length} flight instances for bookings`);
-	
-	let bookingCount = 0;
-	
-	if (allInstances.length === 0) {
-		console.log('  No flight instances available. Skipping bookings...');
-	} else {
-		const maxBookings = Math.min(100, Math.floor(allInstances.length * 0.3)); // 30% of instances or max 100 (reduced from 1000)
-		console.log(`  Creating up to ${maxBookings} bookings...`);
-		
-		for (let i = 0; i < maxBookings; i++) {
-			const user = randomElement(users);
-			const pnr = generatePNR();
-			
-			// Check PNR uniqueness
-			const existingPNR = await repos.booking.findOne({ where: { pnr_code: pnr } });
-			if (existingPNR) continue;
+    // ============================================================
+    // 10. RESERVATIONS (Sample reservations with realistic dates)
+    // ============================================================
+    console.log('\nSeeding Reservations with realistic dates...');
+    
+    const reservationDates = getDateRanges();
+    
+    // Get flight instances for reservations (future flights)
+    const allInstancesForReservations = await repos.instance
+        .createQueryBuilder('fi')
+        .leftJoinAndSelect('fi.aircraft', 'aircraft')
+        .leftJoinAndSelect('aircraft.aircraft_type', 'aircraft_type')
+        .where('fi.flight_date >= :startDate', { startDate: reservationDates.instanceStartDate })
+        .orderBy('fi.flight_date', 'ASC')
+        .take(150)
+        .getMany();
+    
+    let reservationCount = 0;
+    const reservationStatuses = ['pending', 'expired', 'converted', 'cancelled'];
+    
+    const reservationInstances = allInstancesForReservations;
+    
+    for (let i = 0; i < Math.min(30, users.length); i++) { // Increased from 20 to 30
+        const user = users[i];
+        
+        // Create 1-2 reservations per user
+        const numReservations = randomInt(1, 2);
+        
+        for (let j = 0; j < numReservations; j++) {
+            const status = randomElement(reservationStatuses);
+            
+            // Reservation creation date: in the past (when customer made the reservation)
+            const createdAt = randomDate(reservationDates.bookingStartDate, reservationDates.today);
+            
+            // TTL: 15 minutes from creation
+            const expiresAt = new Date(createdAt);
+            expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+            
+            // If expired or converted, adjust dates appropriately
+            let convertedAt: Date | null = null;
+            if (status === 'expired') {
+                // Expired reservation: expires_at is in the past
+                expiresAt.setMinutes(expiresAt.getMinutes() - 30); // Expired 30 minutes after creation
+            } else if (status === 'converted') {
+                // Converted to booking: converted_at is within TTL
+                convertedAt = new Date(createdAt);
+                convertedAt.setMinutes(convertedAt.getMinutes() + randomInt(5, 14)); // Converted within TTL
+            }
+            
+            // Generate unique reservation code
+            let reservationCode = generatePNR();
+            let attempts = 0;
+            while (await repos.reservation.findOne({ where: { reservation_code: reservationCode } }) && attempts < 10) {
+                reservationCode = generatePNR();
+                attempts++;
+            }
+            
+            // Select random flight instance for segments
+            const instance = randomElement(reservationInstances);
+            if (!instance) continue;
+            
+            // Create segments JSON
+            const segments = [{
+                flightInstanceId: instance.flight_instance_id,
+                flightNumber: instance.flight_number,
+                departureDatetime: instance.departure_datetime_local,
+                arrivalDatetime: instance.arrival_datetime_local,
+                segmentType: 'outbound',
+                fareClassCode: randomElement(['Y', 'YS', 'YSM', 'YF']),
+                baseFare: randomInt(1000000, 5000000),
+                taxAmount: randomInt(100000, 500000),
+                feeAmount: randomInt(50000, 250000),
+            }];
+            
+            // 30% chance of round-trip (2 segments)
+            if (Math.random() > 0.7) {
+                const returnInstance = randomElement(reservationInstances.filter(inst => 
+                    inst.flight_instance_id !== instance.flight_instance_id &&
+                    inst.flight_date > instance.flight_date
+                ));
+                if (returnInstance) {
+                    segments.push({
+                        flightInstanceId: returnInstance.flight_instance_id,
+                        flightNumber: returnInstance.flight_number,
+                        departureDatetime: returnInstance.departure_datetime_local,
+                        arrivalDatetime: returnInstance.arrival_datetime_local,
+                        segmentType: 'inbound',
+                        fareClassCode: randomElement(['Y', 'YS', 'YSM', 'YF']),
+                        baseFare: randomInt(1000000, 5000000),
+                        taxAmount: randomInt(100000, 500000),
+                        feeAmount: randomInt(50000, 250000),
+                    });
+                }
+            }
+            
+            const totalAmount = segments.reduce((sum, seg) => sum + seg.baseFare + seg.taxAmount + seg.feeAmount, 0);
+            const numberOfPassengers = randomInt(1, 4);
+            
+            // Save reservation with proper date correlations
+            await repos.reservation.save(repos.reservation.create({
+                reservation_id: uuidv7(),
+                reservation_code: reservationCode,
+                user,
+                segments_json: JSON.stringify(segments),
+                number_of_passengers: numberOfPassengers,
+                total_amount: totalAmount,
+                currency: vnd,
+                status,
+                expires_at: expiresAt,
+                converted_at: convertedAt,
+                created_at: createdAt,
+            } as any));
+            
+            reservationCount++;
+        }
+    }
+    
+    console.log(`Created ${reservationCount} reservations with realistic dates`);
 
-			// Use realistic contact info (matching user or random)
-			const useUserContact = Math.random() > 0.3; // 70% use user's info
-			const contactName = useUserContact ? user.fullname : generateVietnameseName();
-			const contactEmail = useUserContact ? user.email : generateEmail(contactName);
-			const contactPhone = useUserContact ? user.phone : generatePhone();
-			const totalAmount = randomInt(1000000, 15000000);
-			
-			// Booking status: pending -> paid (if payment success), or cancelled
-			// Match với business logic: 'pending' (chưa thanh toán), 'paid' (đã thanh toán), 'cancelled'
-			const status = randomElement(['pending', 'paid', 'cancelled']);
+    // ============================================================
+    // 11. BOOKINGS, BOOKING PASSENGERS, SEGMENTS, TICKETS, PAYMENTS (Realistic data with proper date correlation)
+    // ============================================================
 
-			const bookingData: any = {
-				booking_id: uuidv7(),
-				pnr_code: pnr,
-				user: user,
-				currency: vnd,
-				total_amount: totalAmount,
-				status,
-				channel: randomElement(['web', 'mobile', 'agent', 'call_center']),
-				contact_fullname: contactName,
-				contact_email: contactEmail,
-				contact_phone: contactPhone,
-			};
-			const newBooking = repos.booking.create(bookingData);
-			const savedBooking = await repos.booking.save(newBooking);
+    // ============================================================
+    // 11. BOOKINGS, BOOKING PASSENGERS, SEGMENTS, TICKETS, PAYMENTS (Realistic data with proper date correlation)
+    // ============================================================
+    console.log('\nSeeding Bookings and related data with realistic dates...');
+    
+    // Get flight instances for bookings - use future instances
+    const allInstances = await repos.instance
+        .createQueryBuilder('fi')
+        .leftJoinAndSelect('fi.aircraft', 'aircraft')
+        .leftJoinAndSelect('aircraft.aircraft_type', 'aircraft_type')
+        .where('fi.flight_date >= :startDate', { startDate: dateRanges.instanceStartDate })
+        .orderBy('fi.flight_date', 'ASC')
+        .take(300)
+        .getMany();
+    
+    console.log(`  Found ${allInstances.length} flight instances for bookings`);
+    
+    let bookingCount = 0;
+    
+    if (allInstances.length > 0) {
+        const maxBookings = Math.min(150, Math.floor(allInstances.length * 0.4)); // 40% of instances
+        console.log(`  Creating up to ${maxBookings} realistic bookings...`);
+        
+        for (let i = 0; i < maxBookings; i++) {
+            const user = randomElement(users);
+            
+            // Generate unique PNR
+            let pnr = generatePNR();
+            let attempts = 0;
+            while (await repos.booking.findOne({ where: { pnr_code: pnr } }) && attempts < 10) {
+                pnr = generatePNR();
+                attempts++;
+            }
 
-			// Get passengers for this user
-			const passengers = await repos.passenger
-				.createQueryBuilder('p')
-				.where('p.user_id = :userId', { userId: user.user_id })
-				.getMany();
-			if (passengers.length === 0) continue;
+            // Use realistic contact info
+            const useUserContact = Math.random() > 0.3; // 70% use user's info
+            const contactName = useUserContact ? user.fullname : generateVietnameseName();
+            const contactEmail = useUserContact ? user.email : generateEmail(contactName);
+            const contactPhone = useUserContact ? user.phone : generatePhone();
+            const totalAmount = randomInt(1000000, 15000000);
+            
+            // Realistic booking status distribution
+            // 50% paid, 35% pending, 15% cancelled
+            let status: 'pending' | 'paid' | 'cancelled';
+            const statusRand = Math.random();
+            if (statusRand < 0.50) {
+                status = 'paid';
+            } else if (statusRand < 0.85) {
+                status = 'pending';
+            } else {
+                status = 'cancelled';
+            }
 
-			const numPassengers = randomInt(1, Math.min(4, passengers.length));
-			const selectedPassengers = passengers.slice(0, numPassengers);
+            // Booking creation date: in the past (last 30 days)
+            const bookingCreatedAt = randomDate(dateRanges.bookingStartDate, dateRanges.today);
 
-			// Create booking passengers
-			const bookingPassengers: BookingPassenger[] = [];
-			for (const passenger of selectedPassengers) {
-			const newBookingPassenger = repos.bookingPassenger.create({
-				booking_passenger_id: uuidv7(),
-				booking: savedBooking as any,
-				passenger,
-				passenger_type: randomElement(['ADT', 'CHD', 'INF']), // ADT = Adult, CHD = Child, INF = Infant
-			} as any);
-			const bp = (await repos.bookingPassenger.save(newBookingPassenger)) as unknown as BookingPassenger;
-			bookingPassengers.push(bp);
-		}
+            const savedBooking = await repos.booking.save(repos.booking.create({
+                booking_id: uuidv7(),
+                pnr_code: pnr,
+                user,
+                currency: vnd,
+                total_amount: totalAmount,
+                status,
+                channel: randomElement(['web', 'mobile', 'agent', 'call_center']),
+                contact_fullname: contactName,
+                contact_email: contactEmail,
+                contact_phone: contactPhone,
+                created_at: bookingCreatedAt, // Past booking date
+            } as any));
 
-		// Create booking segments (1-2 segments per booking)
-		const numSegments = randomInt(1, 2);
-		const selectedInstances: FlightInstance[] = [];
-		for (let j = 0; j < numSegments; j++) {
-			const instance = randomElement(allInstances);
-			if (!selectedInstances.find(inst => inst.flight_instance_id === instance.flight_instance_id)) {
-				selectedInstances.push(instance);
-			}
-		}
+            // Get passengers for this user
+            const passengers = await repos.passenger.findBy({ user_id: user.user_id });
+            if (passengers.length === 0) continue;
 
-		for (const instance of selectedInstances) {
-			// Get available seats for this instance
-			const availableSeats = await repos.seat
-				.createQueryBuilder('seat')
-				.where('seat.flight_instance_id = :instanceId', { instanceId: instance.flight_instance_id })
-				.andWhere('seat.is_available = :available', { available: true })
-				.take(numPassengers)
-				.getMany();
+            const numPassengers = randomInt(1, Math.min(4, passengers.length));
+            const selectedPassengers = passengers.slice(0, numPassengers);
 
-			if (availableSeats.length < numPassengers) continue; // Skip if not enough seats
+            // Create booking passengers
+            const bookingPassengers: BookingPassenger[] = [];
+            for (const passenger of selectedPassengers) {
+                const bp = await repos.bookingPassenger.save(repos.bookingPassenger.create({
+                    booking_passenger_id: uuidv7(),
+                    booking: savedBooking as any,
+                    passenger,
+                    passenger_type: randomElement(['ADT', 'CHD', 'INF']),
+                } as any));
+                bookingPassengers.push(bp as unknown as BookingPassenger);
+            }
 
-			// Get fare classes
-			const fareClasses = await repos.fareClass.find({
-				relations: ['cabin_class'],
-			});
+            // Create booking segments (1-2 segments per booking)
+            const numSegments = randomInt(1, 2);
+            const selectedInstances: FlightInstance[] = [];
+            
+            for (let j = 0; j < numSegments; j++) {
+                const instance = randomElement(allInstances);
+                if (!selectedInstances.find(inst => inst.flight_instance_id === instance.flight_instance_id)) {
+                    selectedInstances.push(instance);
+                }
+            }
 
-			for (let j = 0; j < numPassengers; j++) {
-				const bookingPassengerItem = bookingPassengers[j];
-				const flightSeat = availableSeats[j];
-				const fareClass = randomElement(fareClasses);
+            for (let segIdx = 0; segIdx < selectedInstances.length; segIdx++) {
+                const instance = selectedInstances[segIdx];
+                
+                // Get available seats for this instance
+                const availableSeats = await repos.seat
+                    .createQueryBuilder('seat')
+                    .where('seat.flight_instance_id = :instanceId', { instanceId: instance.flight_instance_id })
+                    .andWhere('seat.is_available = :available', { available: true })
+                    .take(numPassengers)
+                    .getMany();
 
-				// Get seat config to determine base fare
-				const seatConfig = await repos.seatConfig
-					.createQueryBuilder('sc')
-					.innerJoinAndSelect('sc.cabin_class', 'cabin')
-					.where('sc.seat_config_id = :seatConfigId', { seatConfigId: flightSeat.seat_config_id })
-					.getOne();
+                if (availableSeats.length < numPassengers) continue;
 
-				const baseFare = randomInt(1000000, 5000000);
-				const taxAmount = Math.floor(baseFare * 0.1);
-				const feeAmount = Math.floor(baseFare * 0.05);
+                // Get fare classes
+                const fareClasses = await repos.fareClass.find({
+                    relations: ['cabin_class'],
+                });
 
-				const newSegment = repos.bookingSegment.create({
-					booking_segment_id: uuidv7(),
-					booking: savedBooking as any,
-					booking_passenger: bookingPassengerItem,
-					flight_instance: instance,
-					flight_seat: flightSeat,
-					fare_class: fareClass,
-					base_fare: baseFare,
-					tax_amount: taxAmount,
-					fee_amount: feeAmount,
-					status: status === 'cancelled' ? 'cancelled' : 'booked', // 'booked' là status default cho segment
-				} as any);
-				const segment = await repos.bookingSegment.save(newSegment);
+                for (let j = 0; j < numPassengers; j++) {
+                    const bookingPassengerItem = bookingPassengers[j];
+                    const flightSeat = availableSeats[j];
+                    const fareClass = randomElement(fareClasses);
 
-				// Mark seat as unavailable
-				flightSeat.is_available = false;
-				await repos.seat.save(flightSeat);
+                    const baseFare = randomInt(1000000, 5000000);
+                    const taxAmount = Math.floor(baseFare * 0.1);
+                    const feeAmount = Math.floor(baseFare * 0.05);
 
-				// Create ticket if booking is paid (tickets issued after payment)
-				if (status === 'paid') {
-					const ticketNumber = generateTicketNumber();
-					const existingTicket = await repos.ticket.findOne({ where: { ticket_number: ticketNumber } });
-					if (!existingTicket) {
-						const issuedAt = new Date();
-						issuedAt.setMinutes(issuedAt.getMinutes() - randomInt(1, 60)); // Issued 1-60 minutes ago
-						const newTicket: any = repos.ticket.create({
-							ticket_id: uuidv7(),
-							booking: savedBooking as any,
-							booking_passenger: bookingPassengerItem,
-							ticket_number: ticketNumber,
-							status: 'issued',
-						} as any);
-						newTicket.issued_at = issuedAt;
-						await repos.ticket.save(newTicket);
-					}
-				}
-			}
-		}
+                    await repos.bookingSegment.save(repos.bookingSegment.create({
+                        booking_segment_id: uuidv7(),
+                        booking: savedBooking as any,
+                        booking_passenger: bookingPassengerItem,
+                        flight_instance: instance,
+                        flight_seat: flightSeat,
+                        fare_class: fareClass,
+                        base_fare: baseFare,
+                        tax_amount: taxAmount,
+                        fee_amount: feeAmount,
+                        status: status === 'cancelled' ? 'cancelled' : 'booked',
+                    } as any));
 
-		// Create payment (match với booking status)
-		if (status !== 'cancelled') {
-			const paymentMethodCodes = ['CREDIT_CARD', 'DEBIT_CARD', 'BANK_TRANSFER', 'EWALLET', 'CASH'];
-			const paymentMethod = await repos.paymentMethod.findOne({
-				where: { payment_method_code: randomElement(paymentMethodCodes) },
-			});
+                    // Mark seat as unavailable
+                    flightSeat.is_available = false;
+                    await repos.seat.save(flightSeat);
 
-			if (paymentMethod) {
-				// Payment status: 'pending' (chưa thanh toán) -> 'success' (đã thanh toán), hoặc 'failed'
-				const paymentStatus = status === 'paid' ? 'success' : 'pending'; // Match với booking status
-				const now = new Date();
-				const expiresAt = new Date(now);
-				expiresAt.setMinutes(expiresAt.getMinutes() + 15); // 15 minutes expiration
-				
-				// Paid at time (if success, set to 1-60 minutes ago)
-				let paidAt: Date | null = null;
-				if (paymentStatus === 'success') {
-					paidAt = new Date(now);
-					paidAt.setMinutes(paidAt.getMinutes() - randomInt(1, 60)); // Paid 1-60 minutes ago
-				}
-				
-				const paymentData: any = {
-					payment_id: uuidv7(),
-					booking: savedBooking as any,
-					amount: totalAmount,
-					currency: vnd,
-					payment_method: paymentMethod,
-					status: paymentStatus,
-				};
-				
-				if (paidAt) {
-					paymentData.paid_at = paidAt;
-				}
-				
-				if (paymentStatus === 'success') {
-					paymentData.transaction_ref = `TXN${randomInt(100000000, 999999999)}`;
-				}
-				
-				if (paymentStatus === 'pending') {
-					paymentData.idempotency_key = `IDEMP-${uuidv7()}`;
-					paymentData.expires_at = expiresAt;
-				}
-				
-				await repos.payment.save(repos.payment.create(paymentData));
-			}
-		}
+                    // Create ticket if booking is paid
+                    if (status === 'paid') {
+                        const ticketNumber = generateTicketNumber();
+                        const existingTicket = await repos.ticket.findOne({ where: { ticket_number: ticketNumber } });
+                        if (!existingTicket) {
+                            const issuedAt = new Date(bookingCreatedAt);
+                            issuedAt.setMinutes(issuedAt.getMinutes() + randomInt(5, 60));
+                            
+                            await repos.ticket.save(repos.ticket.create({
+                                ticket_id: uuidv7(),
+                                booking: savedBooking as any,
+                                booking_passenger: bookingPassengerItem,
+                                ticket_number: ticketNumber,
+                                status: 'issued',
+                                issued_at: issuedAt,
+                            } as any));
+                        }
+                    }
+                }
+            }
 
-			bookingCount++;
-			if (bookingCount % 100 === 0) {
-				console.log(`  Created ${bookingCount} bookings...`);
-			}
-		}
-		console.log(`Created ${bookingCount} bookings with related data`);
-	}
+            // Create payment with status aligned to booking status
+            if (status !== 'cancelled') {
+                const paymentMethodCodes = ['CREDIT_CARD', 'DEBIT_CARD', 'BANK_TRANSFER', 'EWALLET', 'CASH'];
+                const paymentMethod = await repos.paymentMethod.findOne({
+                    where: { payment_method_code: randomElement(paymentMethodCodes) },
+                });
 
-	console.log('\nFull database seed completed successfully!');
-	console.log('\nSummary:');
-	console.log(`  - Airports: ${savedAirports.length}`);
-	console.log(`  - Routes: ${routes.length}`);
-	console.log(`  - Aircraft Types: ${savedAircraftTypes.length}`);
-	console.log(`  - Aircrafts: ${aircrafts.length}`);
-	console.log(`  - Flight Schedules: ${schedules.length}`);
-	console.log(`  - Flight Instances: ${instanceCount}`);
-	console.log(`  - Users: ${users.length}`);
-	console.log(`  - Reservations: ${reservationCount}`);
-	console.log(`  - Bookings: ${bookingCount}`);
-	
-	await ds.destroy();
+                if (paymentMethod) {
+                    const paymentStatus = status === 'paid' ? 'success' : 'pending';
+                    const expiresAt = new Date(bookingCreatedAt);
+                    expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+                    
+                    let paidAt: Date | null = null;
+                    if (paymentStatus === 'success') {
+                        paidAt = new Date(bookingCreatedAt);
+                        paidAt.setMinutes(paidAt.getMinutes() + randomInt(1, 60)); // Paid 1-60 min after booking
+                    }
+                    
+                    const paymentData: any = {
+                        payment_id: uuidv7(),
+                        booking: savedBooking as any,
+                        amount: totalAmount,
+                        currency: vnd,
+                        payment_method: paymentMethod,
+                        status: paymentStatus,
+                    };
+                    
+                    if (paidAt) {
+                        paymentData.paid_at = paidAt;
+                    }
+                    
+                    if (paymentStatus === 'success') {
+                        paymentData.transaction_ref = `TXN${randomInt(100000000, 999999999)}`;
+                    }
+                    
+                    if (paymentStatus === 'pending') {
+                        paymentData.idempotency_key = `IDEMP-${uuidv7()}`;
+                        paymentData.expires_at = expiresAt;
+                    }
+                    
+                    await repos.payment.save(repos.payment.create(paymentData));
+                }
+            }
+
+            bookingCount++;
+            if (bookingCount % 50 === 0) {
+                console.log(`  Created ${bookingCount} bookings...`);
+            }
+        }
+        
+        console.log(`Created ${bookingCount} bookings with related data`);
+    }
+
+    // ============================================================
+    // 12. SUMMARY
+    // ============================================================
+    
+    console.log('\nFull database seed completed successfully!');
+    console.log('\nSummary:');
+    console.log(`  - Airports: ${savedAirports.length}`);
+    console.log(`  - Routes: ${routes.length}`);
+    console.log(`  - Aircraft Types: ${savedAircraftTypes.length}`);
+    console.log(`  - Aircrafts: ${aircrafts.length}`);
+    console.log(`  - Flight Schedules: ${schedules.length}`);
+    console.log(`  - Flight Instances: ${instanceCount}`);
+    console.log(`  - Users: ${users.length}`);
+    console.log(`  - Reservations: ${reservationCount}`);
+    console.log(`  - Bookings: ${bookingCount}`);
+    
+    await ds.destroy();
 }
 
 run().catch((e) => {
-	console.error('Seed failed:', e);
-	process.exit(1);
+    console.error('Seed failed:', e);
+    process.exit(1);
 });
 
