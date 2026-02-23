@@ -1,6 +1,6 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
-import { Booking } from "src/shared/entities/booking/booking.entity";
-import { Currency } from "src/shared/entities/currency/currency.entity";
+import { Booking } from "../booking/booking.entity";
+import { Currency } from "../currency/currency.entity";
 import { PaymentMethod } from "./payment-method.entity";
 
 @Entity({ name: 'Payments', schema: 'dbo' })

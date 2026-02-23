@@ -1,5 +1,5 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryColumn, RelationId } from "typeorm";
-import { Airport } from "src/shared/entities/airport/airport.entity";
+import { Airport } from "../airport/airport.entity";
 
 @Entity({ name: 'Routes', schema: 'dbo' })
 // Unique constraint UQ_Routes_Origin_Destination đã được tạo trong DB schema

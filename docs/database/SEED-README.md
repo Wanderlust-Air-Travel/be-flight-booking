@@ -1,13 +1,33 @@
-# Full Database Seed Script
+# Database Seed – Hướng dẫn
 
-Script seed database với hàng ngàn records cho mỗi table, data realistic và tuân thủ tất cả constraints.
+Dự án thiết kế cho **hãng bay riêng** (airline-owned): dữ liệu chuyến bay **lưu trong DB**, do hãng quản lý. Xem **[ARCHITECTURE-DATA.md](../ARCHITECTURE-DATA.md)** để hiểu best practice (OTA vs hãng bay, real-time vs lưu DB, VN nội địa).
 
-**Lưu ý quan trọng:** Hệ thống chỉ hỗ trợ bay nội địa Việt Nam. Tất cả airports đều là sân bay Việt Nam, tất cả routes đều là domestic routes.
+## Luồng seed đề xuất (hãng bay nội địa VN)
 
-## Cách chạy
+1. **Reference data (một lần)**  
+   ```bash
+   npm run seed:full
+   ```  
+   Tạo: Currencies, Payment methods, Cabin/Fare classes, Baggage, Cabin services, Fare rules, 1 Aircraft type (A320), 1 Aircraft, Seat config, 1 admin user. **Không** tạo sân bay / routes / lịch bay.
+
+2. **Lịch bay nội bộ (sân bay VN + routes + schedules/instances)**  
+   ```bash
+   npm run seed:internal-schedule
+   ```  
+   Tạo: Sân bay VN (9 sân bay), routes nội địa (SGN–HAN, HAN–DAD, …), flight schedules, instances (30 ngày), seats, giá. **Không** cần Amadeus.
+
+3. **(Tùy chọn) Demo từ Amadeus**  
+   ```bash
+   npm run sync:flight-data
+   ```  
+   Cần `AMADEUS_CLIENT_ID`, `AMADEUS_CLIENT_SECRET`. Chỉ để thử API bên ngoài, không dùng làm nguồn chính cho hãng bay.
+
+## Cách chạy từng script
 
 ```bash
-npm run seed:full
+npm run seed:full              # Reference + master tối thiểu + admin
+npm run seed:internal-schedule # Sân bay VN + lịch nội bộ (sau seed:full)
+npm run sync:flight-data       # (Optional) Sync từ Amadeus test
 ```
 
 ## Files hỗ trợ
@@ -29,110 +49,32 @@ Script SQL để xóa toàn bộ data trong database, cho phép chạy lại see
 
 ## Dữ liệu được tạo
 
-### 1. Currencies & Payment Methods
-- 3 currencies: VND, USD, EUR
-- 5 payment methods: CARD, BANK, MOMO, ZALO, VNPAY
+### `seed:full` (reference + master tối thiểu)
 
-### 2. Cabin Classes & Fare Classes
-- 4 cabin classes: Y (Economy), J (Business), F (First), W (Premium Economy)
-- 7 fare classes:
-  - Economy: YSM (Saver Max), Y (Standard), YS (Smart), YF (Flex)
-  - Business: J (Standard), JS (Smart), JF (Flex)
+- **Currencies & Payment methods**: VND, USD, EUR; CREDIT_CARD, DEBIT_CARD, BANK_TRANSFER, EWALLET, CASH
+- **Cabin & Fare classes**: Y, J, F, W; YSM, YSMX, YS, YF, YFLX, Y; JS, JF, JFLX, J
+- **Baggage allowances, Cabin services, Fare description rules**: theo từng fare class
+- **1 Aircraft type**: A320 (180 ghế), **1 Aircraft**: VN-A320-001, **Seat configurations** cho A320
+- **1 Admin user**: admin@flightbooking.com / Password123! (roles ADMIN, CUSTOMER)
+- **Không** tạo: Airports, Routes, Flight schedules/instances, Users/Passengers/Bookings
 
-### 3. Aircraft Types & Aircrafts
-- 6 aircraft types: A320, A321, A350, B737, B787, ATR72
-- **Tất cả aircraft types đều có 180 ghế** (standardized configuration)
-- 100+ aircrafts với registration numbers
+### `seed:internal-schedule` (lịch nội bộ – hãng bay VN)
 
-### 4. Seat Configurations
-- Tự động tạo seat configurations cho mỗi aircraft type
-- **Tổng số ghế**: 180 ghế cho tất cả aircraft types
-- **Business seats**: 18 ghế (10%) = 3 hàng × 6 ghế
-- **Economy seats**: 162 ghế (90%) = 27 hàng × 6 ghế
-- **Seat Naming Convention** (được định nghĩa trong `src/shared/constants/seat.constants.ts`):
-  - Format: `{row}{column}` (ví dụ: `1A`, `2B`, `10F`)
-  - Columns: A, B, C, D, E, F (6 cột mỗi hàng)
-  - Seat Types:
-    - **Window**: A, F (ghế cửa sổ)
-    - **Middle**: B, E (ghế giữa)
-    - **Aisle**: C, D (ghế lối đi)
-- **Business seats**: Rows 1-3 (Window, Middle, Aisle positions)
-- **Economy seats**: Rows 4-30 (Window, Middle, Aisle positions)
-- **Constants**: Seed file sử dụng constants từ `src/shared/constants/seat.constants.ts` để đảm bảo tính nhất quán
-  - `SEAT_COLUMNS`: `['A', 'B', 'C', 'D', 'E', 'F']`
-  - `SEAT_TYPE_MAP`: Mapping cột → loại ghế
-  - `SEAT_DISTRIBUTION`: Cấu hình phân bổ (10% Business, 6 cột/hàng)
-  - Helper functions: `generateSeatNumber()`, `getSeatType()`
+- **Airports**: 9 sân bay VN (HAN, SGN, DAD, CXR, PQC, HUI, VCA, HPH, DLI)
+- **Routes**: 12 tuyến nội địa (SGN–HAN, HAN–SGN, SGN–DAD, DAD–SGN, HAN–DAD, DAD–HAN, SGN–CXR, CXR–SGN, SGN–PQC, PQC–SGN, HAN–HPH, HPH–HAN)
+- **Flight schedules**: 1 schedule/route, daily (operating_days 1234567), số hiệu BBO001–BBO012
+- **Flight instances**: 30 ngày (từ ngày mai), mỗi ngày 1 chuyến/route, giờ 06:00–07:30
+- **Flight seats**: đủ ghế theo seat config A320, tất cả available
+- **Route fare prices**: giá Y 1.500.000 VND (base) cho các route
 
-### 5. Airports
-- 20 airports (tất cả đều là sân bay nội địa Việt Nam)
-- Bao gồm: HAN, SGN, DAD, CXR, PQC, HUI, VCA, HPH, VDO, THD, VII, DIN, VCL, UIH, TBB, PXU, BMV, DLI, CAH, VKG
-- Tất cả airports đều có country = 'Vietnam'
-- Hệ thống chỉ hỗ trợ bay nội địa giữa các tỉnh thành Việt Nam
+## Thống kê sau khi chạy đủ luồng
 
-### 6. Routes
-- Tạo routes giữa tất cả airports Việt Nam
-- Tất cả routes đều là domestic (is_domestic = true)
-- Distance được tính tự động (200-1200 km cho routes nội địa)
-- Tổng cộng: 20 x 19 = 380 routes (mỗi airport đến 19 airports khác)
-
-### 7. Users & Passengers
-- 500 users với:
-  - Vietnamese names
-  - Unique emails
-  - Hashed passwords (default: `Password123!`)
-  - Phone numbers
-- 1-3 passengers per user
-- 30% passengers có loyalty numbers
-
-### 8. Flight Schedules
-- 300-450 flight schedules
-- Tạo cho 200 routes (ưu tiên domestic routes)
-- 3-5 schedules per route
-- **Guaranteed Daily Flights**: Schedule đầu tiên của mỗi route luôn là daily (`operating_days: '1111111'`) để đảm bảo có flights mỗi ngày
-- Operating patterns: Daily (guaranteed first), Mon/Wed/Fri/Sun, Tue/Thu/Sat, Mon-Fri, Sat-Sun
-- Effective từ 1/12/2025 đến 31/12/2025 (tháng 12/2025)
-- Flight numbers: BBO, VNA, VJ, QH
-- Tự động tránh duplicate flight numbers trong cùng period
-- **Important**: Mỗi route có ít nhất 1 daily schedule để đảm bảo user có thể search bất kỳ route nào vào bất kỳ ngày nào trong tháng 12/2025
-
-### 9. Flight Instances & Flight Seats
-- Hàng ngàn flight instances cho toàn bộ tháng 12/2025 (1/12/2025 - 31/12/2025)
-- Xử lý 200 schedules đầu tiên để tạo nhiều instances
-- Mỗi instance có đầy đủ seats
-- 70% seats available (30% đã được book)
-- Status: scheduled, on_time, delayed
-- **Guaranteed Coverage**: Với daily schedules, mỗi route sẽ có flights cho tất cả 31 ngày trong tháng 12/2025
-
-### 10. Bookings & Related Data
-- 500-1,000 bookings với:
-  - Unique PNR codes
-  - 1-4 passengers per booking
-  - 1-2 flight segments per booking
-  - Status: confirmed, pending, cancelled, completed
-- Booking Passengers
-- Booking Segments với fare classes và pricing
-- Tickets (cho confirmed bookings)
-- Payments với various payment methods
-
-## Thống kê dữ liệu
-
-Sau khi chạy seed, bạn sẽ có:
-- **Airports**: ~20
-- **Routes**: ~380 (20 x 19)
-- **Aircraft Types**: 6 (tất cả đều có 180 ghế)
-- **Aircrafts**: 100+
-- **Seat Configurations**: ~1,080 (6 aircraft types × 180 seats = 1,080 total seats)
-  - Business seats: ~108 (6 types × 18 business seats)
-  - Economy seats: ~972 (6 types × 162 economy seats)
-- **Flight Schedules**: 600-1000 (200 routes × 3-5 schedules)
-- **Flight Instances**: Hàng chục ngàn (200 schedules × 31 ngày × operating days)
-- **Flight Seats**: Hàng chục ngàn (instances × 180 seats per aircraft)
-- **Users**: 500
-- **Passengers**: 500-1,500 (1-3 per user)
-- **Bookings**: 500-1,000
-- **Tickets**: ~300+ (cho confirmed bookings)
-- **Payments**: ~400+ (cho non-cancelled bookings)
+Sau `seed:full` + `seed:internal-schedule`:
+- **Currencies**: 3 | **Payment methods**: 5 | **Cabin/Fare classes, Baggage, Cabin services, Fare rules**: đủ dùng
+- **Aircraft types**: 1 (A320) | **Aircrafts**: 1 | **Seat configurations**: 180 (cho A320)
+- **Airports**: 9 (VN) | **Routes**: 12 (nội địa)
+- **Flight Schedules**: 12 | **Flight Instances**: 12 × 30 = 360 | **Flight Seats**: 360 × 180
+- **Users**: 1 (admin) | **Bookings/Tickets/Payments**: 0 (tạo khi khách đặt)
 
 ## Lưu ý
 

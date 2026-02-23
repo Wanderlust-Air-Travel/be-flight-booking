@@ -1,8 +1,8 @@
 import { Column, CreateDateColumn, Entity, JoinTable, ManyToMany, OneToMany, PrimaryColumn, UpdateDateColumn } from "typeorm";
-import { Passenger } from "src/shared/entities/passenger/passenger.entity";
-import { Booking } from "src/shared/entities/booking/booking.entity";
-import { Reservation } from "src/shared/entities/reservation/reservation.entity";
-import { Role } from "src/shared/entities/role/role.entity";
+import { Passenger } from "../passenger/passenger.entity";
+import { Booking } from "../booking/booking.entity";
+import { Reservation } from "../reservation/reservation.entity";
+import { Role } from "../role/role.entity";
 import { UserRole } from "./user-role.entity";
 
 @Entity({ name: 'Users', schema: 'dbo' })

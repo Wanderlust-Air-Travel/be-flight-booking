@@ -1,6 +1,6 @@
 import { Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
-import { Booking } from "src/shared/entities/booking/booking.entity";
-import { BookingPassenger } from "src/shared/entities/booking/booking-passenger.entity";
+import { Booking } from "../booking/booking.entity";
+import { BookingPassenger } from "../booking/booking-passenger.entity";
 
 @Entity({ name: 'Tickets', schema: 'dbo' })
 export class Ticket {

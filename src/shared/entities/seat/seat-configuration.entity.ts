@@ -1,6 +1,6 @@
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn, RelationId } from "typeorm";
-import { AircraftType } from "src/shared/entities/aircraft/aircraft-type.entity";
-import { CabinClass } from "src/shared/entities/cabin/cabin-class.entity";
+import { AircraftType } from "../aircraft/aircraft-type.entity";
+import { CabinClass } from "../cabin/cabin-class.entity";
 
 @Entity({ name: 'SeatConfigurations', schema: 'dbo' })
 // Unique constraint UQ_SeatConfigurations_AircraftType_SeatNumber đã được tạo trong DB schema

@@ -21,6 +21,7 @@ Tài liệu dự án Flight Booking Backend được tổ chức theo các danh 
 - **[ERD.md](./database/ERD.md)** - Sơ đồ cơ sở dữ liệu
 - **[SEED-README.md](./database/SEED-README.md)** - Hướng dẫn tạo dữ liệu mẫu
 - **[DOCKER_INITIALIZATION.md](./database/DOCKER_INITIALIZATION.md)** - Chi tiết về flow khởi tạo database trong Docker
+- **[ARCHITECTURE-DATA.md](./ARCHITECTURE-DATA.md)** - Kiến trúc dữ liệu & best practice (hãng bay riêng vs OTA, VN nội địa, real-time vs lưu DB)
 
 ### Design
 - **[GUEST_BOOKING_FLOW.md](./design/GUEST_BOOKING_FLOW.md)** - Design document cho guest booking flow

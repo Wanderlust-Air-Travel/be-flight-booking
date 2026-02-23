@@ -1,6 +1,6 @@
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn, RelationId, Unique } from "typeorm";
-import { Route } from "src/shared/entities/route/route.entity";
-import { AircraftType } from "src/shared/entities/aircraft/aircraft-type.entity";
+import { Route } from "../route/route.entity";
+import { AircraftType } from "../aircraft/aircraft-type.entity";
 
 @Entity({ name: 'FlightSchedules', schema: 'dbo' })
 @Unique('UQ_FlightSchedules_FlightNumber_Period', ['flight_number', 'effective_from', 'effective_to'])

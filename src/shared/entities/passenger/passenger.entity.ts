@@ -1,5 +1,5 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryColumn, RelationId } from "typeorm";
-import { User } from "src/shared/entities/user/user.entity";
+import { User } from "../user/user.entity";
 
 @Entity({ name: 'Passengers', schema: 'dbo' })
 export class Passenger {

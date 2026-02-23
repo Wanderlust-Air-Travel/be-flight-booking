@@ -1,4 +1,68 @@
 services:
+  # SQL Server Database (infrastructure - start first)
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04
+    container_name: sqlserver
+    env_file:
+      - .env
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=${SA_PASSWORD}
+      - MSSQL_PID=Developer
+    ports:
+      - "${DB_PORT}:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "${SA_PASSWORD}" -C -Q "SELECT 1" || exit 1
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  # Redis Cache (infrastructure)
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    env_file:
+      - .env
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # RabbitMQ Message Broker (infrastructure)
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: rabbitmq
+    hostname: rabbitmq
+    env_file:
+      - .env
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS}
+      - RABBITMQ_DEFAULT_VHOST=${RABBITMQ_VHOST}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
   # Backend Application
   backend:
     build:
@@ -9,20 +73,21 @@ services:
       - .env  # Load environment variables from .env file (app.config.ts will use defaults if not set)
     environment:
       - NODE_ENV=${NODE_ENV}
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
-      - REDIS_HOST=${REDIS_HOST}
-      - RABBITMQ_HOST=${RABBITMQ_HOST}
-      - RABBITMQ_PORT=${RABBITMQ_PORT}
+      # Use Docker service names and internal ports (container-to-container)
+      - DB_HOST=sqlserver
+      - DB_PORT=1433
+      - REDIS_HOST=redis
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
       - RABBITMQ_USER=${RABBITMQ_USER}
       - RABBITMQ_PASS=${RABBITMQ_PASS}
-      - SEARCH_MS_HOST=${SEARCH_MS_HOST}
-      - SERVICES_MS_HOST=${SERVICES_MS_HOST}
-      - ROUTES_MS_HOST=${ROUTES_MS_HOST}
-      - BOOKING_MS_HOST=${BOOKING_MS_HOST}
-      - RESERVATION_MS_HOST=${RESERVATION_MS_HOST}
-      - PAYMENT_MS_HOST=${PAYMENT_MS_HOST}
-      - EMAIL_MS_HOST=${EMAIL_MS_HOST}
+      - SEARCH_MS_HOST=localhost
+      - SERVICES_MS_HOST=localhost
+      - ROUTES_MS_HOST=localhost
+      - BOOKING_MS_HOST=localhost
+      - RESERVATION_MS_HOST=localhost
+      - PAYMENT_MS_HOST=localhost
+      - EMAIL_MS_HOST=localhost
       - SA_PASSWORD=${SA_PASSWORD}
     ports:
       - "3000:3000"  # API Gateway
@@ -47,11 +112,16 @@ services:
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/v1/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-    command: sh -c "npm run wait-for-sqlserver && npm run wait-for-rabbitmq && npm run init-db && npm run wait-for-db && npm run seed:if-empty && npm run gmail:auth && npm run start:all"
+    command: sh -c "npm run wait-for-sqlserver && npm run wait-for-rabbitmq && npm run init-db && npm run wait-for-db && npm run seed:if-empty && ( node dist/microservices/search/main.search.js & node dist/microservices/services/main.services.js & node dist/microservices/routes/main.routes.js & node dist/microservices/booking/main.booking.js & node dist/microservices/reservation/main.reservation.js & node dist/microservices/payment/main.payment.js & node dist/microservices/email/main.email.js & sleep 8 && exec node dist/api-gateway/main.js )"
     restart: unless-stopped
+
+volumes:
+  sqlserver-data:
+  redis-data:
+  rabbitmq-data:
 

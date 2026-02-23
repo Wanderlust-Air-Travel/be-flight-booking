@@ -1,6 +1,6 @@
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn, Unique } from "typeorm";
 import { Booking } from "./booking.entity";
-import { Passenger } from "src/shared/entities/passenger/passenger.entity";
+import { Passenger } from "../passenger/passenger.entity";
 
 @Entity({ name: 'BookingPassengers', schema: 'dbo' })
 @Unique('UQ_BookingPassengers_Booking_Passenger', ['booking', 'passenger'])

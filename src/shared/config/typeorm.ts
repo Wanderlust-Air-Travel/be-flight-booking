@@ -15,7 +15,7 @@ export default new DataSource({
     options: { encrypt: process.env.DB_ENCRYPT === 'true'},
     extra: { trustServerCertificate: process.env.DB_TRUST_CERT === 'true'},
     entities: [__dirname + '/../entities/**/*.entity.{ts,js}'],
-    migrations: [__dirname + '/../migrations/*.{ts,js}'],
+    migrations: [__dirname + '/../../migrations/*.{ts,js}'],
     migrationsTableName: 'migrations',
     synchronize: false,
 })

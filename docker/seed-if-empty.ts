@@ -49,8 +49,8 @@ const ds = new DataSource({
 });
 
 /**
- * Check if database already has seed data using raw SQL queries
- * This avoids loading all entity metadata and relations
+ * Check if database already has reference seed data using raw SQL queries
+ * (Reference data = currencies, fare classes, etc. Flight data comes from provider sync.)
  */
 async function hasExistingSeedData(): Promise<boolean> {
 	let isInitialized = false;
@@ -59,29 +59,22 @@ async function hasExistingSeedData(): Promise<boolean> {
 			await ds.initialize();
 			isInitialized = true;
 		}
-		
-		// Use raw SQL queries to check table counts
-		// This avoids TypeORM entity metadata loading issues
+
 		const queryRunner = ds.createQueryRunner();
-		
-		const userCountResult = await queryRunner.query('SELECT COUNT(*) as count FROM dbo.Users');
-		const routeCountResult = await queryRunner.query('SELECT COUNT(*) as count FROM dbo.Routes');
-		const scheduleCountResult = await queryRunner.query('SELECT COUNT(*) as count FROM dbo.FlightSchedules');
-		const instanceCountResult = await queryRunner.query('SELECT COUNT(*) as count FROM dbo.FlightInstances');
-		
+
+		const currencyCountResult = await queryRunner.query('SELECT COUNT(*) as count FROM dbo.Currencies');
+		const fareClassCountResult = await queryRunner.query('SELECT COUNT(*) as count FROM dbo.FareClasses');
+
 		await queryRunner.release();
 
-		const userCount = userCountResult[0]?.count ?? 0;
-		const routeCount = routeCountResult[0]?.count ?? 0;
-		const scheduleCount = scheduleCountResult[0]?.count ?? 0;
-		const instanceCount = instanceCountResult[0]?.count ?? 0;
+		const currencyCount = currencyCountResult[0]?.count ?? 0;
+		const fareClassCount = fareClassCountResult[0]?.count ?? 0;
 
-		if (userCount > 0 || routeCount > 0 || scheduleCount > 0 || instanceCount > 0) {
-			console.log('\nDatabase đã có dữ liệu seed:');
-			console.log(`   - Users: ${userCount}`);
-			console.log(`   - Routes: ${routeCount}`);
-			console.log(`   - Flight Schedules: ${scheduleCount}`);
-			console.log(`   - Flight Instances: ${instanceCount}`);
+		if (currencyCount > 0 || fareClassCount > 0) {
+			console.log('\nDatabase đã có dữ liệu reference:');
+			console.log(`   - Currencies: ${currencyCount}`);
+			console.log(`   - Fare Classes: ${fareClassCount}`);
+			console.log('   Chuyến bay: npm run seed:internal-schedule (VN nội bộ) hoặc npm run sync:flight-data (Amadeus demo).');
 			return true;
 		}
 
@@ -90,7 +83,6 @@ async function hasExistingSeedData(): Promise<boolean> {
 		console.error('Lỗi khi kiểm tra database:', error.message);
 		throw error;
 	} finally {
-		// Only destroy if we initialized it
 		if (isInitialized && ds.isInitialized) {
 			await ds.destroy();
 		}

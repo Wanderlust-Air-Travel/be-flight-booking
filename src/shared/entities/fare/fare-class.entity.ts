@@ -1,5 +1,5 @@
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
-import { CabinClass } from "src/shared/entities/cabin/cabin-class.entity";
+import { CabinClass } from "../cabin/cabin-class.entity";
 
 @Entity({ name: 'FareClasses', schema: 'dbo' })
 export class FareClass {
