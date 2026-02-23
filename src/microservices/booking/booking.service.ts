@@ -669,6 +669,7 @@ export class BookingService {
 			.leftJoinAndSelect('route.destination_airport', 'destinationAirport')
 			.leftJoinAndSelect('segments.fare_class', 'fareClass')
 			.leftJoinAndSelect('segments.flight_seat', 'flightSeat')
+			.leftJoinAndSelect('segments.services', 'segmentServices')
 			.leftJoinAndSelect('booking.booking_passengers', 'bookingPassengers')
 			.leftJoinAndSelect('bookingPassengers.passenger', 'passenger')
 			.where('booking.booking_id = :bookingId', { bookingId })
@@ -776,6 +777,13 @@ export class BookingService {
 							seatNumber: segment.flight_seat.seat_number,
 						}
 					: undefined,
+				services:
+					segment.services?.map((s) => ({
+						serviceType: s.service_type,
+						serviceName: s.service_name,
+						price: s.price != null ? Number(s.price) : undefined,
+						isIncluded: !!s.is_included,
+					})) ?? [],
 			};
 		});
 
