@@ -40,7 +40,39 @@
     "migration:run": "typeorm-ts-node-commonjs migration:run -d src/shared/config/typeorm.ts",
     "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/shared/config/typeorm.ts",
     "migration:show": "typeorm-ts-node-commonjs migration:show -d src/shared/config/typeorm.ts",
-    "docker:up-fix": "node scripts/docker-up-and-fix.js"
+    "docker:up-fix": "node scripts/docker-up-and-fix.js",
+    "docker:clean": "docker compose down -v --rmi local 2>nul || docker-compose down -v --rmi local 2>nul",
+    "docker:ps": "docker compose ps 2>nul || docker-compose ps 2>nul",
+
+    # ─── Development (Local Docker) ──────────────────────────────────────────────
+    "docker:dev:build": "docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml build",
+    "docker:dev:up": "docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml up -d",
+    "docker:dev:down": "docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml down",
+    "docker:dev:restart": "npm run docker:dev:down && npm run docker:dev:up",
+    "docker:dev:logs": "docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml logs -f",
+    "docker:dev:logs:gateway": "docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml logs -f api-gateway",
+    "docker:dev:logs:infra": "docker compose -f docker-compose.infrastructure.yml logs -f",
+    "docker:dev:rebuild": "npm run docker:dev:down && npm run docker:dev:build && npm run docker:dev:up",
+
+    # ─── Staging (VPS Docker) ─────────────────────────────────────────────────────
+    "docker:staging:build": "docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml build --env-file .env.staging",
+    "docker:staging:up": "docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml up -d",
+    "docker:staging:down": "docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml down",
+    "docker:staging:restart": "npm run docker:staging:down && npm run docker:staging:up",
+    "docker:staging:logs": "docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml logs -f",
+    "docker:staging:logs:gateway": "docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml logs -f api-gateway",
+    "docker:staging:rebuild": "npm run docker:staging:down && npm run docker:staging:build && npm run docker:staging:up",
+
+    # ─── Production (VPS Docker) ─────────────────────────────────────────────────
+    "docker:prod:build": "docker compose -f docker-compose.yml -f docker-compose.prod.yml build --env-file .env.production",
+    "docker:prod:up": "docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d",
+    "docker:prod:down": "docker compose -f docker-compose.yml -f docker-compose.prod.yml down",
+    "docker:prod:restart": "npm run docker:prod:down && npm run docker:prod:up",
+    "docker:prod:logs": "docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f",
+    "docker:prod:logs:gateway": "docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f api-gateway",
+    "docker:prod:rebuild": "npm run docker:prod:down && npm run docker:prod:build && npm run docker:prod:up",
+    "docker:prod:pull": "docker compose -f docker-compose.yml -f docker-compose.prod.yml pull",
+    "data:sync": "ts-node -r tsconfig-paths/register src/scripts/data-cli.ts sync"
   },
   "dependencies": {
     "@nestjs/axios": "^3.0.0",

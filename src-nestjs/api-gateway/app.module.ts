@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import appConfig from 'src/shared/config/app.config';
+import { DataProvidersModule } from 'src/shared/modules/data-providers/data-providers.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { SearchClientModule } from './modules/search/search.client.module';
 import { ServicesClientModule } from './modules/services/services.client.module';
@@ -45,6 +46,7 @@ import { CommonModule } from 'src/shared/modules/common/common.module';
       synchronize: false,
       entities: [__dirname + '/../shared/entities/**/*.entity.{ts,js}'],
     }),
+    DataProvidersModule,
     AuthModule,
     SearchClientModule,
     ServicesClientModule,

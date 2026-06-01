@@ -4,6 +4,16 @@ export default () => ({
 		environment: process.env.NODE_ENV!,
 		name: 'flight-booking-api',
 		version: '1.0.0',
+		env: process.env.APP_ENV || 'development',
+	},
+	providers: {
+		ourairports: {
+			baseUrl: process.env.OURAIRPORTS_BASE_URL || 'https://davidmegginson.github.io/ourairports-data',
+		},
+	},
+	dataBootstrap: {
+		enabled: process.env.DATA_BOOTSTRAP_ENABLED !== 'false',
+		syncOnStartup: process.env.DATA_BOOTSTRAP_SYNC_ON_STARTUP === 'true',
 	},
 	database: {
 		host: process.env.DB_HOST!,

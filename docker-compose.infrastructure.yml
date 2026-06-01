@@ -1,3 +1,13 @@
+# =============================================================================
+# Flight Booking — Infrastructure Docker Compose (SQL Server + Redis + RabbitMQ)
+# be-flight-booking/docker-compose.infrastructure.yml
+#
+# Usage:
+#   Development: docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml up -d
+#   Staging:     docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml up -d --env-file .env.staging
+#   Production:  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --env-file .env.production
+# =============================================================================
+
 services:
   # SQL Server Database
   sqlserver:
