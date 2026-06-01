@@ -1,0 +1,13 @@
+# =============================================================================
+# Flight Booking — Terraform tfvars (DO NOT COMMIT THIS FILE)
+# be-flight-booking/infrastructure/terraform/terraform.tfvars
+# =============================================================================
+
+do_token               = "your_digitalocean_api_token_here"
+domain                 = "yourdomain.com"
+region                 = "sgp1"
+staging_size           = "s-2vcpu-4gb"
+production_size        = "s-4vcpu-8gb"
+trusted_ip             = "YOUR_HOME_IP/32"
+ssh_private_key_path   = "~/.ssh/id_rsa"
+ssh_public_key_path    = "~/.ssh/id_rsa.pub"

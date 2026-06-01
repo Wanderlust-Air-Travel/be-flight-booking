@@ -35,12 +35,36 @@ lerna-debug.log*
 !.vscode/launch.json
 !.vscode/extensions.json
 
-# dotenv environment variable files
-# .env
-# .env.development.local
-# .env.test.local
-# .env.production.local
-# .env.local
+# Environment variables — never commit
+.env
+.env.development
+.env.staging
+.env.production
+.env.local
+.env.*.local
+
+# Terraform
+infrastructure/terraform/terraform.tfvars
+infrastructure/terraform/.terraform/
+infrastructure/terraform/.terraform.lock.hcl
+infrastructure/terraform/terraform.tfstate
+infrastructure/terraform/terraform.tfstate.d/
+
+# Ansible
+infrastructure/ansible/*.retry
+infrastructure/ansible/vault.pass
+
+# Monitoring
+monitoring/data/
+monitoring/prometheus_data/
+monitoring/grafana_data/
+monitoring/alertmanager_data/
+
+# Backups
+backups/
+*.sql.gz
+*.rdb
+*.json
 
 # temp directory
 .temp

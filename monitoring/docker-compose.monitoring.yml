@@ -1,0 +1,132 @@
+# =============================================================================
+# Flight Booking — Monitoring Stack Docker Compose
+# Usage:
+#   docker network create flight-booking-net 2>/dev/null || true
+#   docker compose -f docker-compose.monitoring.yml up -d
+#
+# Access:
+#   Prometheus: http://your-vps-ip:9090
+#   Grafana:    http://your-vps-ip:3002 (admin / CHANGE_ME)
+#   Alertmanager: http://your-vps-ip:9093
+# =============================================================================
+
+services:
+  # ─── Prometheus ─────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.50.0
+    container_name: fb-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--storage.tsdb.retention.size=10GB'
+      - '--web.enable-lifecycle'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - flight-booking-net
+    labels:
+      app: prometheus
+
+  # ─── Grafana ────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: fb-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: CHANGE_ME_IN_PRODUCTION
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: https://monitoring.yourdomain.com
+      GF_SERVER_DOMAIN: monitoring.yourdomain.com
+      GF_FEATURE_TOGGLES_ENABLE: publicDashboards
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3002:3000"
+    networks:
+      - flight-booking-net
+    depends_on:
+      - prometheus
+    labels:
+      app: grafana
+
+  # ─── PostgreSQL Exporter ────────────────────────────────────────────────────
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: fb-postgres-exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: postgresql://flightbooking:${DB_PASSWORD}@postgres:5432/flightbooking?sslmode=disable
+    volumes: []
+    ports:
+      - "9187:9187"
+    networks:
+      - flight-booking-net
+    depends_on:
+      - postgres
+
+  # ─── RabbitMQ Exporter ──────────────────────────────────────────────────────
+  rabbitmq-exporter:
+    image: kbudde/rabbitmq-exporter:latest
+    container_name: fb-rabbitmq-exporter
+    restart: unless-stopped
+    environment:
+      RABBIT_URL: http://rabbitmq:15672
+      RABBIT_USER: ${RABBITMQ_USER:-prod_admin}
+      RABBIT_PASSWORD: ${RABBITMQ_PASSWORD:-password}
+      PUBLISH_PORT: "9419"
+    ports:
+      - "9419:9419"
+    networks:
+      - flight-booking-net
+    depends_on:
+      - rabbitmq
+
+  # ─── Redis Exporter ────────────────────────────────────────────────────────
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.60.0
+    container_name: fb-redis-exporter
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: redis://redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    ports:
+      - "9121:9121"
+    networks:
+      - flight-booking-net
+    depends_on:
+      - redis
+
+  # ─── Alertmanager ──────────────────────────────────────────────────────────
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: fb-alertmanager
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    ports:
+      - "9093:9093"
+    networks:
+      - flight-booking-net
+
+volumes:
+  prometheus_data:
+  grafana_data:
+  alertmanager_data:
+
+networks:
+  flight-booking-net:
+    external: true

@@ -1,0 +1,211 @@
+# =============================================================================
+# Flight Booking — Ansible Playbook: Server Setup
+# be-flight-booking/infrastructure/ansible/playbooks/setup-server.yml
+# =============================================================================
+
+---
+- name: Setup Server for Flight Booking
+  hosts: all
+  become: true
+  vars:
+    docker_version: "latest"
+    cloudflared_version: "2024.6.2"
+    timezone: "Asia/Ho_Chi_Minh"
+
+  tasks:
+    # ─── System Updates ────────────────────────────────────────────────────────
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Upgrade all packages
+      ansible.builtin.apt:
+        upgrade: full
+        autoremove: yes
+
+    # ─── Install System Packages ───────────────────────────────────────────────
+    - name: Install system packages
+      ansible.builtin.apt:
+        pkg:
+          - curl
+          - git
+          - unzip
+          - ufw
+          - fail2ban
+          - ca-certificates
+          - gnupg
+          - lsb-release
+          - wget
+          - htop
+          - vim
+          - net-tools
+          - timezone
+        state: present
+
+    # ─── Timezone ─────────────────────────────────────────────────────────────
+    - name: Set timezone
+      community.general.timezone:
+        name: "{{ timezone }}"
+
+    # ─── Docker Installation ──────────────────────────────────────────────────
+    - name: Add Docker GPG key
+      ansible.builtin.shell:
+        cmd: |
+          install -m 0755 -d /etc/apt/keyrings
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+          chmod a+r /etc/apt/keyrings/docker.gpg
+
+    - name: Add Docker repository
+      ansible.builtin.shell:
+        cmd: |
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+    - name: Install Docker
+      ansible.builtin.apt:
+        pkg:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: yes
+
+    - name: Enable and start Docker
+      ansible.builtin.systemd:
+        name: docker
+        enabled: yes
+        state: started
+
+    # ─── Create Deploy User ───────────────────────────────────────────────────
+    - name: Create deploy user
+      ansible.builtin.user:
+        name: deploy
+        shell: /bin/bash
+        groups: docker
+        append: yes
+        generate_ssh_key: yes
+        ssh_key_bits: 4096
+
+    - name: Add deploy user sudoers
+      ansible.builtin.lineinfile:
+        path: /etc/sudoers.d/deploy
+        line: "deploy ALL=(ALL) NOPASSWD: /usr/bin/docker"
+        create: yes
+        mode: '0440'
+
+    # ─── Cloudflared ──────────────────────────────────────────────────────────
+    - name: Download cloudflared
+      ansible.builtin.get_url:
+        url: "https://github.com/cloudflare/cloudflared/releases/download/{{ cloudflared_version }}/cloudflared-linux-amd64"
+        dest: /usr/local/bin/cloudflared
+        mode: '0755'
+
+    # ─── UFW Firewall ─────────────────────────────────────────────────────────
+    - name: Configure UFW default policies
+      community.general.ufw:
+        direction: "{{ item.direction }}"
+        policy: "{{ item.policy }}"
+      loop:
+        - { direction: 'incoming', policy: 'deny' }
+        - { direction: 'outgoing', policy: 'allow' }
+
+    - name: UFW allow SSH
+      community.general.ufw:
+        rule: allow
+        port: '22'
+        proto: tcp
+        from_ip: "{{ trusted_ip | default('0.0.0.0/0') }}"
+
+    - name: UFW allow HTTPS
+      community.general.ufw:
+        rule: allow
+        port: '443'
+        proto: tcp
+
+    - name: UFW allow HTTP
+      community.general.ufw:
+        rule: allow
+        port: '80'
+        proto: tcp
+
+    - name: Enable UFW
+      community.general.ufw:
+        state: enabled
+
+    # ─── Fail2Ban ─────────────────────────────────────────────────────────────
+    - name: Configure Fail2Ban
+      ansible.builtin.copy:
+        dest: /etc/fail2ban/jail.local
+        content: |
+          [sshd]
+          enabled = true
+          port = 22
+          filter = sshd
+          logpath = /var/log/auth.log
+          maxretry = 5
+          bantime = 3600
+          findtime = 600
+        mode: '0644'
+
+    - name: Enable and start Fail2Ban
+      ansible.builtin.systemd:
+        name: fail2ban
+        enabled: yes
+        state: started
+
+    # ─── Logrotate ────────────────────────────────────────────────────────────
+    - name: Configure Docker log rotation
+      ansible.builtin.copy:
+        dest: /etc/logrotate.d/docker-container
+        content: |
+          /var/lib/docker/containers/*/*.log {
+              rotate 7
+              daily
+              compress
+              delaycompress
+              missingok
+              notifempty
+          }
+        mode: '0644'
+
+    # ─── Docker Network ──────────────────────────────────────────────────────
+    - name: Create Docker network
+      community.docker.docker_network:
+        name: flight-booking-net
+        driver: bridge
+        driver_options:
+          com.docker.network.bridge.name: fb-br0
+
+    # ─── Directory Structure ─────────────────────────────────────────────────
+    - name: Create app directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: deploy
+        group: deploy
+        mode: '0755'
+      loop:
+        - "/home/deploy/flight-booking"
+        - "/home/deploy/flight-booking/be"
+        - "/home/deploy/flight-booking/fe"
+        - "/home/deploy/flight-booking/backups"
+        - "/home/deploy/flight-booking/logs"
+
+    # ─── Final Status ────────────────────────────────────────────────────────
+    - name: Get system info
+      ansible.builtin.shell: |
+        echo "=== System Info ===" && \
+        echo "Hostname: $(hostname)" && \
+        echo "Docker: $(docker --version)" && \
+        echo "Docker Compose: $(docker compose version)" && \
+        echo "Cloudflared: $(cloudflared --version)" && \
+        echo "Disk: $(df -h / | tail -1 | awk '{print $3}')" && \
+        echo "Memory: $(free -h | grep Mem | awk '{print $3}')"
+      register: sys_info
+      changed_when: false
+
+    - name: Display system info
+      ansible.builtin.debug:
+        msg: "{{ sys_info.stdout_lines }}"

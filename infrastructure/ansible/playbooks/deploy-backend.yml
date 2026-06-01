@@ -1,0 +1,152 @@
+# =============================================================================
+# Flight Booking — Ansible Playbook: Deploy Backend
+# be-flight-booking/infrastructure/ansible/playbooks/deploy-backend.yml
+# =============================================================================
+
+---
+- name: Deploy Flight Booking Backend
+  hosts: all
+  become: false
+  vars:
+    app_dir: /home/deploy/flight-booking/be
+    app_env: production
+    backup_dir: /home/deploy/flight-booking/backups
+
+  tasks:
+    # ─── Pre-Deployment ───────────────────────────────────────────────────────
+    - name: Ensure backup directory exists
+      ansible.builtin.file:
+        path: "{{ backup_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Create backup before deploy
+      ansible.builtin.shell: |
+        DATE=$(date +%Y%m%d_%H%M%S)
+        docker compose -f {{ app_dir }}/docker-compose.yml ps -q postgres 2>/dev/null && \
+        docker compose -f {{ app_dir }}/docker-compose.yml exec -T postgres pg_dump -U flightbooking flightbooking 2>/dev/null | gzip > {{ backup_dir }}/db_backup_${DATE}.sql.gz && \
+        echo "Backup created: db_backup_${DATE}.sql.gz" || \
+        echo "No postgres container, skipping backup"
+      register: backup_result
+      ignore_errors: yes
+
+    - name: Display backup result
+      ansible.builtin.debug:
+        msg: "{{ backup_result.stdout }}"
+
+    # ─── Sync Code ────────────────────────────────────────────────────────────
+    - name: Sync deployment files
+      synchronize:
+        src: ../../../
+        dest: "{{ app_dir }}/../
+        delete: yes
+        recursive: yes
+        rsync_opts:
+          - "--exclude=.git"
+          - "--exclude=node_modules"
+          - "--exclude=vendor"
+          - "--exclude=.env"
+          - "--exclude=*.log"
+          - "--exclude=backups"
+          - "--exclude=.terraform"
+      when: "'{{ inventory_hostname }}' != 'localhost'"
+
+    # ─── Environment File ─────────────────────────────────────────────────────
+    - name: Create .env from template
+      template:
+        src: ../templates/env.j2
+        dest: "{{ app_dir }}/.env"
+        owner: deploy
+        group: deploy
+        mode: '0600'
+      no_log: true
+      notify: Restart services
+
+    # ─── Build & Deploy ───────────────────────────────────────────────────────
+    - name: Pull latest Docker images
+      community.docker.docker_compose_v2:
+        project_src: "{{ app_dir }}"
+        files:
+          - docker-compose.yml
+          - docker-compose.prod.yml
+        pull: yes
+
+    - name: Build Docker images
+      community.docker.docker_compose_v2:
+        project_src: "{{ app_dir }}"
+        files:
+          - docker-compose.yml
+          - docker-compose.prod.yml
+      notify: Restart services
+
+    - name: Ensure services are running
+      community.docker.docker_compose_v2:
+        project_src: "{{ app_dir }}"
+        files:
+          - docker-compose.yml
+          - docker-compose.prod.yml
+        state: present
+
+    # ─── Health Check ─────────────────────────────────────────────────────────
+    - name: Wait for services to be healthy
+      ansible.builtin.uri:
+        url: "http://localhost:8080/healthz"
+        status_code: 200
+      register: health
+      until: health.status == 200
+      retries: 30
+      delay: 5
+      ignore_errors: yes
+
+    - name: Check all services health
+      ansible.builtin.uri:
+        url: "http://localhost:{{ item.port }}/healthz"
+        status_code: 200
+      loop:
+        - { name: 'api-gateway', port: 8080 }
+        - { name: 'search-service', port: 8090 }
+        - { name: 'booking-service', port: 8091 }
+        - { name: 'payment-service', port: 8092 }
+      register: service_health
+      ignore_errors: yes
+
+    - name: Display service health
+      ansible.builtin.debug:
+        msg: "{{ service_health.results | json_query('[*].status') }}"
+
+    # ─── Cleanup Old Images ────────────────────────────────────────────────────
+    - name: Clean up dangling images
+      community.docker.docker_image:
+        name: "{{ item }}"
+        state: absent
+        force: yes
+      loop:
+        - "{{ query('community.docker.dimage', 'flight-booking/*') }}"
+      ignore_errors: yes
+      changed_when: false
+
+    # ─── Status Report ────────────────────────────────────────────────────────
+    - name: Get deployment status
+      ansible.builtin.shell: |
+        cd {{ app_dir }} && \
+        echo "=== Container Status ===" && \
+        docker compose -f docker-compose.yml -f docker-compose.prod.yml ps && \
+        echo "" && \
+        echo "=== Resource Usage ===" && \
+        docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}"
+      register: deploy_status
+      changed_when: false
+
+    - name: Display deployment status
+      ansible.builtin.debug:
+        msg: "{{ deploy_status.stdout_lines }}"
+
+  handlers:
+    - name: Restart services
+      community.docker.docker_compose_v2:
+        project_src: "{{ app_dir }}"
+        files:
+          - docker-compose.yml
+          - docker-compose.prod.yml
+        state: restarted
+        pull: yes

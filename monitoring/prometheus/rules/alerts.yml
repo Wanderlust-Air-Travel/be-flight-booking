@@ -1,0 +1,103 @@
+groups:
+  - name: flight-booking-alerts
+    interval: 30s
+    rules:
+      # ─── Service Down ────────────────────────────────────────────────────────
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} is down"
+          description: "{{ $labels.job }} ({{ $labels.instance }}) has been down for more than 1 minute."
+
+      # ─── High Error Rate ────────────────────────────────────────────────────
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: High error rate on {{ $labels.job }}
+          description: Error rate is {{ $value | humanizePercentage }} (threshold: 5%)
+
+      # ─── High Latency ───────────────────────────────────────────────────────
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High latency on {{ $labels.job }}
+          description: 95th percentile latency is {{ $value }}s
+
+      # ─── PostgreSQL Down ───────────────────────────────────────────────────
+      - alert: PostgreSQLDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: PostgreSQL is down
+          description: PostgreSQL has been unreachable for more than 1 minute.
+
+      # ─── PostgreSQL Too Many Connections ───────────────────────────────────
+      - alert: PostgreSQLTooManyConnections
+        expr: pg_stat_database_numbackends / pg_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: PostgreSQL connections above 80%
+          description: PostgreSQL connections at {{ $value | humanizePercentage }} of max
+
+      # ─── Redis Down ────────────────────────────────────────────────────────
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Redis is down
+          description: Redis has been unreachable for more than 1 minute.
+
+      # ─── Redis Memory High ─────────────────────────────────────────────────
+      - alert: RedisMemoryHigh
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Redis memory usage above 90%
+          description: Redis memory at {{ $value | humanizePercentage }}
+
+      # ─── RabbitMQ Down ──────────────────────────────────────────────────────
+      - alert: RabbitMQDown
+        expr: absent(rabbitmq_up)
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: RabbitMQ is down
+          description: RabbitMQ has been unreachable for more than 1 minute.
+
+      # ─── RabbitMQ Queue Growth ─────────────────────────────────────────────
+      - alert: RabbitMQQueueGrowing
+        expr: rate(rabbitmq_queue_messages_ready[5m]) > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: RabbitMQ queue {{ $labels.queue }} is growing
+          description: Queue is accumulating messages at {{ $value }}/s
+
+      # ─── Prometheus Target Missing ──────────────────────────────────────────
+      - alert: PrometheusTargetMissing
+        expr: up{job="prometheus"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Prometheus target missing
+          description: Prometheus scrape target has disappeared"
