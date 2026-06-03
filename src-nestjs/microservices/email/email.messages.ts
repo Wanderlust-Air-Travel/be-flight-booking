@@ -1,5 +1,5 @@
 export const EMAIL_MS = {
-	TCP_PORT: Number(process.env.EMAIL_MS_PORT),
+	TCP_PORT: Number(process.env.EMAIL_MS_PORT) || 4007,
 	TCP_HOST: process.env.EMAIL_MS_HOST,
 	PATTERN: {
 		SEND_EMAIL: 'email.send',

@@ -5,6 +5,7 @@ import { FlightInstance } from 'src/shared/entities/flight/flight-instance.entit
 import { FlightSchedule } from 'src/shared/entities/flight/flight-schedule.entity';
 import { FlightSeat } from 'src/shared/entities/flight/flight-seat.entity';
 import { BookingSegment } from 'src/shared/entities/booking/booking-segment.entity';
+import { RouteFarePrice } from 'src/shared/entities/fare/route-fare-price.entity';
 import { ServicesService } from './services.service';
 import { ServicesMsController } from './services.controller';
 
@@ -16,6 +17,7 @@ import { ServicesMsController } from './services.controller';
 			FlightSchedule,
 			FlightSeat,
 			BookingSegment,
+			RouteFarePrice,
 		]),
 	],
 	providers: [ServicesService],

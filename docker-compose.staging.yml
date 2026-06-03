@@ -1,53 +1,31 @@
 # =============================================================================
-# Wanderlust Air Travel — Production Docker Compose Overrides
-# be-flight-booking/docker-compose.prod.yml
+# Wanderlust Air Travel — Staging Docker Compose Overrides
+# be-flight-booking/docker-compose.staging.yml
 #
 # Usage:
-#   docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml -f docker-compose.prod.yml --env-file .env.production up -d
+#   docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml -f docker-compose.staging.yml --env-file .env.staging up -d
 # =============================================================================
 
 services:
   api-gateway:
-    restart: always
+    restart: unless-stopped
     deploy:
-      replicas: 2
+      replicas: 1
       resources:
         limits:
-          cpus: '1.0'
+          cpus: '0.5'
           memory: 512M
         reservations:
-          cpus: '0.5'
+          cpus: '0.25'
           memory: 256M
     logging:
       driver: json-file
       options:
-        max-size: '100m'
-        max-file: '5'
+        max-size: '50m'
+        max-file: '3'
 
   sqlserver:
-    restart: always
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 2G
-    logging:
-      driver: json-file
-      options:
-        max-size: '100m'
-        max-file: '5'
-
-  redis:
-    restart: always
-    command: redis-server --maxmemory 1g --maxmemory-policy allkeys-lru --save 900 1 --save 300 10 --appendonly yes --appendfsync everysec
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 1G
-
-  rabbitmq:
-    restart: always
+    restart: unless-stopped
     deploy:
       resources:
         limits:
@@ -56,72 +34,77 @@ services:
     logging:
       driver: json-file
       options:
-        max-size: '100m'
-        max-file: '5'
+        max-size: '50m'
+        max-file: '3'
+
+  redis:
+    restart: unless-stopped
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru --save 300 10 --appendonly yes
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  rabbitmq:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: '50m'
+        max-file: '3'
 
   # ─── Microservices resources ────────────────────────────────────────────────
   search-ms:
-    restart: always
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
-    logging:
-      driver: json-file
-      options:
-        max-size: '100m'
-        max-file: '5'
-
-  services-ms:
-    restart: always
     deploy:
       resources:
         limits:
           cpus: '0.5'
+          memory: 512M
+
+  services-ms:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
           memory: 256M
 
   routes-ms:
-    restart: always
     deploy:
       resources:
         limits:
-          cpus: '0.5'
+          cpus: '0.25'
           memory: 256M
 
   booking-ms:
-    restart: always
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
-    logging:
-      driver: json-file
-      options:
-        max-size: '100m'
-        max-file: '5'
-
-  reservation-ms:
-    restart: always
     deploy:
       resources:
         limits:
           cpus: '0.5'
+          memory: 512M
+
+  reservation-ms:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
           memory: 256M
 
   payment-ms:
-    restart: always
     deploy:
       resources:
         limits:
-          cpus: '0.5'
+          cpus: '0.25'
           memory: 256M
 
   email-ms:
-    restart: always
     deploy:
       resources:
         limits:
-          cpus: '0.5'
+          cpus: '0.25'
           memory: 256M

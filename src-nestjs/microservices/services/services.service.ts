@@ -6,6 +6,7 @@ import { FlightInstance } from 'src/shared/entities/flight/flight-instance.entit
 import { FlightSchedule } from 'src/shared/entities/flight/flight-schedule.entity';
 import { FlightSeat } from 'src/shared/entities/flight/flight-seat.entity';
 import { BookingSegment } from 'src/shared/entities/booking/booking-segment.entity';
+import { RouteFarePrice } from 'src/shared/entities/fare/route-fare-price.entity';
 import { GetDealsResponseDto, FlightDealDto } from './dto/get-deals-response.dto';
 
 @Injectable()
@@ -16,6 +17,7 @@ export class ServicesService {
 		@InjectRepository(FlightSchedule) private readonly scheduleRepo: Repository<FlightSchedule>,
 		@InjectRepository(FlightSeat) private readonly seatRepo: Repository<FlightSeat>,
 		@InjectRepository(BookingSegment) private readonly bookingSegmentRepo: Repository<BookingSegment>,
+		@InjectRepository(RouteFarePrice) private readonly routeFarePriceRepo: Repository<RouteFarePrice>,
 	) {}
 
 	async getDeals(): Promise<GetDealsResponseDto> {
@@ -93,16 +95,10 @@ export class ServicesService {
 			return null;
 		}
 
-		// Lấy giá trung bình từ BookingSegments trong database
-		// Bước 1: Thử lấy giá trung bình từ chính flight instance này
-		let avgPrice = await this.getHistoricalPriceForRoute(route.route_id, selectedInstance.flight_instance_id);
-		
-		// Bước 2: Nếu không có, lấy giá trung bình từ bất kỳ flight instance nào của route này
-		if (avgPrice === null || avgPrice === 0) {
-			avgPrice = await this.getHistoricalPriceForRoute(route.route_id);
-		}
-		
-		// Nếu không có giá từ database, bỏ qua route này
+		// Lấy giá từ RouteFarePrice trước, sau đó mới fallback sang BookingSegments
+		let avgPrice = await this.getPriceForRoute(route.route_id, selectedInstance.flight_instance_id);
+
+		// Nếu không có giá từ RouteFarePrice hoặc BookingSegments, bỏ qua route này
 		if (avgPrice === null || avgPrice === 0) {
 			return null;
 		}
@@ -195,11 +191,8 @@ export class ServicesService {
 				return null;
 			}
 
-			// Get return route price
-			let returnAvgPrice = await this.getHistoricalPriceForRoute(returnRoute.route_id, selectedReturnInstance.flight_instance_id);
-			if (returnAvgPrice === null || returnAvgPrice === 0) {
-				returnAvgPrice = await this.getHistoricalPriceForRoute(returnRoute.route_id);
-			}
+		// Get return route price từ RouteFarePrice hoặc BookingSegments
+		let returnAvgPrice = await this.getPriceForRoute(returnRoute.route_id, selectedReturnInstance.flight_instance_id);
 
 			if (returnAvgPrice === null || returnAvgPrice === 0) {
 				// No return price data, skip round-trip deal
@@ -262,59 +255,68 @@ export class ServicesService {
 	}
 
 	/**
-	 * Lấy giá từ BookingSegments trong database
+	 * Get price for a route: try RouteFarePrice first, then BookingSegments
 	 * @param routeId Route ID
-	 * @param flightInstanceId Flight instance ID (optional, để lấy giá từ instance cụ thể)
-	 * @returns Giá trung bình (base_fare + tax + fee) hoặc null nếu không có
+	 * @param flightInstanceId Optional flight instance ID
+	 * @returns Price or null if not found
 	 */
-	private async getHistoricalPriceForRoute(routeId: string, flightInstanceId?: string): Promise<number | null> {
-		try {
-			// Tìm các booking segments cho route này
-			// Join qua FlightInstance -> FlightSchedule -> Route
-			const query = this.bookingSegmentRepo
-				.createQueryBuilder('bs')
-				.innerJoin('bs.flight_instance', 'fi')
-				.innerJoin('fi.flight_schedule', 'fs')
-				.where('fs.route_id = :routeId', { routeId })
-				.andWhere('bs.status IN (:...statuses)', { statuses: ['booked', 'confirmed', 'completed'] })
-				.select([
-					'bs.base_fare',
-					'bs.tax_amount',
-					'bs.fee_amount',
-				])
-				.limit(100); // Lấy nhiều booking để tính trung bình chính xác hơn
+	private async getPriceForRoute(routeId: string, flightInstanceId?: string): Promise<number | null> {
+		// Bước 1: Thử lấy giá từ RouteFarePrice (được seed từ internal schedule)
+		const today = new Date();
+		const dateStr = today.toISOString().split('T')[0];
 
-			// Nếu có flightInstanceId, ưu tiên lấy giá từ cùng instance
-			if (flightInstanceId) {
-				query.andWhere('fi.flight_instance_id = :instanceId', { instanceId: flightInstanceId });
-			}
+		const routeFarePrice = await this.routeFarePriceRepo
+			.createQueryBuilder('rfp')
+			.where('rfp.route_id = :routeId', { routeId })
+			.andWhere('rfp.is_active = :isActive', { isActive: true })
+			.andWhere('rfp.effective_from <= :dateStr', { dateStr })
+			.andWhere('(rfp.effective_to IS NULL OR rfp.effective_to >= :dateStr)', { dateStr })
+			.orderBy('rfp.priority', 'DESC')
+			.addOrderBy('rfp.effective_from', 'DESC')
+			.getOne();
 
-			const segments = await query.getMany();
+		if (routeFarePrice) {
+			const basePrice = Number(routeFarePrice.base_price);
+			const taxRate = Number(routeFarePrice.tax_rate);
+			const feeRate = Number(routeFarePrice.fee_rate);
+			return Math.round(basePrice * (1 + taxRate + feeRate));
+		}
 
-			if (segments.length === 0) {
-				return null;
-			}
+		// Bước 2: Fallback sang BookingSegments (lịch sử booking)
+		const query = this.bookingSegmentRepo
+			.createQueryBuilder('bs')
+			.innerJoin('bs.flight_instance', 'fi')
+			.innerJoin('fi.flight_schedule', 'fs')
+			.where('fs.route_id = :routeId', { routeId })
+			.andWhere('bs.status IN (:...statuses)', { statuses: ['booked', 'confirmed', 'completed'] })
+			.select([
+				'bs.base_fare',
+				'bs.tax_amount',
+				'bs.fee_amount',
+			])
+			.limit(100);
 
-			// Tính tổng giá (base_fare + tax + fee) cho mỗi segment
-			const totalPrices = segments.map(seg => {
-				const baseFare = typeof seg.base_fare === 'string' ? parseFloat(seg.base_fare) : Number(seg.base_fare);
-				const tax = typeof seg.tax_amount === 'string' ? parseFloat(seg.tax_amount) : Number(seg.tax_amount);
-				const fee = typeof seg.fee_amount === 'string' ? parseFloat(seg.fee_amount) : Number(seg.fee_amount);
-				return baseFare + tax + fee;
-			}).filter(price => !isNaN(price) && price > 0); // Lọc bỏ giá không hợp lệ
+		if (flightInstanceId) {
+			query.andWhere('fi.flight_instance_id = :instanceId', { instanceId: flightInstanceId });
+		}
 
-			if (totalPrices.length === 0) {
-				return null;
-			}
+		const segments = await query.getMany();
 
-			// Tính giá trung bình
-			const avgPrice = totalPrices.reduce((sum, price) => sum + price, 0) / totalPrices.length;
-			
-			// Làm tròn về số nguyên
-			return Math.round(avgPrice);
-		} catch (error) {
-			// Silently fail - return null if error occurs
+		if (segments.length === 0) {
 			return null;
 		}
+
+		const totalPrices = segments.map((seg) => {
+			const baseFare = typeof seg.base_fare === 'string' ? parseFloat(seg.base_fare) : Number(seg.base_fare);
+			const tax = typeof seg.tax_amount === 'string' ? parseFloat(seg.tax_amount) : Number(seg.tax_amount);
+			const fee = typeof seg.fee_amount === 'string' ? parseFloat(seg.fee_amount) : Number(seg.fee_amount);
+			return baseFare + tax + fee;
+		}).filter((price) => !isNaN(price) && price > 0);
+
+		if (totalPrices.length === 0) {
+			return null;
+		}
+
+		return Math.round(totalPrices.reduce((sum, price) => sum + price, 0) / totalPrices.length);
 	}
 }

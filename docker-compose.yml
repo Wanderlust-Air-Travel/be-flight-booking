@@ -1,237 +1,315 @@
 # =============================================================================
-# Flight Booking — Production-ready Docker Compose
+# Wanderlust Air Travel — Docker Compose Base (Application only)
 # be-flight-booking/
+#
+# Architecture: 8 services total
+#   - 1 API Gateway (HTTP, port 3000)
+#   - 7 Microservices (TCP): Search, Services, Routes, Booking, Reservation, Payment, Email
+#
 # Usage:
-#   Development: docker compose up -d
-#   Production:  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#   Development (native): npm run start:all
+#   Development (docker): docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml --env-file .env.development up -d
+#   Staging:     docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml -f docker-compose.staging.yml --env-file .env.staging up -d
+#   Production:  docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml -f docker-compose.prod.yml --env-file .env.production up -d
 # =============================================================================
 
 services:
-  # ─── Go Microservices ───────────────────────────────────────────────────────
-
+  # ─── API Gateway (HTTP) ────────────────────────────────────────────────────
   api-gateway:
     build:
-      context: ./apps/api-gateway
+      context: .
       dockerfile: Dockerfile
-    container_name: fb-api-gateway
-    image: flight-booking/api-gateway:${VERSION:-latest}
+    container_name: wat-api-gateway
+    image: wanderlust-air/api-gateway:${VERSION:-latest}
     restart: unless-stopped
-    ports:
-      - "${API_GATEWAY_PORT:-8080}:8080"
-      - "${GRPC_PORT:-50051}:50051"
     environment:
-      APP_ENV: ${APP_ENV:-development}
-      APP_NAME: flight-booking
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-flightbooking}
-      DB_USER: ${DB_USER:-flightbooking}
-      DB_PASSWORD: ${DB_PASSWORD:-flightbooking123}
-      DB_SSLMODE: disable
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT: 5672
+      NODE_ENV: ${NODE_ENV:-development}
+      DB_HOST: ${DB_HOST:-sqlserver}
+      DB_PORT: ${DB_PORT:-1433}
+      DB_NAME: ${DB_NAME:-flight_booking_db}
+      DB_USER: ${DB_USER:-sa}
+      DB_PASS: ${DB_PASS:-Passw0rd123!}
+      DB_ENCRYPT: ${DB_ENCRYPT:-false}
+      DB_TRUST_CERT: ${DB_TRUST_CERT:-true}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
       RABBITMQ_USER: ${RABBITMQ_USER:-guest}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
-      JWT_SECRET: ${JWT_SECRET:-change-me}
+      RABBITMQ_PASS: ${RABBITMQ_PASSWORD:-guest}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev_secret_change_before_production}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-      LOG_FORMAT: ${LOG_FORMAT:-json}
+      SEARCH_MS_HOST: search-ms
+      SEARCH_MS_PORT: ${SEARCH_MS_PORT:-4001}
+      SERVICES_MS_HOST: services-ms
+      SERVICES_MS_PORT: ${SERVICES_MS_PORT:-4002}
+      ROUTES_MS_HOST: routes-ms
+      ROUTES_MS_PORT: ${ROUTES_MS_PORT:-4003}
+      BOOKING_MS_HOST: booking-ms
+      BOOKING_MS_PORT: ${BOOKING_MS_PORT:-4004}
+      RESERVATION_MS_HOST: reservation-ms
+      RESERVATION_MS_PORT: ${RESERVATION_MS_PORT:-4005}
+      PAYMENT_MS_HOST: payment-ms
+      PAYMENT_MS_PORT: ${PAYMENT_MS_PORT:-4006}
+      EMAIL_MS_HOST: email-ms
+      EMAIL_MS_PORT: ${EMAIL_MS_PORT:-4007}
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      APP_URL: ${APP_URL:-http://localhost:3001}
+    ports:
+      - "${API_GATEWAY_PORT:-3000}:3000"
+    volumes:
+      - ./public:/app/public
     depends_on:
-      postgres:
+      sqlserver:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
       rabbitmq:
-        condition: service_started
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    deploy:
-      replicas: 1
-
-  search-service:
-    build:
-      context: ./apps/search-service
-      dockerfile: Dockerfile
-    container_name: fb-search-service
-    image: flight-booking/search-service:${VERSION:-latest}
-    restart: unless-stopped
-    ports:
-      - "${SEARCH_SERVICE_PORT:-8090}:8090"
-    environment:
-      APP_ENV: ${APP_ENV:-development}
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-flightbooking}
-      DB_USER: ${DB_USER:-flightbooking}
-      DB_PASSWORD: ${DB_PASSWORD:-flightbooking123}
-      DB_SSLMODE: disable
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-    depends_on:
-      postgres:
         condition: service_healthy
-      redis:
+      search-ms:
         condition: service_started
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8090/healthz"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    deploy:
-      replicas: 1
+      services-ms:
+        condition: service_started
+      routes-ms:
+        condition: service_started
+      booking-ms:
+        condition: service_started
+      reservation-ms:
+        condition: service_started
+      payment-ms:
+        condition: service_started
+      email-ms:
+        condition: service_started
 
-  booking-service:
+  # ─── Search Microservice (TCP:4001) ──────────────────────────────────────────
+  search-ms:
     build:
-      context: ./apps/booking-service
+      context: .
       dockerfile: Dockerfile
-    container_name: fb-booking-service
-    image: flight-booking/booking-service:${VERSION:-latest}
+    container_name: wat-search-ms
+    image: wanderlust-air/api-gateway:${VERSION:-latest}
     restart: unless-stopped
-    ports:
-      - "${BOOKING_SERVICE_PORT:-8091}:8091"
     environment:
-      APP_ENV: ${APP_ENV:-development}
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-flightbooking}
-      DB_USER: ${DB_USER:-flightbooking}
-      DB_PASSWORD: ${DB_PASSWORD:-flightbooking123}
-      DB_SSLMODE: disable
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT: 5672
+      NODE_ENV: ${NODE_ENV:-development}
+      DB_HOST: ${DB_HOST:-sqlserver}
+      DB_PORT: ${DB_PORT:-1433}
+      DB_NAME: ${DB_NAME:-flight_booking_db}
+      DB_USER: ${DB_USER:-sa}
+      DB_PASS: ${DB_PASS:-Passw0rd123!}
+      DB_ENCRYPT: ${DB_ENCRYPT:-false}
+      DB_TRUST_CERT: ${DB_TRUST_CERT:-true}
+      SEARCH_MS_HOST: "0.0.0.0"
+      SEARCH_MS_PORT: 4001
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+    command: ["node", "dist/microservices/search/main.search.js"]
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+
+  # ─── Services Microservice (TCP:4002) ──────────────────────────────────────
+  services-ms:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wat-services-ms
+    image: wanderlust-air/api-gateway:${VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      DB_HOST: ${DB_HOST:-sqlserver}
+      DB_PORT: ${DB_PORT:-1433}
+      DB_NAME: ${DB_NAME:-flight_booking_db}
+      DB_USER: ${DB_USER:-sa}
+      DB_PASS: ${DB_PASS:-Passw0rd123!}
+      DB_ENCRYPT: ${DB_ENCRYPT:-false}
+      DB_TRUST_CERT: ${DB_TRUST_CERT:-true}
+      SERVICES_MS_HOST: "0.0.0.0"
+      SERVICES_MS_PORT: 4002
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+    command: ["node", "dist/microservices/services/main.services.js"]
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+
+  # ─── Routes Microservice (TCP:4003) ────────────────────────────────────────
+  routes-ms:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wat-routes-ms
+    image: wanderlust-air/api-gateway:${VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      DB_HOST: ${DB_HOST:-sqlserver}
+      DB_PORT: ${DB_PORT:-1433}
+      DB_NAME: ${DB_NAME:-flight_booking_db}
+      DB_USER: ${DB_USER:-sa}
+      DB_PASS: ${DB_PASS:-Passw0rd123!}
+      DB_ENCRYPT: ${DB_ENCRYPT:-false}
+      DB_TRUST_CERT: ${DB_TRUST_CERT:-true}
+      ROUTES_MS_HOST: "0.0.0.0"
+      ROUTES_MS_PORT: 4003
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+    command: ["node", "dist/microservices/routes/main.routes.js"]
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+
+  # ─── Booking Microservice (TCP:4004) ───────────────────────────────────────
+  booking-ms:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wat-booking-ms
+    image: wanderlust-air/api-gateway:${VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      DB_HOST: ${DB_HOST:-sqlserver}
+      DB_PORT: ${DB_PORT:-1433}
+      DB_NAME: ${DB_NAME:-flight_booking_db}
+      DB_USER: ${DB_USER:-sa}
+      DB_PASS: ${DB_PASS:-Passw0rd123!}
+      DB_ENCRYPT: ${DB_ENCRYPT:-false}
+      DB_TRUST_CERT: ${DB_TRUST_CERT:-true}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
       RABBITMQ_USER: ${RABBITMQ_USER:-guest}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
-      JWT_SECRET: ${JWT_SECRET:-change-me}
-      LOG_LEVEL: ${LOG_LEVEL:-info}
+      RABBITMQ_PASS: ${RABBITMQ_PASSWORD:-guest}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+      BOOKING_MS_HOST: "0.0.0.0"
+      BOOKING_MS_PORT: 4004
+      RESERVATION_MS_HOST: reservation-ms
+      RESERVATION_MS_PORT: ${RESERVATION_MS_PORT:-4005}
+    command: ["node", "dist/microservices/booking/main.booking.js"]
     depends_on:
-      postgres:
+      sqlserver:
         condition: service_healthy
-      redis:
-        condition: service_started
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8091/healthz"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    deploy:
-      replicas: 1
+      disable: true
 
-  payment-service:
+  # ─── Reservation Microservice (TCP:4005) ───────────────────────────────────
+  reservation-ms:
     build:
-      context: ./apps/payment-service
+      context: .
       dockerfile: Dockerfile
-    container_name: fb-payment-service
-    image: flight-booking/payment-service:${VERSION:-latest}
+    container_name: wat-reservation-ms
+    image: wanderlust-air/api-gateway:${VERSION:-latest}
     restart: unless-stopped
-    ports:
-      - "${PAYMENT_SERVICE_PORT:-8092}:8092"
     environment:
-      APP_ENV: ${APP_ENV:-development}
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-flightbooking}
-      DB_USER: ${DB_USER:-flightbooking}
-      DB_PASSWORD: ${DB_PASSWORD:-flightbooking123}
-      DB_SSLMODE: disable
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT: 5672
+      NODE_ENV: ${NODE_ENV:-development}
+      DB_HOST: ${DB_HOST:-sqlserver}
+      DB_PORT: ${DB_PORT:-1433}
+      DB_NAME: ${DB_NAME:-flight_booking_db}
+      DB_USER: ${DB_USER:-sa}
+      DB_PASS: ${DB_PASS:-Passw0rd123!}
+      DB_ENCRYPT: ${DB_ENCRYPT:-false}
+      DB_TRUST_CERT: ${DB_TRUST_CERT:-true}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+      RESERVATION_MS_HOST: "0.0.0.0"
+      RESERVATION_MS_PORT: 4005
+    command: ["node", "dist/microservices/reservation/main.reservation.js"]
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+
+  # ─── Payment Microservice (TCP:4006) ──────────────────────────────────────
+  payment-ms:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wat-payment-ms
+    image: wanderlust-air/api-gateway:${VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      DB_HOST: ${DB_HOST:-sqlserver}
+      DB_PORT: ${DB_PORT:-1433}
+      DB_NAME: ${DB_NAME:-flight_booking_db}
+      DB_USER: ${DB_USER:-sa}
+      DB_PASS: ${DB_PASS:-Passw0rd123!}
+      DB_ENCRYPT: ${DB_ENCRYPT:-false}
+      DB_TRUST_CERT: ${DB_TRUST_CERT:-true}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
       RABBITMQ_USER: ${RABBITMQ_USER:-guest}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
-      PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-mock}
-      PAYMENT_MOCK_ENABLED: ${PAYMENT_MOCK_ENABLED:-true}
-      LOG_LEVEL: ${LOG_LEVEL:-info}
+      RABBITMQ_PASS: ${RABBITMQ_PASSWORD:-guest}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+      PAYMENT_MS_HOST: "0.0.0.0"
+      PAYMENT_MS_PORT: 4006
+      APP_URL: ${APP_URL:-http://localhost:3001}
+    command: ["node", "dist/microservices/payment/main.payment.js"]
     depends_on:
-      postgres:
+      sqlserver:
         condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8092/healthz"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    deploy:
-      replicas: 1
+      disable: true
 
-  # ─── Infrastructure ────────────────────────────────────────────────────────
-
-  postgres:
-    image: postgres:16-alpine
-    container_name: fb-postgres
+  # ─── Email Microservice (TCP:4007) ─────────────────────────────────────────
+  email-ms:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wat-email-ms
+    image: wanderlust-air/api-gateway:${VERSION:-latest}
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DB_NAME:-flightbooking}
-      POSTGRES_USER: ${DB_USER:-flightbooking}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-flightbooking123}
-      POSTGRES_MAX_CONNECTIONS: 100
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./scripts/db-migrate:/migrations:ro
-    ports:
-      - "${DB_PORT:-5432}:5432"
+      NODE_ENV: ${NODE_ENV:-development}
+      DB_HOST: ${DB_HOST:-sqlserver}
+      DB_PORT: ${DB_PORT:-1433}
+      DB_NAME: ${DB_NAME:-flight_booking_db}
+      DB_USER: ${DB_USER:-sa}
+      DB_PASS: ${DB_PASS:-Passw0rd123!}
+      DB_ENCRYPT: ${DB_ENCRYPT:-false}
+      DB_TRUST_CERT: ${DB_TRUST_CERT:-true}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+      RABBITMQ_PASS: ${RABBITMQ_PASSWORD:-guest}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+      EMAIL_MS_HOST: "0.0.0.0"
+      EMAIL_MS_PORT: 4007
+    command: ["node", "dist/microservices/email/main.email.js"]
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-flightbooking} -d ${DB_NAME:-flightbooking}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-
-  redis:
-    image: redis:7-alpine
-    container_name: fb-redis
-    restart: unless-stopped
-    command: >
-      redis-server
-      --maxmemory 256mb
-      --maxmemory-policy allkeys-lru
-      --save ""
-      --appendonly no
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  rabbitmq:
-    image: rabbitmq:3.13-management-alpine
-    container_name: fb-rabbitmq
-    restart: unless-stopped
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
-      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-/}
-    ports:
-      - "${RABBITMQ_PORT:-5672}:5672"
-      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
-volumes:
-  postgres_data:
-  redis_data:
-  rabbitmq_data:
-
-networks:
-  default:
-    name: flight-booking-net
-    driver: bridge
+      disable: true
