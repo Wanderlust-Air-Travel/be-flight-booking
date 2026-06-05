@@ -1,21 +1,19 @@
-import { Column, Entity, PrimaryColumn } from "typeorm";
+import { Column, Entity, PrimaryColumn } from 'typeorm';
 
 @Entity({ name: 'AircraftTypes', schema: 'dbo' })
 export class AircraftType {
-	@PrimaryColumn('uniqueidentifier')
-	aircraft_type_id: string;
+    @PrimaryColumn('uniqueidentifier')
+    aircraft_type_id: string;
 
-	@Column({ type: 'varchar', length: 20, unique: true, nullable: false })
-	code: string;
+    @Column({ type: 'varchar', length: 20, unique: true, nullable: false })
+    code: string;
 
-	@Column({ type: 'nvarchar', length: 100, nullable: false })
-	manufacturer: string;
+    @Column({ type: 'nvarchar', length: 100, nullable: false })
+    manufacturer: string;
 
-	@Column({ type: 'nvarchar', length: 100, nullable: false })
-	model: string;
+    @Column({ type: 'nvarchar', length: 100, nullable: false })
+    model: string;
 
-	@Column({ type: 'int', nullable: false })
-	total_seats: number;
+    @Column({ type: 'int', nullable: false })
+    total_seats: number;
 }
-
-

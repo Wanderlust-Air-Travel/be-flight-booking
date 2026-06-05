@@ -1,7 +1,7 @@
-import { IsEmail, MinLength, MaxLength, IsString, IsNotEmpty } from "class-validator";
-import { ApiProperty } from "@nestjs/swagger";
-import { Transform } from "class-transformer";
-import { AUTH_MESSAGES } from "src/shared/constants/messages";
+import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
+import { IsEmail, IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
+import { AUTH_MESSAGES } from 'src/shared/constants/messages';
 
 export class LoginDto {
     @ApiProperty({
@@ -9,7 +9,7 @@ export class LoginDto {
         example: 'user@example.com',
         format: 'email',
     })
-    @Transform(({ value }) => typeof value === 'string' ? value.trim().toLowerCase() : value)
+    @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))
     @IsEmail({}, { message: AUTH_MESSAGES.VALIDATION.EMAIL_INVALID })
     @IsNotEmpty({ message: AUTH_MESSAGES.VALIDATION.EMAIL_REQUIRED })
     email: string;

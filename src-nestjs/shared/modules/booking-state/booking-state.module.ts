@@ -1,6 +1,6 @@
 import { Global, Module } from '@nestjs/common';
-import { BookingStateService } from '../../services/booking-state.service';
 import { BookingStateRepository } from '../../repositories/booking-state.repository';
+import { BookingStateService } from '../../services/booking-state.service';
 import { RedisModule } from '../redis/redis.module';
 
 /**
@@ -10,9 +10,8 @@ import { RedisModule } from '../redis/redis.module';
  */
 @Global()
 @Module({
-	imports: [RedisModule],
-	providers: [BookingStateRepository, BookingStateService],
-	exports: [BookingStateRepository, BookingStateService],
+    imports: [RedisModule],
+    providers: [BookingStateRepository, BookingStateService],
+    exports: [BookingStateRepository, BookingStateService],
 })
 export class BookingStateModule {}
-

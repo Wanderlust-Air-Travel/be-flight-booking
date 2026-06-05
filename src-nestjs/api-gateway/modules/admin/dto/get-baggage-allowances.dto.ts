@@ -1,41 +1,40 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsInt, Min, Max, IsIn, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
+import { IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class GetBaggageAllowancesDto {
-	@ApiProperty({
-		description: 'Page number (1-based)',
-		example: 1,
-		required: false,
-		default: 1,
-		minimum: 1,
-	})
-	@IsOptional()
-	@Type(() => Number)
-	@IsInt()
-	@Min(1)
-	page?: number = 1;
+    @ApiProperty({
+        description: 'Page number (1-based)',
+        example: 1,
+        required: false,
+        default: 1,
+        minimum: 1,
+    })
+    @IsOptional()
+    @Type(() => Number)
+    @IsInt()
+    @Min(1)
+    page?: number = 1;
 
-	@ApiProperty({
-		description: 'Number of items per page. Allowed values: 20, 50, 100, 200',
-		example: 20,
-		required: false,
-		default: 20,
-		enum: [20, 50, 100, 200],
-	})
-	@IsOptional()
-	@Type(() => Number)
-	@IsInt()
-	@IsIn([20, 50, 100, 200])
-	limit?: number = 20;
+    @ApiProperty({
+        description: 'Number of items per page. Allowed values: 20, 50, 100, 200',
+        example: 20,
+        required: false,
+        default: 20,
+        enum: [20, 50, 100, 200],
+    })
+    @IsOptional()
+    @Type(() => Number)
+    @IsInt()
+    @IsIn([20, 50, 100, 200])
+    limit?: number = 20;
 
-	@ApiProperty({
-		description: 'Search query to filter by fare class code or description',
-		example: 'Y',
-		required: false,
-	})
-	@IsOptional()
-	@IsString()
-	search?: string;
+    @ApiProperty({
+        description: 'Search query to filter by fare class code or description',
+        example: 'Y',
+        required: false,
+    })
+    @IsOptional()
+    @IsString()
+    search?: string;
 }
-

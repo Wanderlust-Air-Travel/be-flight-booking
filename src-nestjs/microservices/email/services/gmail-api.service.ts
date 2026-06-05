@@ -1,332 +1,354 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
+import type { ConfigService } from '@nestjs/config';
+import type { OAuth2Client } from 'google-auth-library';
 import { google } from 'googleapis';
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
-import { OAuth2Client } from 'google-auth-library';
-import { gmail_v1 } from 'googleapis';
+import type { gmail_v1 } from 'googleapis';
 
 @Injectable()
 export class GmailApiService implements OnModuleInit {
-	private readonly logger = new Logger(GmailApiService.name);
-	private gmail: gmail_v1.Gmail | null = null;
-	private oauth2Client: OAuth2Client | null = null;
-	private readonly credentialsPath: string;
-	private readonly tokenPath: string;
+    private readonly logger = new Logger(GmailApiService.name);
+    private gmail: gmail_v1.Gmail | null = null;
+    private oauth2Client: OAuth2Client | null = null;
+    private readonly credentialsPath: string;
+    private readonly tokenPath: string;
 
-	constructor(private readonly configService: ConfigService) {
-		this.credentialsPath = this.configService.get<string>('GMAIL_CREDENTIALS_PATH') || 
-			resolve(process.cwd(), 'credentials_desktop_apps.json');
-		this.tokenPath = this.configService.get<string>('GMAIL_TOKEN_PATH') || 
-			resolve(process.cwd(), 'token.json');
-	}
+    constructor(private readonly configService: ConfigService) {
+        this.credentialsPath =
+            this.configService.get<string>('GMAIL_CREDENTIALS_PATH') ||
+            resolve(process.cwd(), 'credentials_desktop_apps.json');
+        this.tokenPath =
+            this.configService.get<string>('GMAIL_TOKEN_PATH') ||
+            resolve(process.cwd(), 'token.json');
+    }
 
-	async onModuleInit() {
-		try {
-			await this.initializeGmailClient();
-			this.logger.log('Gmail API client initialized successfully');
-		} catch (error: any) {
-			this.logger.error(`Failed to initialize Gmail API client: ${error.message}`);
-			// Don't throw - allow service to start but email sending will fail gracefully
-		}
-	}
+    async onModuleInit() {
+        try {
+            await this.initializeGmailClient();
+            this.logger.log('Gmail API client initialized successfully');
+        } catch (error: any) {
+            this.logger.error(`Failed to initialize Gmail API client: ${error.message}`);
+            // Don't throw - allow service to start but email sending will fail gracefully
+        }
+    }
 
-	private async initializeGmailClient(): Promise<void> {
-		try {
-			// Load credentials
-			const credentials = JSON.parse(readFileSync(this.credentialsPath, 'utf8'));
-			
-			// Handle different credential file formats
-			let client_id: string;
-			let client_secret: string;
-			let redirect_uris: string[];
-			
-			// Format 1: Standard Google Cloud Console format (installed or web)
-			if (credentials.installed) {
-				client_id = credentials.installed.client_id;
-				client_secret = credentials.installed.client_secret;
-				redirect_uris = credentials.installed.redirect_uris || ['http://localhost'];
-			} else if (credentials.web) {
-				client_id = credentials.web.client_id;
-				client_secret = credentials.web.client_secret;
-				redirect_uris = credentials.web.redirect_uris || ['http://localhost'];
-			} 
-			// Format 2: Token file format (has client_id and client_secret at root level)
-			// This format contains both credentials and tokens
-			else if (credentials.client_id && credentials.client_secret) {
-				client_id = credentials.client_id;
-				client_secret = credentials.client_secret;
-				redirect_uris = credentials.redirect_uris || ['http://localhost'];
-				
-				// If this file also contains tokens, use them directly
-				if (credentials.token || credentials.refresh_token) {
-					this.logger.log('Credentials file contains tokens, using them directly');
-					this.oauth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
-					this.oauth2Client.setCredentials({
-						access_token: credentials.token,
-						refresh_token: credentials.refresh_token,
-						expiry_date: credentials.expiry ? new Date(credentials.expiry).getTime() : undefined,
-					});
-					this.gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
-					this.logger.log('Gmail client initialized with tokens from credentials file');
-					return;
-				}
-			} else {
-				throw new Error('Invalid credentials file format. Expected format with installed/web or client_id/client_secret.');
-			}
+    private async initializeGmailClient(): Promise<void> {
+        try {
+            // Load credentials
+            const credentials = JSON.parse(readFileSync(this.credentialsPath, 'utf8'));
 
-			// Create OAuth2 client
-			this.oauth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
+            // Handle different credential file formats
+            let clientId: string;
+            let clientSecret: string;
+            let redirectUris: string[];
 
-			// Load token if exists (separate token file)
-			try {
-				const token = JSON.parse(readFileSync(this.tokenPath, 'utf8'));
-				this.oauth2Client.setCredentials(token);
-				this.logger.log('Gmail token loaded successfully');
-			} catch (error: any) {
-				this.logger.warn(`Token file not found at ${this.tokenPath}. Please authenticate first.`);
-				// Token will be set later when user authenticates
-			}
+            // Format 1: Standard Google Cloud Console format (installed or web)
+            if (credentials.installed) {
+                clientId = credentials.installed.client_id;
+                clientSecret = credentials.installed.client_secret;
+                redirectUris = credentials.installed.redirect_uris || ['http://localhost'];
+            } else if (credentials.web) {
+                clientId = credentials.web.client_id;
+                clientSecret = credentials.web.client_secret;
+                redirectUris = credentials.web.redirect_uris || ['http://localhost'];
+            }
+            // Format 2: Token file format (has client_id and client_secret at root level)
+            // This format contains both credentials and tokens
+            else if (credentials.client_id && credentials.client_secret) {
+                clientId = credentials.client_id;
+                clientSecret = credentials.client_secret;
+                redirectUris = credentials.redirect_uris || ['http://localhost'];
 
-			// Create Gmail client
-			this.gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
-		} catch (error: any) {
-			this.logger.error(`Failed to initialize Gmail client: ${error.message}`);
-			throw error;
-		}
-	}
+                // If this file also contains tokens, use them directly
+                if (credentials.token || credentials.refresh_token) {
+                    this.logger.log('Credentials file contains tokens, using them directly');
+                    this.oauth2Client = new google.auth.OAuth2(
+                        clientId,
+                        clientSecret,
+                        redirectUris[0]
+                    );
+                    this.oauth2Client.setCredentials({
+                        access_token: credentials.token,
+                        refresh_token: credentials.refresh_token,
+                        expiry_date: credentials.expiry
+                            ? new Date(credentials.expiry).getTime()
+                            : undefined,
+                    });
+                    this.gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
+                    this.logger.log('Gmail client initialized with tokens from credentials file');
+                    return;
+                }
+            } else {
+                throw new Error(
+                    'Invalid credentials file format. Expected format with installed/web or client_id/client_secret.'
+                );
+            }
 
-	/**
-	 * Get authorization URL for OAuth2 flow
-	 */
-	getAuthUrl(): string {
-		if (!this.oauth2Client) {
-			throw new Error('OAuth2 client not initialized');
-		}
+            // Create OAuth2 client
+            this.oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUris[0]);
 
-		const SCOPES = ['https://www.googleapis.com/auth/gmail.send'];
+            // Load token if exists (separate token file)
+            try {
+                const token = JSON.parse(readFileSync(this.tokenPath, 'utf8'));
+                this.oauth2Client.setCredentials(token);
+                this.logger.log('Gmail token loaded successfully');
+            } catch (_error: any) {
+                this.logger.warn(
+                    `Token file not found at ${this.tokenPath}. Please authenticate first.`
+                );
+                // Token will be set later when user authenticates
+            }
 
-		return this.oauth2Client.generateAuthUrl({
-			access_type: 'offline',
-			scope: SCOPES,
-			prompt: 'consent',
-		});
-	}
+            // Create Gmail client
+            this.gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
+        } catch (error: any) {
+            this.logger.error(`Failed to initialize Gmail client: ${error.message}`);
+            throw error;
+        }
+    }
 
-	/**
-	 * Exchange authorization code for tokens
-	 */
-	async setTokensFromCode(code: string): Promise<void> {
-		if (!this.oauth2Client) {
-			throw new Error('OAuth2 client not initialized');
-		}
+    /**
+     * Get authorization URL for OAuth2 flow
+     */
+    getAuthUrl(): string {
+        if (!this.oauth2Client) {
+            throw new Error('OAuth2 client not initialized');
+        }
 
-		const { tokens } = await this.oauth2Client.getToken(code);
-		this.oauth2Client.setCredentials(tokens);
+        const SCOPES = ['https://www.googleapis.com/auth/gmail.send'];
 
-		// Save token to file
-		const { writeFileSync } = await import('fs');
-		writeFileSync(this.tokenPath, JSON.stringify(tokens, null, 2));
-		this.logger.log(`Tokens saved to ${this.tokenPath}`);
+        return this.oauth2Client.generateAuthUrl({
+            access_type: 'offline',
+            scope: SCOPES,
+            prompt: 'consent',
+        });
+    }
 
-		// Reinitialize Gmail client with new tokens
-		if (this.gmail) {
-			this.gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
-		}
-	}
+    /**
+     * Exchange authorization code for tokens
+     */
+    async setTokensFromCode(code: string): Promise<void> {
+        if (!this.oauth2Client) {
+            throw new Error('OAuth2 client not initialized');
+        }
 
-	/**
-	 * Send email using Gmail API
-	 * @param attachments Array of file paths to attach
-	 */
-	async sendEmail(
-		to: string,
-		subject: string,
-		htmlBody: string,
-		textBody?: string,
-		replyTo?: string,
-		attachments?: string[],
-	): Promise<string> {
-		if (!this.gmail) {
-			throw new Error('Gmail client not initialized. Please authenticate first.');
-		}
+        const { tokens } = await this.oauth2Client.getToken(code);
+        this.oauth2Client.setCredentials(tokens);
 
-		try {
-			// Create email message with attachments
-			const message = await this.createMessageWithAttachments(
-				to,
-				subject,
-				htmlBody,
-				textBody,
-				replyTo,
-				attachments,
-			);
+        // Save token to file
+        const { writeFileSync } = await import('node:fs');
+        writeFileSync(this.tokenPath, JSON.stringify(tokens, null, 2));
+        this.logger.log(`Tokens saved to ${this.tokenPath}`);
 
-			// Send email
-			const response = await this.gmail.users.messages.send({
-				userId: 'me',
-				requestBody: {
-					raw: message,
-				},
-			});
+        // Reinitialize Gmail client with new tokens
+        if (this.gmail) {
+            this.gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
+        }
+    }
 
-			this.logger.log(`Email sent successfully. Message ID: ${response.data.id}`);
-			return response.data.id || '';
-		} catch (error: any) {
-			this.logger.error(`Failed to send email: ${error.message}`);
-			throw error;
-		}
-	}
+    /**
+     * Send email using Gmail API
+     * @param attachments Array of file paths to attach
+     */
+    async sendEmail(
+        to: string,
+        subject: string,
+        htmlBody: string,
+        textBody?: string,
+        replyTo?: string,
+        attachments?: string[]
+    ): Promise<string> {
+        if (!this.gmail) {
+            throw new Error('Gmail client not initialized. Please authenticate first.');
+        }
 
-	/**
-	 * Create base64 encoded email message with attachments support
-	 */
-	private async createMessageWithAttachments(
-		to: string,
-		subject: string,
-		htmlBody: string,
-		textBody?: string,
-		replyTo?: string,
-		attachments?: string[],
-	): Promise<string> {
-		const fromEmail = this.configService.get<string>('GMAIL_FROM_EMAIL') || 'me';
-		
-		// Encode subject to UTF-8 using RFC 2047 format to avoid encoding issues
-		const encodedSubject = this.encodeSubject(subject);
+        try {
+            // Create email message with attachments
+            const message = await this.createMessageWithAttachments(
+                to,
+                subject,
+                htmlBody,
+                textBody,
+                replyTo,
+                attachments
+            );
 
-		// If no attachments, use simple message
-		if (!attachments || attachments.length === 0) {
-			return this.createMessage(to, subject, htmlBody, textBody, replyTo);
-		}
+            // Send email
+            const response = await this.gmail.users.messages.send({
+                userId: 'me',
+                requestBody: {
+                    raw: message,
+                },
+            });
 
-		// Create multipart message with attachments
-		const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-		
-		const headers = [
-			`To: ${to}`,
-			`From: ${fromEmail}`,
-			`Subject: ${encodedSubject}`,
-			`MIME-Version: 1.0`,
-			`Content-Type: multipart/mixed; boundary="${boundary}"`,
-		];
+            this.logger.log(`Email sent successfully. Message ID: ${response.data.id}`);
+            return response.data.id || '';
+        } catch (error: any) {
+            this.logger.error(`Failed to send email: ${error.message}`);
+            throw error;
+        }
+    }
 
-		if (replyTo) {
-			headers.push(`Reply-To: ${replyTo}`);
-		}
+    /**
+     * Create base64 encoded email message with attachments support
+     */
+    private async createMessageWithAttachments(
+        to: string,
+        subject: string,
+        htmlBody: string,
+        textBody?: string,
+        replyTo?: string,
+        attachments?: string[]
+    ): Promise<string> {
+        const fromEmail = this.configService.get<string>('GMAIL_FROM_EMAIL') || 'me';
 
-		// Build message parts
-		const parts: string[] = [];
+        // Encode subject to UTF-8 using RFC 2047 format to avoid encoding issues
+        const encodedSubject = this.encodeSubject(subject);
 
-		// HTML body part
-		parts.push(`--${boundary}`);
-		parts.push('Content-Type: text/html; charset=utf-8');
-		parts.push('Content-Transfer-Encoding: 7bit');
-		parts.push('');
-		parts.push(htmlBody);
+        // If no attachments, use simple message
+        if (!attachments || attachments.length === 0) {
+            return this.createMessage(to, subject, htmlBody, textBody, replyTo);
+        }
 
-		// Attachments
-		const { readFileSync } = await import('fs');
-		const { basename } = await import('path');
+        // Create multipart message with attachments
+        const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
 
-		for (const attachmentPath of attachments) {
-			try {
-				const fileContent = readFileSync(attachmentPath);
-				const fileName = basename(attachmentPath);
-				const base64Content = fileContent.toString('base64');
+        const headers = [
+            `To: ${to}`,
+            `From: ${fromEmail}`,
+            `Subject: ${encodedSubject}`,
+            'MIME-Version: 1.0',
+            `Content-Type: multipart/mixed; boundary="${boundary}"`,
+        ];
 
-				parts.push(`--${boundary}`);
-				parts.push(`Content-Type: application/pdf; name="${fileName}"`);
-				parts.push('Content-Transfer-Encoding: base64');
-				parts.push(`Content-Disposition: attachment; filename="${fileName}"`);
-				parts.push('');
-				// Split base64 into lines of 76 characters (RFC 2045)
-				const base64Lines = base64Content.match(/.{1,76}/g) || [];
-				parts.push(base64Lines.join('\r\n'));
-			} catch (error: any) {
-				this.logger.error(`Failed to attach file ${attachmentPath}: ${error.message}`);
-				// Continue with other attachments
-			}
-		}
+        if (replyTo) {
+            headers.push(`Reply-To: ${replyTo}`);
+        }
 
-		// Close boundary
-		parts.push(`--${boundary}--`);
+        // Build message parts
+        const parts: string[] = [];
 
-		const email = [headers.join('\r\n'), '', parts.join('\r\n')].join('\r\n');
+        // HTML body part
+        parts.push(`--${boundary}`);
+        parts.push('Content-Type: text/html; charset=utf-8');
+        parts.push('Content-Transfer-Encoding: 7bit');
+        parts.push('');
+        parts.push(htmlBody);
 
-		// Encode to base64url format
-		return Buffer.from(email).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-	}
+        // Attachments
+        const { readFileSync } = await import('node:fs');
+        const { basename } = await import('node:path');
 
-	/**
-	 * Create base64 encoded email message (simple, no attachments)
-	 */
-	private createMessage(to: string, subject: string, htmlBody: string, textBody?: string, replyTo?: string): string {
-		const fromEmail = this.configService.get<string>('GMAIL_FROM_EMAIL') || 'me';
-		
-		// Encode subject to UTF-8 using RFC 2047 format to avoid encoding issues
-		const encodedSubject = this.encodeSubject(subject);
-		
-		const headers = [
-			`To: ${to}`,
-			`From: ${fromEmail}`,
-			`Subject: ${encodedSubject}`,
-			'Content-Type: text/html; charset=utf-8',
-		];
+        for (const attachmentPath of attachments) {
+            try {
+                const fileContent = readFileSync(attachmentPath);
+                const fileName = basename(attachmentPath);
+                const base64Content = fileContent.toString('base64');
 
-		if (replyTo) {
-			headers.push(`Reply-To: ${replyTo}`);
-		}
+                parts.push(`--${boundary}`);
+                parts.push(`Content-Type: application/pdf; name="${fileName}"`);
+                parts.push('Content-Transfer-Encoding: base64');
+                parts.push(`Content-Disposition: attachment; filename="${fileName}"`);
+                parts.push('');
+                // Split base64 into lines of 76 characters (RFC 2045)
+                const base64Lines = base64Content.match(/.{1,76}/g) || [];
+                parts.push(base64Lines.join('\r\n'));
+            } catch (error: any) {
+                this.logger.error(`Failed to attach file ${attachmentPath}: ${error.message}`);
+                // Continue with other attachments
+            }
+        }
 
-		const email = [
-			headers.join('\r\n'),
-			'',
-			htmlBody,
-		].join('\r\n');
+        // Close boundary
+        parts.push(`--${boundary}--`);
 
-		// Encode to base64url format
-		return Buffer.from(email).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-	}
+        const email = [headers.join('\r\n'), '', parts.join('\r\n')].join('\r\n');
 
-	/**
-	 * Encode email subject to UTF-8 using RFC 2047 format
-	 * This prevents encoding issues with Vietnamese characters
-	 */
-	private encodeSubject(subject: string): string {
-		// Check if subject contains non-ASCII characters
-		if (/^[\x00-\x7F]*$/.test(subject)) {
-			// Only ASCII characters, no encoding needed
-			return subject;
-		}
-		
-		// Encode using RFC 2047 format: =?charset?encoding?encoded-text?=
-		// Use base64 encoding for better compatibility
-		const encoded = Buffer.from(subject, 'utf-8').toString('base64');
-		return `=?UTF-8?B?${encoded}?=`;
-	}
+        // Encode to base64url format
+        return Buffer.from(email)
+            .toString('base64')
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=+$/, '');
+    }
 
-	/**
-	 * Check if Gmail client is ready
-	 */
-	isReady(): boolean {
-		return this.gmail !== null && this.oauth2Client !== null;
-	}
+    /**
+     * Create base64 encoded email message (simple, no attachments)
+     */
+    private createMessage(
+        to: string,
+        subject: string,
+        htmlBody: string,
+        _textBody?: string,
+        replyTo?: string
+    ): string {
+        const fromEmail = this.configService.get<string>('GMAIL_FROM_EMAIL') || 'me';
 
-	/**
-	 * Refresh access token if needed
-	 */
-	async refreshTokenIfNeeded(): Promise<void> {
-		if (!this.oauth2Client) {
-			throw new Error('OAuth2 client not initialized');
-		}
+        // Encode subject to UTF-8 using RFC 2047 format to avoid encoding issues
+        const encodedSubject = this.encodeSubject(subject);
 
-		try {
-			const { credentials } = await this.oauth2Client.refreshAccessToken();
-			this.oauth2Client.setCredentials(credentials);
-			this.logger.log('Access token refreshed successfully');
-		} catch (error: any) {
-			this.logger.error(`Failed to refresh access token: ${error.message}`);
-			throw error;
-		}
-	}
+        const headers = [
+            `To: ${to}`,
+            `From: ${fromEmail}`,
+            `Subject: ${encodedSubject}`,
+            'Content-Type: text/html; charset=utf-8',
+        ];
+
+        if (replyTo) {
+            headers.push(`Reply-To: ${replyTo}`);
+        }
+
+        const email = [headers.join('\r\n'), '', htmlBody].join('\r\n');
+
+        // Encode to base64url format
+        return Buffer.from(email)
+            .toString('base64')
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=+$/, '');
+    }
+
+    /**
+     * Encode email subject to UTF-8 using RFC 2047 format
+     * This prevents encoding issues with Vietnamese characters
+     */
+    private encodeSubject(subject: string): string {
+        // Check if subject contains non-ASCII characters
+        // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional ASCII range check for email subject validation
+        if (/^[\x00-\x7f]*$/.test(subject)) {
+            // Only ASCII characters, no encoding needed
+            return subject;
+        }
+
+        // Encode using RFC 2047 format: =?charset?encoding?encoded-text?=
+        // Use base64 encoding for better compatibility
+        const encoded = Buffer.from(subject, 'utf-8').toString('base64');
+        return `=?UTF-8?B?${encoded}?=`;
+    }
+
+    /**
+     * Check if Gmail client is ready
+     */
+    isReady(): boolean {
+        return this.gmail !== null && this.oauth2Client !== null;
+    }
+
+    /**
+     * Refresh access token if needed
+     */
+    async refreshTokenIfNeeded(): Promise<void> {
+        if (!this.oauth2Client) {
+            throw new Error('OAuth2 client not initialized');
+        }
+
+        try {
+            const { credentials } = await this.oauth2Client.refreshAccessToken();
+            this.oauth2Client.setCredentials(credentials);
+            this.logger.log('Access token refreshed successfully');
+        } catch (error: any) {
+            this.logger.error(`Failed to refresh access token: ${error.message}`);
+            throw error;
+        }
+    }
 }
-

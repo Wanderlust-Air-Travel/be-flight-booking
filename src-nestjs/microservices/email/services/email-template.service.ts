@@ -1,46 +1,49 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EmailTemplate } from 'src/shared/constants/enums';
-import { TemplateResult } from '../interfaces/email-template.interface';
+import type { TemplateResult } from '../interfaces/email-template.interface';
 
 @Injectable()
 export class EmailTemplateService {
-	private readonly logger = new Logger(EmailTemplateService.name);
+    private readonly logger = new Logger(EmailTemplateService.name);
 
-	/**
-	 * Render email template with data
-	 */
-	async renderTemplate(template: EmailTemplate, data: Record<string, any>): Promise<TemplateResult> {
-		switch (template) {
-			case EmailTemplate.OTP_PAYMENT:
-				return this.renderOtpPaymentTemplate(data);
-			case EmailTemplate.OTP_PASSWORD_RESET:
-				return this.renderOtpPasswordResetTemplate(data);
-			case EmailTemplate.OTP_CANCELLATION:
-				return this.renderOtpCancellationTemplate(data);
-			case EmailTemplate.PAYMENT_SUCCESS:
-				return this.renderPaymentSuccessTemplate(data);
-			case EmailTemplate.PAYMENT_FAILED:
-				return this.renderPaymentFailedTemplate(data);
-			case EmailTemplate.BOOKING_CONFIRMATION:
-				return this.renderBookingConfirmationTemplate(data);
-			case EmailTemplate.TICKET_CONFIRMATION:
-				return this.renderTicketConfirmationTemplate(data);
-			case EmailTemplate.BOOKING_CANCELLATION:
-				return this.renderBookingCancellationTemplate(data);
-			default:
-				throw new Error(`Unknown template: ${template}`);
-		}
-	}
+    /**
+     * Render email template with data
+     */
+    async renderTemplate(
+        template: EmailTemplate,
+        data: Record<string, any>
+    ): Promise<TemplateResult> {
+        switch (template) {
+            case EmailTemplate.OTP_PAYMENT:
+                return this.renderOtpPaymentTemplate(data);
+            case EmailTemplate.OTP_PASSWORD_RESET:
+                return this.renderOtpPasswordResetTemplate(data);
+            case EmailTemplate.OTP_CANCELLATION:
+                return this.renderOtpCancellationTemplate(data);
+            case EmailTemplate.PAYMENT_SUCCESS:
+                return this.renderPaymentSuccessTemplate(data);
+            case EmailTemplate.PAYMENT_FAILED:
+                return this.renderPaymentFailedTemplate(data);
+            case EmailTemplate.BOOKING_CONFIRMATION:
+                return this.renderBookingConfirmationTemplate(data);
+            case EmailTemplate.TICKET_CONFIRMATION:
+                return this.renderTicketConfirmationTemplate(data);
+            case EmailTemplate.BOOKING_CANCELLATION:
+                return this.renderBookingCancellationTemplate(data);
+            default:
+                throw new Error(`Unknown template: ${template}`);
+        }
+    }
 
-	/**
-	 * Render OTP Payment template
-	 */
-	private renderOtpPaymentTemplate(data: Record<string, any>): TemplateResult {
-		const otp = data.otp || 'N/A';
-		const expiresIn = data.expiresIn || '15 minutes';
+    /**
+     * Render OTP Payment template
+     */
+    private renderOtpPaymentTemplate(data: Record<string, any>): TemplateResult {
+        const otp = data.otp || 'N/A';
+        const expiresIn = data.expiresIn || '15 minutes';
 
-		const subject = 'Xác thực thanh toán - OTP Code';
-		const htmlBody = `
+        const subject = 'Xác thực thanh toán - OTP Code';
+        const htmlBody = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -78,20 +81,20 @@ export class EmailTemplateService {
 </html>
 		`;
 
-		const textBody = `Xác thực thanh toán\n\nMã OTP của bạn là: ${otp}\n\nMã này có hiệu lực trong ${expiresIn}. Vui lòng không chia sẻ mã này với bất kỳ ai.`;
+        const textBody = `Xác thực thanh toán\n\nMã OTP của bạn là: ${otp}\n\nMã này có hiệu lực trong ${expiresIn}. Vui lòng không chia sẻ mã này với bất kỳ ai.`;
 
-		return { subject, htmlBody, textBody };
-	}
+        return { subject, htmlBody, textBody };
+    }
 
-	/**
-	 * Render OTP Password Reset template
-	 */
-	private renderOtpPasswordResetTemplate(data: Record<string, any>): TemplateResult {
-		const otp = data.otp || 'N/A';
-		const expiresIn = data.expiresIn || '15 minutes';
+    /**
+     * Render OTP Password Reset template
+     */
+    private renderOtpPasswordResetTemplate(data: Record<string, any>): TemplateResult {
+        const otp = data.otp || 'N/A';
+        const expiresIn = data.expiresIn || '15 minutes';
 
-		const subject = 'Đặt lại mật khẩu - OTP Code';
-		const htmlBody = `
+        const subject = 'Đặt lại mật khẩu - OTP Code';
+        const htmlBody = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -129,25 +132,25 @@ export class EmailTemplateService {
 </html>
 		`;
 
-		const textBody = `Đặt lại mật khẩu\n\nMã OTP của bạn là: ${otp}\n\nMã này có hiệu lực trong ${expiresIn}. Vui lòng không chia sẻ mã này với bất kỳ ai.`;
+        const textBody = `Đặt lại mật khẩu\n\nMã OTP của bạn là: ${otp}\n\nMã này có hiệu lực trong ${expiresIn}. Vui lòng không chia sẻ mã này với bất kỳ ai.`;
 
-		return { subject, htmlBody, textBody };
-	}
+        return { subject, htmlBody, textBody };
+    }
 
-	/**
-	 * Render Payment Success template
-	 */
-	private renderPaymentSuccessTemplate(data: Record<string, any>): TemplateResult {
-		const pnrCode = data.pnrCode || 'N/A';
-		const bookingId = data.bookingId || 'N/A';
-		const totalAmount = data.totalAmount || 0;
-		const currency = data.currency || 'VND';
-		const passengerName = data.passengerName || 'Quý khách';
-		const seatDetails = data.seatDetails || 'N/A';
-		const checkInTime = data.checkInTime || 'N/A';
+    /**
+     * Render Payment Success template
+     */
+    private renderPaymentSuccessTemplate(data: Record<string, any>): TemplateResult {
+        const pnrCode = data.pnrCode || 'N/A';
+        const bookingId = data.bookingId || 'N/A';
+        const totalAmount = data.totalAmount || 0;
+        const currency = data.currency || 'VND';
+        const passengerName = data.passengerName || 'Quý khách';
+        const seatDetails = data.seatDetails || 'N/A';
+        const checkInTime = data.checkInTime || 'N/A';
 
-		const subject = `Xác nhận thanh toán thành công - Mã đặt chỗ: ${pnrCode}`;
-		const htmlBody = `
+        const subject = `Xác nhận thanh toán thành công - Mã đặt chỗ: ${pnrCode}`;
+        const htmlBody = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -189,31 +192,37 @@ export class EmailTemplateService {
 					<span class="label">Thông tin chỗ ngồi:</span>
 					<div class="value">
 						${
-							seatDetails !== 'N/A'
-								? seatDetails
-										.split('\n\n')
-										.map(
-											(block) => {
-												// Check if this block contains "Sẽ được chọn khi làm thủ tục check-in"
-												const hasSeatToBeSelected = block.includes('Sẽ được chọn khi làm thủ tục check-in');
-												const blockLines = block.split('\n');
-												const formattedLines = blockLines.map((line) => {
-													// Highlight seat selection notice
-													if (line.includes('Sẽ được chọn khi làm thủ tục check-in')) {
-														return `<p style="margin: 2px 0; color: #856404; font-style: italic;">${line}</p>`;
-													}
-													return `<p style="margin: 2px 0;">${line}</p>`;
-												}).join('');
-												
-												return `
+                            seatDetails !== 'N/A'
+                                ? seatDetails
+                                      .split('\n\n')
+                                      .map((block) => {
+                                          // Check if this block contains "Sẽ được chọn khi làm thủ tục check-in"
+                                          const hasSeatToBeSelected = block.includes(
+                                              'Sẽ được chọn khi làm thủ tục check-in'
+                                          );
+                                          const blockLines = block.split('\n');
+                                          const formattedLines = blockLines
+                                              .map((line) => {
+                                                  // Highlight seat selection notice
+                                                  if (
+                                                      line.includes(
+                                                          'Sẽ được chọn khi làm thủ tục check-in'
+                                                      )
+                                                  ) {
+                                                      return `<p style="margin: 2px 0; color: #856404; font-style: italic;">${line}</p>`;
+                                                  }
+                                                  return `<p style="margin: 2px 0;">${line}</p>`;
+                                              })
+                                              .join('');
+
+                                          return `
 							<div style="margin: 8px 0; padding: 8px; background-color: ${hasSeatToBeSelected ? '#fff3cd' : '#f5f5f5'}; border-radius: 4px; ${hasSeatToBeSelected ? 'border-left: 3px solid #ffc107;' : ''}">
 								${formattedLines}
 							</div>`;
-											},
-										)
-										.join('')
-								: '<p>Không có thông tin chỗ ngồi.</p>'
-						}
+                                      })
+                                      .join('')
+                                : '<p>Không có thông tin chỗ ngồi.</p>'
+                        }
 					</div>
 				</div>
 				<div class="info-row" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
@@ -221,10 +230,11 @@ export class EmailTemplateService {
 						<div style="font-weight: bold; margin-bottom: 8px; color: #856404;">⏰ Lưu ý làm thủ tục:</div>
 						<p style="margin: 10px 0 0 0; color: #856404; font-size: 13px;">
 							${
-								seatDetails !== 'N/A' && seatDetails.includes('Sẽ được chọn khi làm thủ tục check-in')
-									? '<strong>Quan trọng:</strong> Số ghế ngồi sẽ được chọn khi bạn làm thủ tục check-in. Vui lòng có mặt tại sân bay đúng giờ để làm thủ tục check-in và chọn ghế ngồi. '
-									: ''
-							}
+                                seatDetails !== 'N/A' &&
+                                seatDetails.includes('Sẽ được chọn khi làm thủ tục check-in')
+                                    ? '<strong>Quan trọng:</strong> Số ghế ngồi sẽ được chọn khi bạn làm thủ tục check-in. Vui lòng có mặt tại sân bay đúng giờ để làm thủ tục check-in và chọn ghế ngồi. '
+                                    : ''
+                            }
 							Vui lòng có mặt tại sân bay đúng giờ để làm thủ tục check-in. 
 							Vui lòng có mặt trước giờ khởi hành ít nhất 24 giờ để làm thủ tục.
 						</p>
@@ -243,12 +253,13 @@ export class EmailTemplateService {
 </html>
 		`;
 
-		const hasSeatToBeSelected = seatDetails !== 'N/A' && seatDetails.includes('Sẽ được chọn khi làm thủ tục check-in');
-		const checkInNote = hasSeatToBeSelected
-			? 'QUAN TRỌNG: Số ghế ngồi sẽ được chọn khi bạn làm thủ tục check-in. '
-			: '';
+        const hasSeatToBeSelected =
+            seatDetails !== 'N/A' && seatDetails.includes('Sẽ được chọn khi làm thủ tục check-in');
+        const checkInNote = hasSeatToBeSelected
+            ? 'QUAN TRỌNG: Số ghế ngồi sẽ được chọn khi bạn làm thủ tục check-in. '
+            : '';
 
-		const textBody = `Thanh toán thành công
+        const textBody = `Thanh toán thành công
 
 Mã đặt chỗ (PNR): ${pnrCode}
 Mã booking: ${bookingId}
@@ -262,18 +273,18 @@ Vui lòng có mặt trước giờ khởi hành ít nhất 24 giờ để làm t
 
 Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi.`;
 
-		return { subject, htmlBody, textBody };
-	}
+        return { subject, htmlBody, textBody };
+    }
 
-	/**
-	 * Render Payment Failed template
-	 */
-	private renderPaymentFailedTemplate(data: Record<string, any>): TemplateResult {
-		const bookingId = data.bookingId || 'N/A';
-		const reason = data.reason || 'Không xác định';
+    /**
+     * Render Payment Failed template
+     */
+    private renderPaymentFailedTemplate(data: Record<string, any>): TemplateResult {
+        const bookingId = data.bookingId || 'N/A';
+        const reason = data.reason || 'Không xác định';
 
-		const subject = 'Thông báo thanh toán thất bại';
-		const htmlBody = `
+        const subject = 'Thông báo thanh toán thất bại';
+        const htmlBody = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -310,30 +321,31 @@ Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi.`;
 </html>
 		`;
 
-		const textBody = `Thanh toán thất bại\n\nMã booking: ${bookingId}\nLý do: ${reason}\n\nVui lòng thử lại hoặc liên hệ với chúng tôi nếu vấn đề vẫn tiếp tục.`;
+        const textBody = `Thanh toán thất bại\n\nMã booking: ${bookingId}\nLý do: ${reason}\n\nVui lòng thử lại hoặc liên hệ với chúng tôi nếu vấn đề vẫn tiếp tục.`;
 
-		return { subject, htmlBody, textBody };
-	}
+        return { subject, htmlBody, textBody };
+    }
 
-	/**
-	 * Render Booking Confirmation template
-	 * This email is sent immediately after booking creation (before check-in)
-	 * So it should not include ticket details yet
-	 */
-	private renderBookingConfirmationTemplate(data: Record<string, any>): TemplateResult {
-		const pnrCode = data.pnrCode || 'N/A';
-		const bookingId = data.bookingId || 'N/A';
-		const flightDetails = data.flightDetails || '';
-		const passengerName = data.passengerName || 'Quý khách';
-		const checkInTime = data.checkInTime || 'N/A';
-		const totalAmount = data.totalAmount || 0;
-		const currency = data.currency || 'VND';
-		
-		// Check if flight details are actually available (not empty, null, or 'N/A')
-		const hasFlightDetails = flightDetails && flightDetails !== 'N/A' && flightDetails.trim().length > 0;
+    /**
+     * Render Booking Confirmation template
+     * This email is sent immediately after booking creation (before check-in)
+     * So it should not include ticket details yet
+     */
+    private renderBookingConfirmationTemplate(data: Record<string, any>): TemplateResult {
+        const pnrCode = data.pnrCode || 'N/A';
+        const bookingId = data.bookingId || 'N/A';
+        const flightDetails = data.flightDetails || '';
+        const passengerName = data.passengerName || 'Quý khách';
+        const checkInTime = data.checkInTime || 'N/A';
+        const totalAmount = data.totalAmount || 0;
+        const currency = data.currency || 'VND';
 
-		const subject = `Xác nhận đặt chỗ - Mã đặt chỗ: ${pnrCode}`;
-		const htmlBody = `
+        // Check if flight details are actually available (not empty, null, or 'N/A')
+        const hasFlightDetails =
+            flightDetails && flightDetails !== 'N/A' && flightDetails.trim().length > 0;
+
+        const subject = `Xác nhận đặt chỗ - Mã đặt chỗ: ${pnrCode}`;
+        const htmlBody = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -388,18 +400,29 @@ Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi.`;
 				</div>
 			</div>
 
-			${hasFlightDetails ? `
+			${
+                hasFlightDetails
+                    ? `
 			<div class="info-box">
 				<h3 style="margin-top: 0; color: #007bff;">✈️ Chi tiết chuyến bay</h3>
 				<div style="background-color: #f0f0f0; padding: 15px; border-radius: 5px;">
-					${flightDetails.split('\n\n').map(detail => 
-						`<div style="margin-bottom: 15px; padding: 10px; background-color: white; border-left: 3px solid #007bff; border-radius: 3px;">
-							${detail.split('\n').map(line => `<p style="margin: 5px 0;">${line}</p>`).join('')}
+					${flightDetails
+                        .split('\n\n')
+                        .map(
+                            (detail) =>
+                                `<div style="margin-bottom: 15px; padding: 10px; background-color: white; border-left: 3px solid #007bff; border-radius: 3px;">
+							${detail
+                                .split('\n')
+                                .map((line) => `<p style="margin: 5px 0;">${line}</p>`)
+                                .join('')}
 						</div>`
-					).join('')}
+                        )
+                        .join('')}
 				</div>
 			</div>
-			` : ''}
+			`
+                    : ''
+            }
 
 			<div class="warning-box">
 				<strong>⏰ Lưu ý làm thủ tục:</strong>
@@ -423,7 +446,7 @@ Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi.`;
 </html>
 		`;
 
-		const textBody = `Xác nhận đặt chỗ thành công
+        const textBody = `Xác nhận đặt chỗ thành công
 
 Mã đặt chỗ (PNR): ${pnrCode}
 Mã booking: ${bookingId}
@@ -435,9 +458,13 @@ CÁC BƯỚC TIẾP THEO:
 3. Làm thủ tục check-in - Sử dụng mã đặt chỗ để làm thủ tục check-in
 4. Nhận vé máy bay - Sau khi check-in, bạn sẽ nhận được vé máy bay qua email
 
-${hasFlightDetails ? `CHI TIẾT CHUYẾN BAY:
-${flightDetails}` : `CHI TIẾT CHUYẾN BAY:
-Thông tin chi tiết chuyến bay sẽ được gửi sau khi thanh toán`}
+${
+    hasFlightDetails
+        ? `CHI TIẾT CHUYẾN BAY:
+${flightDetails}`
+        : `CHI TIẾT CHUYẾN BAY:
+Thông tin chi tiết chuyến bay sẽ được gửi sau khi thanh toán`
+}
 
 LƯU Ý:
 Vui lòng có mặt tại sân bay trước giờ khởi hành ít nhất 24 giờ để làm thủ tục check-in.
@@ -445,20 +472,20 @@ Hãy lưu lại mã đặt chỗ ${pnrCode} để sử dụng tại sân bay.
 
 Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi!`;
 
-		return { subject, htmlBody, textBody };
-	}
+        return { subject, htmlBody, textBody };
+    }
 
-	/**
-	 * Render Ticket Confirmation template
-	 * Detailed ticket information after successful ticket creation
-	 */
-	private renderTicketConfirmationTemplate(data: Record<string, any>): TemplateResult {
-		const passengerName = data.passengerName || 'Quý khách';
-		const ticketDetails = data.ticketDetails || [];
-		const checkInTime = data.checkInTime || 'N/A';
+    /**
+     * Render Ticket Confirmation template
+     * Detailed ticket information after successful ticket creation
+     */
+    private renderTicketConfirmationTemplate(data: Record<string, any>): TemplateResult {
+        const passengerName = data.passengerName || 'Quý khách';
+        const ticketDetails = data.ticketDetails || [];
+        const checkInTime = data.checkInTime || 'N/A';
 
-		const subject = 'Vé máy bay của bạn đã được phát hành thành công';
-		const htmlBody = `
+        const subject = 'Vé máy bay của bạn đã được phát hành thành công';
+        const htmlBody = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -496,7 +523,9 @@ Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi!`;
 			<p>Xin chào <strong>${passengerName}</strong>,</p>
 			<p>Vé máy bay của bạn đã được phát hành thành công. Dưới đây là thông tin chi tiết về chuyến bay của bạn:</p>
 			
-			${ticketDetails.map((ticket: any, index: number) => `
+			${ticketDetails
+                .map(
+                    (ticket: any, index: number) => `
 			<div class="ticket-box">
 				<div class="ticket-header">
 					<div>
@@ -556,7 +585,9 @@ Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi!`;
 				</div>
 			</div>
 			${index < ticketDetails.length - 1 ? '<div class="divider"></div>' : ''}
-			`).join('')}
+			`
+                )
+                .join('')}
 
 			<div class="checkin-box">
 				<div class="info-label" style="text-align: center; margin-bottom: 10px;">⏰ Lưu ý làm thủ tục</div>
@@ -587,13 +618,15 @@ Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi!`;
 </html>
 		`;
 
-		const textBody = `Vé máy bay của bạn đã được phát hành thành công
+        const textBody = `Vé máy bay của bạn đã được phát hành thành công
 
 Xin chào ${passengerName},
 
 Vé máy bay của bạn đã được phát hành thành công. Dưới đây là thông tin chi tiết:
 
-${ticketDetails.map((ticket: any) => `
+${ticketDetails
+    .map(
+        (ticket: any) => `
 Mã vé: ${ticket.ticketNumber || 'N/A'}
 Hành khách: ${ticket.passengerName || 'N/A'}
 Chuyến bay: ${ticket.flightNumber || 'N/A'}
@@ -604,25 +637,27 @@ Giờ đến nơi: ${ticket.arrivalTime || 'N/A'}
 Loại vé: ${ticket.fareClassName || 'N/A'}
 Ghế ngồi: ${ticket.seatNumber || 'N/A'}
 Hạng ghế: ${ticket.cabinClass === 'economy' ? 'Phổ thông' : ticket.cabinClass === 'business' ? 'Thương gia' : ticket.cabinClass || 'N/A'}
-`).join('\n---\n')}
+`
+    )
+    .join('\n---\n')}
 
 Vui lòng có mặt tại sân bay đúng giờ để làm thủ tục check-in.
 Vui lòng có mặt trước giờ khởi hành ít nhất 24 giờ để làm thủ tục.
 
 Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi.`;
 
-		return { subject, htmlBody, textBody };
-	}
+        return { subject, htmlBody, textBody };
+    }
 
-	/**
-	 * Render OTP Cancellation template
-	 */
-	private renderOtpCancellationTemplate(data: Record<string, any>): TemplateResult {
-		const otp = data.otp || 'N/A';
-		const expiresIn = data.expiresIn || '15 minutes';
+    /**
+     * Render OTP Cancellation template
+     */
+    private renderOtpCancellationTemplate(data: Record<string, any>): TemplateResult {
+        const otp = data.otp || 'N/A';
+        const expiresIn = data.expiresIn || '15 minutes';
 
-		const subject = 'Xác thực hủy vé - OTP Code';
-		const htmlBody = `
+        const subject = 'Xác thực hủy vé - OTP Code';
+        const htmlBody = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -660,26 +695,26 @@ Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng t�
 </html>
 		`;
 
-		const textBody = `Xác thực hủy vé\n\nMã OTP của bạn là: ${otp}\n\nMã này có hiệu lực trong ${expiresIn}. Vui lòng không chia sẻ mã này với bất kỳ ai.`;
+        const textBody = `Xác thực hủy vé\n\nMã OTP của bạn là: ${otp}\n\nMã này có hiệu lực trong ${expiresIn}. Vui lòng không chia sẻ mã này với bất kỳ ai.`;
 
-		return { subject, htmlBody, textBody };
-	}
+        return { subject, htmlBody, textBody };
+    }
 
-	/**
-	 * Render Booking Cancellation template with refund information
-	 */
-	private renderBookingCancellationTemplate(data: Record<string, any>): TemplateResult {
-		const passengerName = data.passengerName || 'Quý khách';
-		const pnrCode = data.pnrCode || 'N/A';
-		const bookingId = data.bookingId || 'N/A';
-		const totalAmount = data.totalAmount || 0;
-		const refundAmount = data.refundAmount || 0;
-		const cancellationFee = data.cancellationFee || 0;
-		const currency = data.currency || 'VND';
-		const flightDetails = data.flightDetails || 'N/A';
+    /**
+     * Render Booking Cancellation template with refund information
+     */
+    private renderBookingCancellationTemplate(data: Record<string, any>): TemplateResult {
+        const passengerName = data.passengerName || 'Quý khách';
+        const pnrCode = data.pnrCode || 'N/A';
+        const bookingId = data.bookingId || 'N/A';
+        const totalAmount = data.totalAmount || 0;
+        const refundAmount = data.refundAmount || 0;
+        const cancellationFee = data.cancellationFee || 0;
+        const currency = data.currency || 'VND';
+        const flightDetails = data.flightDetails || 'N/A';
 
-		const subject = `Xác nhận hủy vé - Mã đặt chỗ: ${pnrCode}`;
-		const htmlBody = `
+        const subject = `Xác nhận hủy vé - Mã đặt chỗ: ${pnrCode}`;
+        const htmlBody = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -721,11 +756,22 @@ Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng t�
 					<span class="label">Chi tiết chuyến bay:</span>
 				</div>
 				<div style="background-color: #f0f0f0; padding: 15px; border-radius: 5px; margin-top: 10px;">
-					${flightDetails !== 'N/A' ? flightDetails.split('\n\n').map(detail => 
-						`<div style="margin-bottom: 15px; padding: 10px; background-color: white; border-left: 3px solid #dc3545; border-radius: 3px;">
-							${detail.split('\n').map(line => `<p style="margin: 5px 0;">${line}</p>`).join('')}
+					${
+                        flightDetails !== 'N/A'
+                            ? flightDetails
+                                  .split('\n\n')
+                                  .map(
+                                      (detail) =>
+                                          `<div style="margin-bottom: 15px; padding: 10px; background-color: white; border-left: 3px solid #dc3545; border-radius: 3px;">
+							${detail
+                                .split('\n')
+                                .map((line) => `<p style="margin: 5px 0;">${line}</p>`)
+                                .join('')}
 						</div>`
-					).join('') : '<p>N/A</p>'}
+                                  )
+                                  .join('')
+                            : '<p>N/A</p>'
+                    }
 				</div>
 			</div>
 
@@ -774,7 +820,7 @@ Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng t�
 </html>
 		`;
 
-		const textBody = `Đã hủy vé thành công
+        const textBody = `Đã hủy vé thành công
 
 Xin chào ${passengerName},
 
@@ -802,7 +848,6 @@ Lưu ý:
 
 Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi.`;
 
-		return { subject, htmlBody, textBody };
-	}
+        return { subject, htmlBody, textBody };
+    }
 }
-

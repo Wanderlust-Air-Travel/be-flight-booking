@@ -1,7 +1,7 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import type { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class AddFareDescriptionRulesTable1764772290710 implements MigrationInterface {
-    name = 'AddFareDescriptionRulesTable1764772290710'
+    name = 'AddFareDescriptionRulesTable1764772290710';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         // Create FareDescriptionRules table
@@ -35,11 +35,14 @@ export class AddFareDescriptionRulesTable1764772290710 implements MigrationInter
 
     public async down(queryRunner: QueryRunner): Promise<void> {
         // Drop indexes first
-        await queryRunner.query(`DROP INDEX IF EXISTS IX_FareDescriptionRules_CabinType_Order_Active ON FareDescriptionRules`);
-        await queryRunner.query(`DROP INDEX IF EXISTS IX_FareDescriptionRules_Pattern_CabinType_Active ON FareDescriptionRules`);
+        await queryRunner.query(
+            'DROP INDEX IF EXISTS IX_FareDescriptionRules_CabinType_Order_Active ON FareDescriptionRules'
+        );
+        await queryRunner.query(
+            'DROP INDEX IF EXISTS IX_FareDescriptionRules_Pattern_CabinType_Active ON FareDescriptionRules'
+        );
 
         // Drop table
-        await queryRunner.query(`DROP TABLE IF EXISTS FareDescriptionRules`);
+        await queryRunner.query('DROP TABLE IF EXISTS FareDescriptionRules');
     }
 }
-

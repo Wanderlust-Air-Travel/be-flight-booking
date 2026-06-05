@@ -4,13 +4,12 @@ import { EmailStatus } from 'src/shared/constants/enums';
 export { EmailStatus };
 
 export class EmailResponseDto {
-	emailId!: string;
-	to!: string;
-	subject!: string;
-	status!: EmailStatus;
-	error?: string;
-	queuedAt!: Date;
-	sentAt?: Date;
-	retryCount!: number;
+    emailId!: string;
+    to!: string;
+    subject!: string;
+    status!: EmailStatus;
+    error?: string;
+    queuedAt!: Date;
+    sentAt?: Date;
+    retryCount!: number;
 }
-

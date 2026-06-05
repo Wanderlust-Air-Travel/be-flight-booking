@@ -1,5 +1,4 @@
 export class UploadImageResponseDto {
-	imageUrl: string;
-	message: string;
+    imageUrl: string;
+    message: string;
 }
-

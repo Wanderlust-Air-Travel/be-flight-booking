@@ -1,6 +1,6 @@
 /**
  * Shared Entities - Database models used across all services
- * 
+ *
  * All entities are exported from this central location to ensure
  * consistent imports across API Gateway and Microservices
  */

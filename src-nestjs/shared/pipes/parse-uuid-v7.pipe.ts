@@ -1,4 +1,4 @@
-import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Injectable, type PipeTransform } from '@nestjs/common';
 
 /**
  * Custom pipe to validate and parse UUID v7
@@ -7,24 +7,24 @@ import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
  */
 @Injectable()
 export class ParseUUIDv7Pipe implements PipeTransform<string, string> {
-	transform(value: string, metadata?: any): string {
-		if (!value) {
-			const paramName = metadata?.data || 'Parameter';
-			throw new BadRequestException(`${paramName} is required`);
-		}
+    transform(value: string, metadata?: any): string {
+        if (!value) {
+            const paramName = metadata?.data || 'Parameter';
+            throw new BadRequestException(`${paramName} is required`);
+        }
 
-		const trimmedValue = value.trim();
+        const trimmedValue = value.trim();
 
-		// UUID v7 format: xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx
-		// Version 7 is indicated by '7' in position 14 (0-indexed: 13)
-		const uuidV7Regex = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        // UUID v7 format: xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx
+        // Version 7 is indicated by '7' in position 14 (0-indexed: 13)
+        const uuidV7Regex =
+            /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-		if (!uuidV7Regex.test(trimmedValue)) {
-			const paramName = metadata?.data || 'Parameter';
-			throw new BadRequestException(`${paramName} must be a valid UUID v7`);
-		}
+        if (!uuidV7Regex.test(trimmedValue)) {
+            const paramName = metadata?.data || 'Parameter';
+            throw new BadRequestException(`${paramName} must be a valid UUID v7`);
+        }
 
-		return trimmedValue;
-	}
+        return trimmedValue;
+    }
 }
-

@@ -1,5 +1,5 @@
-import { Column, Entity, ManyToMany, PrimaryColumn } from "typeorm";
-import { User } from "../user/user.entity";
+import { Column, Entity, ManyToMany, PrimaryColumn } from 'typeorm';
+import { User } from '../user/user.entity';
 
 /**
  * Role Entity
@@ -7,19 +7,21 @@ import { User } from "../user/user.entity";
  */
 @Entity({ name: 'Roles', schema: 'dbo' })
 export class Role {
-	@PrimaryColumn({ type: 'varchar', length: 50 })
-	role_code: string;
+    @PrimaryColumn({ type: 'varchar', length: 50 })
+    role_code: string;
 
-	@Column({ type: 'nvarchar', length: 100, nullable: false })
-	name: string;
+    @Column({ type: 'nvarchar', length: 100, nullable: false })
+    name: string;
 
-	@Column({ type: 'nvarchar', length: 500, nullable: true })
-	description: string | null;
+    @Column({ type: 'nvarchar', length: 500, nullable: true })
+    description: string | null;
 
-	@Column({ type: 'bit', nullable: false, default: () => '1' })
-	is_active: boolean;
+    @Column({ type: 'bit', nullable: false, default: () => '1' })
+    is_active: boolean;
 
-	@ManyToMany(() => User, (user) => user.roles)
-	users: User[];
+    @ManyToMany(
+        () => User,
+        (user) => user.roles
+    )
+    users: User[];
 }
-

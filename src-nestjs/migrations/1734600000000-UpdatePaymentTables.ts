@@ -1,7 +1,7 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import type { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class UpdatePaymentTables1734600000000 implements MigrationInterface {
-    name = 'UpdatePaymentTables1734600000000'
+    name = 'UpdatePaymentTables1734600000000';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         // Add is_active column to PaymentMethods table
@@ -38,8 +38,8 @@ export class UpdatePaymentTables1734600000000 implements MigrationInterface {
 
     public async down(queryRunner: QueryRunner): Promise<void> {
         // Drop indexes first
-        await queryRunner.query(`DROP INDEX IF EXISTS IX_Payments_ExpiresAt ON Payments`);
-        await queryRunner.query(`DROP INDEX IF EXISTS IX_Payments_IdempotencyKey ON Payments`);
+        await queryRunner.query('DROP INDEX IF EXISTS IX_Payments_ExpiresAt ON Payments');
+        await queryRunner.query('DROP INDEX IF EXISTS IX_Payments_IdempotencyKey ON Payments');
 
         // Remove columns from Payments table
         await queryRunner.query(`
@@ -59,4 +59,3 @@ export class UpdatePaymentTables1734600000000 implements MigrationInterface {
         `);
     }
 }
-

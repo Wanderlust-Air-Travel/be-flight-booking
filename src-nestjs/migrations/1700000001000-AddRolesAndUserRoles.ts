@@ -1,7 +1,7 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import type { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class AddRolesAndUserRoles1700000001000 implements MigrationInterface {
-    name = 'AddRolesAndUserRoles1700000001000'
+    name = 'AddRolesAndUserRoles1700000001000';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         // Create Roles table
@@ -67,8 +67,7 @@ export class AddRolesAndUserRoles1700000001000 implements MigrationInterface {
     }
 
     public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`DROP TABLE IF EXISTS UserRoles`);
-        await queryRunner.query(`DROP TABLE IF EXISTS Roles`);
+        await queryRunner.query('DROP TABLE IF EXISTS UserRoles');
+        await queryRunner.query('DROP TABLE IF EXISTS Roles');
     }
 }
-

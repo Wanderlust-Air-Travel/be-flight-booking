@@ -1,6 +1,6 @@
 /**
  * Seat Configuration Constants
- * 
+ *
  * Định nghĩa cố định các quy tắc tạo tên ghế ngồi trong business logic.
  * File seed và các service khác phải tuân theo constants này.
  */
@@ -15,12 +15,12 @@ export const SEAT_COLUMNS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
  * Mapping cột ghế sang loại ghế (Seat Type)
  */
 export const SEAT_TYPE_MAP: Record<string, 'Window' | 'Middle' | 'Aisle'> = {
-	'A': 'Window',
-	'B': 'Middle',
-	'C': 'Aisle',
-	'D': 'Aisle',
-	'E': 'Middle',
-	'F': 'Window',
+    A: 'Window',
+    B: 'Middle',
+    C: 'Aisle',
+    D: 'Aisle',
+    E: 'Middle',
+    F: 'Window',
 };
 
 /**
@@ -30,7 +30,7 @@ export const SEAT_TYPE_MAP: Record<string, 'Window' | 'Middle' | 'Aisle'> = {
  * @returns Tên ghế (ví dụ: '1A', '2B', '10F')
  */
 export function generateSeatNumber(row: number, column: string): string {
-	return `${row}${column}`;
+    return `${row}${column}`;
 }
 
 /**
@@ -39,7 +39,7 @@ export function generateSeatNumber(row: number, column: string): string {
  * @returns Loại ghế ('Window', 'Middle', 'Aisle')
  */
 export function getSeatType(column: string): 'Window' | 'Middle' | 'Aisle' {
-	return SEAT_TYPE_MAP[column] || 'Aisle';
+    return SEAT_TYPE_MAP[column] || 'Aisle';
 }
 
 /**
@@ -48,7 +48,7 @@ export function getSeatType(column: string): 'Window' | 'Middle' | 'Aisle' {
  * @returns true nếu là ghế cửa sổ (A hoặc F)
  */
 export function isWindowSeat(column: string): boolean {
-	return column === 'A' || column === 'F';
+    return column === 'A' || column === 'F';
 }
 
 /**
@@ -57,7 +57,7 @@ export function isWindowSeat(column: string): boolean {
  * @returns true nếu là ghế giữa (B hoặc E)
  */
 export function isMiddleSeat(column: string): boolean {
-	return column === 'B' || column === 'E';
+    return column === 'B' || column === 'E';
 }
 
 /**
@@ -66,21 +66,20 @@ export function isMiddleSeat(column: string): boolean {
  * @returns true nếu là ghế lối đi (C hoặc D)
  */
 export function isAisleSeat(column: string): boolean {
-	return column === 'C' || column === 'D';
+    return column === 'C' || column === 'D';
 }
 
 /**
  * Cấu hình phân bổ ghế theo cabin class
  */
 export const SEAT_DISTRIBUTION = {
-	/**
-	 * Tỷ lệ ghế Business (10% tổng số ghế)
-	 */
-	BUSINESS_PERCENTAGE: 0.1,
-	
-	/**
-	 * Số cột ghế mỗi hàng (6 cột)
-	 */
-	COLUMNS_PER_ROW: SEAT_COLUMNS.length,
-} as const;
+    /**
+     * Tỷ lệ ghế Business (10% tổng số ghế)
+     */
+    BUSINESS_PERCENTAGE: 0.1,
 
+    /**
+     * Số cột ghế mỗi hàng (6 cột)
+     */
+    COLUMNS_PER_ROW: SEAT_COLUMNS.length,
+} as const;

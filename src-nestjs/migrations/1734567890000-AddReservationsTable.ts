@@ -1,7 +1,7 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import type { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class AddReservationsTable1734567890000 implements MigrationInterface {
-    name = 'AddReservationsTable1734567890000'
+    name = 'AddReservationsTable1734567890000';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         // Create Reservations table
@@ -56,13 +56,12 @@ export class AddReservationsTable1734567890000 implements MigrationInterface {
 
     public async down(queryRunner: QueryRunner): Promise<void> {
         // Drop indexes first
-        await queryRunner.query(`DROP INDEX IF EXISTS IX_Reservations_ExpiresAt ON Reservations`);
-        await queryRunner.query(`DROP INDEX IF EXISTS IX_Reservations_Status ON Reservations`);
-        await queryRunner.query(`DROP INDEX IF EXISTS IX_Reservations_Code ON Reservations`);
-        await queryRunner.query(`DROP INDEX IF EXISTS IX_Reservations_UserId ON Reservations`);
+        await queryRunner.query('DROP INDEX IF EXISTS IX_Reservations_ExpiresAt ON Reservations');
+        await queryRunner.query('DROP INDEX IF EXISTS IX_Reservations_Status ON Reservations');
+        await queryRunner.query('DROP INDEX IF EXISTS IX_Reservations_Code ON Reservations');
+        await queryRunner.query('DROP INDEX IF EXISTS IX_Reservations_UserId ON Reservations');
 
         // Drop table
-        await queryRunner.query(`DROP TABLE IF EXISTS Reservations`);
+        await queryRunner.query('DROP TABLE IF EXISTS Reservations');
     }
 }
-

@@ -5,4 +5,3 @@
 
 export * from './email-queue.interface';
 export * from './email-template.interface';
-

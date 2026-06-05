@@ -1,36 +1,32 @@
 import {
-	Injectable,
-	NestInterceptor,
-	ExecutionContext,
-	CallHandler,
+    type CallHandler,
+    type ExecutionContext,
+    Injectable,
+    type NestInterceptor,
 } from '@nestjs/common';
-import { Observable } from 'rxjs';
+import type { Observable } from 'rxjs';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - uuid package is ESM but works fine with CommonJS
 import { v7 as uuidv7 } from 'uuid';
 
 @Injectable()
 export class RequestIdInterceptor implements NestInterceptor {
-	intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-		const request = context.switchToHttp().getRequest();
-		const response = context.switchToHttp().getResponse();
+    intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+        const request = context.switchToHttp().getRequest<Record<string, unknown>>();
+        const response = context
+            .switchToHttp()
+            .getResponse<{ setHeader: (key: string, val: string) => void }>();
 
-		// Get or generate request ID
-		// Using UUID v7 (time-ordered) for consistency with database IDs
-		// UUID v7 has timestamp embedded, making logs sortable by time
-		const requestId =
-			request.headers['x-request-id'] ||
-			request.headers['x-correlation-id'] ||
-			uuidv7();
+        const requestId =
+            (request.headers as Record<string, string>)['x-request-id'] ||
+            (request.headers as Record<string, string>)['x-correlation-id'] ||
+            uuidv7();
 
-		// Attach to request object
-		(request as any).requestId = requestId;
+        request.requestId = requestId;
 
-		// Attach to response headers
-		response.setHeader('X-Request-Id', requestId);
-		response.setHeader('X-Correlation-Id', requestId);
+        response.setHeader('X-Request-Id', requestId);
+        response.setHeader('X-Correlation-Id', requestId);
 
-		return next.handle();
-	}
+        return next.handle();
+    }
 }
-

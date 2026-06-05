@@ -4,8 +4,7 @@
  */
 
 export enum PassengerType {
-	ADT = 'ADT', // Adult
-	CHD = 'CHD', // Child
-	INF = 'INF', // Infant
+    ADT = 'ADT', // Adult
+    CHD = 'CHD', // Child
+    INF = 'INF', // Infant
 }
-

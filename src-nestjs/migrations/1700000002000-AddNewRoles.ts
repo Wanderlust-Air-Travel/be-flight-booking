@@ -1,4 +1,4 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import type { MigrationInterface, QueryRunner } from 'typeorm';
 
 /**
  * Migration to add new professional roles to the system
@@ -6,7 +6,7 @@ import { MigrationInterface, QueryRunner } from "typeorm";
  * Legacy roles are kept for backward compatibility
  */
 export class AddNewRoles1700000002000 implements MigrationInterface {
-    name = 'AddNewRoles1700000002000'
+    name = 'AddNewRoles1700000002000';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         // Add new professional roles
@@ -66,4 +66,3 @@ export class AddNewRoles1700000002000 implements MigrationInterface {
         `);
     }
 }
-

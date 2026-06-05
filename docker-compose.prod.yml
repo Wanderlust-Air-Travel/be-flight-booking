@@ -9,15 +9,6 @@
 services:
   api-gateway:
     restart: always
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
-        reservations:
-          cpus: '0.5'
-          memory: 256M
     logging:
       driver: json-file
       options:
@@ -26,11 +17,6 @@ services:
 
   sqlserver:
     restart: always
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 2G
     logging:
       driver: json-file
       options:
@@ -40,33 +26,18 @@ services:
   redis:
     restart: always
     command: redis-server --maxmemory 1g --maxmemory-policy allkeys-lru --save 900 1 --save 300 10 --appendonly yes --appendfsync everysec
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 1G
 
   rabbitmq:
     restart: always
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
     logging:
       driver: json-file
       options:
         max-size: '100m'
         max-file: '5'
 
-  # ─── Microservices resources ────────────────────────────────────────────────
+  # ─── Microservices ───────────────────────────────────────────────────
   search-ms:
     restart: always
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
     logging:
       driver: json-file
       options:
@@ -75,27 +46,12 @@ services:
 
   services-ms:
     restart: always
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
 
   routes-ms:
     restart: always
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
 
   booking-ms:
     restart: always
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
     logging:
       driver: json-file
       options:
@@ -104,24 +60,9 @@ services:
 
   reservation-ms:
     restart: always
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
 
   payment-ms:
     restart: always
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
 
   email-ms:
     restart: always
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M

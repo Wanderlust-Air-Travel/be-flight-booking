@@ -1,7 +1,7 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import type { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class InitialSchema1700000000000 implements MigrationInterface {
-    name = 'InitialSchema1700000000000'
+    name = 'InitialSchema1700000000000';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         // 0. USERS / PASSENGERS
@@ -481,32 +481,31 @@ export class InitialSchema1700000000000 implements MigrationInterface {
 
     public async down(queryRunner: QueryRunner): Promise<void> {
         // Drop triggers first
-        await queryRunner.query(`DROP TRIGGER IF EXISTS trg_BookingSegments_SeatAvailability_IUD`);
-        await queryRunner.query(`DROP TRIGGER IF EXISTS trg_Bookings_UpdateTimestamp`);
-        await queryRunner.query(`DROP TRIGGER IF EXISTS trg_FlightInstances_UpdateTimestamp`);
-        await queryRunner.query(`DROP TRIGGER IF EXISTS trg_Users_UpdateTimestamp`);
-        await queryRunner.query(`DROP TRIGGER IF EXISTS trg_Routes_AutoGenerateImageLink`);
+        await queryRunner.query('DROP TRIGGER IF EXISTS trg_BookingSegments_SeatAvailability_IUD');
+        await queryRunner.query('DROP TRIGGER IF EXISTS trg_Bookings_UpdateTimestamp');
+        await queryRunner.query('DROP TRIGGER IF EXISTS trg_FlightInstances_UpdateTimestamp');
+        await queryRunner.query('DROP TRIGGER IF EXISTS trg_Users_UpdateTimestamp');
+        await queryRunner.query('DROP TRIGGER IF EXISTS trg_Routes_AutoGenerateImageLink');
 
         // Drop tables in reverse order (respecting foreign keys)
-        await queryRunner.query(`DROP TABLE IF EXISTS Payments`);
-        await queryRunner.query(`DROP TABLE IF EXISTS Tickets`);
-        await queryRunner.query(`DROP TABLE IF EXISTS BookingSegments`);
-        await queryRunner.query(`DROP TABLE IF EXISTS BookingPassengers`);
-        await queryRunner.query(`DROP TABLE IF EXISTS Bookings`);
-        await queryRunner.query(`DROP TABLE IF EXISTS PaymentMethods`);
-        await queryRunner.query(`DROP TABLE IF EXISTS Currencies`);
-        await queryRunner.query(`DROP TABLE IF EXISTS FlightSeats`);
-        await queryRunner.query(`DROP TABLE IF EXISTS FlightInstances`);
-        await queryRunner.query(`DROP TABLE IF EXISTS FlightSchedules`);
-        await queryRunner.query(`DROP TABLE IF EXISTS SeatConfigurations`);
-        await queryRunner.query(`DROP TABLE IF EXISTS FareClasses`);
-        await queryRunner.query(`DROP TABLE IF EXISTS CabinClasses`);
-        await queryRunner.query(`DROP TABLE IF EXISTS Aircrafts`);
-        await queryRunner.query(`DROP TABLE IF EXISTS AircraftTypes`);
-        await queryRunner.query(`DROP TABLE IF EXISTS Routes`);
-        await queryRunner.query(`DROP TABLE IF EXISTS Airports`);
-        await queryRunner.query(`DROP TABLE IF EXISTS Passengers`);
-        await queryRunner.query(`DROP TABLE IF EXISTS Users`);
+        await queryRunner.query('DROP TABLE IF EXISTS Payments');
+        await queryRunner.query('DROP TABLE IF EXISTS Tickets');
+        await queryRunner.query('DROP TABLE IF EXISTS BookingSegments');
+        await queryRunner.query('DROP TABLE IF EXISTS BookingPassengers');
+        await queryRunner.query('DROP TABLE IF EXISTS Bookings');
+        await queryRunner.query('DROP TABLE IF EXISTS PaymentMethods');
+        await queryRunner.query('DROP TABLE IF EXISTS Currencies');
+        await queryRunner.query('DROP TABLE IF EXISTS FlightSeats');
+        await queryRunner.query('DROP TABLE IF EXISTS FlightInstances');
+        await queryRunner.query('DROP TABLE IF EXISTS FlightSchedules');
+        await queryRunner.query('DROP TABLE IF EXISTS SeatConfigurations');
+        await queryRunner.query('DROP TABLE IF EXISTS FareClasses');
+        await queryRunner.query('DROP TABLE IF EXISTS CabinClasses');
+        await queryRunner.query('DROP TABLE IF EXISTS Aircrafts');
+        await queryRunner.query('DROP TABLE IF EXISTS AircraftTypes');
+        await queryRunner.query('DROP TABLE IF EXISTS Routes');
+        await queryRunner.query('DROP TABLE IF EXISTS Airports');
+        await queryRunner.query('DROP TABLE IF EXISTS Passengers');
+        await queryRunner.query('DROP TABLE IF EXISTS Users');
     }
 }
-

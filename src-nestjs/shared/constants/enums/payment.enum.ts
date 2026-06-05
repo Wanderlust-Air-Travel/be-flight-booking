@@ -4,16 +4,15 @@
  */
 
 export enum PaymentMethodCode {
-	CREDIT_CARD = 'CREDIT_CARD',
-	DEBIT_CARD = 'DEBIT_CARD',
-	BANK_TRANSFER = 'BANK_TRANSFER',
-	EWALLET = 'EWALLET',
-	CASH = 'CASH',
+    CREDIT_CARD = 'CREDIT_CARD',
+    DEBIT_CARD = 'DEBIT_CARD',
+    BANK_TRANSFER = 'BANK_TRANSFER',
+    EWALLET = 'EWALLET',
+    CASH = 'CASH',
 }
 
 export enum PaymentStatus {
-	PENDING = 'pending',
-	SUCCESS = 'success',
-	FAILED = 'failed',
+    PENDING = 'pending',
+    SUCCESS = 'success',
+    FAILED = 'failed',
 }
-

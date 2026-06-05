@@ -1,41 +1,47 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryColumn, RelationId } from "typeorm";
-import { Airport } from "../airport/airport.entity";
+import {
+    Column,
+    CreateDateColumn,
+    Entity,
+    JoinColumn,
+    ManyToOne,
+    PrimaryColumn,
+    RelationId,
+} from 'typeorm';
+import { Airport } from '../airport/airport.entity';
 
 @Entity({ name: 'Routes', schema: 'dbo' })
 // Unique constraint UQ_Routes_Origin_Destination đã được tạo trong DB schema
 // Không cần khai báo ở đây vì TypeORM sẽ gặp lỗi với @RelationId properties
 export class Route {
-	@PrimaryColumn('uniqueidentifier')
-	route_id: string;
+    @PrimaryColumn('uniqueidentifier')
+    route_id: string;
 
-	@ManyToOne(() => Airport, { nullable: false })
-	@JoinColumn({ name: 'origin_airport_id', referencedColumnName: 'airport_id' })
-	origin_airport: Airport;
+    @ManyToOne(() => Airport, { nullable: false })
+    @JoinColumn({ name: 'origin_airport_id', referencedColumnName: 'airport_id' })
+    origin_airport: Airport;
 
-	@RelationId((r: Route) => r.origin_airport)
-	origin_airport_id: string;
+    @RelationId((r: Route) => r.origin_airport)
+    origin_airport_id: string;
 
-	@ManyToOne(() => Airport, { nullable: false })
-	@JoinColumn({ name: 'destination_airport_id', referencedColumnName: 'airport_id' })
-	destination_airport: Airport;
+    @ManyToOne(() => Airport, { nullable: false })
+    @JoinColumn({ name: 'destination_airport_id', referencedColumnName: 'airport_id' })
+    destination_airport: Airport;
 
-	@RelationId((r: Route) => r.destination_airport)
-	destination_airport_id: string;
+    @RelationId((r: Route) => r.destination_airport)
+    destination_airport_id: string;
 
-	@Column({ type: 'int', nullable: true })
-	distance_km: number | null;
+    @Column({ type: 'int', nullable: true })
+    distance_km: number | null;
 
-	@Column({ type: 'bit', nullable: false, default: () => '1' })
-	is_domestic: boolean;
+    @Column({ type: 'bit', nullable: false, default: () => '1' })
+    is_domestic: boolean;
 
-	@Column({ type: 'nvarchar', length: 255, nullable: true })
-	image_url: string | null;
+    @Column({ type: 'nvarchar', length: 255, nullable: true })
+    image_url: string | null;
 
-	@Column({ type: 'nvarchar', length: 255, nullable: true })
-	service_link: string | null;
+    @Column({ type: 'nvarchar', length: 255, nullable: true })
+    service_link: string | null;
 
-	@CreateDateColumn({ type: 'datetime2', nullable: false, default: () => 'SYSDATETIME()' })
-	created_at: Date;
+    @CreateDateColumn({ type: 'datetime2', nullable: false, default: () => 'SYSDATETIME()' })
+    created_at: Date;
 }
-
-

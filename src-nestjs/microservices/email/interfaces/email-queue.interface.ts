@@ -1,18 +1,17 @@
-import { SendEmailDto } from '../dto/send-email.dto';
-import { EmailStatus } from 'src/shared/constants/enums';
+import type { EmailStatus } from 'src/shared/constants/enums';
+import type { SendEmailDto } from '../dto/send-email.dto';
 
 /**
  * Interface for queued email in Email Queue Service
  */
 export interface QueuedEmail {
-	id: string;
-	dto: SendEmailDto;
-	status: EmailStatus;
-	retryCount: number;
-	maxRetries: number;
-	queuedAt: Date;
-	sentAt?: Date;
-	error?: string;
-	nextRetryAt?: Date;
+    id: string;
+    dto: SendEmailDto;
+    status: EmailStatus;
+    retryCount: number;
+    maxRetries: number;
+    queuedAt: Date;
+    sentAt?: Date;
+    error?: string;
+    nextRetryAt?: Date;
 }
-

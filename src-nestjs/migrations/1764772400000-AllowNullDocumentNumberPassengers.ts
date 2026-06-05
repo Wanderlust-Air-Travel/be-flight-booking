@@ -1,11 +1,11 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import type { MigrationInterface, QueryRunner } from 'typeorm';
 
 /**
  * Allow document_number to be NULL for CHD and INF passengers.
  * ADT (adult) still require document number; frontend only sends it for ADT.
  */
 export class AllowNullDocumentNumberPassengers1764772400000 implements MigrationInterface {
-    name = "AllowNullDocumentNumberPassengers1764772400000";
+    name = 'AllowNullDocumentNumberPassengers1764772400000';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`
