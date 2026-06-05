@@ -1,76 +1,54 @@
-# Tài liệu dự án
+# Backend Docs Index
 
-Tài liệu dự án Flight Booking Backend được tổ chức theo các danh mục sau.
+Chỉ mục tài liệu cho `be-flight-booking`.
 
-## Tài liệu chính
+## Bắt đầu nhanh
 
-### Bắt đầu
-- **[README.md](../README.md)** - Hướng dẫn cài đặt và chạy dự án (ở root)
+- [`../README.md`](../README.md) — hướng dẫn chạy backend
+- Swagger UI: [http://localhost:3000/api-docs](http://localhost:3000/api-docs)
+- WebSocket namespace: `ws://localhost:3000/realtime`
 
-### API
-- **[API_DOCS.md](./api/API_DOCS.md)** - Tài liệu về tất cả API endpoints (bao gồm guest booking)
-- **[API_SEQUENCE_DIAGRAMS.md](./api/API_SEQUENCE_DIAGRAMS.md)** - Sequence diagrams cho các flows (bao gồm guest booking)
-- **[API_TESTING_FLOW.md](./api/API_TESTING_FLOW.md)** - Hướng dẫn test API theo từng bước
-- **[EMAIL_SERVICE_OTP_TESTING.md](./EMAIL_SERVICE_OTP_TESTING.md)** - Hướng dẫn test Email và OTP
+## Tài liệu nên đọc đầu tiên
 
-### Dự án
-- **[CHANGELOG.md](./CHANGELOG.md)** - Lịch sử thay đổi của dự án
-- **[STRUCTURE.md](./STRUCTURE.md)** - Cấu trúc dự án và cách hệ thống hoạt động
+- [`STRUCTURE.md`](./STRUCTURE.md) — kiến trúc và các service chính
+- [`ROLES_AND_PERMISSIONS.md`](./ROLES_AND_PERMISSIONS.md) — hệ thống roles / RBAC
+- [`database/SEED-README.md`](./database/SEED-README.md) — cách seed dữ liệu
+- [`database/DOCKER_INITIALIZATION.md`](./database/DOCKER_INITIALIZATION.md) — flow init DB trong Docker
+- [`ARCHITECTURE-DATA.md`](./ARCHITECTURE-DATA.md) — data model và business direction
 
-### Database
-- **[ERD.md](./database/ERD.md)** - Sơ đồ cơ sở dữ liệu
-- **[SEED-README.md](./database/SEED-README.md)** - Hướng dẫn tạo dữ liệu mẫu
-- **[DOCKER_INITIALIZATION.md](./database/DOCKER_INITIALIZATION.md)** - Chi tiết về flow khởi tạo database trong Docker
-- **[ARCHITECTURE-DATA.md](./ARCHITECTURE-DATA.md)** - Kiến trúc dữ liệu & best practice (hãng bay riêng vs OTA, VN nội địa, real-time vs lưu DB)
+## Database
 
-### Design
-- **[GUEST_BOOKING_FLOW.md](./design/GUEST_BOOKING_FLOW.md)** - Design document cho guest booking flow
+- [`database/ERD.md`](./database/ERD.md) — ERD / schema overview
+- [`database/SEED-README.md`](./database/SEED-README.md) — seed flow
+- [`database/DOCKER_INITIALIZATION.md`](./database/DOCKER_INITIALIZATION.md) — init DB trong Docker
+- [`database/TRIGGERS.md`](./database/TRIGGERS.md) — database triggers
+- [`../docker/MIGRATIONS.md`](../docker/MIGRATIONS.md) — migrations trong Docker
 
-### Security & Authorization
-- **[ROLES_AND_PERMISSIONS.md](./ROLES_AND_PERMISSIONS.md)** - Hệ thống vai trò và quyền (Role-Based Access Control)
+## Realtime / WebSocket
 
-### Real-time Communication
-- **[REALTIME_IMPLEMENTATION.md](./REALTIME_IMPLEMENTATION.md)** - WebSocket implementation guide và architecture
-- **[Real-time Module README](../src/api-gateway/modules/realtime/README.md)** - Usage guide cho WebSocket module
-- **[Real-time Integration Guide](../src/api-gateway/modules/realtime/INTEGRATION.md)** - Hướng dẫn tích hợp real-time events
+- [`../src-nestjs/api-gateway/modules/realtime/README.md`](../src-nestjs/api-gateway/modules/realtime/README.md) — overview module
+- [`../src-nestjs/api-gateway/modules/realtime/SETUP.md`](../src-nestjs/api-gateway/modules/realtime/SETUP.md) — setup guide
+- [`../src-nestjs/api-gateway/modules/realtime/INTEGRATION.md`](../src-nestjs/api-gateway/modules/realtime/INTEGRATION.md) — integration guide
 
-### Cài đặt
-- **[REDIS_SETUP.md](./setup/REDIS_SETUP.md)** - Hướng dẫn cài đặt Redis
-- **[DEALS_IMAGES_SETUP.md](./setup/DEALS_IMAGES_SETUP.md)** - Hướng dẫn quản lý ảnh
+## Dành cho dev backend
 
-## Công cụ hỗ trợ
+- [`CHANGELOG.md`](./CHANGELOG.md) — lịch sử thay đổi
+- `src-nestjs/shared/constants/messages/README.md` — message conventions
+- `src-nestjs/shared/constants/enums/README.md` — shared enums
 
-Các công cụ và scripts hỗ trợ:
+## Scripts hữu ích
 
-**Postman Collection:**
-- `tools/Flight-Booking-API.postman_collection.json` - File Postman để test API
-
-**Scripts hữu ích:**
 ```bash
-# Kiểm tra kết nối database
-npm run test:db
-
-# Kiểm tra dịch vụ email
-npm run test:email
-
-# Tải ảnh cho deals
-npm run download:deals-images
+npm run start:all
+npm run migration:run
+npm run migration:show
+npm run seed:full
+npm run seed:internal-schedule
+npm run docker:infra:up
+npm run docker:dev:up
 ```
 
-## Cấu trúc thư mục
+## Ghi chú
 
-```
-docs/
-├── api/                    # API documentation
-├── database/               # Database documentation
-├── setup/                  # Setup guides
-├── design/                 # Design documents
-├── CHANGELOG.md           # Project changelog
-├── STRUCTURE.md           # Project structure
-└── README.md              # This file
-
-tools/                      # Utility scripts and tools
-sql/                        # SQL scripts
-src/                        # Source code
-```
-
+- Cấu trúc source hiện tại là `src-nestjs/`, không phải `src/`.
+- Một số entry trong `CHANGELOG.md` là historical notes, có thể còn dùng path cũ.

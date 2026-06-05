@@ -9,9 +9,9 @@ Hướng dẫn tích hợp real-time events vào các services hiện có.
 Khi seat được reserve hoặc release, publish event:
 
 ```typescript
-// be-flight-booking/src/microservices/reservation/reservation.service.ts
+// be-flight-booking/src-nestjs/microservices/reservation/reservation.service.ts
 
-import { SeatAvailabilityService } from 'src/api-gateway/modules/realtime/services/seat-availability.service';
+import { SeatAvailabilityService } from 'src-nestjs/api-gateway/modules/realtime/services/seat-availability.service';
 
 // Inject vào constructor (cần forwardRef vì Reservation là microservice)
 constructor(
@@ -51,7 +51,7 @@ Tạo RabbitMQ message khi seat thay đổi, API Gateway subscribe và publish W
 Trong Reservation Controller (API Gateway), sau khi gọi microservice, publish event:
 
 ```typescript
-// be-flight-booking/src/api-gateway/modules/reservation/reservation.controller.ts
+// be-flight-booking/src-nestjs/api-gateway/modules/reservation/reservation.controller.ts
 
 constructor(
   @Inject('RESERVATION_CLIENT') private readonly client: ClientProxy,
@@ -85,7 +85,7 @@ async createReservation(...) {
 Payment Service không thể inject trực tiếp. Publish từ API Gateway Controller:
 
 ```typescript
-// be-flight-booking/src/api-gateway/modules/payment/payment.controller.ts
+// be-flight-booking/src-nestjs/api-gateway/modules/payment/payment.controller.ts
 
 constructor(
   @Inject('PAYMENT_CLIENT') private readonly client: ClientProxy,

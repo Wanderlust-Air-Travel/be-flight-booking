@@ -32,20 +32,20 @@ npm run sync:flight-data       # (Optional) Sync từ Amadeus test
 
 ## Files hỗ trợ
 
-### `sql/utils/data-management/clear-all-seed-data.sql`
-Script SQL để xóa toàn bộ data trong database, cho phép chạy lại seed từ đầu.
+### Reset database
 
-**Cách sử dụng:**
-1. Mở file `sql/utils/data-management/clear-all-seed-data.sql` trong SQL Server Management Studio (SSMS)
-2. Kiểm tra và sửa database name (dòng 6) nếu cần: `USE flight_booking_db;`
-3. Chạy script (F5 hoặc Execute)
-4. Sau khi xóa xong, chạy lại: `npm run seed:full`
+Để xóa toàn bộ data và chạy lại seed từ đầu, có thể dùng script TypeORM hoặc xóa volume Docker:
 
-**Lưu ý:**
-- Script sử dụng transaction để đảm bảo an toàn (rollback nếu có lỗi)
-- Xóa data theo đúng thứ tự foreign key constraints
-- Xóa cả master data (Currencies, PaymentMethods) - comment nếu muốn giữ lại
-- Xem chi tiết trong section "Nếu muốn reset database" bên dưới
+```bash
+# Cách 1: Xóa Docker volumes (mất hết data)
+docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml down -v
+npm run docker:init-db
+npm run seed:full
+
+# Cách 2: Chạy seed lại (sẽ xóa data cũ nếu có, sau đó seed lại)
+npm run seed:full
+npm run seed:internal-schedule
+```
 
 ## Dữ liệu được tạo
 

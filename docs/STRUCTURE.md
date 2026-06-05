@@ -50,7 +50,7 @@ Hệ thống được chia thành nhiều phần nhỏ (microservices) để d�
    - Xử lý thanh toán
    - Gửi email xác nhận thanh toán tự động
 
-5. **Dịch vụ Email** (cổng 4007)
+5. **Dịch vụ Email** (TCP port 4007)
    - Gửi email OTP
    - Gửi email thông báo
    - Quản lý hàng đợi email
