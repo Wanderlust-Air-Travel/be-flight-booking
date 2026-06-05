@@ -19,6 +19,14 @@ export class CabinServiceService {
         private readonly _cabinServiceRepo: Repository<CabinService>
     ) {}
 
+    private get baggageAllowanceRepo(): Repository<BaggageAllowance> {
+        return this._baggageAllowanceRepo;
+    }
+
+    private get cabinServiceRepo(): Repository<CabinService> {
+        return this._cabinServiceRepo;
+    }
+
     /**
      * Get baggage allowance for a fare class
      * @param fareClassCode Fare class code

@@ -26,6 +26,18 @@ import { User } from '../entities/user/user.entity';
 export class RolesGuard implements CanActivate {
     private readonly logger = new Logger(RolesGuard.name);
 
+    private get userRepo(): Repository<User> {
+        return this._userRepo;
+    }
+
+    private get userRoleRepo(): Repository<UserRole> {
+        return this._userRoleRepo;
+    }
+
+    private get roleRepo(): Repository<Role> {
+        return this._roleRepo;
+    }
+
     constructor(
         private reflector: Reflector,
         @InjectRepository(User) private readonly _userRepo: Repository<User>,

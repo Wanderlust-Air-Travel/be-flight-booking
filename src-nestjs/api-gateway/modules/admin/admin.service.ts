@@ -81,6 +81,72 @@ export class AdminService {
 
     // ==================== FARE MANAGEMENT ====================
 
+    private get fareClassRepo(): Repository<FareClass> {
+        return this._fareClassRepo;
+    }
+
+    private get cabinClassRepo(): Repository<CabinClass> {
+        return this._cabinClassRepo;
+    }
+
+    private get flightScheduleRepo(): Repository<FlightSchedule> {
+        return this._flightScheduleRepo;
+    }
+
+    private get flightInstanceRepo(): Repository<FlightInstance> {
+        return this._flightInstanceRepo;
+    }
+
+    private get routeRepo(): Repository<Route> {
+        return this._routeRepo;
+    }
+
+    private get aircraftTypeRepo(): Repository<AircraftType> {
+        return this._aircraftTypeRepo;
+    }
+
+    private get aircraftRepo(): Repository<Aircraft> {
+        return this._aircraftRepo;
+    }
+
+    private get flightSeatRepo(): Repository<FlightSeat> {
+        return this._flightSeatRepo;
+    }
+
+    private get seatConfigRepo(): Repository<SeatConfiguration> {
+        return this._seatConfigRepo;
+    }
+
+    private get userRepo(): Repository<User> {
+        return this._userRepo;
+    }
+
+    private get userRoleRepo(): Repository<UserRole> {
+        return this._userRoleRepo;
+    }
+
+    private get roleRepo(): Repository<Role> {
+        return this._roleRepo;
+    }
+
+    private get routeFarePriceRepo(): Repository<RouteFarePrice> {
+        return this._routeFarePriceRepo;
+    }
+
+    private get baggageAllowanceRepo(): Repository<BaggageAllowance> {
+        return this._baggageAllowanceRepo;
+    }
+
+    private get cabinServiceRepo(): Repository<CabinService> {
+        return this._cabinServiceRepo;
+    }
+
+    private get fareDescriptionRuleRepo(): Repository<FareDescriptionRule> {
+        return this._fareDescriptionRuleRepo;
+    }
+
+    // ==================== FARE MANAGEMENT ====================
+
     /**
      * Create a new fare class
      */

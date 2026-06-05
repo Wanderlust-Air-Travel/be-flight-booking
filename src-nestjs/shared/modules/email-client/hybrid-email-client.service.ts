@@ -16,6 +16,14 @@ export class HybridEmailClientService {
     private readonly logger = new Logger(HybridEmailClientService.name);
     private useRabbitMQ = true;
 
+    private get rabbitMQPublisher(): RabbitMQPublisherService | null {
+        return this._rabbitMqPublisher;
+    }
+
+    private get emailClient(): ClientProxy | null {
+        return this._emailClient;
+    }
+
     constructor(
         @Optional() private readonly _rabbitMqPublisher: RabbitMQPublisherService | null,
         @Optional() @Inject('EMAIL_CLIENT') private readonly _emailClient: ClientProxy | null

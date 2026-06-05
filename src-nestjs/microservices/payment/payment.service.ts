@@ -27,6 +27,26 @@ export class PaymentService {
     private readonly PAYMENT_EXPIRATION_MINUTES = 15; // Payment expires after 15 minutes
     private readonly DB_TIMEOUT_MESSAGE = 'Timeout: Request failed to complete in 15000ms';
 
+    private get paymentRepo(): Repository<Payment> {
+        return this._paymentRepo;
+    }
+
+    private get paymentMethodRepo(): Repository<PaymentMethod> {
+        return this._paymentMethodRepo;
+    }
+
+    private get bookingRepo(): Repository<Booking> {
+        return this._bookingRepo;
+    }
+
+    private get currencyRepo(): Repository<Currency> {
+        return this._currencyRepo;
+    }
+
+    private get bookingClient(): ClientProxy {
+        return this._bookingClient;
+    }
+
     constructor(
         @InjectRepository(Payment) private readonly _paymentRepo: Repository<Payment>,
         @InjectRepository(PaymentMethod)

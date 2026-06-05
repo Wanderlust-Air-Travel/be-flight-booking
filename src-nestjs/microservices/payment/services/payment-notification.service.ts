@@ -24,6 +24,18 @@ export class PaymentNotificationService {
         @InjectRepository(Booking) private readonly _bookingRepo: Repository<Booking>
     ) {}
 
+    private get rabbitMQPublisher(): RabbitMQPublisherService | null {
+        return this._rabbitMqPublisher;
+    }
+
+    private get emailClient(): ClientProxy | null {
+        return this._emailClient;
+    }
+
+    private get bookingRepo(): Repository<Booking> {
+        return this._bookingRepo;
+    }
+
     /**
      * Send payment success notification
      */

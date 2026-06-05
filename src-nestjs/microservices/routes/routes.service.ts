@@ -12,6 +12,10 @@ export class RoutesService {
         private readonly _routeRepo: Repository<Route>
     ) {}
 
+    private get routeRepo(): Repository<Route> {
+        return this._routeRepo;
+    }
+
     /**
      * Update image URL for a route
      * @param dto Upload image request DTO

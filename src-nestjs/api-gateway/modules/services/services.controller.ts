@@ -8,6 +8,10 @@ import { GetDealsResponseDto } from 'src/microservices/services/dto/get-deals-re
 @ApiTags('services')
 @Controller('services')
 export class ServicesController {
+    private get client(): ClientProxy {
+        return this._client;
+    }
+
     constructor(@Inject('SERVICES_CLIENT') private readonly _client: ClientProxy) {}
 
     @Get('deals')

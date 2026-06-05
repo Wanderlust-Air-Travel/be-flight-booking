@@ -18,6 +18,22 @@ import type { TicketPdfService } from './ticket-pdf.service';
 export class BookingNotificationService {
     private readonly logger = new Logger(BookingNotificationService.name);
 
+    private get rabbitMQPublisher(): RabbitMQPublisherService | null {
+        return this._rabbitMqPublisher;
+    }
+
+    private get emailClient(): ClientProxy | null {
+        return this._emailClient;
+    }
+
+    private get ticketPdfService(): TicketPdfService | null {
+        return this._ticketPdfService;
+    }
+
+    private get bookingRepo(): Repository<Booking> {
+        return this._bookingRepo;
+    }
+
     constructor(
         @Optional() private readonly _rabbitMqPublisher: RabbitMQPublisherService | null,
         @Optional() @Inject('EMAIL_CLIENT') private readonly _emailClient: ClientProxy | null,

@@ -5,6 +5,10 @@ import type Redis from 'ioredis';
 export class RedisService implements OnModuleDestroy {
     private readonly logger = new Logger(RedisService.name);
 
+    private get redis(): Redis {
+        return this._redis;
+    }
+
     constructor(@Inject('REDIS_CLIENT') private readonly _redis: Redis) {
         this.redis.on('connect', () => {
             this.logger.log('Redis connected');

@@ -43,6 +43,18 @@ export class PaymentValidationService {
         );
     }
 
+    private get bookingRepo(): Repository<Booking> {
+        return this._bookingRepo;
+    }
+
+    private get paymentMethodRepo(): Repository<PaymentMethod> {
+        return this._paymentMethodRepo;
+    }
+
+    private get paymentRepo(): Repository<Payment> {
+        return this._paymentRepo;
+    }
+
     /**
      * Get Redis key for idempotency key
      */

@@ -18,6 +18,10 @@ export class FarePricingService {
         private readonly _routeFarePriceRepo: Repository<RouteFarePrice>
     ) {}
 
+    private get routeFarePriceRepo(): Repository<RouteFarePrice> {
+        return this._routeFarePriceRepo;
+    }
+
     /**
      * Get fare price for a specific route and fare class
      * @param routeId Route ID
@@ -155,7 +159,7 @@ export class FarePricingService {
      * @param cabinType Cabin type
      * @returns Base fare price
      */
-    private getFallbackPrice(fareClassCode: string, cabinType: CabinType): number {
+    public getFallbackPrice(fareClassCode: string, cabinType: CabinType): number {
         const code = fareClassCode.toUpperCase();
 
         if (cabinType === CabinType.ECONOMY) {

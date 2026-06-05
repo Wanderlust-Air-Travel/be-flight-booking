@@ -52,7 +52,15 @@ export class AuthService {
         private readonly otpStorageService: OtpStorageService
     ) {}
 
-    async register(data: RegisterDto): Promise<CreateUserResponse> {
+    private get usersRepo(): Repository<User> {
+        return this._usersRepo;
+    }
+
+    private get roleRepo(): Repository<Role> {
+        return this._roleRepo;
+    }
+
+    /**
         const existed = await this.usersRepo.findOne({ where: { email: data.email } });
         if (existed) {
             throw new ConflictException(AUTH_MESSAGES.ERROR.EMAIL_ALREADY_EXISTS);

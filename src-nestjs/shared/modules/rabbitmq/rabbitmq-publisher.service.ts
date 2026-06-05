@@ -29,6 +29,14 @@ export class RabbitMQPublisherService {
     private readonly enableIdempotency: boolean;
     private readonly idempotencyTtl: number; // TTL for idempotency keys in seconds
 
+    private get redisService(): RedisService | undefined {
+        return this._redisService;
+    }
+
+    private get circuitBreakerService(): CircuitBreakerService | undefined {
+        return this._circuitBreakerService;
+    }
+
     constructor(
         private readonly rabbitMQService: RabbitMQService,
         private readonly configService: ConfigService,
