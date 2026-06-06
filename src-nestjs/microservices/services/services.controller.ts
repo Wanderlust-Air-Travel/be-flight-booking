@@ -2,7 +2,7 @@ import { Controller } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
 import type { GetDealsResponseDto } from './dto/get-deals-response.dto';
 import { SERVICES_MS } from './services.messages';
-import type { ServicesService } from './services.service';
+import { ServicesService } from './services.service';
 
 @Controller()
 export class ServicesMsController {

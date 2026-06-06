@@ -1,10 +1,10 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import type { ConfigService } from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Booking } from 'src/shared/entities/booking/booking.entity';
 import { PaymentMethod } from 'src/shared/entities/payment/payment-method.entity';
 import { Payment } from 'src/shared/entities/payment/payment.entity';
-import type { RedisService } from 'src/shared/modules/redis/redis.service';
+import { RedisService } from 'src/shared/modules/redis/redis.service';
 import type { DataSource, Repository } from 'typeorm';
 import type { CreatePaymentDto } from '../dto/create-payment.dto';
 import type { PaymentResponseDto } from '../dto/payment-response.dto';

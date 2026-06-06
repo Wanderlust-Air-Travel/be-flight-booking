@@ -8,7 +8,7 @@ import type {
     FlightSearchResultDto,
 } from '../interfaces/data-provider.dto';
 import type { FlightProvider, FlightStatusDto } from '../interfaces/flight-provider.interface';
-import type { HttpClientService } from '../services/http-client.service';
+import { HttpClientService } from '../services/http-client.service';
 
 @Injectable()
 export class OurairportsProvider implements FlightProvider {

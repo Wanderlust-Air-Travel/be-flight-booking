@@ -47,6 +47,10 @@ import type { UpdatePaymentStatusDto } from './dto/update-payment-status.dto';
 export class PaymentController {
     private readonly logger = new Logger(PaymentController.name);
 
+    private get client(): ClientProxy {
+        return this._client;
+    }
+
     constructor(
         @Inject('PAYMENT_CLIENT') private readonly _client: ClientProxy,
         private readonly paymentStatusService: PaymentStatusService

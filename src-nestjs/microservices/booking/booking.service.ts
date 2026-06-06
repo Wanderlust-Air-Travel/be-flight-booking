@@ -27,9 +27,9 @@ import { Passenger } from 'src/shared/entities/passenger/passenger.entity';
 import { Route } from 'src/shared/entities/route/route.entity';
 import { Ticket } from 'src/shared/entities/ticket/ticket.entity';
 import { User } from 'src/shared/entities/user/user.entity';
-import type { BookingStateService } from 'src/shared/services/booking-state.service';
-import type { FarePricingService } from 'src/shared/services/fare-pricing.service';
-import type { PassengerPricingService } from 'src/shared/services/passenger-pricing.service';
+import { BookingStateService } from 'src/shared/services/booking-state.service';
+import { FarePricingService } from 'src/shared/services/fare-pricing.service';
+import { PassengerPricingService } from 'src/shared/services/passenger-pricing.service';
 import { validatePassengerTypes } from 'src/shared/utils/passenger-type.util';
 import type { DataSource, Repository } from 'typeorm';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -48,7 +48,7 @@ import type { MyJourneyResponseDto } from './dto/my-journey-response.dto';
 import type { MyTicketItemDto } from './dto/my-ticket-item.dto';
 import type { MyTicketsResponseDto } from './dto/my-tickets-response.dto';
 import type { UpdateBookingPassengersDto } from './dto/update-booking-passengers.dto';
-import type { BookingNotificationService } from './services/booking-notification.service';
+import { BookingNotificationService } from './services/booking-notification.service';
 
 @Injectable()
 export class BookingService {

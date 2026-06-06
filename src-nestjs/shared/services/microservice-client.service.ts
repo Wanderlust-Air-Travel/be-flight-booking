@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
-import type { CircuitBreakerService } from './circuit-breaker.service';
-import type { RetryService } from './retry.service';
-import type { TimeoutService } from './timeout.service';
+import { CircuitBreakerService } from './circuit-breaker.service';
+import { RetryService } from './retry.service';
+import { TimeoutService } from './timeout.service';
 
 @Injectable()
 export class MicroserviceClientService {

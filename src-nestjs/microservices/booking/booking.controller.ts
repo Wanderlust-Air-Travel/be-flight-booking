@@ -1,7 +1,7 @@
 import { BadRequestException, Controller, Logger } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
 import { BOOKING_MS } from './booking.messages';
-import type { BookingService } from './booking.service';
+import { BookingService } from './booking.service';
 import type { BookingFareDetailsResponseDto } from './dto/booking-fare-details-response.dto';
 import type { BookingPaymentInfoResponseDto } from './dto/booking-payment-info-response.dto';
 import type { CheckInBookingResponseDto } from './dto/check-in-booking-response.dto';

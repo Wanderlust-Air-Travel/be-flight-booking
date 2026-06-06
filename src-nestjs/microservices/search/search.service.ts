@@ -11,7 +11,7 @@ import { FlightSchedule } from 'src/shared/entities/flight/flight-schedule.entit
 import { FlightSeat } from 'src/shared/entities/flight/flight-seat.entity';
 import { Route } from 'src/shared/entities/route/route.entity';
 import { SeatConfiguration } from 'src/shared/entities/seat/seat-configuration.entity';
-import type { FarePricingService } from 'src/shared/services/fare-pricing.service';
+import { FarePricingService } from 'src/shared/services/fare-pricing.service';
 import type { Repository } from 'typeorm';
 import type { FareDescriptionItemDto, FareOptionDto } from './dto/fare-option.dto';
 import type { FareOptionsResponseDto } from './dto/fare-options-response.dto';
@@ -59,8 +59,7 @@ export class SearchService {
         @InjectRepository(SeatConfiguration)
         private readonly seatConfigRepo: Repository<SeatConfiguration>,
         @InjectRepository(FareDescriptionRule)
-        private readonly fareDescriptionRuleRepo: Repository<FareDescriptionRule>,
-        private readonly farePricingService: FarePricingService
+        private readonly fareDescriptionRuleRepo: Repository<FareDescriptionRule>
     ) {}
 
     async search(dto: SearchFlightsDto) {
@@ -554,14 +553,40 @@ export class SearchService {
         return description || fareClassCode;
     }
 
-    /**
-     * @deprecated Use FarePricingService.calculateBaseFare() instead
-     * Kept for backward compatibility only
-     */
     private calculateFarePrice(fareClassCode: string, cabinType: CabinType): number {
-        // This method is deprecated - use FarePricingService instead
-        // Kept for backward compatibility
-        return this.farePricingService.getFallbackPrice(fareClassCode, cabinType);
+        // Fallback pricing logic kept local to SearchService to avoid coupling this module to shared pricing DI.
+        const code = fareClassCode.toUpperCase();
+
+        if (cabinType === CabinType.ECONOMY) {
+            if (code.includes('SMX') || code.includes('SAVER')) {
+                return 1448000;
+            }
+            if (code === 'Y') {
+                return 1577000;
+            }
+            if (code.includes('SM') || code === 'YS') {
+                return 1577000;
+            }
+            if (code.includes('FLX') || code.includes('FLEX') || code === 'YF') {
+                return 3068000;
+            }
+            return 1577000;
+        }
+
+        if (cabinType === CabinType.BUSINESS) {
+            if (code === 'J') {
+                return 5022000;
+            }
+            if (code.includes('SM') || code === 'JS') {
+                return 5022000;
+            }
+            if (code.includes('FLX') || code.includes('FLEX') || code === 'JF') {
+                return 8192000;
+            }
+            return 5022000;
+        }
+
+        return 1577000;
     }
 
     /**

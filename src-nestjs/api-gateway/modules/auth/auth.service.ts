@@ -8,7 +8,7 @@ import {
     ServiceUnavailableException,
     UnauthorizedException,
 } from '@nestjs/common';
-import type { JwtService } from '@nestjs/jwt';
+import { JwtService } from '@nestjs/jwt';
 import type { ClientProxy } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
@@ -19,7 +19,7 @@ import { EmailTemplate } from 'src/shared/constants/enums';
 import { AUTH_MESSAGES } from 'src/shared/constants/messages';
 import { Role } from 'src/shared/entities/role/role.entity';
 import { User } from 'src/shared/entities/user/user.entity';
-import type { OtpStorageService } from 'src/shared/services/otp-storage.service';
+import { OtpStorageService } from 'src/shared/services/otp-storage.service';
 import type { CreateUserResponse } from 'src/shared/types/auth/create-user-response';
 import type { LoginResponse } from 'src/shared/types/auth/login-response';
 import type { LogoutResponse } from 'src/shared/types/auth/logout-response';
@@ -42,6 +42,18 @@ import type { VerifyOtpPaymentDto } from './dto/verify-otp-payment.dto';
 export class AuthService {
     private readonly logger = new Logger(AuthService.name);
 
+    private get usersRepo(): Repository<User> {
+        return this._usersRepo;
+    }
+
+    private get roleRepo(): Repository<Role> {
+        return this._roleRepo;
+    }
+
+    private get emailClient(): ClientProxy {
+        return this._emailClient;
+    }
+
     constructor(
         @InjectRepository(User)
         private readonly _usersRepo: Repository<User>,
@@ -52,15 +64,7 @@ export class AuthService {
         private readonly otpStorageService: OtpStorageService
     ) {}
 
-    private get usersRepo(): Repository<User> {
-        return this._usersRepo;
-    }
-
-    private get roleRepo(): Repository<Role> {
-        return this._roleRepo;
-    }
-
-    /**
+    async register(data: RegisterDto): Promise<CreateUserResponse> {
         const existed = await this.usersRepo.findOne({ where: { email: data.email } });
         if (existed) {
             throw new ConflictException(AUTH_MESSAGES.ERROR.EMAIL_ALREADY_EXISTS);

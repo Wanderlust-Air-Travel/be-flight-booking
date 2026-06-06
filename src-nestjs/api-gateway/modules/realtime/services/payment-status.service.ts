@@ -7,9 +7,9 @@ import {
     forwardRef,
 } from '@nestjs/common';
 import type Redis from 'ioredis';
-import type { RedisService } from 'src/shared/modules/redis/redis.service';
+import { RedisService } from 'src/shared/modules/redis/redis.service';
 import { RealtimeGateway } from '../realtime.gateway';
-import type { RealtimeService } from '../realtime.service';
+import { RealtimeService } from '../realtime.service';
 import type { PaymentStatusMessage } from '../types/payment-status.types';
 
 /**
@@ -29,6 +29,10 @@ export class PaymentStatusService implements OnModuleInit, OnModuleDestroy {
     private readonly bookingChannelPrefix = 'payment:status:booking:';
     private readonly paymentChannelPrefix = 'payment:status:payment:';
     private readonly subscribedChannels = new Set<string>();
+
+    private get realtimeGateway(): RealtimeGateway {
+        return this._realtimeGateway;
+    }
 
     constructor(
         @Inject(forwardRef(() => RealtimeGateway))

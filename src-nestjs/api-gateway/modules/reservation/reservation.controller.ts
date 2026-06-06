@@ -43,6 +43,10 @@ import { ReservationResponseDto } from './dto/reservation-response.dto';
 export class ReservationController {
     private readonly logger = new Logger(ReservationController.name);
 
+    private get client(): ClientProxy {
+        return this._client;
+    }
+
     constructor(
         @Inject('RESERVATION_CLIENT') private readonly _client: ClientProxy,
         private readonly seatAvailabilityService: SeatAvailabilityService

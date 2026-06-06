@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { EmailResponseDto } from './dto/email-response.dto';
 import type { SendBatchEmailsDto } from './dto/send-batch-emails.dto';
 import type { SendEmailDto } from './dto/send-email.dto';
-import type { EmailQueueService } from './services/email-queue.service';
+import { EmailQueueService } from './services/email-queue.service';
 
 @Injectable()
 export class EmailService {

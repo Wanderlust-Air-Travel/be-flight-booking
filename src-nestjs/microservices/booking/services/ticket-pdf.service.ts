@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { ConfigService } from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
 import pdfDocument = require('pdfkit');
 import { createWriteStream, existsSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';

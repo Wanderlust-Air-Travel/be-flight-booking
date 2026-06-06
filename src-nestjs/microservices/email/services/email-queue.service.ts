@@ -1,5 +1,5 @@
 import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
-import type { ConfigService } from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
 import { EmailStatus } from 'src/shared/constants/enums';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - uuid package is ESM but works fine with CommonJS
@@ -7,8 +7,8 @@ import { v7 as uuidv7 } from 'uuid';
 import type { EmailResponseDto } from '../dto/email-response.dto';
 import type { SendEmailDto } from '../dto/send-email.dto';
 import type { QueuedEmail } from '../interfaces/email-queue.interface';
-import type { EmailTemplateService } from './email-template.service';
-import type { GmailApiService } from './gmail-api.service';
+import { EmailTemplateService } from './email-template.service';
+import { GmailApiService } from './gmail-api.service';
 
 @Injectable()
 export class EmailQueueService implements OnModuleInit, OnModuleDestroy {

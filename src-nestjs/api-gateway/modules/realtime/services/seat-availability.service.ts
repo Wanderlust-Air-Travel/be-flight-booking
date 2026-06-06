@@ -8,9 +8,9 @@ import {
     forwardRef,
 } from '@nestjs/common';
 import type Redis from 'ioredis';
-import type { RedisService } from 'src/shared/modules/redis/redis.service';
+import { RedisService } from 'src/shared/modules/redis/redis.service';
 import { RealtimeGateway } from '../realtime.gateway';
-import type { RealtimeService } from '../realtime.service';
+import { RealtimeService } from '../realtime.service';
 import type {
     SeatAvailabilityChange,
     SeatAvailabilityMessage,
@@ -32,6 +32,10 @@ export class SeatAvailabilityService implements OnModuleInit, OnModuleDestroy {
     private readonly redisSubscriber: Redis;
     private readonly channelPrefix = 'seat:availability:';
     private readonly subscribedChannels = new Set<string>();
+
+    private get realtimeGateway(): RealtimeGateway | null {
+        return this._realtimeGateway;
+    }
 
     constructor(
         @Optional()

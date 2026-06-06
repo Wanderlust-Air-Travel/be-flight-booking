@@ -8,7 +8,7 @@ import { Currency } from 'src/shared/entities/currency/currency.entity';
 import { PaymentMethod } from 'src/shared/entities/payment/payment-method.entity';
 import { Payment } from 'src/shared/entities/payment/payment.entity';
 import { User } from 'src/shared/entities/user/user.entity';
-import type { RabbitMQPublisherService } from 'src/shared/modules/rabbitmq/rabbitmq-publisher.service';
+import { RabbitMQPublisherService } from 'src/shared/modules/rabbitmq/rabbitmq-publisher.service';
 import { type DataSource, QueryFailedError, type Repository } from 'typeorm';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - uuid package is ESM but works fine with CommonJS
@@ -17,9 +17,9 @@ import { BOOKING_MS } from '../booking/booking.messages';
 import type { CreatePaymentDto } from './dto/create-payment.dto';
 import type { PaymentResponseDto } from './dto/payment-response.dto';
 import type { UpdatePaymentStatusDto } from './dto/update-payment-status.dto';
-import type { PaymentGatewayFactory } from './gateways/payment-gateway.factory';
-import type { PaymentNotificationService } from './services/payment-notification.service';
-import type { PaymentValidationService } from './services/payment-validation.service';
+import { PaymentGatewayFactory } from './gateways/payment-gateway.factory';
+import { PaymentNotificationService } from './services/payment-notification.service';
+import { PaymentValidationService } from './services/payment-validation.service';
 
 @Injectable()
 export class PaymentService {

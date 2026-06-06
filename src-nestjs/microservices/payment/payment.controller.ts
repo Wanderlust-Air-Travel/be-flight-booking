@@ -4,7 +4,7 @@ import type { CreatePaymentDto } from './dto/create-payment.dto';
 import type { UpdatePaymentStatusDto } from './dto/update-payment-status.dto';
 import { PaymentRpcExceptionFilter } from './filters/payment-rpc-exception.filter';
 import { PAYMENT_MS } from './payment.messages';
-import type { PaymentService } from './payment.service';
+import { PaymentService } from './payment.service';
 
 @Controller()
 @UseFilters(new PaymentRpcExceptionFilter())

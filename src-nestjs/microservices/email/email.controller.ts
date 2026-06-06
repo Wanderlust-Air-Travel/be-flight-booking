@@ -3,7 +3,7 @@ import { MessagePattern, Payload } from '@nestjs/microservices';
 import type { SendBatchEmailsDto } from './dto/send-batch-emails.dto';
 import type { SendEmailDto } from './dto/send-email.dto';
 import { EMAIL_MS } from './email.messages';
-import type { EmailService } from './email.service';
+import { EmailService } from './email.service';
 
 @Controller()
 export class EmailMsController {

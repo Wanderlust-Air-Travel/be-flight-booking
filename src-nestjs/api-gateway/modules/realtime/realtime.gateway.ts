@@ -1,6 +1,6 @@
 import { Inject, Logger, forwardRef } from '@nestjs/common';
-import type { ConfigService } from '@nestjs/config';
-import type { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import {
     ConnectedSocket,
     MessageBody,
@@ -34,6 +34,18 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     private readonly logger = new Logger(RealtimeGateway.name);
     private readonly connectedClients = new Map<string, WebSocketConnectionInfo<Socket>>();
+
+    private get seatAvailabilityService(): SeatAvailabilityService {
+        return this._seatAvailabilityService;
+    }
+
+    private get reservationCountdownService(): ReservationCountdownService {
+        return this._reservationCountdownService;
+    }
+
+    private get paymentStatusService(): PaymentStatusService {
+        return this._paymentStatusService;
+    }
 
     constructor(
         private readonly realtimeService: RealtimeService,

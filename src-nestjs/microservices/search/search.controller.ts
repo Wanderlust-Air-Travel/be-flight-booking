@@ -5,7 +5,7 @@ import type { GetFareOptionsDto } from './dto/get-fare-options.dto';
 import type { GetSeatMapDto } from './dto/get-seat-map.dto';
 import type { SearchFlightsDto } from './dto/search-flights.dto';
 import { SEARCH_MS } from './search.messages';
-import type { SearchService } from './search.service';
+import { SearchService } from './search.service';
 
 @Controller()
 export class SearchMsController {

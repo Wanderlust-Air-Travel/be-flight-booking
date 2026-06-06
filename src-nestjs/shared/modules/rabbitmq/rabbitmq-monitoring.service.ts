@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { RabbitMQService } from './rabbitmq.service';
+import { RabbitMQService } from './rabbitmq.service';
 
 /**
  * RabbitMQ Monitoring Service

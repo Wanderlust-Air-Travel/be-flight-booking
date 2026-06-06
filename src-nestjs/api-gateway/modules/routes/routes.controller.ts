@@ -33,6 +33,10 @@ import { ParseUUIDv7Pipe } from './pipes/parse-uuid-v7.pipe';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('access-token')
 export class RoutesController {
+    private get client(): ClientProxy {
+        return this._client;
+    }
+
     constructor(@Inject('ROUTES_CLIENT') private readonly _client: ClientProxy) {}
 
     @Post(':routeId/upload-image')

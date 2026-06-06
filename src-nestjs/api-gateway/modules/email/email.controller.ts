@@ -30,6 +30,10 @@ import type { SendEmailDto } from './dto/send-email.dto';
 @ApiTags('emails')
 @Controller('emails')
 export class EmailController {
+    private get client(): ClientProxy {
+        return this._client;
+    }
+
     constructor(@Inject('EMAIL_CLIENT') private readonly _client: ClientProxy) {}
 
     @Post('send')

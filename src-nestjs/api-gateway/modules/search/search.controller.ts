@@ -26,8 +26,8 @@ import type { Request } from 'express';
 import { firstValueFrom } from 'rxjs';
 import { SEARCH_MS } from 'src/microservices/search/search.messages';
 import { CabinType, TripType } from 'src/shared/constants/enums';
-import type { BookingStateService } from 'src/shared/services/booking-state.service';
-import type { CabinServiceService } from 'src/shared/services/cabin-service.service';
+import { BookingStateService } from 'src/shared/services/booking-state.service';
+import { CabinServiceService } from 'src/shared/services/cabin-service.service';
 import { OptionalJwtAuthGuard } from '../auth/guard/optional-jwt-auth.guard';
 import { AirportListResponseDto } from './dto/airport-list-response.dto';
 import {
@@ -47,6 +47,10 @@ import { SeatMapResponseDto } from './dto/seat-map-response.dto';
 @Controller('search')
 export class SearchController {
     private readonly logger = new Logger(SearchController.name);
+
+    private get client(): ClientProxy {
+        return this._client;
+    }
 
     constructor(
         @Inject('SEARCH_CLIENT') private readonly _client: ClientProxy,

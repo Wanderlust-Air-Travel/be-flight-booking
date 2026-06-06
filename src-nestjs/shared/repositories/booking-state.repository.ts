@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { ConfigService } from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
 import { BookingStateStorageException } from '../exceptions/booking-state.exceptions';
-import type { RedisService } from '../modules/redis/redis.service';
+import { RedisService } from '../modules/redis/redis.service';
 import type { BookingState } from '../types/booking-state.types';
 
 /**

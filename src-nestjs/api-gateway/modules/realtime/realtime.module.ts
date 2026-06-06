@@ -1,11 +1,10 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { RESERVATION_MS } from 'src/microservices/reservation/reservation.messages';
 import { RedisModule } from 'src/shared/modules/redis/redis.module';
 import { AuthModule } from '../auth/auth.module';
 import { BookingStateModule } from '../booking-state/booking-state.module';
 import { PaymentClientModule } from '../payment/payment.client.module';
-import { ReservationClientModule } from '../reservation/reservation.client.module';
 import { RealtimeGateway } from './realtime.gateway';
 import { RealtimeService } from './realtime.service';
 import { PaymentStatusService } from './services/payment-status.service';
@@ -26,8 +25,7 @@ import { SeatAvailabilityService } from './services/seat-availability.service';
     imports: [
         RedisModule,
         BookingStateModule,
-        forwardRef(() => ReservationClientModule),
-        forwardRef(() => PaymentClientModule),
+        PaymentClientModule,
         AuthModule,
         // Register RESERVATION_CLIENT for ReservationCountdownService
         ClientsModule.register([

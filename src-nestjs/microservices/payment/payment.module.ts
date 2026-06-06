@@ -23,6 +23,20 @@ import { PaymentValidationService } from './services/payment-validation.service'
         ConfigModule.forRoot({
             isGlobal: true,
         }),
+        TypeOrmModule.forRoot({
+            type: 'mssql',
+            host: process.env.DB_HOST,
+            port: Number(process.env.DB_PORT),
+            username: process.env.DB_USER,
+            password: process.env.DB_PASS,
+            database: process.env.DB_NAME,
+            options: {
+                encrypt: process.env.DB_ENCRYPT === 'true',
+                trustServerCertificate: process.env.DB_TRUST_CERT === 'true',
+            },
+            synchronize: false,
+            entities: [`${__dirname}/../../shared/entities/**/*.entity.{js}`],
+        }),
         TypeOrmModule.forFeature([Payment, PaymentMethod, Booking, Currency]),
         RedisModule, // Add Redis module for idempotency key caching
         EmailClientModule, // Add Email Client module for sending email notifications

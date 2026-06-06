@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
-import type { ConfigService } from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
 import * as amqp from 'amqplib';
 import type { Channel, Connection, ConsumeMessage, Options, Replies } from 'amqplib';
 

@@ -1,11 +1,11 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
-import type { ConfigService } from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - uuid package is ESM but works fine with CommonJS
 import { v7 as uuidv7 } from 'uuid';
-import type { CircuitBreakerService } from '../../services/circuit-breaker.service';
-import type { RedisService } from '../redis/redis.service';
-import type { RabbitMQService } from './rabbitmq.service';
+import { CircuitBreakerService } from '../../services/circuit-breaker.service';
+import { RedisService } from '../redis/redis.service';
+import { RabbitMQService } from './rabbitmq.service';
 
 /**
  * RabbitMQ Publisher Service

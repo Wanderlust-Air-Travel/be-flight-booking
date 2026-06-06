@@ -3,7 +3,7 @@ import { MessagePattern } from '@nestjs/microservices';
 import type { CreateReservationDto } from './dto/create-reservation.dto';
 import type { ReservationResponseDto } from './dto/reservation-response.dto';
 import { RESERVATION_MS } from './reservation.messages';
-import type { ReservationService } from './reservation.service';
+import { ReservationService } from './reservation.service';
 
 @Controller()
 export class ReservationMsController {

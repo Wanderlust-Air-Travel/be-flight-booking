@@ -54,6 +54,18 @@ import type { UpdateBookingPassengersDto } from './dto/update-booking-passengers
 export class BookingController {
     private readonly logger = new Logger(BookingController.name);
 
+    private get client(): ClientProxy {
+        return this._client;
+    }
+
+    private get userRepo(): Repository<User> {
+        return this._userRepo;
+    }
+
+    private get passengerRepo(): Repository<Passenger> {
+        return this._passengerRepo;
+    }
+
     /**
      * Helper method to handle microservice connection errors
      * BEST PRACTICE: Centralized error handling for consistency

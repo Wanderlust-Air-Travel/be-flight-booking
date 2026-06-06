@@ -1,7 +1,7 @@
 import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
-import type { ConfigService } from '@nestjs/config';
-import type { RabbitMQService } from 'src/shared/modules/rabbitmq/rabbitmq.service';
-import type { BookingService } from '../booking.service';
+import { ConfigService } from '@nestjs/config';
+import { RabbitMQService } from 'src/shared/modules/rabbitmq/rabbitmq.service';
+import { BookingService } from '../booking.service';
 
 /**
  * Ticket RabbitMQ Consumer

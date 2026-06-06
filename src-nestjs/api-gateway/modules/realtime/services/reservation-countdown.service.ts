@@ -31,6 +31,14 @@ export class ReservationCountdownService implements OnModuleInit, OnModuleDestro
     private readonly countdownIntervals = new Map<string, Subscription>(); // reservationId -> interval subscription
     private readonly checkInterval = 1000; // Check every 1 second
 
+    private get realtimeGateway(): RealtimeGateway {
+        return this._realtimeGateway;
+    }
+
+    private get reservationClient(): ClientProxy {
+        return this._reservationClient;
+    }
+
     constructor(
         @Inject(forwardRef(() => RealtimeGateway))
         private readonly _realtimeGateway: RealtimeGateway,

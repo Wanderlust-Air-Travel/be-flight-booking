@@ -5,7 +5,7 @@ import {
     InvalidFareClassException,
     SeatNotSelectedException,
 } from '../exceptions/booking-state.exceptions';
-import type { BookingStateRepository } from '../repositories/booking-state.repository';
+import { BookingStateRepository } from '../repositories/booking-state.repository';
 import type {
     BookingState,
     CabinSelection,

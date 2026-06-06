@@ -10,7 +10,6 @@ import { FlightSchedule } from 'src/shared/entities/flight/flight-schedule.entit
 import { FlightSeat } from 'src/shared/entities/flight/flight-seat.entity';
 import { Route } from 'src/shared/entities/route/route.entity';
 import { SeatConfiguration } from 'src/shared/entities/seat/seat-configuration.entity';
-import { FarePricingService } from 'src/shared/services/fare-pricing.service';
 import { SearchMsController } from './search.controller';
 import { SearchService } from './search.service';
 
@@ -29,7 +28,7 @@ import { SearchService } from './search.service';
             FareDescriptionRule,
         ]),
     ],
-    providers: [SearchService, FarePricingService],
+    providers: [SearchService],
     controllers: [SearchMsController],
     exports: [SearchService],
 })

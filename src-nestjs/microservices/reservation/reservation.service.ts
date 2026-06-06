@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import type { ConfigService } from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { CabinType } from 'src/shared/constants/enums';
 import { Currency } from 'src/shared/entities/currency/currency.entity';
@@ -8,9 +8,9 @@ import { FlightInstance } from 'src/shared/entities/flight/flight-instance.entit
 import { FlightSeat } from 'src/shared/entities/flight/flight-seat.entity';
 import { Reservation } from 'src/shared/entities/reservation/reservation.entity';
 import { Route } from 'src/shared/entities/route/route.entity';
-import type { RedisService } from 'src/shared/modules/redis/redis.service';
-import type { BookingStateService } from 'src/shared/services/booking-state.service';
-import type { FarePricingService } from 'src/shared/services/fare-pricing.service';
+import { RedisService } from 'src/shared/modules/redis/redis.service';
+import { BookingStateService } from 'src/shared/services/booking-state.service';
+import { FarePricingService } from 'src/shared/services/fare-pricing.service';
 import { LessThan, type Repository } from 'typeorm';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - uuid package is ESM but works fine with CommonJS

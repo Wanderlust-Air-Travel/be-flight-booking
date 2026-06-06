@@ -38,7 +38,7 @@ import {
     CabinNotSelectedException,
 } from 'src/shared/exceptions/booking-state.exceptions';
 import { ParseUUIDv7Pipe } from 'src/shared/pipes/parse-uuid-v7.pipe';
-import type { BookingStateService } from 'src/shared/services/booking-state.service';
+import { BookingStateService } from 'src/shared/services/booking-state.service';
 import { generateSessionId } from 'src/shared/utils/session-helper';
 import type { Repository } from 'typeorm';
 import { OptionalJwtAuthGuard } from '../auth/guard/optional-jwt-auth.guard';
@@ -54,6 +54,18 @@ import type { SaveSeatSelectionDto } from './dto/save-seat-selection.dto';
 @ApiBearerAuth('access-token')
 export class BookingStateController {
     private readonly logger = new Logger(BookingStateController.name);
+
+    private get flightSeatRepo(): Repository<FlightSeat> {
+        return this._flightSeatRepo;
+    }
+
+    private get flightInstanceRepo(): Repository<FlightInstance> {
+        return this._flightInstanceRepo;
+    }
+
+    private get fareClassRepo(): Repository<FareClass> {
+        return this._fareClassRepo;
+    }
 
     constructor(
         private readonly bookingStateService: BookingStateService,

@@ -1,6 +1,6 @@
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
-import type { ConfigService } from '@nestjs/config';
-import type { RedisService } from '../../../modules/redis/redis.service';
+import { ConfigService } from '@nestjs/config';
+import { RedisService } from '../../../modules/redis/redis.service';
 import type {
     AircraftDto,
     AirlineDto,
