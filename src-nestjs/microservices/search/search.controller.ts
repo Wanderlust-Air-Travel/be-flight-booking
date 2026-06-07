@@ -32,7 +32,7 @@ export class SearchMsController {
     }
 
     @MessagePattern(SEARCH_MS.PATTERN.GET_FARE_OPTIONS)
-    async handleGetFareOptions(dto: GetFareOptionsDto) {
+    async handleGetFareOptions(@Payload() dto: GetFareOptionsDto) {
         try {
             this.logger.log(`Get fare options: ${dto.flightInstanceId} - ${dto.cabinType}`);
             const result = await this.searchService.getFareOptions(dto);
@@ -46,7 +46,7 @@ export class SearchMsController {
     }
 
     @MessagePattern(SEARCH_MS.PATTERN.GET_SEAT_MAP)
-    async handleGetSeatMap(dto: GetSeatMapDto) {
+    async handleGetSeatMap(@Payload() dto: GetSeatMapDto) {
         try {
             this.logger.log(`Get seat map: ${dto.flightInstanceId} - ${dto.cabinType}`);
             const result = await this.searchService.getSeatMap(dto);

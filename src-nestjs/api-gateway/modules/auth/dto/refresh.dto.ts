@@ -10,7 +10,6 @@ export class RefreshDto {
         example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
         format: 'uuid',
     })
-    @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
     @IsUUIDv7({ message: COMMON_MESSAGES.VALIDATION.ID_INVALID_UUID_V7 })
     @IsNotEmpty({ message: AUTH_MESSAGES.VALIDATION.USER_ID_REQUIRED })
     userId: string;
