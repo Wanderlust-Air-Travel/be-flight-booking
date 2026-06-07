@@ -1,7 +1,7 @@
 import { Controller, Logger, UseFilters } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import type { CreatePaymentDto } from './dto/create-payment.dto';
-import type { UpdatePaymentStatusDto } from './dto/update-payment-status.dto';
+import { CreatePaymentDto } from './dto/create-payment.dto';
+import { UpdatePaymentStatusDto } from './dto/update-payment-status.dto';
 import { PaymentRpcExceptionFilter } from './filters/payment-rpc-exception.filter';
 import { PAYMENT_MS } from './payment.messages';
 import { PaymentService } from './payment.service';

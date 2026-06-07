@@ -13,13 +13,13 @@ import { Route } from 'src/shared/entities/route/route.entity';
 import { SeatConfiguration } from 'src/shared/entities/seat/seat-configuration.entity';
 import { FarePricingService } from 'src/shared/services/fare-pricing.service';
 import type { Repository } from 'typeorm';
-import type { FareDescriptionItemDto, FareOptionDto } from './dto/fare-option.dto';
-import type { FareOptionsResponseDto } from './dto/fare-options-response.dto';
-import type { GetFareOptionsDto } from './dto/get-fare-options.dto';
-import type { GetSeatMapDto } from './dto/get-seat-map.dto';
-import type { SearchFlightsDto } from './dto/search-flights.dto';
-import type { SeatMapGroupDto, SeatMapResponseDto } from './dto/seat-map-response.dto';
-import type { SeatDto } from './dto/seat.dto';
+import { FareDescriptionItemDto, FareOptionDto } from './dto/fare-option.dto';
+import { FareOptionsResponseDto } from './dto/fare-options-response.dto';
+import { GetFareOptionsDto } from './dto/get-fare-options.dto';
+import { GetSeatMapDto } from './dto/get-seat-map.dto';
+import { SearchFlightsDto } from './dto/search-flights.dto';
+import { SeatMapGroupDto, SeatMapResponseDto } from './dto/seat-map-response.dto';
+import { SeatDto } from './dto/seat.dto';
 import type { FlightResult } from './interfaces/flight-result.interface';
 
 @Injectable()

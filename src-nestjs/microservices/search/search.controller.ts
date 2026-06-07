@@ -1,9 +1,9 @@
 import { Controller, Logger } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import type { AirportListResponseDto } from './dto/airport-list-response.dto';
-import type { GetFareOptionsDto } from './dto/get-fare-options.dto';
-import type { GetSeatMapDto } from './dto/get-seat-map.dto';
-import type { SearchFlightsDto } from './dto/search-flights.dto';
+import { AirportListResponseDto } from './dto/airport-list-response.dto';
+import { GetFareOptionsDto } from './dto/get-fare-options.dto';
+import { GetSeatMapDto } from './dto/get-seat-map.dto';
+import { SearchFlightsDto } from './dto/search-flights.dto';
 import { SEARCH_MS } from './search.messages';
 import { SearchService } from './search.service';
 

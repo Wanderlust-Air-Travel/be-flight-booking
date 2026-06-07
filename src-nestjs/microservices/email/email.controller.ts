@@ -1,7 +1,7 @@
 import { Controller, Logger } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import type { SendBatchEmailsDto } from './dto/send-batch-emails.dto';
-import type { SendEmailDto } from './dto/send-email.dto';
+import { SendBatchEmailsDto } from './dto/send-batch-emails.dto';
+import { SendEmailDto } from './dto/send-email.dto';
 import { EMAIL_MS } from './email.messages';
 import { EmailService } from './email.service';
 

@@ -15,8 +15,8 @@ import { LessThan, type Repository } from 'typeorm';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - uuid package is ESM but works fine with CommonJS
 import { v7 as uuidv7 } from 'uuid';
-import type { CreateReservationDto } from './dto/create-reservation.dto';
-import type { ReservationResponseDto } from './dto/reservation-response.dto';
+import { CreateReservationDto } from './dto/create-reservation.dto';
+import { ReservationResponseDto } from './dto/reservation-response.dto';
 
 @Injectable()
 export class ReservationService {

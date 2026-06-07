@@ -7,7 +7,7 @@ import { FlightSchedule } from 'src/shared/entities/flight/flight-schedule.entit
 import { FlightSeat } from 'src/shared/entities/flight/flight-seat.entity';
 import { Route } from 'src/shared/entities/route/route.entity';
 import type { Repository } from 'typeorm';
-import type { FlightDealDto, GetDealsResponseDto } from './dto/get-deals-response.dto';
+import { FlightDealDto, GetDealsResponseDto } from './dto/get-deals-response.dto';
 
 @Injectable()
 export class ServicesService {

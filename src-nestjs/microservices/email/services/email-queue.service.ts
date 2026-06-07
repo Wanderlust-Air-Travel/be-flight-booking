@@ -4,9 +4,9 @@ import { EmailStatus } from 'src/shared/constants/enums';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - uuid package is ESM but works fine with CommonJS
 import { v7 as uuidv7 } from 'uuid';
-import type { EmailResponseDto } from '../dto/email-response.dto';
-import type { SendEmailDto } from '../dto/send-email.dto';
-import type { QueuedEmail } from '../interfaces/email-queue.interface';
+import { EmailResponseDto } from '../dto/email-response.dto';
+import { SendEmailDto } from '../dto/send-email.dto';
+import { QueuedEmail } from '../interfaces/email-queue.interface';
 import { EmailTemplateService } from './email-template.service';
 import { GmailApiService } from './gmail-api.service';
 

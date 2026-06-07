@@ -1,7 +1,7 @@
 import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RabbitMQService } from 'src/shared/modules/rabbitmq/rabbitmq.service';
-import type { SendEmailDto } from '../dto/send-email.dto';
+import { SendEmailDto } from '../dto/send-email.dto';
 import { EmailService } from '../email.service';
 
 /**

@@ -10,7 +10,7 @@ import type { ClientProxy } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { firstValueFrom } from 'rxjs';
-import type { FareDescriptionItemDto } from 'src/microservices/search/dto/fare-option.dto';
+import { FareDescriptionItemDto } from 'src/microservices/search/dto/fare-option.dto';
 import { CabinType, PassengerType } from 'src/shared/constants/enums';
 import { BOOKING_MESSAGES } from 'src/shared/constants/messages';
 import { Airport } from 'src/shared/entities/airport/airport.entity';
@@ -36,19 +36,19 @@ import type { Repository } from 'typeorm';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - uuid package is ESM but works fine with CommonJS
 import { v7 as uuidv7 } from 'uuid';
-import type { ReservationResponseDto } from '../reservation/dto/reservation-response.dto';
+import { ReservationResponseDto } from '../reservation/dto/reservation-response.dto';
 import { RESERVATION_MS } from '../reservation/reservation.messages';
-import type { BookingFareDetailsResponseDto } from './dto/booking-fare-details-response.dto';
-import type { BookingPaymentInfoResponseDto } from './dto/booking-payment-info-response.dto';
-import type { CreateBookingFromReservationDto } from './dto/create-booking-from-reservation.dto';
-import type { CreateBookingResponseDto } from './dto/create-booking-response.dto';
-import type { CreateBookingDto } from './dto/create-booking.dto';
-import type { GetMyTicketsDto } from './dto/get-my-tickets.dto';
-import type { MyJourneyItemDto } from './dto/my-journey-item.dto';
-import type { MyJourneyResponseDto } from './dto/my-journey-response.dto';
-import type { MyTicketItemDto } from './dto/my-ticket-item.dto';
-import type { MyTicketsResponseDto } from './dto/my-tickets-response.dto';
-import type { UpdateBookingPassengersDto } from './dto/update-booking-passengers.dto';
+import { BookingFareDetailsResponseDto } from './dto/booking-fare-details-response.dto';
+import { BookingPaymentInfoResponseDto } from './dto/booking-payment-info-response.dto';
+import { CreateBookingFromReservationDto } from './dto/create-booking-from-reservation.dto';
+import { CreateBookingResponseDto } from './dto/create-booking-response.dto';
+import { CreateBookingDto } from './dto/create-booking.dto';
+import { GetMyTicketsDto } from './dto/get-my-tickets.dto';
+import { MyJourneyItemDto } from './dto/my-journey-item.dto';
+import { MyJourneyResponseDto } from './dto/my-journey-response.dto';
+import { MyTicketItemDto } from './dto/my-ticket-item.dto';
+import { MyTicketsResponseDto } from './dto/my-tickets-response.dto';
+import { UpdateBookingPassengersDto } from './dto/update-booking-passengers.dto';
 import { BookingNotificationService } from './services/booking-notification.service';
 
 @Injectable()

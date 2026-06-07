@@ -1,7 +1,7 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import type { UploadImageRequestDto } from './dto/upload-image-request.dto';
-import type { UploadImageResponseDto } from './dto/upload-image-response.dto';
+import { UploadImageRequestDto } from './dto/upload-image-request.dto';
+import { UploadImageResponseDto } from './dto/upload-image-response.dto';
 import { ROUTES_MS } from './routes.messages';
 import { RoutesService } from './routes.service';
 

@@ -2,8 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Route } from 'src/shared/entities/route/route.entity';
 import type { Repository } from 'typeorm';
-import type { UploadImageRequestDto } from './dto/upload-image-request.dto';
-import type { UploadImageResponseDto } from './dto/upload-image-response.dto';
+import { UploadImageRequestDto } from './dto/upload-image-request.dto';
+import { UploadImageResponseDto } from './dto/upload-image-response.dto';
 
 @Injectable()
 export class RoutesService {

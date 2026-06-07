@@ -2,18 +2,18 @@ import { BadRequestException, Controller, Logger } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
 import { BOOKING_MS } from './booking.messages';
 import { BookingService } from './booking.service';
-import type { BookingFareDetailsResponseDto } from './dto/booking-fare-details-response.dto';
-import type { BookingPaymentInfoResponseDto } from './dto/booking-payment-info-response.dto';
-import type { CheckInBookingResponseDto } from './dto/check-in-booking-response.dto';
-import type { CheckInBookingDto } from './dto/check-in-booking.dto';
-import type { CreateBookingFromReservationDto } from './dto/create-booking-from-reservation.dto';
-import type { CreateBookingResponseDto } from './dto/create-booking-response.dto';
-import type { CreateBookingDto } from './dto/create-booking.dto';
-import type { GetBookingResponseDto } from './dto/get-booking-response.dto';
-import type { GetMyTicketsDto } from './dto/get-my-tickets.dto';
-import type { MyJourneyResponseDto } from './dto/my-journey-response.dto';
-import type { MyTicketsResponseDto } from './dto/my-tickets-response.dto';
-import type { UpdateBookingPassengersDto } from './dto/update-booking-passengers.dto';
+import { BookingFareDetailsResponseDto } from './dto/booking-fare-details-response.dto';
+import { BookingPaymentInfoResponseDto } from './dto/booking-payment-info-response.dto';
+import { CheckInBookingResponseDto } from './dto/check-in-booking-response.dto';
+import { CheckInBookingDto } from './dto/check-in-booking.dto';
+import { CreateBookingFromReservationDto } from './dto/create-booking-from-reservation.dto';
+import { CreateBookingResponseDto } from './dto/create-booking-response.dto';
+import { CreateBookingDto } from './dto/create-booking.dto';
+import { GetBookingResponseDto } from './dto/get-booking-response.dto';
+import { GetMyTicketsDto } from './dto/get-my-tickets.dto';
+import { MyJourneyResponseDto } from './dto/my-journey-response.dto';
+import { MyTicketsResponseDto } from './dto/my-tickets-response.dto';
+import { UpdateBookingPassengersDto } from './dto/update-booking-passengers.dto';
 
 @Controller()
 export class BookingMsController {

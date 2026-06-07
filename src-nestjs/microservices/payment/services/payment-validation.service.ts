@@ -7,8 +7,8 @@ import { PaymentMethod } from 'src/shared/entities/payment/payment-method.entity
 import { Payment } from 'src/shared/entities/payment/payment.entity';
 import { RedisService } from 'src/shared/modules/redis/redis.service';
 import type { Repository } from 'typeorm';
-import type { CreatePaymentDto } from '../dto/create-payment.dto';
-import type { PaymentResponseDto } from '../dto/payment-response.dto';
+import { CreatePaymentDto } from '../dto/create-payment.dto';
+import { PaymentResponseDto } from '../dto/payment-response.dto';
 
 /**
  * Payment Validation Service

@@ -14,9 +14,9 @@ import { DataSource, QueryFailedError, Repository } from 'typeorm';
 // @ts-ignore - uuid package is ESM but works fine with CommonJS
 import { v7 as uuidv7 } from 'uuid';
 import { BOOKING_MS } from '../booking/booking.messages';
-import type { CreatePaymentDto } from './dto/create-payment.dto';
-import type { PaymentResponseDto } from './dto/payment-response.dto';
-import type { UpdatePaymentStatusDto } from './dto/update-payment-status.dto';
+import { CreatePaymentDto } from './dto/create-payment.dto';
+import { PaymentResponseDto } from './dto/payment-response.dto';
+import { UpdatePaymentStatusDto } from './dto/update-payment-status.dto';
 import { PaymentGatewayFactory } from './gateways/payment-gateway.factory';
 import { PaymentNotificationService } from './services/payment-notification.service';
 import { PaymentValidationService } from './services/payment-validation.service';
