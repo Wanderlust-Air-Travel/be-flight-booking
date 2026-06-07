@@ -11,7 +11,7 @@ import { CreateUserResponse } from 'src/shared/types/auth/create-user-response';
 import { LoginResponse } from 'src/shared/types/auth/login-response';
 import { LogoutResponse } from 'src/shared/types/auth/logout-response';
 import { TokensResponse } from 'src/shared/types/auth/tokens-response';
-import type { AuthService } from './auth.service';
+import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { LogoutDto } from './dto/logout.dto';
 import { RefreshDto } from './dto/refresh.dto';

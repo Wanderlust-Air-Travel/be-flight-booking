@@ -57,7 +57,7 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
             host: this.configService.get<string>('RABBITMQ_HOST')!,
             port: this.configService.get<number>('RABBITMQ_PORT')!,
             username: this.configService.get<string>('RABBITMQ_USER')!,
-            password: this.configService.get<string>('RABBITMQ_PASS')!,
+            password: this.configService.get<string>('RABBITMQ_PASSWORD')!,
             vhost: this.configService.get<string>('RABBITMQ_VHOST')!,
             prefetchCount,
         };

@@ -1,15 +1,8 @@
-import {
-    Inject,
-    Injectable,
-    Logger,
-    type OnModuleDestroy,
-    type OnModuleInit,
-    forwardRef,
-} from '@nestjs/common';
+import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { RedisService } from 'src/shared/modules/redis/redis.service';
-import { RealtimeGateway } from '../realtime.gateway';
 import { RealtimeService } from '../realtime.service';
+import type { RealtimeGateway } from '../realtime.gateway';
 import type { PaymentStatusMessage } from '../types/payment-status.types';
 
 /**
@@ -30,17 +23,14 @@ export class PaymentStatusService implements OnModuleInit, OnModuleDestroy {
     private readonly paymentChannelPrefix = 'payment:status:payment:';
     private readonly subscribedChannels = new Set<string>();
 
-    private get realtimeGateway(): RealtimeGateway {
-        return this._realtimeGateway;
+    private get realtimeGateway(): RealtimeGateway | null {
+        return this.realtimeService.getGateway() as RealtimeGateway | null;
     }
 
     constructor(
-        @Inject(forwardRef(() => RealtimeGateway))
-        private readonly _realtimeGateway: RealtimeGateway,
         private readonly realtimeService: RealtimeService,
         private readonly redisService: RedisService
     ) {
-        // Create a separate Redis connection for pub/sub
         const redisClient = this.redisService.getClient();
         this.redisSubscriber = redisClient.duplicate();
     }
@@ -171,15 +161,19 @@ export class PaymentStatusService implements OnModuleInit, OnModuleDestroy {
             );
 
             // Broadcast to all subscribed clients
-            const server = this.realtimeGateway.getServer();
-            for (const socketId of subscribedClients) {
-                server.to(socketId).emit('payment-status:update', {
-                    bookingId: data.bookingId,
-                    paymentId: data.paymentId,
-                    status: data.status,
-                    timestamp: data.timestamp,
-                    metadata: data.metadata,
-                });
+            if (this.realtimeGateway) {
+                const server = this.realtimeGateway.getServer();
+                for (const socketId of subscribedClients) {
+                    server.to(socketId).emit('payment-status:update', {
+                        bookingId: data.bookingId,
+                        paymentId: data.paymentId,
+                        status: data.status,
+                        timestamp: data.timestamp,
+                        metadata: data.metadata,
+                    });
+                }
+            } else {
+                this.logger.warn('RealtimeGateway not available, cannot broadcast payment status update');
             }
 
             this.logger.debug(

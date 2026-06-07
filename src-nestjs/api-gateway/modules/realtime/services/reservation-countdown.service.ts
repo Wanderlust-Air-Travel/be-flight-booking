@@ -1,15 +1,8 @@
-import {
-    Inject,
-    Injectable,
-    Logger,
-    type OnModuleDestroy,
-    type OnModuleInit,
-    forwardRef,
-} from '@nestjs/common';
+import { Inject, Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import type { ClientProxy } from '@nestjs/microservices';
 import { type Subscription, firstValueFrom, interval } from 'rxjs';
-import { RealtimeGateway } from '../realtime.gateway';
-import type { RealtimeService } from '../realtime.service';
+import { RealtimeService } from '../realtime.service';
+import type { RealtimeGateway } from '../realtime.gateway';
 import type {
     ReservationCountdownExpiredEvent,
     ReservationCountdownUpdateEvent,
@@ -28,11 +21,11 @@ import type {
 @Injectable()
 export class ReservationCountdownService implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger(ReservationCountdownService.name);
-    private readonly countdownIntervals = new Map<string, Subscription>(); // reservationId -> interval subscription
-    private readonly checkInterval = 1000; // Check every 1 second
+    private readonly countdownIntervals = new Map<string, Subscription>();
+    private readonly checkInterval = 1000;
 
-    private get realtimeGateway(): RealtimeGateway {
-        return this._realtimeGateway;
+    private get realtimeGateway(): RealtimeGateway | null {
+        return this.realtimeService.getGateway() as RealtimeGateway | null;
     }
 
     private get reservationClient(): ClientProxy {
@@ -40,8 +33,6 @@ export class ReservationCountdownService implements OnModuleInit, OnModuleDestro
     }
 
     constructor(
-        @Inject(forwardRef(() => RealtimeGateway))
-        private readonly _realtimeGateway: RealtimeGateway,
         private readonly realtimeService: RealtimeService,
         @Inject('RESERVATION_CLIENT') private readonly _reservationClient: ClientProxy
     ) {}
@@ -128,27 +119,33 @@ export class ReservationCountdownService implements OnModuleInit, OnModuleDestro
                 );
 
                 // Broadcast countdown update
-                const server = this.realtimeGateway.getServer();
-                const updateEvent: ReservationCountdownUpdateEvent = {
-                    reservationId,
-                    remainingSeconds,
-                    expiresAt: expiresAt.toISOString(),
-                    isExpired: remainingSeconds === 0,
-                };
-                for (const socketId of subscribedClients) {
-                    server.to(socketId).emit('reservation-countdown:update', updateEvent);
+                if (this.realtimeGateway) {
+                    const server = this.realtimeGateway.getServer();
+                    const updateEvent: ReservationCountdownUpdateEvent = {
+                        reservationId,
+                        remainingSeconds,
+                        expiresAt: expiresAt.toISOString(),
+                        isExpired: remainingSeconds === 0,
+                    };
+                    for (const socketId of subscribedClients) {
+                        server.to(socketId).emit('reservation-countdown:update', updateEvent);
+                    }
+                } else {
+                    this.logger.warn('RealtimeGateway not available, cannot broadcast countdown update');
                 }
 
                 // If expired, stop countdown
                 if (remainingSeconds === 0) {
                     this.stopCountdown(reservationId);
                     // Notify clients that reservation expired
-                    const expiredEvent: ReservationCountdownExpiredEvent = {
-                        reservationId,
-                        expiresAt: expiresAt.toISOString(),
-                    };
-                    for (const socketId of subscribedClients) {
-                        server.to(socketId).emit('reservation-countdown:expired', expiredEvent);
+                    if (this.realtimeGateway) {
+                        const expiredEvent: ReservationCountdownExpiredEvent = {
+                            reservationId,
+                            expiresAt: expiresAt.toISOString(),
+                        };
+                        for (const socketId of subscribedClients) {
+                            this.realtimeGateway.getServer().to(socketId).emit('reservation-countdown:expired', expiredEvent);
+                        }
                     }
                 }
             } catch (error) {

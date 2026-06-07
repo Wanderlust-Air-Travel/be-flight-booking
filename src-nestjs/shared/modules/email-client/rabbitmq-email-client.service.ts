@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { SendEmailDto } from 'src/microservices/email/dto/send-email.dto';
-import type { RabbitMQPublisherService } from '../rabbitmq/rabbitmq-publisher.service';
+import { RabbitMQPublisherService } from '../rabbitmq/rabbitmq-publisher.service';
 
 /**
  * RabbitMQ Email Client Service

@@ -18,6 +18,8 @@ import { SearchController } from './search.controller';
                 options: {
                     host: SEARCH_MS.TCP_HOST,
                     port: SEARCH_MS.TCP_PORT,
+                    heartbeatInterval: 5000,
+                    heartbeatTimeout: 15000,
                 },
             },
         ]),

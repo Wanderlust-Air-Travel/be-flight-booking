@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { SystemRole } from 'src/shared/constants/roles';
 import { AircraftType } from 'src/shared/entities/aircraft/aircraft-type.entity';
 import { Aircraft } from 'src/shared/entities/aircraft/aircraft.entity';
@@ -76,7 +76,7 @@ export class AdminService {
         private readonly _cabinServiceRepo: Repository<CabinService>,
         @InjectRepository(FareDescriptionRule)
         private readonly _fareDescriptionRuleRepo: Repository<FareDescriptionRule>,
-        private readonly dataSource: DataSource
+        @InjectDataSource() private readonly dataSource: DataSource
     ) {}
 
     // ==================== FARE MANAGEMENT ====================

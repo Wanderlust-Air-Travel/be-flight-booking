@@ -1,5 +1,5 @@
 import { Controller, Logger } from '@nestjs/common';
-import { MessagePattern } from '@nestjs/microservices';
+import { MessagePattern, Payload } from '@nestjs/microservices';
 import type { AirportListResponseDto } from './dto/airport-list-response.dto';
 import type { GetFareOptionsDto } from './dto/get-fare-options.dto';
 import type { GetSeatMapDto } from './dto/get-seat-map.dto';
@@ -14,12 +14,14 @@ export class SearchMsController {
     constructor(private readonly searchService: SearchService) {}
 
     @MessagePattern(SEARCH_MS.PATTERN.SEARCH_FLIGHTS)
-    async handleSearch(dto: SearchFlightsDto) {
+    async handleSearch(@Payload() data: SearchFlightsDto) {
         try {
-            this.logger.log(
-                `Search flights: ${dto.origin} -> ${dto.destination} on ${dto.departDate}`
-            );
-            const result = await this.searchService.search(dto);
+            this.logger.debug(`Search flights - received data type: ${typeof data}, isArray: ${Array.isArray(data)}, isObject: ${typeof data === 'object' && data !== null}`);
+            this.logger.debug(`Search flights - data value: ${JSON.stringify(data)}`);
+            if (!data || typeof data !== 'object') {
+                throw new Error(`Invalid data received: ${JSON.stringify(data)}`);
+            }
+            const result = await this.searchService.search(data);
             this.logger.log(`Found ${result.outbound?.length || 0} outbound flights`);
             return result;
         } catch (error: any) {

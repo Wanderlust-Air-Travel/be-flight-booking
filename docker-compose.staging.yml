@@ -34,18 +34,3 @@ services:
       options:
         max-size: '50m'
         max-file: '3'
-
-  # ─── Microservices ───────────────────────────────────────────────────
-  search-ms:
-
-  services-ms:
-
-  routes-ms:
-
-  booking-ms:
-
-  reservation-ms:
-
-  payment-ms:
-
-  email-ms:

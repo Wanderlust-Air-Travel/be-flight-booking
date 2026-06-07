@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { IPaymentGateway } from '../interfaces/payment-gateway.interface';
-import type { DevPaymentGateway } from './dev-payment.gateway';
+import { DevPaymentGateway } from './dev-payment.gateway';
 
 /**
  * Payment Gateway Factory

@@ -1,12 +1,12 @@
 import { Controller, Get } from '@nestjs/common';
 import {
-    type DiskHealthIndicator,
+    DiskHealthIndicator,
     HealthCheck,
-    type HealthCheckService,
-    type MemoryHealthIndicator,
-    type TypeOrmHealthIndicator,
+    HealthCheckService,
+    MemoryHealthIndicator,
+    TypeOrmHealthIndicator,
 } from '@nestjs/terminus';
-import type { RedisHealthIndicator } from './redis-health.indicator';
+import { RedisHealthIndicator } from './redis-health.indicator';
 
 @Controller('health')
 export class HealthController {

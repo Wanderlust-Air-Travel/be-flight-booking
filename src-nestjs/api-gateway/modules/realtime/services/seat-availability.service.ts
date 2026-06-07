@@ -1,16 +1,13 @@
 import {
-    Inject,
     Injectable,
     Logger,
     type OnModuleDestroy,
     type OnModuleInit,
-    Optional,
-    forwardRef,
 } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { RedisService } from 'src/shared/modules/redis/redis.service';
-import { RealtimeGateway } from '../realtime.gateway';
 import { RealtimeService } from '../realtime.service';
+import type { RealtimeGateway } from '../realtime.gateway';
 import type {
     SeatAvailabilityChange,
     SeatAvailabilityMessage,
@@ -34,17 +31,13 @@ export class SeatAvailabilityService implements OnModuleInit, OnModuleDestroy {
     private readonly subscribedChannels = new Set<string>();
 
     private get realtimeGateway(): RealtimeGateway | null {
-        return this._realtimeGateway;
+        return this.realtimeService.getGateway() as RealtimeGateway | null;
     }
 
     constructor(
-        @Optional()
-        @Inject(forwardRef(() => RealtimeGateway))
-        private readonly _realtimeGateway: RealtimeGateway | null,
         private readonly realtimeService: RealtimeService,
         private readonly redisService: RedisService
     ) {
-        // Create a separate Redis connection for pub/sub (required by Redis)
         const redisClient = this.redisService.getClient();
         this.redisSubscriber = redisClient.duplicate();
     }

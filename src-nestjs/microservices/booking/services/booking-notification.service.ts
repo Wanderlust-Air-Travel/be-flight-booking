@@ -5,7 +5,7 @@ import { firstValueFrom } from 'rxjs';
 import { EMAIL_MS } from 'src/microservices/email/email.messages';
 import { EmailTemplate } from 'src/shared/constants/enums';
 import { Booking } from 'src/shared/entities/booking/booking.entity';
-import type { RabbitMQPublisherService } from 'src/shared/modules/rabbitmq/rabbitmq-publisher.service';
+import { RabbitMQPublisherService } from 'src/shared/modules/rabbitmq/rabbitmq-publisher.service';
 import type { Repository } from 'typeorm';
 import type { TicketPdfService } from './ticket-pdf.service';
 

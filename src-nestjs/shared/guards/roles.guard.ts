@@ -5,7 +5,7 @@ import {
     Injectable,
     Logger,
 } from '@nestjs/common';
-import type { Reflector } from '@nestjs/core';
+import { Reflector } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import type { Repository } from 'typeorm';
 import { SystemRole } from '../constants/roles';

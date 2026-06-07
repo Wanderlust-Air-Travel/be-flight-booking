@@ -3,7 +3,7 @@ import type { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import type { SendEmailDto } from 'src/microservices/email/dto/send-email.dto';
 import { EMAIL_MS } from 'src/microservices/email/email.messages';
-import type { RabbitMQPublisherService } from '../rabbitmq/rabbitmq-publisher.service';
+import { RabbitMQPublisherService } from '../rabbitmq/rabbitmq-publisher.service';
 
 /**
  * Hybrid Email Client Service

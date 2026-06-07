@@ -9,7 +9,7 @@ import { PaymentMethod } from 'src/shared/entities/payment/payment-method.entity
 import { Payment } from 'src/shared/entities/payment/payment.entity';
 import { User } from 'src/shared/entities/user/user.entity';
 import { RabbitMQPublisherService } from 'src/shared/modules/rabbitmq/rabbitmq-publisher.service';
-import { type DataSource, QueryFailedError, type Repository } from 'typeorm';
+import { DataSource, QueryFailedError, Repository } from 'typeorm';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - uuid package is ESM but works fine with CommonJS
 import { v7 as uuidv7 } from 'uuid';

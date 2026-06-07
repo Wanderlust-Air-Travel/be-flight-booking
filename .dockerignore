@@ -13,7 +13,6 @@ README.md
 docs
 tools
 scripts
-public/images
 .vscode
 .idea
 .DS_Store
@@ -28,4 +27,7 @@ yarn-error.log*
 *.swo
 *~
 .editorconfig
-
+apps
+infrastructure
+src-nestjs/.next
+src-nestjs/coverage

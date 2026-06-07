@@ -32,7 +32,7 @@ import { RESERVATION_MS } from 'src/microservices/reservation/reservation.messag
 import { COMMON_MESSAGES, RESERVATION_MESSAGES } from 'src/shared/constants/messages';
 import { ParseUUIDv7Pipe } from 'src/shared/pipes/parse-uuid-v7.pipe';
 import { OptionalJwtAuthGuard } from '../auth/guard/optional-jwt-auth.guard';
-import type { SeatAvailabilityService } from '../realtime/services/seat-availability.service';
+import { SeatAvailabilityService } from '../realtime/services/seat-availability.service';
 import type { CreateReservationDto } from './dto/create-reservation.dto';
 import { ReservationResponseDto } from './dto/reservation-response.dto';
 

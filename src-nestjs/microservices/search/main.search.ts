@@ -4,13 +4,21 @@ import { config } from 'dotenv';
 // Load .env file from project root (works with ts-node)
 config({ path: resolve(process.cwd(), '.env') });
 
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { type MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SEARCH_MS } from './search.messages';
 import { SearchModule } from './search.module';
+import { IncomingRequestDeserializer } from './deserializers/incoming-request.deserializer';
+import './debug/debug-server-tcp';
+import './debug/debug-rpc-params';
+import './debug/debug-rpc-proxy';
+import './debug/debug-context-utils';
+import './debug/debug-pipes-consumer';
+import './debug/debug-rpc-context-creator-v8';
+import './debug/fix-interceptors-consumer';
 
 @Module({
     imports: [
@@ -35,16 +43,22 @@ import { SearchModule } from './search.module';
 class SearchBootstrapModule {}
 
 async function bootstrap() {
+    const logger = new Logger('SearchBootstrap');
+    logger.log('Starting Search microservice...');
+    logger.log(`TCP Host: ${SEARCH_MS.TCP_HOST}, Port: ${SEARCH_MS.TCP_PORT}`);
+
     const app = await NestFactory.createMicroservice<MicroserviceOptions>(SearchBootstrapModule, {
         transport: Transport.TCP,
         options: {
             host: SEARCH_MS.TCP_HOST,
             port: SEARCH_MS.TCP_PORT,
+            deserializer: new IncomingRequestDeserializer(),
         },
     });
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+
+    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: false }));
     await app.listen();
-    console.log(`Search microservice is listening on ${SEARCH_MS.TCP_HOST}:${SEARCH_MS.TCP_PORT}`);
+    logger.log(`Search microservice is listening on ${SEARCH_MS.TCP_HOST}:${SEARCH_MS.TCP_PORT}`);
 }
 bootstrap().catch((error) => {
     console.error('Failed to start Search microservice:', error);

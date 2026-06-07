@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import type { ClientProxy } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { firstValueFrom } from 'rxjs';
 import type { FareDescriptionItemDto } from 'src/microservices/search/dto/fare-option.dto';
 import { CabinType, PassengerType } from 'src/shared/constants/enums';
@@ -31,7 +32,7 @@ import { BookingStateService } from 'src/shared/services/booking-state.service';
 import { FarePricingService } from 'src/shared/services/fare-pricing.service';
 import { PassengerPricingService } from 'src/shared/services/passenger-pricing.service';
 import { validatePassengerTypes } from 'src/shared/utils/passenger-type.util';
-import type { DataSource, Repository } from 'typeorm';
+import type { Repository } from 'typeorm';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - uuid package is ESM but works fine with CommonJS
 import { v7 as uuidv7 } from 'uuid';

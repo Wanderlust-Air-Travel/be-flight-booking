@@ -11,7 +11,7 @@ import {
     WebSocketServer,
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
-import type { RealtimeService } from './realtime.service';
+import { RealtimeService } from './realtime.service';
 import { PaymentStatusService } from './services/payment-status.service';
 import { ReservationCountdownService } from './services/reservation-countdown.service';
 import { SeatAvailabilityService } from './services/seat-availability.service';
@@ -57,7 +57,9 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
         private readonly _paymentStatusService: PaymentStatusService,
         private readonly jwtService: JwtService,
         private readonly configService: ConfigService
-    ) {}
+    ) {
+        this.realtimeService.setGateway(this);
+    }
 
     /**
      * Handle client connection

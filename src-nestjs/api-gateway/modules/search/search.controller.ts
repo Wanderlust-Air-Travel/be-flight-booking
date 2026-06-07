@@ -40,7 +40,7 @@ import type { GetCabinServicesDto } from './dto/get-cabin-services.dto';
 import type { GetFareOptionsDto } from './dto/get-fare-options.dto';
 import type { GetSeatMapDto } from './dto/get-seat-map.dto';
 import { SearchFlightsResponseDto } from './dto/search-flights-response.dto';
-import type { SearchFlightsDto } from './dto/search-flights.dto';
+import { SearchFlightsDto } from './dto/search-flights.dto';
 import { SeatMapResponseDto } from './dto/seat-map-response.dto';
 
 @ApiTags('search')
@@ -203,9 +203,13 @@ export class SearchController {
                 adults: Number(query.adults),
                 minors: Number(query.minors),
             };
-            return await firstValueFrom(
-                this.client.send<SearchFlightsResponseDto>('search.flights', payload)
+            this.logger.debug(`Sending search payload to microservice: ${JSON.stringify(payload)}`);
+            const message$ = this.client.send<SearchFlightsResponseDto>('search.flights', payload);
+            const timeoutMs = 30000;
+            const timeout$ = new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error(`Search timeout after ${timeoutMs}ms`)), timeoutMs)
             );
+            return await Promise.race([firstValueFrom(message$), timeout$]);
         } catch (error: any) {
             // Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
             if (error instanceof HttpException) {

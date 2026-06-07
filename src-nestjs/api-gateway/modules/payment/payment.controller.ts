@@ -37,7 +37,7 @@ import { PAYMENT_MS } from 'src/microservices/payment/payment.messages';
 import { COMMON_MESSAGES, PAYMENT_MESSAGES } from 'src/shared/constants/messages';
 import { JwtAuthGuard } from '../auth/guard/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/guard/optional-jwt-auth.guard';
-import type { PaymentStatusService } from '../realtime/services/payment-status.service';
+import { PaymentStatusService } from '../realtime/services/payment-status.service';
 import type { CreatePaymentDto } from './dto/create-payment.dto';
 import { PaymentResponseDto } from './dto/payment-response.dto';
 import type { UpdatePaymentStatusDto } from './dto/update-payment-status.dto';

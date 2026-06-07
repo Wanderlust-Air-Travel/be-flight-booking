@@ -1,15 +1,15 @@
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../../../modules/redis/redis.service';
-import type {
+import {
     AircraftDto,
     AirlineDto,
     AirportDto,
     FlightSearchParams,
     FlightSearchResultDto,
 } from '../interfaces/data-provider.dto';
-import type { MockProvider } from '../providers/mock.provider';
-import type { OurairportsProvider } from '../providers/ourairports.provider';
+import { MockProvider } from '../providers/mock.provider';
+import { OurairportsProvider } from '../providers/ourairports.provider';
 
 @Injectable()
 export class DataService implements OnModuleInit {

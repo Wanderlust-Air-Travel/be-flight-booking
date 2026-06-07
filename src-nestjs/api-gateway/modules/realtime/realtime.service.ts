@@ -9,6 +9,15 @@ import type { ClientSubscriptions, SubscriptionType } from './types/realtime.typ
 export class RealtimeService {
     private readonly logger = new Logger(RealtimeService.name);
     private readonly subscriptions = new Map<string, ClientSubscriptions>();
+    private gatewayRef: any = null;
+
+    setGateway(gateway: any) {
+        this.gatewayRef = gateway;
+    }
+
+    getGateway(): any {
+        return this.gatewayRef;
+    }
 
     /**
      * Initialize subscriptions for a client

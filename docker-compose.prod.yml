@@ -35,7 +35,6 @@ services:
         max-size: '100m'
         max-file: '5'
 
-  # ─── Microservices ───────────────────────────────────────────────────
   search-ms:
     restart: always
     logging:

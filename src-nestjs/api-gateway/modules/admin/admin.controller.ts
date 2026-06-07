@@ -36,7 +36,7 @@ import { Role } from 'src/shared/entities/role/role.entity';
 import { Route } from 'src/shared/entities/route/route.entity';
 import { RolesGuard } from 'src/shared/guards/roles.guard';
 import { JwtAuthGuard } from '../auth/guard/jwt-auth.guard';
-import type { AdminService } from './admin.service';
+import { AdminService } from './admin.service';
 import type { AssignRoleDto } from './dto/assign-role.dto';
 import { BaggageAllowancesResponseDto } from './dto/baggage-allowances-response.dto';
 import { CabinServiceResponseDto } from './dto/cabin-service-response.dto';

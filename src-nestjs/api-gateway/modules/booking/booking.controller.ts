@@ -38,7 +38,7 @@ import { BOOKING_MESSAGES, COMMON_MESSAGES } from 'src/shared/constants/messages
 import { Passenger } from 'src/shared/entities/passenger/passenger.entity';
 import { User } from 'src/shared/entities/user/user.entity';
 import type { Repository } from 'typeorm';
-import type { AuthService } from '../auth/auth.service';
+import { AuthService } from '../auth/auth.service';
 import { JwtAuthGuard } from '../auth/guard/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/guard/optional-jwt-auth.guard';
 import { BookingFareDetailsResponseDto } from './dto/booking-fare-details-response.dto';
