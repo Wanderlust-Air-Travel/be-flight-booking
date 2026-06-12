@@ -351,13 +351,10 @@ export class SearchController {
         example: CabinType.ECONOMY,
     })
     async getFareOptions(
-        @Query() query: GetFareOptionsDto,
+        @Query() query: any,
         @Req() req?: Request & { user?: { userId: string; email: string } }
     ): Promise<FareOptionDto[]> {
         try {
-            this.logger.error(`[DEBUG] getFareOptions query keys: ${Object.keys(query || {}).join(', ') || 'none'}`);
-            this.logger.error(`[DEBUG] getFareOptions query.flightInstanceId: ${query?.flightInstanceId}`);
-            this.logger.error(`[DEBUG] getFareOptions query.cabinType: ${query?.cabinType}`);
             // Auto-fetch flightInstanceId and cabinType from booking state if not provided and user is authenticated
             let flightInstanceId = query.flightInstanceId;
             let cabinType = query.cabinType;
