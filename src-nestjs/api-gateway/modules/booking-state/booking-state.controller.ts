@@ -124,13 +124,15 @@ export class BookingStateController {
 
         const identifier = userId || sessionId!;
 
-        // Defensive guard: although the DTO is validated by the global ValidationPipe,
-        // a malformed body can still reach here if the validation pipe is misconfigured
-        // or the request bypasses it. Avoid the 500 TypeError that would happen if
-        // `dto.fareClassCode.toUpperCase()` is called on undefined.
-        if (!dto || !dto.fareClassCode || !dto.cabinType || !dto.flightInstanceId) {
+        // DEBUG: log raw body
+        this.logger.debug(`[saveCabinSelection] raw body: ${JSON.stringify(req.body)}, dto class: ${typeof dto}`);
+
+        // Defensive guard: read body directly from req.body as fallback
+        // (handles cases where NestJS injects the DTO class instead of an instance)
+        const body = typeof dto === 'function' ? req.body : dto;
+        if (!body || !body.fareClassCode || !body.cabinType || !body.flightInstanceId) {
             this.logger.error(
-                `[saveCabinSelection] Invalid payload received (missing required fields) for ${isGuest ? 'guest session' : 'user'} ${identifier}: ${JSON.stringify(dto)}`
+                `[saveCabinSelection] Invalid payload received (missing required fields) for ${isGuest ? 'guest session' : 'user'} ${identifier}: ${JSON.stringify(req.body)}`
             );
             throw new BadRequestException(
                 'flightInstanceId, cabinType, and fareClassCode are all required.'
@@ -140,7 +142,7 @@ export class BookingStateController {
         try {
             const result = await this.bookingStateService.saveCabinSelection(
                 identifier,
-                dto,
+                body,
                 isGuest
             );
 
@@ -204,9 +206,12 @@ export class BookingStateController {
         const userId = req.user?.userId || null;
         const sessionId = sessionIdHeader || null;
 
+        // Fallback: if NestJS injects the DTO class instead of an instance, read from req.body
+        const body = typeof dto === 'function' ? req.body : dto;
+
         // Log for debugging
         this.logger.log(
-            `[saveSeatSelection] userId: ${userId}, sessionId: ${sessionId}, flightInstanceId: ${dto.flightInstanceId}`
+            `[saveSeatSelection] userId: ${userId}, sessionId: ${sessionId}, flightInstanceId: ${body.flightInstanceId}`
         );
 
         // BEST PRACTICE: Try to find booking state with both userId and sessionId
@@ -234,7 +239,7 @@ export class BookingStateController {
             // User is guest - sessionId is required
             if (!sessionId) {
                 this.logger.error(
-                    `[saveSeatSelection] Guest user without sessionId for flight ${dto.flightInstanceId}`
+                    `[saveSeatSelection] Guest user without sessionId for flight ${body.flightInstanceId}`
                 );
                 throw new BadRequestException(
                     'X-Session-Id header is required for guest users. Please provide the session ID from the cabin selection response.'
@@ -250,7 +255,7 @@ export class BookingStateController {
             // This provides early validation feedback to users
             // Pass fallback identifier to try both userId and sessionId if needed
             await this.validateSeatSelection(
-                dto,
+                body,
                 identifier,
                 isGuest,
                 fallbackIdentifier,
@@ -261,39 +266,39 @@ export class BookingStateController {
             let seatSelection: any = null;
             let seats: any[] | null = null;
 
-            if (dto.seats && dto.seats.length > 0) {
+            if (body.seats && body.seats.length > 0) {
                 // Use seats array (preferred for multiple passengers)
-                seats = dto.seats;
+                seats = body.seats;
                 // Also create single seat for backward compatibility
                 seatSelection = {
-                    flightInstanceId: dto.flightInstanceId,
-                    flightSeatId: dto.seats[0].flightSeatId,
-                    seatNumber: dto.seats[0].seatNumber,
+                    flightInstanceId: body.flightInstanceId,
+                    flightSeatId: body.seats[0].flightSeatId,
+                    seatNumber: body.seats[0].seatNumber,
                 };
-            } else if (dto.seat) {
+            } else if (body.seat) {
                 // Use seat object
                 seatSelection = {
-                    flightInstanceId: dto.flightInstanceId,
-                    flightSeatId: dto.seat.flightSeatId,
-                    seatNumber: dto.seat.seatNumber,
+                    flightInstanceId: body.flightInstanceId,
+                    flightSeatId: body.seat.flightSeatId,
+                    seatNumber: body.seat.seatNumber,
                 };
                 seats = [
                     {
-                        flightSeatId: dto.seat.flightSeatId,
-                        seatNumber: dto.seat.seatNumber,
+                        flightSeatId: body.seat.flightSeatId,
+                        seatNumber: body.seat.seatNumber,
                     },
                 ];
-            } else if (dto.flightSeatId && dto.seatNumber) {
+            } else if (body.flightSeatId && body.seatNumber) {
                 // Legacy fields for backward compatibility
                 seatSelection = {
-                    flightInstanceId: dto.flightInstanceId,
-                    flightSeatId: dto.flightSeatId,
-                    seatNumber: dto.seatNumber,
+                    flightInstanceId: body.flightInstanceId,
+                    flightSeatId: body.flightSeatId,
+                    seatNumber: body.seatNumber,
                 };
                 seats = [
                     {
-                        flightSeatId: dto.flightSeatId,
-                        seatNumber: dto.seatNumber,
+                        flightSeatId: body.flightSeatId,
+                        seatNumber: body.seatNumber,
                     },
                 ];
             } else {
@@ -681,9 +686,12 @@ export class BookingStateController {
 
         const identifier = userId || sessionId!;
 
+        // Fallback: if NestJS injects the DTO class instead of an instance, read from req.body
+        const body = typeof dto === 'function' ? req.body : dto;
+
         try {
             // Transform DTO to SelectedCabinService[]
-            const services = dto.services.map((s) => ({
+            const services = body.services.map((s: any) => ({
                 cabinServiceId: s.cabinServiceId,
                 serviceType: s.serviceType,
                 serviceName: s.serviceName,
@@ -693,7 +701,7 @@ export class BookingStateController {
 
             const result = await this.bookingStateService.saveCabinServices(
                 identifier,
-                dto.flightInstanceId,
+                body.flightInstanceId,
                 services,
                 isGuest
             );

@@ -81,6 +81,9 @@ export class PaymentController {
         @Param('bookingId') bookingId: string,
         @Body() dto: CreatePaymentDto
     ): Promise<PaymentResponseDto> {
+        // Fallback: if NestJS injects the DTO class instead of an instance, read from req.body
+        const body = typeof dto === 'function' ? req.body : dto;
+
         try {
             // Validate UUID v7 format
             const uuidRegex =
@@ -100,7 +103,7 @@ export class PaymentController {
                     .send<PaymentResponseDto>(PAYMENT_MS.PATTERN.CREATE_PAYMENT, {
                         userId,
                         dto: {
-                            ...dto,
+                            ...body,
                             bookingId,
                         },
                     })
@@ -268,6 +271,9 @@ export class PaymentController {
         @Param('bookingId') bookingId: string,
         @Body() dto: CreatePaymentDto
     ): Promise<PaymentResponseDto> {
+        // Fallback: if NestJS injects the DTO class instead of an instance, read from req.body
+        const body = typeof dto === 'function' ? req.body : dto;
+
         try {
             // Validate UUID v7 format
             const uuidRegex =
@@ -289,7 +295,7 @@ export class PaymentController {
                     .send<PaymentResponseDto>(PAYMENT_MS.PATTERN.PROCESS_PAYMENT, {
                         userId, // null for guest users
                         dto: {
-                            ...dto,
+                            ...body,
                             bookingId,
                         },
                     })
@@ -809,6 +815,9 @@ export class PaymentController {
         @Param('id') paymentId: string,
         @Body() dto: UpdatePaymentStatusDto
     ): Promise<PaymentResponseDto> {
+        // Fallback: if NestJS injects the DTO class instead of an instance, read from req.body
+        const body = typeof dto === 'function' ? req.body : dto;
+
         try {
             // Validate UUID v7 format
             const uuidRegex =
@@ -830,7 +839,7 @@ export class PaymentController {
                     .send<PaymentResponseDto>(PAYMENT_MS.PATTERN.UPDATE_PAYMENT_STATUS, {
                         userId,
                         dto: {
-                            ...dto,
+                            ...body,
                             paymentId,
                         },
                     })

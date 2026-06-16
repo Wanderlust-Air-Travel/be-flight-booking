@@ -181,6 +181,9 @@ export class BookingController {
         @Query('reservationId') reservationId: string,
         @Body() dto: CreateBookingFromReservationDto
     ): Promise<CreateBookingResponseDto> {
+        // Fallback: if NestJS injects the DTO class instead of an instance, read from req.body
+        const body = typeof dto === 'function' ? req.body : dto;
+
         try {
             // Extract userId from JWT token if available (OptionalJwtAuthGuard allows requests without token)
             // For guest bookings, userId will be undefined/null
@@ -192,12 +195,12 @@ export class BookingController {
             }
 
             // Validate request body
-            if (!dto) {
+            if (!body) {
                 throw new BadRequestException(BOOKING_MESSAGES.VALIDATION.REQUEST_BODY_REQUIRED);
             }
 
             // For guest bookings, ensure contact info is provided
-            if (!userId && (!dto.contactFullname || !dto.contactEmail || !dto.contactPhone)) {
+            if (!userId && (!body.contactFullname || !body.contactEmail || !body.contactPhone)) {
                 throw new BadRequestException(
                     BOOKING_MESSAGES.VALIDATION.CONTACT_INFO_REQUIRED_FOR_GUEST
                 );
@@ -211,7 +214,7 @@ export class BookingController {
                     {
                         reservationId,
                         userId, // Send userId (extracted from JWT if available), or null for guest bookings
-                        dto,
+                        dto: body,
                     }
                 )
             );
@@ -290,9 +293,13 @@ export class BookingController {
         description: 'Invalid booking ID or request parameters',
     })
     async updateBookingPassengers(
+        @Req() req: Request,
         @Param('id') bookingId: string,
         @Body() dto: UpdateBookingPassengersDto
     ): Promise<{ success: boolean; message: string; totalPassengers: number }> {
+        // Fallback: if NestJS injects the DTO class instead of an instance, read from req.body
+        const body = typeof dto === 'function' ? req.body : dto;
+
         try {
             // Validate UUID v7 format
             const uuidRegex =
@@ -306,7 +313,7 @@ export class BookingController {
             return await firstValueFrom(
                 this.client.send<{ success: boolean; message: string; totalPassengers: number }>(
                     BOOKING_MS.PATTERN.UPDATE_PASSENGERS,
-                    { bookingId, dto }
+                    { bookingId, dto: body }
                 )
             );
         } catch (error: any) {
@@ -394,13 +401,14 @@ export class BookingController {
         @Req() req: Request & { user: { userId: string; email: string } },
         @Query() query: GetMyTicketsDto
     ): Promise<MyTicketsResponseDto> {
+        const q = typeof query === 'function' ? (req.query as Record<string, string>) : query;
         try {
             const userId = req.user.userId;
 
             return await firstValueFrom(
                 this.client.send<MyTicketsResponseDto>(BOOKING_MS.PATTERN.GET_MY_TICKETS, {
                     userId,
-                    dto: query,
+                    dto: q,
                 })
             );
         } catch (error: any) {
@@ -947,12 +955,18 @@ export class BookingController {
         description:
             'Invalid request, booking not found, booking already checked in, or seat validation failed',
     })
-    async checkInBooking(@Body() dto: CheckInBookingDto): Promise<CheckInBookingResponseDto> {
+    async checkInBooking(
+        @Req() req: Request,
+        @Body() dto: CheckInBookingDto
+    ): Promise<CheckInBookingResponseDto> {
+        // Fallback: if NestJS injects the DTO class instead of an instance, read from req.body
+        const body = typeof dto === 'function' ? req.body : dto;
+
         try {
             return await firstValueFrom(
                 this.client.send<CheckInBookingResponseDto>(
                     BOOKING_MS.PATTERN.CHECK_IN_BOOKING,
-                    dto
+                    body
                 )
             );
         } catch (error: any) {

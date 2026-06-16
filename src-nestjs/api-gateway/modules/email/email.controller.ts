@@ -8,6 +8,7 @@ import {
     HttpStatus,
     Param,
     Post,
+    Req,
     ServiceUnavailableException,
     UseGuards,
 } from '@nestjs/common';
@@ -21,6 +22,7 @@ import {
     ApiParam,
     ApiTags,
 } from '@nestjs/swagger';
+import type { Request } from 'express';
 import { firstValueFrom } from 'rxjs';
 import { EMAIL_MS } from 'src/microservices/email/email.messages';
 import { JwtAuthGuard } from '../auth/guard/jwt-auth.guard';
@@ -52,21 +54,27 @@ export class EmailController {
     @ApiBadRequestResponse({
         description: 'Invalid request parameters or validation failed',
     })
-    async sendEmail(@Body() dto: SendEmailDto): Promise<EmailResponseDto> {
+    async sendEmail(
+        @Req() req: Request,
+        @Body() dto: SendEmailDto
+    ): Promise<EmailResponseDto> {
+        // Fallback: if NestJS injects the DTO class instead of an instance, read from req.body
+        const body = typeof dto === 'function' ? req.body : dto;
+
         try {
             // Validate: if template is provided, templateData should also be provided
-            if (dto.template && !dto.templateData) {
+            if (body.template && !body.templateData) {
                 throw new BadRequestException('templateData is required when template is provided');
             }
             // Validate: if template is not provided, subject and htmlBody/textBody should be provided
-            if (!dto.template && !dto.subject && !dto.htmlBody && !dto.textBody) {
+            if (!body.template && !body.subject && !body.htmlBody && !body.textBody) {
                 throw new BadRequestException(
                     'Either template with templateData, or subject with htmlBody/textBody must be provided'
                 );
             }
 
             return await firstValueFrom(
-                this.client.send<EmailResponseDto>(EMAIL_MS.PATTERN.SEND_EMAIL, dto)
+                this.client.send<EmailResponseDto>(EMAIL_MS.PATTERN.SEND_EMAIL, body)
             );
         } catch (error: any) {
             // Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)

@@ -149,29 +149,33 @@ export class SearchController {
         example: 0,
         type: Number,
     })
-    async searchFlights(@Query() query: SearchFlightsDto): Promise<SearchFlightsResponseDto> {
+    async searchFlights(
+        @Query() query: SearchFlightsDto,
+        @Req() req?: Request
+    ): Promise<SearchFlightsResponseDto> {
+        const q = typeof query === 'function' ? (req?.query as Record<string, string>) : query;
         try {
             // Normalize returnDate: treat empty string or whitespace-only as undefined
-            if (!query.returnDate || query.returnDate.trim() === '') {
-                query.returnDate = undefined;
+            if (!q.returnDate || q.returnDate.trim() === '') {
+                q.returnDate = undefined;
             }
 
             // Auto-set tripType based on returnDate if not provided
             // Logic: Nếu không truyền returnDate (hoặc để trống) → one_way
             //        Nếu có truyền returnDate → round_trip
-            let tripType = query.tripType;
+            let tripType = q.tripType;
             if (!tripType) {
-                tripType = query.returnDate ? TripType.ROUND_TRIP : TripType.ONE_WAY;
+                tripType = q.returnDate ? TripType.ROUND_TRIP : TripType.ONE_WAY;
             }
 
             // Validate: origin and destination must be different
-            if (query.origin.toUpperCase() === query.destination.toUpperCase()) {
+            if (q.origin.toUpperCase() === q.destination.toUpperCase()) {
                 throw new BadRequestException('Origin and destination airports must be different');
             }
 
             // Validate: departDate must not be in the past
             // Parse departDate as date-only (YYYY-MM-DD) to avoid timezone issues
-            const departDateStr = query.departDate.split('T')[0]; // Get date part only
+            const departDateStr = q.departDate.split('T')[0]; // Get date part only
             const departDate = new Date(`${departDateStr}T00:00:00.000Z`); // Use UTC midnight
             const today = new Date();
             today.setUTCHours(0, 0, 0, 0); // Use UTC to avoid timezone issues
@@ -181,13 +185,13 @@ export class SearchController {
 
             // Validate: for round trip, returnDate must be provided and after departDate
             if (tripType === TripType.ROUND_TRIP) {
-                if (!query.returnDate) {
+                if (!q.returnDate) {
                     throw new BadRequestException(
                         'returnDate is required when tripType is round_trip'
                     );
                 }
                 // Parse returnDate as date-only (YYYY-MM-DD) to avoid timezone issues
-                const returnDateStr = query.returnDate.split('T')[0]; // Get date part only
+                const returnDateStr = q.returnDate.split('T')[0]; // Get date part only
                 const returnDate = new Date(`${returnDateStr}T00:00:00.000Z`); // Use UTC midnight
                 if (returnDate <= departDate) {
                     throw new BadRequestException('Return date must be after departure date');
@@ -195,13 +199,13 @@ export class SearchController {
             }
 
             const payload: SearchFlightsDto = {
-                origin: query.origin,
-                destination: query.destination,
-                departDate: query.departDate,
-                returnDate: query.returnDate,
-                tripType: tripType,
-                adults: Number(query.adults),
-                minors: Number(query.minors),
+                origin: q.origin,
+                destination: q.destination,
+                departDate: q.departDate,
+                returnDate: q.returnDate,
+                tripType: tripType as TripType,
+                adults: Number(q.adults),
+                minors: Number(q.minors),
             };
             this.logger.debug(`Sending search payload to microservice: ${JSON.stringify(payload)}`);
             const message$ = this.client.send<SearchFlightsResponseDto>('search.flights', payload);
@@ -354,17 +358,18 @@ export class SearchController {
         @Query() query: any,
         @Req() req?: Request & { user?: { userId: string; email: string } }
     ): Promise<FareOptionDto[]> {
+        const q = typeof query === 'function' ? (req?.query as Record<string, string>) : query;
         try {
             // Auto-fetch flightInstanceId and cabinType from booking state if not provided and user is authenticated
-            let flightInstanceId = query.flightInstanceId;
-            let cabinType = query.cabinType;
+            let flightInstanceId = q.flightInstanceId;
+            let cabinType = q.cabinType;
 
             this.logger.debug('getFareOptions - Before auto-fetch:', {
                 hasReq: !!req,
                 hasUser: !!req?.user,
                 userId: req?.user?.userId,
-                queryFlightInstanceId: query.flightInstanceId,
-                queryCabinType: query.cabinType,
+                queryFlightInstanceId: q.flightInstanceId,
+                queryCabinType: q.cabinType,
                 needsAutoFetch: !flightInstanceId || !cabinType,
             });
 
@@ -436,11 +441,11 @@ export class SearchController {
 
             const trimmedFlightInstanceId = flightInstanceId.trim();
             this.logger.debug('Get fare options request:', {
-                original: query.flightInstanceId,
+                original: q.flightInstanceId,
                 trimmed: trimmedFlightInstanceId,
                 length: trimmedFlightInstanceId.length,
                 cabinType: cabinType,
-                autoFetched: !query.flightInstanceId || !query.cabinType,
+                autoFetched: !q.flightInstanceId || !q.cabinType,
             });
 
             const payload: GetFareOptionsDto = {
@@ -595,19 +600,20 @@ export class SearchController {
         @Query() query: GetSeatMapDto,
         @Req() req?: Request & { user?: { userId: string; email: string } }
     ): Promise<SeatMapResponseDto> {
+        const q = typeof query === 'function' ? (req?.query as Record<string, string>) : query;
         try {
             // Manual validation and transformation if needed
-            if (!query.flightInstanceId || typeof query.flightInstanceId !== 'string') {
+            if (!q.flightInstanceId || typeof q.flightInstanceId !== 'string') {
                 throw new BadRequestException('flightInstanceId is required and must be a string');
             }
 
-            const trimmedFlightInstanceId = query.flightInstanceId.trim();
+            const trimmedFlightInstanceId = q.flightInstanceId.trim();
             if (!trimmedFlightInstanceId) {
                 throw new BadRequestException('flightInstanceId cannot be empty');
             }
 
             // Auto-fetch cabinType from booking state if not provided and user is authenticated
-            let cabinType = query.cabinType;
+            let cabinType = q.cabinType;
             if (!cabinType && req?.user?.userId) {
                 try {
                     const bookingState = await this.bookingStateService.getBookingState(
@@ -637,7 +643,7 @@ export class SearchController {
 
             const payload: GetSeatMapDto = {
                 flightInstanceId: trimmedFlightInstanceId,
-                cabinType: cabinType,
+                cabinType: cabinType as CabinType,
             };
             const result = await firstValueFrom(
                 this.client.send<SeatMapResponseDto>(SEARCH_MS.PATTERN.GET_SEAT_MAP, payload)
@@ -817,11 +823,15 @@ export class SearchController {
     @ApiBadRequestResponse({
         description: 'Invalid request parameters',
     })
-    async getCabinServices(@Query() query: GetCabinServicesDto): Promise<CabinServicesResponseDto> {
+    async getCabinServices(
+        @Query() query: GetCabinServicesDto,
+        @Req() req?: Request
+    ): Promise<CabinServicesResponseDto> {
+        const q = typeof query === 'function' ? (req?.query as Record<string, string>) : query;
         try {
             const services = await this.cabinServiceService.getCabinServices(
-                query.fareClassCode,
-                query.cabinClassCode
+                q.fareClassCode,
+                q.cabinClassCode
             );
 
             // Transform to public DTO

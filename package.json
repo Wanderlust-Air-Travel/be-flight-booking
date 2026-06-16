@@ -39,6 +39,7 @@
     "docker:dev:logs": "docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml --env-file .env.development logs -f",
     "docker:dev:logs:gateway": "docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml --env-file .env.development logs -f api-gateway",
     "docker:dev:sync": "npm run build && npm run docker:dev:sync:restart-all",
+    "docker:dev:sync:fe": "cd ../fe-flight-booking && npm run build",
     "docker:dev:sync:restart-all": "node scripts/docker-dev-sync.js restart-all",
     "docker:dev:sync:gateway": "node scripts/docker-dev-sync.js restart api-gateway",
     "docker:dev:sync:service": "node scripts/docker-dev-sync.js restart",

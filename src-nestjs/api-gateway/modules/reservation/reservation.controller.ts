@@ -76,6 +76,9 @@ export class ReservationController {
         @Headers('x-session-id') sessionIdHeader: string | undefined,
         @Body() dto: CreateReservationDto
     ): Promise<ReservationResponseDto> {
+        // Fallback: if NestJS injects the DTO class instead of an instance, read from req.body
+        const body = typeof dto === 'function' ? req.body : dto;
+
         try {
             // Extract userId from JWT token (if authenticated) or use sessionId for guest users
             const userId = req.user?.userId || null;
@@ -95,7 +98,7 @@ export class ReservationController {
                     {
                         userId, // null for guest users
                         sessionId: isGuest ? sessionIdHeader : undefined, // sessionId for guest users
-                        dto,
+                        dto: body,
                     }
                 )
             );
