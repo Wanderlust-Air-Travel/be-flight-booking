@@ -14,7 +14,6 @@
 # =============================================================================
 
 x-env-api-gateway: &env-api-gateway
-  NODE_ENV: ${NODE_ENV:-development}
   DB_HOST: ${DB_HOST:-sqlserver}
   DB_PORT: ${DB_PORT:-1433}
   DB_NAME: ${DB_NAME:-flight_booking_db}
@@ -170,6 +169,8 @@ services:
       - "${API_GATEWAY_PORT:-3000}:3000"
     volumes:
       - ./public:/app/public
+      - ./dist:/app/dist
+      - /app/node_modules
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -205,6 +206,9 @@ services:
       SEARCH_MS_HOST: "0.0.0.0"
       SEARCH_MS_PORT: 4001
     command: ["node", "dist/microservices/search/main.search.js"]
+    volumes:
+      - ./dist:/app/dist
+      - /app/node_modules
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -224,6 +228,9 @@ services:
       SERVICES_MS_HOST: "0.0.0.0"
       SERVICES_MS_PORT: 4002
     command: ["node", "dist/microservices/services/main.services.js"]
+    volumes:
+      - ./dist:/app/dist
+      - /app/node_modules
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -243,6 +250,9 @@ services:
       ROUTES_MS_HOST: "0.0.0.0"
       ROUTES_MS_PORT: 4003
     command: ["node", "dist/microservices/routes/main.routes.js"]
+    volumes:
+      - ./dist:/app/dist
+      - /app/node_modules
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -264,6 +274,9 @@ services:
       RESERVATION_MS_HOST: reservation-ms
       RESERVATION_MS_PORT: ${RESERVATION_MS_PORT:-4005}
     command: ["node", "dist/microservices/booking/main.booking.js"]
+    volumes:
+      - ./dist:/app/dist
+      - /app/node_modules
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -285,6 +298,9 @@ services:
       RESERVATION_MS_HOST: "0.0.0.0"
       RESERVATION_MS_PORT: 4005
     command: ["node", "dist/microservices/reservation/main.reservation.js"]
+    volumes:
+      - ./dist:/app/dist
+      - /app/node_modules
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -305,6 +321,9 @@ services:
       PAYMENT_MS_PORT: 4006
       APP_URL: ${APP_URL:-http://localhost:3001}
     command: ["node", "dist/microservices/payment/main.payment.js"]
+    volumes:
+      - ./dist:/app/dist
+      - /app/node_modules
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -326,6 +345,9 @@ services:
       EMAIL_MS_HOST: "0.0.0.0"
       EMAIL_MS_PORT: 4007
     command: ["node", "dist/microservices/email/main.email.js"]
+    volumes:
+      - ./dist:/app/dist
+      - /app/node_modules
     depends_on:
       sqlserver:
         condition: service_healthy

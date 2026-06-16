@@ -124,6 +124,19 @@ export class BookingStateController {
 
         const identifier = userId || sessionId!;
 
+        // Defensive guard: although the DTO is validated by the global ValidationPipe,
+        // a malformed body can still reach here if the validation pipe is misconfigured
+        // or the request bypasses it. Avoid the 500 TypeError that would happen if
+        // `dto.fareClassCode.toUpperCase()` is called on undefined.
+        if (!dto || !dto.fareClassCode || !dto.cabinType || !dto.flightInstanceId) {
+            this.logger.error(
+                `[saveCabinSelection] Invalid payload received (missing required fields) for ${isGuest ? 'guest session' : 'user'} ${identifier}: ${JSON.stringify(dto)}`
+            );
+            throw new BadRequestException(
+                'flightInstanceId, cabinType, and fareClassCode are all required.'
+            );
+        }
+
         try {
             const result = await this.bookingStateService.saveCabinSelection(
                 identifier,

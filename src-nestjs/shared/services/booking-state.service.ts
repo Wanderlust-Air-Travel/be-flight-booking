@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import {
     BookingStateNotFoundException,
     CabinNotSelectedException,
@@ -40,6 +40,34 @@ export class BookingStateService {
         cabinSelection: CabinSelection,
         isGuest = false
     ): Promise<{ success: boolean; message: string }> {
+        // Defensive validation: ensure required fields are present before processing
+        // This protects against malformed requests that bypass DTO validation (e.g. direct API calls,
+        // or clients sending undefined/null values for required fields)
+        if (!cabinSelection || typeof cabinSelection !== 'object') {
+            this.logger.warn(
+                `Missing cabin selection payload for ${isGuest ? 'guest session' : 'user'} ${identifier}`
+            );
+            throw new BadRequestException('Cabin selection payload is required.');
+        }
+        if (!cabinSelection.fareClassCode || typeof cabinSelection.fareClassCode !== 'string') {
+            this.logger.warn(
+                `Missing or invalid fareClassCode for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${cabinSelection.flightInstanceId}`
+            );
+            throw new BadRequestException('fareClassCode is required and must be a non-empty string.');
+        }
+        if (!cabinSelection.cabinType || typeof cabinSelection.cabinType !== 'string') {
+            this.logger.warn(
+                `Missing or invalid cabinType for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${cabinSelection.flightInstanceId}`
+            );
+            throw new BadRequestException('cabinType is required and must be a non-empty string.');
+        }
+        if (!cabinSelection.flightInstanceId || typeof cabinSelection.flightInstanceId !== 'string') {
+            this.logger.warn(
+                `Missing or invalid flightInstanceId for ${isGuest ? 'guest session' : 'user'} ${identifier}`
+            );
+            throw new BadRequestException('flightInstanceId is required and must be a non-empty string.');
+        }
+
         this.logger.log(
             `Saving cabin selection for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${cabinSelection.flightInstanceId}`
         );
@@ -47,7 +75,7 @@ export class BookingStateService {
         // Business rule: Validate fare class code matches cabin type
         // Economy fare classes start with 'Y' (e.g., 'YS', 'YF', 'YSM')
         // Business fare classes start with 'J' (e.g., 'JS', 'JF', 'JFLX')
-        const fareClassCode = cabinSelection.fareClassCode.toUpperCase();
+        const fareClassCode = cabinSelection.fareClassCode.toUpperCase().trim();
         const expectedPrefix = cabinSelection.cabinType === 'economy' ? 'Y' : 'J';
 
         if (!fareClassCode.startsWith(expectedPrefix)) {

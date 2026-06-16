@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import {
     BookingStateNotFoundException,
@@ -99,6 +100,70 @@ describe('BookingStateService', () => {
                     cabin: mockCabinSelection,
                     seat: mockSeatSelection, // Existing seat should be preserved
                 })
+            );
+        });
+
+        it('should throw BadRequestException when fareClassCode is missing', async () => {
+            const invalidPayload = {
+                flightInstanceId: mockFlightInstanceId,
+                cabinType: 'economy',
+            } as unknown as CabinSelection;
+
+            await expect(
+                service.saveCabinSelection(mockUserId, invalidPayload)
+            ).rejects.toThrow(BadRequestException);
+            expect(repository.save).not.toHaveBeenCalled();
+        });
+
+        it('should throw BadRequestException when fareClassCode is undefined', async () => {
+            const invalidPayload = {
+                flightInstanceId: mockFlightInstanceId,
+                cabinType: 'economy',
+                fareClassCode: undefined,
+            } as unknown as CabinSelection;
+
+            await expect(
+                service.saveCabinSelection(mockUserId, invalidPayload)
+            ).rejects.toThrow(BadRequestException);
+            expect(repository.save).not.toHaveBeenCalled();
+        });
+
+        it('should throw BadRequestException when cabinType is missing', async () => {
+            const invalidPayload = {
+                flightInstanceId: mockFlightInstanceId,
+                fareClassCode: 'YS',
+            } as unknown as CabinSelection;
+
+            await expect(
+                service.saveCabinSelection(mockUserId, invalidPayload)
+            ).rejects.toThrow(BadRequestException);
+            expect(repository.save).not.toHaveBeenCalled();
+        });
+
+        it('should throw BadRequestException when payload is null', async () => {
+            await expect(
+                service.saveCabinSelection(mockUserId, null as unknown as CabinSelection)
+            ).rejects.toThrow(BadRequestException);
+            expect(repository.save).not.toHaveBeenCalled();
+        });
+
+        it('should trim and uppercase fareClassCode before validation', async () => {
+            jest.spyOn(repository, 'findOne').mockResolvedValue(null);
+            jest.spyOn(repository, 'save').mockResolvedValue(undefined);
+
+            const result = await service.saveCabinSelection(mockUserId, {
+                ...mockCabinSelection,
+                fareClassCode: '  ys  ',
+            });
+
+            expect(result.success).toBe(true);
+            expect(repository.save).toHaveBeenCalledWith(
+                mockUserId,
+                mockFlightInstanceId,
+                expect.objectContaining({
+                    cabin: expect.objectContaining({ fareClassCode: '  ys  ' }),
+                }),
+                false
             );
         });
     });
