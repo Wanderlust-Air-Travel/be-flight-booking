@@ -1825,49 +1825,78 @@ async function run() {
     }
 
     // ============================================================
-    // 5. ADMIN USER (1 user for login; roles from migrations)
+    // 5. TEST USERS (1 user per role; password shared for dev only)
     // ============================================================
-    console.log('\nSeeding admin user...');
+    console.log('\nSeeding test users (one per role)...');
     const passwordHash = await bcrypt.hash('Password123!', 10);
-    let adminUser = await repos.user.findOne({ where: { email: 'admin@flightbooking.com' } });
-    if (!adminUser) {
-        adminUser = await repos.user.save(
-            repos.user.create({
-                user_id: uuidv7(),
-                fullname: 'System Administrator',
-                email: 'admin@flightbooking.com',
-                password_hash: passwordHash,
-                phone: '0900000001',
-                is_active: true,
-            })
-        );
-        console.log('  Created admin user: admin@flightbooking.com (password: Password123!)');
-    }
-    const adminRole = await repos.role.findOne({ where: { role_code: SystemRole.ADMIN } });
-    const customerRole = await repos.role.findOne({ where: { role_code: SystemRole.CUSTOMER } });
-    if (adminRole) {
-        const hasAdmin = await repos.userRole.findOne({
-            where: { user_id: adminUser.user_id, role_code: SystemRole.ADMIN },
-        });
-        if (!hasAdmin) {
-            await repos.userRole.save(
-                repos.userRole.create({ user_id: adminUser.user_id, role_code: SystemRole.ADMIN })
-            );
-            console.log('  Assigned role ADMIN');
-        }
-    }
-    if (customerRole) {
-        const hasCustomer = await repos.userRole.findOne({
-            where: { user_id: adminUser.user_id, role_code: SystemRole.CUSTOMER },
-        });
-        if (!hasCustomer) {
-            await repos.userRole.save(
-                repos.userRole.create({
-                    user_id: adminUser.user_id,
-                    role_code: SystemRole.CUSTOMER,
+
+    // Mapping: roleCode -> { email, fullname, phone, roleName }
+    const testUserMappings: Array<{ role: SystemRole; fullname: string; phone: string }> = [
+        { role: SystemRole.CUSTOMER, fullname: 'Test Customer', phone: '0900000010' },
+        { role: SystemRole.TRAVEL_AGENT, fullname: 'Test Travel Agent', phone: '0900000011' },
+        { role: SystemRole.SCHEDULE_PLANNER, fullname: 'Test Schedule Planner', phone: '0900000012' },
+        { role: SystemRole.REVENUE_ANALYST, fullname: 'Test Revenue Analyst', phone: '0900000013' },
+        { role: SystemRole.ANCILLARY_MANAGER, fullname: 'Test Ancillary Manager', phone: '0900000014' },
+        { role: SystemRole.CALL_CENTER, fullname: 'Test Call Center', phone: '0900000015' },
+        { role: SystemRole.ADMIN, fullname: 'System Administrator', phone: '0900000001' },
+        { role: SystemRole.ACCOUNTING_STAFF, fullname: 'Test Accounting Staff', phone: '0900000016' },
+        { role: SystemRole.DISTRIBUTION_MANAGER, fullname: 'Test Distribution Manager', phone: '0900000017' },
+        { role: SystemRole.FRAUD_ANALYST, fullname: 'Test Fraud Analyst', phone: '0900000018' },
+    ];
+
+    const createdTestUserEmails: string[] = [];
+
+    for (const mapping of testUserMappings) {
+        const email = `${mapping.role.toLowerCase()}@flightbooking.com`;
+        let user = await repos.user.findOne({ where: { email } });
+        if (!user) {
+            user = await repos.user.save(
+                repos.user.create({
+                    user_id: uuidv7(),
+                    fullname: mapping.fullname,
+                    email,
+                    password_hash: passwordHash,
+                    phone: mapping.phone,
+                    is_active: true,
                 })
             );
-            console.log('  Assigned role CUSTOMER');
+            console.log(`  Created user: ${email} (password: Password123!)`);
+        }
+        createdTestUserEmails.push(email);
+
+        // Assign the role
+        const role = await repos.role.findOne({ where: { role_code: mapping.role } });
+        if (role) {
+            const hasRole = await repos.userRole.findOne({
+                where: { user_id: user.user_id, role_code: mapping.role },
+            });
+            if (!hasRole) {
+                await repos.userRole.save(
+                    repos.userRole.create({ user_id: user.user_id, role_code: mapping.role })
+                );
+                console.log(`  Assigned role ${mapping.role} to ${email}`);
+            }
+        }
+    }
+
+    // Assign CUSTOMER role to admin (backward compatibility with original seed)
+    const adminEmail = 'admin@flightbooking.com';
+    const adminUser = await repos.user.findOne({ where: { email: adminEmail } });
+    if (adminUser) {
+        const customerRole = await repos.role.findOne({ where: { role_code: SystemRole.CUSTOMER } });
+        if (customerRole) {
+            const hasCustomer = await repos.userRole.findOne({
+                where: { user_id: adminUser.user_id, role_code: SystemRole.CUSTOMER },
+            });
+            if (!hasCustomer) {
+                await repos.userRole.save(
+                    repos.userRole.create({
+                        user_id: adminUser.user_id,
+                        role_code: SystemRole.CUSTOMER,
+                    })
+                );
+                console.log('  Assigned role CUSTOMER to admin@flightbooking.com');
+            }
         }
     }
 

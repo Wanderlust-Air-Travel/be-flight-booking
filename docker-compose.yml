@@ -168,8 +168,8 @@ services:
     ports:
       - "${API_GATEWAY_PORT:-3000}:3000"
     volumes:
-      - ./public:/app/public
-      - ./dist:/app/dist
+      - api_gateway_public:/app/public
+      - api_gateway_dist:/app/dist
       - /app/node_modules
     depends_on:
       sqlserver:
@@ -207,7 +207,7 @@ services:
       SEARCH_MS_PORT: 4001
     command: ["node", "dist/microservices/search/main.search.js"]
     volumes:
-      - ./dist:/app/dist
+      - search_ms_dist:/app/dist
       - /app/node_modules
     depends_on:
       sqlserver:
@@ -229,7 +229,7 @@ services:
       SERVICES_MS_PORT: 4002
     command: ["node", "dist/microservices/services/main.services.js"]
     volumes:
-      - ./dist:/app/dist
+      - services_ms_dist:/app/dist
       - /app/node_modules
     depends_on:
       sqlserver:
@@ -251,7 +251,7 @@ services:
       ROUTES_MS_PORT: 4003
     command: ["node", "dist/microservices/routes/main.routes.js"]
     volumes:
-      - ./dist:/app/dist
+      - routes_ms_dist:/app/dist
       - /app/node_modules
     depends_on:
       sqlserver:
@@ -275,7 +275,7 @@ services:
       RESERVATION_MS_PORT: ${RESERVATION_MS_PORT:-4005}
     command: ["node", "dist/microservices/booking/main.booking.js"]
     volumes:
-      - ./dist:/app/dist
+      - booking_ms_dist:/app/dist
       - /app/node_modules
     depends_on:
       sqlserver:
@@ -299,7 +299,7 @@ services:
       RESERVATION_MS_PORT: 4005
     command: ["node", "dist/microservices/reservation/main.reservation.js"]
     volumes:
-      - ./dist:/app/dist
+      - reservation_ms_dist:/app/dist
       - /app/node_modules
     depends_on:
       sqlserver:
@@ -322,7 +322,7 @@ services:
       APP_URL: ${APP_URL:-http://localhost:3001}
     command: ["node", "dist/microservices/payment/main.payment.js"]
     volumes:
-      - ./dist:/app/dist
+      - payment_ms_dist:/app/dist
       - /app/node_modules
     depends_on:
       sqlserver:
@@ -346,7 +346,7 @@ services:
       EMAIL_MS_PORT: 4007
     command: ["node", "dist/microservices/email/main.email.js"]
     volumes:
-      - ./dist:/app/dist
+      - email_ms_dist:/app/dist
       - /app/node_modules
     depends_on:
       sqlserver:
@@ -355,3 +355,17 @@ services:
         condition: service_healthy
     healthcheck:
       disable: true
+
+volumes:
+  api_gateway_public:
+  api_gateway_dist:
+  search_ms_dist:
+  services_ms_dist:
+  routes_ms_dist:
+  booking_ms_dist:
+  reservation_ms_dist:
+  payment_ms_dist:
+  email_ms_dist:
+  sqlserver_data:
+  redis_data:
+  rabbitmq_data:
