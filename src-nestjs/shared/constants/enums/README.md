@@ -5,7 +5,7 @@ Tất cả enum được sử dụng chung giữa API Gateway và Microservices 
 ## Cấu trúc
 
 ```
-src/shared/constants/enums/
+src-nestjs/shared/constants/enums/
 ├── payment.enum.ts    # Payment-related enums
 ├── search.enum.ts     # Search-related enums
 ├── email.enum.ts      # Email-related enums
@@ -101,7 +101,7 @@ export class CreatePaymentDto {
 
 ## Thêm enum mới
 
-1. Tạo file enum mới trong `src/shared/constants/enums/` (ví dụ: `booking.enum.ts`)
+1. Tạo file enum mới trong `src-nestjs/shared/constants/enums/` (ví dụ: `booking.enum.ts`)
 2. Export enum từ file mới
 3. Thêm export vào `index.ts`:
    ```typescript

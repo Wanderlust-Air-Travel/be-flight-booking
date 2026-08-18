@@ -25,7 +25,7 @@ async function waitForDatabaseCreated(): Promise<boolean> {
         server: dbHost,
         port: dbPort,
         user: process.env.DB_USER || 'sa',
-        password: process.env.DB_PASS || process.env.SA_PASSWORD || 'Passw0rd123!',
+        password: process.env.DB_PASS || process.env.SA_PASSWORD || 'Strong!Pass1234',
         database: dbName, // Try to connect to the target database
         options: {
           encrypt: false,

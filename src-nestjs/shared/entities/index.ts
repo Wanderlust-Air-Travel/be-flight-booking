@@ -13,6 +13,7 @@ export * from './passenger/passenger.entity';
 export * from './aircraft/aircraft.entity';
 export * from './aircraft/aircraft-type.entity';
 export * from './airport/airport.entity';
+export * from './airline/airline.entity';
 
 // Flight & Route
 export * from './route/route.entity';

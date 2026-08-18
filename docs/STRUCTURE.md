@@ -271,7 +271,7 @@ Hệ thống hỗ trợ **Guest Booking** - cho phép người dùng chưa đăn
 ## Cấu trúc thư mục
 
 ```
-src/
+src-nestjs/
 ├── api-gateway/          # Cổng API (cổng 3000)
 │   └── modules/
 │       └── realtime/     # WebSocket Gateway cho real-time updates

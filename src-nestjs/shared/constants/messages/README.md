@@ -9,7 +9,7 @@ Hệ thống messages tập trung cho toàn bộ Backend, tuân theo nguyên t�
 Messages được phân loại theo **domain** (Auth, Booking, Payment, Search, Reservation) và **loại** (SUCCESS, ERROR, VALIDATION):
 
 ```
-src/shared/constants/messages/
+src-nestjs/shared/constants/messages/
 ├── auth.messages.ts          # Authentication messages
 ├── booking.messages.ts       # Booking messages
 ├── payment.messages.ts        # Payment messages

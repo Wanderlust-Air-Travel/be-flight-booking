@@ -151,7 +151,7 @@ pipeline {
                                 cd ${env.APP_DIR}
 
                                 # Pull Docker images
-                                docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+                                docker compose -f docker-compose.development.yml -f docker-compose.prod.yml pull
 
                                 # Update env
                                 cat > .env << 'EOF'
@@ -205,7 +205,7 @@ LOG_LEVEL=info
 LOG_FORMAT=json
 EOF
 
-                                docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+                                docker compose -f docker-compose.development.yml -f docker-compose.prod.yml up -d --build
 
                                 echo "Waiting for services..."
                                 sleep 15
@@ -248,11 +248,11 @@ EOF
                                 # Backup before deployment
                                 mkdir -p backups
                                 DATE=\$(date +%Y%m%d_%H%M%S)
-                                docker compose -f docker-compose.yml exec -T postgres pg_dump -U flightbooking flightbooking 2>/dev/null | gzip > backups/db_backup_\${DATE}.sql.gz || true
+                                docker compose -f docker-compose.development.yml exec -T postgres pg_dump -U flightbooking flightbooking 2>/dev/null | gzip > backups/db_backup_\${DATE}.sql.gz || true
                                 echo "Backup created: db_backup_\${DATE}.sql.gz"
 
                                 # Pull images
-                                docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+                                docker compose -f docker-compose.development.yml -f docker-compose.prod.yml pull
 
                                 # Update env
                                 cat > .env << 'EOF'
@@ -306,7 +306,7 @@ LOG_LEVEL=warn
 LOG_FORMAT=json
 EOF
 
-                                docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+                                docker compose -f docker-compose.development.yml -f docker-compose.prod.yml up -d --build
 
                                 echo "Waiting for services..."
                                 sleep 20
@@ -317,7 +317,7 @@ EOF
                                 curl -sf http://localhost:8091/healthz && echo " Booking: OK" || { echo " Booking: FAILED"; exit 1; }
                                 curl -sf http://localhost:8092/healthz && echo " Payment: OK" || { echo " Payment: FAILED"; exit 1; }
 
-                                docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
+                                docker compose -f docker-compose.development.yml -f docker-compose.prod.yml ps
 
                                 echo "Production deployment complete!"
                             ENDSSH

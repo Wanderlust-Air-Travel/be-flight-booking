@@ -22,7 +22,7 @@ async function waitForSQLServer(): Promise<boolean> {
   const defaultPort = isDockerNetwork ? 1433 : 1434; // 1434 is host port mapped from Docker container 1433
   const dbPort = parseInt(process.env.DB_PORT || defaultPort.toString(), 10);
   const dbUser = process.env.DB_USER || 'sa';
-  const dbPassword = process.env.DB_PASS || process.env.SA_PASSWORD || 'Passw0rd123!';
+  const dbPassword = process.env.DB_PASS || process.env.SA_PASSWORD || 'Strong!Pass1234';
   
   console.log(`Connection info: ${dbHost}:${dbPort} (user: ${dbUser})`);
   if (isDockerNetwork) {

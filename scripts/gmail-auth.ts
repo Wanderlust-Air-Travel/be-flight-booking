@@ -41,7 +41,7 @@ if (!existsSync(credentialsPath)) {
   console.error('   2. Create OAuth 2.0 credentials (Desktop app type)');
   console.error('   3. Download credentials JSON file');
   console.error('   4. Save as "credentials_desktop_apps.json" in project root');
-  console.error('\nSee docs/setup/GMAIL_SETUP.md for detailed instructions');
+  console.error('\nSee Google Cloud Console to setup OAuth 2.0 credentials');
   process.exit(1);
 }
 

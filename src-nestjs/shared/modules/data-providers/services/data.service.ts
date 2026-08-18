@@ -1,15 +1,22 @@
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { RedisService } from '../../../modules/redis/redis.service';
 import {
     AircraftDto,
     AirlineDto,
     AirportDto,
+    FlightOfferDto,
     FlightSearchParams,
     FlightSearchResultDto,
 } from '../interfaces/data-provider.dto';
-import { MockProvider } from '../providers/mock.provider';
 import { OurairportsProvider } from '../providers/ourairports.provider';
+import { Airline } from '../../../entities/airline/airline.entity';
+import { AircraftType } from '../../../entities/aircraft/aircraft-type.entity';
+import { FlightInstance } from '../../../entities/flight/flight-instance.entity';
+import { Route } from '../../../entities/route/route.entity';
+import { RouteFarePrice } from '../../../entities/fare/route-fare-price.entity';
 
 @Injectable()
 export class DataService implements OnModuleInit {
@@ -26,9 +33,18 @@ export class DataService implements OnModuleInit {
 
     constructor(
         private readonly ourProvider: OurairportsProvider,
-        private readonly mockProvider: MockProvider,
         private readonly redis: RedisService,
-        private readonly configService: ConfigService
+        private readonly configService: ConfigService,
+        @InjectRepository(Airline)
+        private readonly airlineRepository: Repository<Airline>,
+        @InjectRepository(AircraftType)
+        private readonly aircraftTypeRepository: Repository<AircraftType>,
+        @InjectRepository(FlightInstance)
+        private readonly flightInstanceRepository: Repository<FlightInstance>,
+        @InjectRepository(Route)
+        private readonly routeRepository: Repository<Route>,
+        @InjectRepository(RouteFarePrice)
+        private readonly routeFarePriceRepository: Repository<RouteFarePrice>
     ) {}
 
     async onModuleInit(): Promise<void> {
@@ -78,26 +94,50 @@ export class DataService implements OnModuleInit {
         if (!forceRefresh) {
             const cached = await this.redis.get<AirlineDto[]>(this.CACHE_KEYS.AIRLINES);
             if (cached) {
+                this.logger.debug(`Airlines cache hit (${cached.length} airlines)`);
                 return cached;
             }
         }
 
-        const airlines = await this.mockProvider.getAirlines();
-        await this.redis.set(this.CACHE_KEYS.AIRLINES, airlines);
-        return airlines;
+        this.logger.log('Fetching airlines from database...');
+        const airlines = await this.airlineRepository.find({
+            order: { name: 'ASC' },
+        });
+
+        const airlineDtos: AirlineDto[] = airlines.map((airline) => ({
+            iata_code: airline.iata_code,
+            icao_code: airline.icao_code ?? '',
+            name: airline.name,
+            callsign: airline.callsign ?? undefined,
+            country: airline.country ?? undefined,
+        }));
+
+        await this.redis.set(this.CACHE_KEYS.AIRLINES, airlineDtos);
+        return airlineDtos;
     }
 
     async getAircraft(forceRefresh = false): Promise<AircraftDto[]> {
         if (!forceRefresh) {
             const cached = await this.redis.get<AircraftDto[]>(this.CACHE_KEYS.AIRCRAFT);
             if (cached) {
+                this.logger.debug(`Aircraft cache hit (${cached.length} aircraft types)`);
                 return cached;
             }
         }
 
-        const aircraft = await this.mockProvider.getAircraft();
-        await this.redis.set(this.CACHE_KEYS.AIRCRAFT, aircraft);
-        return aircraft;
+        this.logger.log('Fetching aircraft types from database...');
+        const aircraftTypes = await this.aircraftTypeRepository.find({
+            order: { code: 'ASC' },
+        });
+
+        const aircraftDtos: AircraftDto[] = aircraftTypes.map((at) => ({
+            iata_code: at.code,
+            name: `${at.manufacturer} ${at.model}`,
+            category: at.total_seats > 250 ? 'widebody' : 'narrowbody',
+        }));
+
+        await this.redis.set(this.CACHE_KEYS.AIRCRAFT, aircraftDtos);
+        return aircraftDtos;
     }
 
     async searchFlights(params: FlightSearchParams): Promise<FlightSearchResultDto> {
@@ -109,9 +149,80 @@ export class DataService implements OnModuleInit {
             return cached;
         }
 
-        const result = await this.mockProvider.searchFlights(params);
-        await this.redis.set(cacheKey, result, this.CACHE_TTL_LIVE);
+        this.logger.log(`Searching flights from database: ${params.origin} -> ${params.destination} on ${params.departureDate}`);
 
+        const departureDate = new Date(params.departureDate);
+        departureDate.setHours(0, 0, 0, 0);
+
+        const nextDay = new Date(departureDate);
+        nextDay.setDate(nextDay.getDate() + 1);
+
+        const cabinClassFilter = params.cabinClass?.toUpperCase() || 'Y';
+        const cabinClassCode = cabinClassFilter === 'ECONOMY' ? 'Y' : cabinClassFilter === 'BUSINESS' ? 'J' : cabinClassFilter === 'FIRST' ? 'F' : cabinClassFilter;
+
+        const flights = await this.flightInstanceRepository
+            .createQueryBuilder('fi')
+            .innerJoinAndSelect('fi.flight_schedule', 'fs')
+            .innerJoinAndSelect('fs.route', 'route')
+            .innerJoinAndSelect('route.origin_airport', 'origin')
+            .innerJoinAndSelect('route.destination_airport', 'destination')
+            .innerJoinAndSelect('fs.aircraft_type', 'aircraftType')
+            .innerJoinAndSelect('fi.aircraft', 'aircraft')
+            .leftJoinAndSelect(
+                RouteFarePrice,
+                'rfp',
+                'rfp.route_id = route.route_id AND rfp.fare_class_code = :cabinClassCode',
+                { cabinClassCode }
+            )
+            .where('origin.iata_code = :origin', { origin: params.origin })
+            .andWhere('destination.iata_code = :destination', { destination: params.destination })
+            .andWhere('fi.flight_date >= :departureDate', { departureDate })
+            .andWhere('fi.flight_date < :nextDay', { nextDay })
+            .andWhere('fi.status = :status', { status: 'scheduled' })
+            .orderBy('fi.departure_datetime_local', 'ASC')
+            .getMany();
+
+        const passengerCount = (params.adults || 1) + (params.children || 0);
+        const cabinMultiplier = cabinClassCode === 'J' ? 3 : cabinClassCode === 'F' ? 5 : 1;
+
+        const flightOffers: FlightOfferDto[] = flights.map((flight, index) => {
+            const basePrice = flight.routeFarePrices?.[0]?.base_price
+                ? Number(flight.routeFarePrices[0].base_price)
+                : 500000 + index * 350000;
+
+            const flightNumber = flight.flight_schedule?.flight_number || flight.flight_number;
+            const airlineCode = flightNumber.substring(0, 2);
+
+            return {
+                id: `${flightNumber}_${params.departureDate}`,
+                origin: params.origin,
+                destination: params.destination,
+                departureTime: new Date(flight.departure_datetime_local).toISOString(),
+                arrivalTime: new Date(flight.arrival_datetime_local).toISOString(),
+                duration: this.calculateDuration(
+                    new Date(flight.departure_datetime_local),
+                    new Date(flight.arrival_datetime_local)
+                ),
+                airline: airlineCode,
+                flightNumber: flightNumber,
+                aircraft: flight.flight_schedule?.aircraft_type?.code || undefined,
+                stops: 0,
+                price: {
+                    total: basePrice * cabinMultiplier * passengerCount,
+                    currency: 'VND',
+                },
+                seatsAvailable: 20 + index * 15,
+            };
+        });
+
+        const result: FlightSearchResultDto = {
+            flights: flightOffers,
+            currency: 'VND',
+            totalResults: flightOffers.length,
+            provider: 'database',
+        };
+
+        await this.redis.set(cacheKey, result, this.CACHE_TTL_LIVE);
         return result;
     }
 
@@ -126,7 +237,13 @@ export class DataService implements OnModuleInit {
             latencyMs: Date.now() - start,
         });
 
-        results.push({ provider: 'MockProvider', available: true, latencyMs: 0 });
+        const dbStart = Date.now();
+        try {
+            await this.airlineRepository.count();
+            results.push({ provider: 'Database', available: true, latencyMs: Date.now() - dbStart });
+        } catch {
+            results.push({ provider: 'Database', available: false, latencyMs: Date.now() - dbStart });
+        }
 
         return results;
     }
@@ -139,13 +256,20 @@ export class DataService implements OnModuleInit {
         this.logger.log('Data cache cleared');
     }
 
+    private calculateDuration(departure: Date, arrival: Date): string {
+        const diffMs = arrival.getTime() - departure.getTime();
+        const hours = Math.floor(diffMs / (1000 * 60 * 60));
+        const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+        return `PT${hours}H${minutes}M`;
+    }
+
     private printBanner(): void {
         console.log(`
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║  DATA BOOTSTRAP                                                          ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
-║  Source: OurAirports (free CSV) + Mock Data                             ║
+║  Source: OurAirports (airports) + Database (airlines, aircraft, flights) ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
-    `);
+        `);
     }
 }

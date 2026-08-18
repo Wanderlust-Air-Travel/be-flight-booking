@@ -6,7 +6,7 @@
  * Picks up local source changes inside the running Docker stack without
  * rebuilding images. Requires the stack to be started with the bind-mount
  *   ./dist:/app/dist
- * that this project ships in docker-compose.yml.
+ * that this project ships in docker-compose.development.yml.
  *
  * Subcommands:
  *   restart-all            restart every app service (microservices first,
@@ -63,7 +63,7 @@ function restartAll() {
     if (!dockerRunning(service)) {
       console.warn(
         `[docker-dev-sync] skip ${containerName(service)}: container is not running. ` +
-          `Start the stack with: docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml --env-file .env.development up -d`,
+          `Start the stack with: NODE_ENV=development npm run docker:dev:up`,
       );
       continue;
     }
@@ -83,7 +83,7 @@ function restartOne(service) {
   if (!dockerRunning(service)) {
     console.error(
       `[docker-dev-sync] container ${containerName(service)} is not running. ` +
-        `Start the stack with: docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml --env-file .env.development up -d`,
+        `Start the stack with: NODE_ENV=development npm run docker:dev:up`,
     );
     process.exit(1);
   }

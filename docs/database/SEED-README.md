@@ -38,7 +38,7 @@ npm run sync:flight-data       # (Optional) Sync từ Amadeus test
 
 ```bash
 # Cách 1: Xóa Docker volumes (mất hết data)
-docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml down -v
+docker compose -f docker-compose.infrastructure.yml -f docker-compose.development.yml down -v
 npm run docker:init-db
 npm run seed:full
 
@@ -104,11 +104,11 @@ Sau `seed:full` + `seed:internal-schedule`:
 
 **Cách 1: Sử dụng script SQL (Khuyến nghị)**
 
-Sử dụng file `sql/utils/data-management/clear-all-seed-data.sql` để xóa toàn bộ data một cách an toàn:
+Sử dụng TypeORM để xóa toàn bộ data một cách an toàn (chạy lại migration hoặc drop schema):
 
 1. Mở **SQL Server Management Studio (SSMS)**
 2. Kết nối đến database của bạn
-3. Mở file `sql/utils/data-management/clear-all-seed-data.sql`
+3. Chạy migration revert hoặc tái tạo schema
 4. **Lưu ý**: Kiểm tra và sửa database name trong file (dòng 6):
    ```sql
    USE flight_booking_db;  -- Thay đổi nếu database name khác

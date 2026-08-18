@@ -19,6 +19,7 @@ import {
 } from 'src/shared/constants/seat.constants';
 import { AircraftType } from 'src/shared/entities/aircraft/aircraft-type.entity';
 import { Aircraft } from 'src/shared/entities/aircraft/aircraft.entity';
+import { Airline } from 'src/shared/entities/airline/airline.entity';
 import { Airport } from 'src/shared/entities/airport/airport.entity';
 import { BookingPassenger } from 'src/shared/entities/booking/booking-passenger.entity';
 import { BookingSegmentService } from 'src/shared/entities/booking/booking-segment-service.entity';
@@ -69,6 +70,7 @@ const ds = new DataSource({
     },
     entities: [
         Airport,
+        Airline,
         Route,
         FlightSchedule,
         FlightInstance,
@@ -164,6 +166,7 @@ async function run() {
 
     const repos = {
         airport: ds.getRepository(Airport),
+        airline: ds.getRepository(Airline),
         route: ds.getRepository(Route),
         schedule: ds.getRepository(FlightSchedule),
         instance: ds.getRepository(FlightInstance),
@@ -243,6 +246,113 @@ async function run() {
         if (!existing) {
             await repos.paymentMethod.save(repos.paymentMethod.create(pm));
             console.log(`  Created payment method: ${pm.payment_method_code}`);
+        }
+    }
+
+    // ============================================================
+    // 1.5. AIRLINES
+    // ============================================================
+    console.log('\nSeeding Airlines...');
+
+    const airlines = [
+        {
+            iata_code: 'VN',
+            icao_code: 'HVN',
+            name: 'Vietnam Airlines',
+            callsign: 'VIETNAM AIR',
+            country: 'Vietnam',
+        },
+        {
+            iata_code: 'VJ',
+            icao_code: 'VJC',
+            name: 'VietJet Air',
+            callsign: 'VIETJET',
+            country: 'Vietnam',
+        },
+        {
+            iata_code: 'BL',
+            icao_code: 'AV',
+            name: 'Bamboo Airways',
+            callsign: 'BAMBOO',
+            country: 'Vietnam',
+        },
+        {
+            iata_code: 'AA',
+            icao_code: 'AAL',
+            name: 'American Airlines',
+            callsign: 'AMERICAN',
+            country: 'United States',
+        },
+        {
+            iata_code: 'BA',
+            icao_code: 'BAW',
+            name: 'British Airways',
+            callsign: 'SPEEDBIRD',
+            country: 'United Kingdom',
+        },
+        {
+            iata_code: 'AF',
+            icao_code: 'AFR',
+            name: 'Air France',
+            callsign: 'AIRFRANS',
+            country: 'France',
+        },
+        {
+            iata_code: 'LH',
+            icao_code: 'DLH',
+            name: 'Lufthansa',
+            callsign: 'LUFTHANSA',
+            country: 'Germany',
+        },
+        {
+            iata_code: 'EK',
+            icao_code: 'UAE',
+            name: 'Emirates',
+            callsign: 'EMIRATES',
+            country: 'UAE',
+        },
+        {
+            iata_code: 'SQ',
+            icao_code: 'SIA',
+            name: 'Singapore Airlines',
+            callsign: 'SINGAPORE',
+            country: 'Singapore',
+        },
+        {
+            iata_code: 'NH',
+            icao_code: 'ANA',
+            name: 'All Nippon Airways',
+            callsign: 'ALL NIPPON',
+            country: 'Japan',
+        },
+        {
+            iata_code: 'QF',
+            icao_code: 'QFA',
+            name: 'Qantas',
+            callsign: 'QANTAS',
+            country: 'Australia',
+        },
+        {
+            iata_code: 'KE',
+            icao_code: 'KOR',
+            name: 'Korean Air',
+            callsign: 'KOREAN AIR',
+            country: 'South Korea',
+        },
+    ];
+
+    for (const airline of airlines) {
+        const existing = await repos.airline.findOne({
+            where: { iata_code: airline.iata_code },
+        });
+        if (!existing) {
+            await repos.airline.save(
+                repos.airline.create({
+                    airline_id: uuidv7(),
+                    ...airline,
+                })
+            );
+            console.log(`  Created airline: ${airline.iata_code} - ${airline.name}`);
         }
     }
 
@@ -1743,36 +1853,57 @@ async function run() {
     }
 
     // ============================================================
-    // 3. AIRCRAFT TYPE & AIRCRAFT (minimal – for provider sync)
+    // 3. AIRCRAFT TYPES & AIRCRAFTS
     // ============================================================
-    console.log('\nSeeding default Aircraft Type and Aircraft (for provider flight data)...');
+    console.log('\nSeeding Aircraft Types and Aircraft...');
 
-    let defaultAircraftType = await repos.aircraftType.findOne({ where: { code: 'A320' } });
-    if (!defaultAircraftType) {
-        defaultAircraftType = await repos.aircraftType.save(
-            repos.aircraftType.create({
-                aircraft_type_id: uuidv7(),
-                code: 'A320',
-                manufacturer: 'Airbus',
-                model: 'A320-200',
-                total_seats: 180,
-            })
-        );
-        console.log('  Created aircraft type: A320');
+    const aircraftTypes = [
+        { code: '320', manufacturer: 'Airbus', model: 'A320-200', total_seats: 180 },
+        { code: '321', manufacturer: 'Airbus', model: 'A321-200', total_seats: 220 },
+        { code: '319', manufacturer: 'Airbus', model: 'A319-100', total_seats: 140 },
+        { code: '332', manufacturer: 'Airbus', model: 'A330-200', total_seats: 293 },
+        { code: '359', manufacturer: 'Airbus', model: 'A350-900', total_seats: 325 },
+        { code: '789', manufacturer: 'Boeing', model: '787-9 Dreamliner', total_seats: 280 },
+        { code: '77W', manufacturer: 'Boeing', model: '777-300ER', total_seats: 396 },
+        { code: '738', manufacturer: 'Boeing', model: '737-800', total_seats: 162 },
+    ];
+
+    const seededAircraftTypes: AircraftType[] = [];
+    for (const at of aircraftTypes) {
+        let aircraftType = await repos.aircraftType.findOne({ where: { code: at.code } });
+        if (!aircraftType) {
+            aircraftType = await repos.aircraftType.save(
+                repos.aircraftType.create({
+                    aircraft_type_id: uuidv7(),
+                    ...at,
+                })
+            );
+            console.log(`  Created aircraft type: ${at.code} - ${at.model}`);
+        }
+        seededAircraftTypes.push(aircraftType);
     }
 
-    let defaultAircraft = await repos.aircraft.findOne({ where: { registration: 'VN-A320-001' } });
-    if (!defaultAircraft) {
-        defaultAircraft = await repos.aircraft.save(
-            repos.aircraft.create({
-                aircraft_id: uuidv7(),
-                aircraft_type: defaultAircraftType,
-                registration: 'VN-A320-001',
-                in_service: true,
-            })
-        );
-        console.log('  Created aircraft: VN-A320-001');
+    // Create a default aircraft for each aircraft type
+    for (const aircraftType of seededAircraftTypes) {
+        const regNum = seededAircraftTypes.indexOf(aircraftType) + 1;
+        const existingAircraft = await repos.aircraft.findOne({
+            where: { registration: `VN-${aircraftType.code}-${String(regNum).padStart(3, '0')}` },
+        });
+        if (!existingAircraft) {
+            await repos.aircraft.save(
+                repos.aircraft.create({
+                    aircraft_id: uuidv7(),
+                    aircraft_type: aircraftType,
+                    registration: `VN-${aircraftType.code}-${String(regNum).padStart(3, '0')}`,
+                    in_service: true,
+                })
+            );
+            console.log(`  Created aircraft: VN-${aircraftType.code}-${String(regNum).padStart(3, '0')}`);
+        }
     }
+
+    const defaultAircraftType = await repos.aircraftType.findOne({ where: { code: '320' } });
+    const defaultAircraft = await repos.aircraft.findOne({ where: { registration: 'VN-320-001' } });
 
     // ============================================================
     // 4. SEAT CONFIGURATIONS (for default aircraft type)

@@ -1,16 +1,28 @@
 # =============================================================================
-# Wanderlust Air Travel — Docker Compose Base (Application only)
-# be-flight-booking/
+# Wanderlust Air Travel — Development Docker Compose (APPLICATION SERVICES ONLY)
+# be-flight-booking/docker-compose.development.yml
 #
-# Architecture: 8 services total
-#   - 1 API Gateway (HTTP, port 3000)
-#   - 7 Microservices (TCP): Search, Services, Routes, Booking, Reservation, Payment, Email
+# This file contains ONLY application services. Infrastructure (SQL Server,
+# Redis, RabbitMQ) is defined separately in docker-compose.infrastructure.development.yml.
+#
+# IMPORTANT:
+#   - Infrastructure must already be running (start it first with the
+#     infrastructure compose file, or run both files together as shown below).
+#   - There is NO `profiles` flag — all services here start by default.
 #
 # Usage:
-#   Development (native): npm run start:all
-#   Development (docker): docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml --env-file .env.development up -d
-#   Staging:     docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml -f docker-compose.staging.yml --env-file .env.staging up -d
-#   Production:  docker compose -f docker-compose.yml -f docker-compose.infrastructure.yml -f docker-compose.prod.yml --env-file .env.production up -d
+#   # Infrastructure only:
+#   docker compose -f docker-compose.infrastructure.development.yml \
+#     --env-file .env.development up -d
+#
+#   # Application services only (infrastructure must be running):
+#   docker compose -f docker-compose.development.yml \
+#     --env-file .env.development up -d
+#
+#   # Full stack (infra + app):
+#   docker compose -f docker-compose.infrastructure.development.yml \
+#     -f docker-compose.development.yml \
+#     --env-file .env.development up -d
 # =============================================================================
 
 x-env-api-gateway: &env-api-gateway
@@ -18,7 +30,7 @@ x-env-api-gateway: &env-api-gateway
   DB_PORT: ${DB_PORT:-1433}
   DB_NAME: ${DB_NAME:-flight_booking_db}
   DB_USER: ${DB_USER:-sa}
-  DB_PASS: ${DB_PASS:-Passw0rd123!}
+  DB_PASS: ${DB_PASS:-Strong!Pass1234}
   DB_ENCRYPT: ${DB_ENCRYPT:-false}
   DB_TRUST_CERT: ${DB_TRUST_CERT:-true}
   REDIS_HOST: ${REDIS_HOST:-redis}
@@ -40,7 +52,7 @@ x-env-search-ms: &env-search-ms
   DB_PORT: ${DB_PORT:-1433}
   DB_NAME: ${DB_NAME:-flight_booking_db}
   DB_USER: ${DB_USER:-sa}
-  DB_PASS: ${DB_PASS:-Passw0rd123!}
+  DB_PASS: ${DB_PASS:-Strong!Pass1234}
   DB_ENCRYPT: ${DB_ENCRYPT:-false}
   DB_TRUST_CERT: ${DB_TRUST_CERT:-true}
   REDIS_HOST: ${REDIS_HOST:-redis}
@@ -53,7 +65,7 @@ x-env-services-ms: &env-services-ms
   DB_PORT: ${DB_PORT:-1433}
   DB_NAME: ${DB_NAME:-flight_booking_db}
   DB_USER: ${DB_USER:-sa}
-  DB_PASS: ${DB_PASS:-Passw0rd123!}
+  DB_PASS: ${DB_PASS:-Strong!Pass1234}
   DB_ENCRYPT: ${DB_ENCRYPT:-false}
   DB_TRUST_CERT: ${DB_TRUST_CERT:-true}
   REDIS_HOST: ${REDIS_HOST:-redis}
@@ -66,7 +78,7 @@ x-env-routes-ms: &env-routes-ms
   DB_PORT: ${DB_PORT:-1433}
   DB_NAME: ${DB_NAME:-flight_booking_db}
   DB_USER: ${DB_USER:-sa}
-  DB_PASS: ${DB_PASS:-Passw0rd123!}
+  DB_PASS: ${DB_PASS:-Strong!Pass1234}
   DB_ENCRYPT: ${DB_ENCRYPT:-false}
   DB_TRUST_CERT: ${DB_TRUST_CERT:-true}
   REDIS_HOST: ${REDIS_HOST:-redis}
@@ -79,7 +91,7 @@ x-env-booking-ms: &env-booking-ms
   DB_PORT: ${DB_PORT:-1433}
   DB_NAME: ${DB_NAME:-flight_booking_db}
   DB_USER: ${DB_USER:-sa}
-  DB_PASS: ${DB_PASS:-Passw0rd123!}
+  DB_PASS: ${DB_PASS:-Strong!Pass1234}
   DB_ENCRYPT: ${DB_ENCRYPT:-false}
   DB_TRUST_CERT: ${DB_TRUST_CERT:-true}
   REDIS_HOST: ${REDIS_HOST:-redis}
@@ -97,7 +109,7 @@ x-env-reservation-ms: &env-reservation-ms
   DB_PORT: ${DB_PORT:-1433}
   DB_NAME: ${DB_NAME:-flight_booking_db}
   DB_USER: ${DB_USER:-sa}
-  DB_PASS: ${DB_PASS:-Passw0rd123!}
+  DB_PASS: ${DB_PASS:-Strong!Pass1234}
   DB_ENCRYPT: ${DB_ENCRYPT:-false}
   DB_TRUST_CERT: ${DB_TRUST_CERT:-true}
   REDIS_HOST: ${REDIS_HOST:-redis}
@@ -110,7 +122,7 @@ x-env-payment-ms: &env-payment-ms
   DB_PORT: ${DB_PORT:-1433}
   DB_NAME: ${DB_NAME:-flight_booking_db}
   DB_USER: ${DB_USER:-sa}
-  DB_PASS: ${DB_PASS:-Passw0rd123!}
+  DB_PASS: ${DB_PASS:-Strong!Pass1234}
   DB_ENCRYPT: ${DB_ENCRYPT:-false}
   DB_TRUST_CERT: ${DB_TRUST_CERT:-true}
   REDIS_HOST: ${REDIS_HOST:-redis}
@@ -128,7 +140,7 @@ x-env-email-ms: &env-email-ms
   DB_PORT: ${DB_PORT:-1433}
   DB_NAME: ${DB_NAME:-flight_booking_db}
   DB_USER: ${DB_USER:-sa}
-  DB_PASS: ${DB_PASS:-Passw0rd123!}
+  DB_PASS: ${DB_PASS:-Strong!Pass1234}
   DB_ENCRYPT: ${DB_ENCRYPT:-false}
   DB_TRUST_CERT: ${DB_TRUST_CERT:-true}
   REDIS_HOST: ${REDIS_HOST:-redis}
@@ -366,6 +378,3 @@ volumes:
   reservation_ms_dist:
   payment_ms_dist:
   email_ms_dist:
-  sqlserver_data:
-  redis_data:
-  rabbitmq_data:

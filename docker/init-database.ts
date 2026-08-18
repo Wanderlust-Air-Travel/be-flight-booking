@@ -9,10 +9,10 @@ import { SqlConfig } from 'src/shared/types/database/sql-config.interface';
 async function createDatabase(): Promise<boolean> {
   console.log('Creating database...');
   try {
-    // Use DB credentials from environment (set in docker-compose.yml) or default
+    // Use DB credentials from environment (set in docker-compose.development.yml) or default
     // For creating database, we may need SA user or user with sysadmin role
     const dbUser = process.env.DB_USER || 'sa';
-    const dbPassword = process.env.DB_PASS || process.env.SA_PASSWORD || 'Passw0rd123!';
+    const dbPassword = process.env.DB_PASS || process.env.SA_PASSWORD || 'Strong!Pass1234';
     // When connecting from Docker container to another container, use container port (1433)
     // When connecting from host to container, use host port (1434)
     let dbHost = process.env.DB_HOST;
@@ -67,7 +67,7 @@ async function runMigrations(): Promise<boolean> {
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     // Create DataSource directly from environment variables (not from .env file)
-    // In Docker, environment variables are set from docker-compose.yml
+    // In Docker, environment variables are set from docker-compose.development.yml
     // When connecting from Docker container to another container, use container port (1433)
     // When connecting from host to container, use host port (1434)
     let dbHost = process.env.DB_HOST;
@@ -83,7 +83,7 @@ async function runMigrations(): Promise<boolean> {
       host: dbHost,
       port: dbPort,
       username: process.env.DB_USER || 'sa',
-      password: process.env.DB_PASS || 'Passw0rd123!',
+      password: process.env.DB_PASS || 'Strong!Pass1234',
       database: process.env.DB_NAME || 'flight_booking_db',
       options: {
         encrypt: process.env.DB_ENCRYPT === 'true',
@@ -152,7 +152,7 @@ async function verifyDatabase(): Promise<boolean> {
       host: dbHost,
       port: dbPort,
       username: process.env.DB_USER || 'sa',
-      password: process.env.DB_PASS || process.env.SA_PASSWORD || 'Passw0rd123!',
+      password: process.env.DB_PASS || process.env.SA_PASSWORD || 'Strong!Pass1234',
       database: process.env.DB_NAME || 'flight_booking_db',
       options: {
         encrypt: process.env.DB_ENCRYPT === 'true',

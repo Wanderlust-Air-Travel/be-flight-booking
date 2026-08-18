@@ -45,7 +45,7 @@ be-flight-booking/
 ├── scripts/
 │   └── db-migrate/          # Database migrations (SQL)
 ├── docs/
-├── docker-compose.yml       # Main compose (dev + prod base)
+├── docker-compose.development.yml       # Main compose (dev + prod base)
 ├── docker-compose.prod.yml  # Production overrides
 ├── .env.example             # All env vars template
 └── Dockerfile               # Multi-stage build (all services)
@@ -213,7 +213,7 @@ LOG_LEVEL=info
 LOG_FORMAT=json
 ```
 
-### `.env.production` — Production Environment
+### `.env.prod` — Production Environment
 
 ```bash
 # =============================================================================
@@ -293,7 +293,7 @@ LOG_LEVEL=warn
 LOG_FORMAT=json
 ```
 
-### Quick Reference: `.env.development` vs `.env.staging` vs `.env.production`
+### Quick Reference: `.env.development` vs `.env.staging` vs `.env.prod`
 
 | Variable | Development | Staging | Production |
 |----------|-------------|---------|------------|
@@ -400,12 +400,12 @@ git clone https://github.com/YOUR_USERNAME/fe-flight-booking.git ./fe
 # ~/flight-booking/
 #   ├── be/
 #   │   ├── apps/
-#   │   ├── docker-compose.yml
-#   │   └── .env           ← create this from .env.production template
+#   │   ├── docker-compose.development.yml
+#   │   └── .env           ← create this from .env.prod template
 #   └── fe/
 #       ├── src/
 #       ├── Dockerfile
-#       └── .env            ← create this from .env.production template
+#       └── .env            ← create this from .env.prod template
 ```
 
 ### Step 3: Configure Environment
@@ -537,8 +537,8 @@ docker compose exec -T postgres psql -U flightbooking -d flightbooking < scripts
 
 ```yaml
 # =============================================================================
-# Production overrides for docker-compose.yml
-# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Production overrides for docker-compose.development.yml
+# Usage: docker compose -f docker-compose.development.yml -f docker-compose.prod.yml up -d
 # =============================================================================
 
 services:
@@ -640,15 +640,15 @@ networks:
 ```bash
 # Build + start with prod overrides
 cd ~/flight-booking/be
-docker compose -f docker-compose.yml -f docker-compose.prod.yml build --build-arg VERSION=$(git rev-parse --short HEAD)
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.development.yml -f docker-compose.prod.yml build --build-arg VERSION=$(git rev-parse --short HEAD)
+docker compose -f docker-compose.development.yml -f docker-compose.prod.yml up -d
 
 # Scale specific service
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --scale search-service=3
+docker compose -f docker-compose.development.yml -f docker-compose.prod.yml up -d --scale search-service=3
 
 # Update without downtime
-docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps
+docker compose -f docker-compose.development.yml -f docker-compose.prod.yml pull
+docker compose -f docker-compose.development.yml -f docker-compose.prod.yml up -d --no-deps
 ```
 
 ---
@@ -1001,7 +1001,7 @@ datasources:
 ### Step 4: Start Monitoring Stack
 
 ```bash
-# Create external network (must match docker-compose.yml)
+# Create external network (must match docker-compose.development.yml)
 docker network create flight-booking-net
 
 # Start monitoring
@@ -1197,8 +1197,8 @@ pipeline {
                         ssh -o StrictHostKeyChecking=no deploy@staging-server '
                             cd ~/flight-booking/be && \\
                             echo "VERSION='${env.VERSION}'" >> .env && \\
-                            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull && \\
-                            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+                            docker compose -f docker-compose.development.yml -f docker-compose.prod.yml pull && \\
+                            docker compose -f docker-compose.development.yml -f docker-compose.prod.yml up -d --build
                         '
                     '''
                 }
@@ -1214,8 +1214,8 @@ pipeline {
                     sh '''
                         ssh -o StrictHostKeyChecking=no deploy@prod-server '
                             cd ~/flight-booking/be && \\
-                            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull && \\
-                            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+                            docker compose -f docker-compose.development.yml -f docker-compose.prod.yml pull && \\
+                            docker compose -f docker-compose.development.yml -f docker-compose.prod.yml up -d --build
                         '
                     '''
                 }
@@ -1535,7 +1535,7 @@ Create `infrastructure/ansible/playbooks/deploy-backend.yml`:
       community.docker.docker_compose_v2:
         project_src: "{{ app_dir }}"
         files:
-          - docker-compose.yml
+          - docker-compose.development.yml
           - docker-compose.prod.yml
         pull: yes
       notify: Restart services
@@ -1544,7 +1544,7 @@ Create `infrastructure/ansible/playbooks/deploy-backend.yml`:
       community.docker.docker_compose_v2:
         project_src: "{{ app_dir }}"
         files:
-          - docker-compose.yml
+          - docker-compose.development.yml
           - docker-compose.prod.yml
         state: present
 
@@ -1572,7 +1572,7 @@ Create `infrastructure/ansible/playbooks/deploy-backend.yml`:
       community.docker.docker_compose_v2:
         project_src: "{{ app_dir }}"
         files:
-          - docker-compose.yml
+          - docker-compose.development.yml
           - docker-compose.prod.yml
         state: restarted
 ```

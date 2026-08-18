@@ -14,7 +14,7 @@ export class MockProvider {
     private readonly logger = new Logger(MockProvider.name);
 
     constructor() {
-        this.logger.warn('MockProvider active - demo data only');
+        this.logger.log('MockProvider active - demo data only');
     }
 
     get isEnabled(): boolean {

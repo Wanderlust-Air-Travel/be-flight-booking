@@ -14,7 +14,7 @@ Hệ thống sử dụng 3 scripts riêng biệt để đảm bảo database đ�
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  docker-compose.yml command                                │
+│  docker-compose.development.yml command
 │  wait-for-sqlserver → init-db → wait-for-db → seed → start │
 └─────────────────────────────────────────────────────────────┘
                             │
@@ -150,12 +150,12 @@ Hệ thống sử dụng 3 scripts riêng biệt để đảm bảo database đ�
 
 ## Environment Variables
 
-Các script sử dụng environment variables từ `.env` hoặc `docker-compose.yml`:
+Các script sử dụng environment variables từ `.env` hoặc `docker-compose.development.yml`:
 
 - `DB_HOST` - SQL Server host (default: `sqlserver` trong Docker, `localhost` local)
 - `DB_PORT` - SQL Server port (default: `1433` trong Docker, `1434` local)
 - `DB_USER` - Database user (default: `sa`)
-- `DB_PASS` - Database password (default: `Passw0rd123!`)
+- `DB_PASS` - Database password (default: `Strong!Pass1234`)
 - `DB_NAME` - Database name (default: `flight_booking_db`)
 - `SA_PASSWORD` - SA password (fallback nếu `DB_PASS` không có)
 
@@ -202,7 +202,7 @@ docker-compose logs backend | grep -E "(Running TypeORM migrations|migration)"
 ```
 
 **Nếu migrations fail:**
-- Kiểm tra migration files có trong `dist/migrations/`
+- Kiểm tra migration files có trong `dist/shared/migrations/`
 - Verify database connection string
 - Check migration syntax
 
@@ -235,5 +235,5 @@ docker-compose logs backend | grep -E "(Running TypeORM migrations|migration)"
 - `docker/init-database.ts` - Initialize database
 - `docker/wait-for-database.ts` - Wait for specific database
 - `docker/start-all.ts` - Start all services
-- `docker-compose.yml` - Docker compose configuration
+- `docker-compose.development.yml` - Docker compose configuration
 
