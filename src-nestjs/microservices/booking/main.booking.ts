@@ -32,7 +32,10 @@ import { BookingRpcExceptionFilter } from './filters/booking-rpc-exception.filte
                 trustServerCertificate: process.env.DB_TRUST_CERT === 'true',
             },
             synchronize: false,
-            entities: [`${__dirname}/../../shared/entities/**/*.entity.{ts,js}`],
+            entities: [
+                `${__dirname}/../../api-gateway/data-access/entities/**/*.entity.{ts,js}`,
+                `${__dirname}/../../shared/infrastructure/persistence/typeorm/entities/*.entity.{ts,js}`,
+            ],
         }),
         BookingModule,
     ],

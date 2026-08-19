@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PassengerType } from '../constants/enums';
-import type { Route } from '../entities/route/route.entity';
+import type { Route } from 'src/api-gateway/data-access/entities/route/route.entity';
 import type { PassengerFareDetails } from '../types/passenger-pricing.types';
 
 /**

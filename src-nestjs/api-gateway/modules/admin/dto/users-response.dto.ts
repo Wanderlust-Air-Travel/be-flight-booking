@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { User } from 'src/shared/entities/user/user.entity';
+import { User } from 'src/api-gateway/data-access/entities/user/user.entity';
 
 export class UsersResponseDto {
     @ApiProperty({ description: 'List of users', type: [User] })

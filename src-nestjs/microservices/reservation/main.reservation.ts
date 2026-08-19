@@ -32,7 +32,10 @@ import { ReservationModule } from './reservation.module';
                 trustServerCertificate: process.env.DB_TRUST_CERT === 'true',
             },
             synchronize: false,
-            entities: [`${__dirname}/../../shared/entities/**/*.entity.{ts,js}`],
+            entities: [
+                `${__dirname}/../../api-gateway/data-access/entities/**/*.entity.{ts,js}`,
+                `${__dirname}/../../shared/infrastructure/persistence/typeorm/entities/*.entity.{ts,js}`,
+            ],
         }),
         RedisModule,
         ReservationModule,

@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { RouteFarePrice } from 'src/shared/entities/fare/route-fare-price.entity';
+import { RouteFarePrice } from 'src/api-gateway/data-access/entities/fare/route-fare-price.entity';
 
 export class RouteFarePricesResponseDto {
     @ApiProperty({ description: 'List of route fare prices', type: [RouteFarePrice] })

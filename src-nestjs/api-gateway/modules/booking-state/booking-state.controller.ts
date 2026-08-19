@@ -28,9 +28,9 @@ import {
 } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
 import type { Request } from 'express';
-import { FareClass } from 'src/shared/entities/fare/fare-class.entity';
-import { FlightInstance } from 'src/shared/entities/flight/flight-instance.entity';
-import { FlightSeat } from 'src/shared/entities/flight/flight-seat.entity';
+import { FareClass } from 'src/api-gateway/data-access/entities/fare/fare-class.entity';
+import { FlightInstance } from 'src/api-gateway/data-access/entities/flight/flight-instance.entity';
+import { FlightSeat } from 'src/api-gateway/data-access/entities/flight/flight-seat.entity';
 import {
     BookingStateException,
     BookingStateNotFoundException,

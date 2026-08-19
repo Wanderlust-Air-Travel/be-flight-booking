@@ -13,17 +13,17 @@ import { v7 as uuidv7 } from 'uuid';
 
 config({ path: resolve(process.cwd(), '.env') });
 
-import { AircraftType } from 'src/shared/entities/aircraft/aircraft-type.entity';
-import { Aircraft } from 'src/shared/entities/aircraft/aircraft.entity';
-import { Airport } from 'src/shared/entities/airport/airport.entity';
-import { CabinClass } from 'src/shared/entities/cabin/cabin-class.entity';
-import { FareClass } from 'src/shared/entities/fare/fare-class.entity';
-import { RouteFarePrice } from 'src/shared/entities/fare/route-fare-price.entity';
-import { FlightInstance } from 'src/shared/entities/flight/flight-instance.entity';
-import { FlightSchedule } from 'src/shared/entities/flight/flight-schedule.entity';
-import { FlightSeat } from 'src/shared/entities/flight/flight-seat.entity';
-import { Route } from 'src/shared/entities/route/route.entity';
-import { SeatConfiguration } from 'src/shared/entities/seat/seat-configuration.entity';
+import { AircraftType } from 'src/api-gateway/data-access/entities/aircraft/aircraft-type.entity';
+import { Aircraft } from 'src/api-gateway/data-access/entities/aircraft/aircraft.entity';
+import { Airport } from 'src/api-gateway/data-access/entities/airport/airport.entity';
+import { CabinClass } from 'src/api-gateway/data-access/entities/cabin/cabin-class.entity';
+import { FareClass } from 'src/api-gateway/data-access/entities/fare/fare-class.entity';
+import { RouteFarePrice } from 'src/api-gateway/data-access/entities/fare/route-fare-price.entity';
+import { FlightInstance } from 'src/api-gateway/data-access/entities/flight/flight-instance.entity';
+import { FlightSchedule } from 'src/api-gateway/data-access/entities/flight/flight-schedule.entity';
+import { FlightSeat } from 'src/api-gateway/data-access/entities/flight/flight-seat.entity';
+import { Route } from 'src/api-gateway/data-access/entities/route/route.entity';
+import { SeatConfiguration } from 'src/api-gateway/data-access/entities/seat/seat-configuration.entity';
 import { DataSource } from 'typeorm';
 
 const ds = new DataSource({

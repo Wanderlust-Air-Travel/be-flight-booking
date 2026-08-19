@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import type { Repository } from 'typeorm';
-import { CabinService } from '../entities/cabin/cabin-service.entity';
-import { BaggageAllowance } from '../entities/fare/baggage-allowance.entity';
+import { CabinService } from 'src/api-gateway/data-access/entities/cabin/cabin-service.entity';
+import { BaggageAllowance } from 'src/api-gateway/data-access/entities/fare/baggage-allowance.entity';
 
 /**
  * Cabin Service Service

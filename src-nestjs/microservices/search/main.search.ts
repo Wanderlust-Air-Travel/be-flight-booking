@@ -12,13 +12,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { SEARCH_MS } from './search.messages';
 import { SearchModule } from './search.module';
 import { IncomingRequestDeserializer } from './deserializers/incoming-request.deserializer';
-import './debug/debug-server-tcp';
-import './debug/debug-rpc-params';
-import './debug/debug-rpc-proxy';
-import './debug/debug-context-utils';
-import './debug/debug-pipes-consumer';
-import './debug/debug-rpc-context-creator-v8';
-import './debug/fix-interceptors-consumer';
 
 @Module({
     imports: [
@@ -35,7 +28,10 @@ import './debug/fix-interceptors-consumer';
                 trustServerCertificate: process.env.DB_TRUST_CERT === 'true',
             },
             synchronize: false,
-            entities: [`${__dirname}/../../shared/entities/**/*.entity.{ts,js}`],
+            entities: [
+                `${__dirname}/../../api-gateway/data-access/entities/**/*.entity.{ts,js}`,
+                `${__dirname}/../../shared/infrastructure/persistence/typeorm/entities/*.entity.{ts,js}`,
+            ],
         }),
         SearchModule,
     ],

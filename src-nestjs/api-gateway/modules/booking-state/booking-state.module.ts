@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { FareClass } from 'src/shared/entities/fare/fare-class.entity';
-import { FlightInstance } from 'src/shared/entities/flight/flight-instance.entity';
-import { FlightSeat } from 'src/shared/entities/flight/flight-seat.entity';
+import { FareClass } from 'src/api-gateway/data-access/entities/fare/fare-class.entity';
+import { FlightInstance } from 'src/api-gateway/data-access/entities/flight/flight-instance.entity';
+import { FlightSeat } from 'src/api-gateway/data-access/entities/flight/flight-seat.entity';
 import { BookingStateModule as SharedBookingStateModule } from 'src/shared/modules/booking-state/booking-state.module';
 import { BookingStateController } from './booking-state.controller';
 

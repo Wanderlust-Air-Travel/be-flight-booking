@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { BaggageAllowance } from 'src/shared/entities/fare/baggage-allowance.entity';
+import { BaggageAllowance } from 'src/api-gateway/data-access/entities/fare/baggage-allowance.entity';
 
 export class BaggageAllowancesResponseDto {
     @ApiProperty({ description: 'List of baggage allowances', type: [BaggageAllowance] })

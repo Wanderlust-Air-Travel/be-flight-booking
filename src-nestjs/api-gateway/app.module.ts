@@ -44,7 +44,7 @@ import { ServicesClientModule } from './modules/services/services.client.module'
                 trustServerCertificate: process.env.DB_TRUST_CERT === 'true',
             },
             synchronize: false,
-            entities: [`${__dirname}/../shared/entities/**/*.entity.{ts,js}`],
+            entities: [`${__dirname}/../data-access/entities/**/*.entity.{ts,js}`],
         }),
         DataProvidersModule,
         AuthModule,

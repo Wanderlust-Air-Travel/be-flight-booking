@@ -2,8 +2,8 @@ import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BOOKING_MS } from 'src/microservices/booking/booking.messages';
-import { Passenger } from 'src/shared/entities/passenger/passenger.entity';
-import { User } from 'src/shared/entities/user/user.entity';
+import { Passenger } from 'src/api-gateway/data-access/entities/passenger/passenger.entity';
+import { User } from 'src/api-gateway/data-access/entities/user/user.entity';
 import { AuthModule } from '../auth/auth.module';
 import { BookingController } from './booking.controller';
 
