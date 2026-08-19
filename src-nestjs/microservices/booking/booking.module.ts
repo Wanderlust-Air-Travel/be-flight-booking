@@ -1,104 +1,84 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { ClientsModule, Transport } from '@nestjs/microservices';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { Airport } from 'src/shared/entities/airport/airport.entity';
-import { BookingPassenger } from 'src/shared/entities/booking/booking-passenger.entity';
-import { BookingSegmentService } from 'src/shared/entities/booking/booking-segment-service.entity';
-import { BookingSegment } from 'src/shared/entities/booking/booking-segment.entity';
-import { Booking } from 'src/shared/entities/booking/booking.entity';
-import { CabinService } from 'src/shared/entities/cabin/cabin-service.entity';
-import { Currency } from 'src/shared/entities/currency/currency.entity';
-import { FareClass } from 'src/shared/entities/fare/fare-class.entity';
-import { FareDescriptionRule } from 'src/shared/entities/fare/fare-description-rule.entity';
-import { RouteFarePrice } from 'src/shared/entities/fare/route-fare-price.entity';
-import { FlightInstance } from 'src/shared/entities/flight/flight-instance.entity';
-import { FlightSeat } from 'src/shared/entities/flight/flight-seat.entity';
-import { Passenger } from 'src/shared/entities/passenger/passenger.entity';
-import { Route } from 'src/shared/entities/route/route.entity';
-import { Ticket } from 'src/shared/entities/ticket/ticket.entity';
-import { User } from 'src/shared/entities/user/user.entity';
-import { BookingStateModule } from 'src/shared/modules/booking-state/booking-state.module';
-import { EmailClientModule } from 'src/shared/modules/email-client/email-client.module';
-import { PassengerModule } from 'src/shared/modules/passenger/passenger.module';
-import { RabbitMQModule } from 'src/shared/modules/rabbitmq/rabbitmq.module';
-import { FarePricingService } from 'src/shared/services/fare-pricing.service';
-import { EMAIL_MS } from '../email/email.messages';
-import { RESERVATION_MS } from '../reservation/reservation.messages';
-import { BookingMsController } from './booking.controller';
-import { BookingService } from './booking.service';
-import { TicketRabbitMQConsumer } from './consumers/ticket-rabbitmq.consumer';
-import { BookingNotificationService } from './services/booking-notification.service';
-import { TicketPdfService } from './services/ticket-pdf.service';
+import { TypeOrmModule, InjectRepository, getRepositoryToken } from '@nestjs/typeorm';
+import { ClientProxyFactory, Transport } from '@nestjs/microservices';
+import { BookingMessageHandler } from '../interface/booking.message-handler';
+import { CreateBookingHandler } from '../application/handlers/create-booking.handler';
+import { GetBookingHandler } from '../application/handlers/get-booking.handler';
+import { CancelBookingHandler } from '../application/handlers/cancel-booking.handler';
+import { CancelTicketHandler } from '../application/handlers/cancel-ticket.handler';
+import { UpdateBookingPassengersHandler } from '../application/handlers/update-booking-passengers.handler';
+import { CheckInBookingHandler } from '../application/handlers/check-in-booking.handler';
+import { CreateTicketsFromBookingHandler } from '../application/handlers/create-tickets-from-booking.handler';
+import { GetMyTicketsHandler } from '../application/handlers/get-my-tickets.handler';
+import { GetMyJourneyHandler } from '../application/handlers/get-my-journey.handler';
+import { PaymentSucceededHandler } from '../application/event-handlers/payment-succeeded.handler';
+import { BookingCreatedNotificationHandler } from '../application/event-handlers/booking-created-notification.handler';
+import { ReservationTcpAdapter } from '../infrastructure/adapters/reservation-tcp.adapter';
+import { NotificationEventAdapter } from '../infrastructure/adapters/notification-event.adapter';
+import { BookingInternalAdapter } from '../infrastructure/adapters/booking-internal.adapter';
+import { InMemoryBookingRepository } from '../domain/repositories/in-memory-booking.repository';
+import { OutboxModule } from '../../../shared/modules/outbox/outbox.module';
 
+/**
+ * BookingModule — Wires the booking bounded context.
+ *
+ * Provides all 9 use-case handlers, 3 port adapters, 2 event handlers,
+ * and the message handler interface.
+ *
+ * Dependencies:
+ *  - IBookingRepository: InMemoryBookingRepository for unit tests, BookingTypeOrmRepository for prod (TODO)
+ *  - IReservationPort: ReservationTcpAdapter
+ *  - INotificationPort: NotificationEventAdapter (via outbox)
+ *  - IBookingPort: BookingInternalAdapter
+ *  - IOutboxWriter: from @Global OutboxModule
+ *
+ * Old booking.service.ts (3966 lines) is replaced by these 9 single-purpose handlers.
+ */
 @Module({
-    imports: [
-        ConfigModule.forRoot({
-            isGlobal: true,
-        }),
-        TypeOrmModule.forRoot({
-            type: 'mssql',
-            host: process.env.DB_HOST,
-            port: Number(process.env.DB_PORT),
-            username: process.env.DB_USER,
-            password: process.env.DB_PASS,
-            database: process.env.DB_NAME,
-            options: {
-                encrypt: process.env.DB_ENCRYPT === 'true',
-                trustServerCertificate: process.env.DB_TRUST_CERT === 'true',
-            },
-            synchronize: false,
-            entities: [`${__dirname}/../../shared/entities/**/*.entity.{js}`],
-        }),
-        TypeOrmModule.forFeature([
-            Booking,
-            BookingPassenger,
-            BookingSegment,
-            FlightInstance,
-            FlightSeat,
-            FareClass,
-            Currency,
-            Passenger,
-            User,
-            Ticket,
-            Route,
-            Airport,
-            RouteFarePrice,
-            FareDescriptionRule,
-            BookingSegmentService,
-            CabinService,
-        ]),
-        EmailClientModule, // Add Email Client module for sending email notifications
-        RabbitMQModule, // Add RabbitMQ module for async messaging
-        PassengerModule, // Add Passenger module for pricing and validation
-        BookingStateModule, // Add BookingState module to get seats array
-        ClientsModule.register([
-            {
-                name: 'RESERVATION_CLIENT',
-                transport: Transport.TCP,
-                options: {
-                    host: RESERVATION_MS.TCP_PEER_HOST,
-                    port: RESERVATION_MS.TCP_PORT,
-                },
-            },
-            {
-                name: 'EMAIL_CLIENT',
-                transport: Transport.TCP,
-                options: {
-                    host: EMAIL_MS.TCP_PEER_HOST,
-                    port: EMAIL_MS.TCP_PORT,
-                },
-            },
-        ]),
-    ],
+    imports: [OutboxModule],
+    controllers: [BookingMessageHandler, PaymentSucceededHandler, BookingCreatedNotificationHandler],
     providers: [
-        BookingService,
-        BookingNotificationService,
-        TicketPdfService,
-        TicketRabbitMQConsumer,
-        FarePricingService,
+        // Use cases
+        CreateBookingHandler,
+        GetBookingHandler,
+        CancelBookingHandler,
+        CancelTicketHandler,
+        UpdateBookingPassengersHandler,
+        CheckInBookingHandler,
+        CreateTicketsFromBookingHandler,
+        GetMyTicketsHandler,
+        GetMyJourneyHandler,
+
+        // Repository: in-memory for now; phase 7 swaps in TypeORM adapter
+        InMemoryBookingRepository,
+        {
+            provide: 'IBookingRepository',
+            useExisting: InMemoryBookingRepository,
+        },
+
+        // Cross-context port adapters
+        {
+            provide: 'RESERVATION_CLIENT',
+            useFactory: () =>
+                ClientProxyFactory.create({
+                    transport: Transport.TCP,
+                    options: { host: 'localhost', port: 4002 },
+                }),
+        },
+        {
+            provide: 'IReservationPort',
+            useClass: ReservationTcpAdapter,
+        },
+        {
+            provide: 'INotificationPort',
+            useClass: NotificationEventAdapter,
+        },
+        BookingInternalAdapter,
+        {
+            provide: 'IBookingPort',
+            useExisting: BookingInternalAdapter,
+        },
     ],
-    controllers: [BookingMsController],
-    exports: [BookingService],
+    exports: ['IBookingRepository', 'IBookingPort'],
 })
 export class BookingModule {}
