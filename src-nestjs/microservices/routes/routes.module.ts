@@ -1,13 +1,9 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { Route } from 'src/shared/entities/route/route.entity';
-import { RoutesMsController } from './routes.controller';
-import { RoutesService } from './routes.service';
+import { GetFlightScheduleHandler, GetRoutesHandler } from '../application/handlers/routes.handlers';
+import { RoutesMessageHandler } from '../interface/routes.message-handler';
 
 @Module({
-    imports: [TypeOrmModule.forFeature([Route])],
-    providers: [RoutesService],
-    controllers: [RoutesMsController],
-    exports: [RoutesService],
+    controllers: [RoutesMessageHandler],
+    providers: [GetRoutesHandler, GetFlightScheduleHandler],
 })
 export class RoutesModule {}
