@@ -1,36 +1,35 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { Currency } from 'src/shared/entities/currency/currency.entity';
-import { FareClass } from 'src/shared/entities/fare/fare-class.entity';
-import { RouteFarePrice } from 'src/shared/entities/fare/route-fare-price.entity';
-import { FlightInstance } from 'src/shared/entities/flight/flight-instance.entity';
-import { FlightSeat } from 'src/shared/entities/flight/flight-seat.entity';
-import { Reservation } from 'src/shared/entities/reservation/reservation.entity';
-import { Route } from 'src/shared/entities/route/route.entity';
-import { BookingStateModule } from 'src/shared/modules/booking-state/booking-state.module';
-import { FarePricingService } from 'src/shared/services/fare-pricing.service';
-import { ReservationMsController } from './reservation.controller';
-import { ReservationService } from './reservation.service';
+import { OutboxModule } from '../../../shared/modules/outbox/outbox.module';
+import { CreateReservationHandler } from '../application/handlers/create-reservation.handler';
+import { GetReservationHandler } from '../application/handlers/get-reservation.handler';
+import { CancelReservationHandler } from '../application/handlers/cancel-reservation.handler';
+import { ConvertToBookingHandler } from '../application/handlers/convert-to-booking.handler';
+import { ExpireReservationScheduler } from '../application/handlers/expire-reservation.scheduler';
+import { InMemoryReservationRepository } from '../domain/repositories/in-memory-reservation.repository';
+import { ReservationMessageHandler } from '../interface/reservation.message-handler';
 
+/**
+ * ReservationModule — Wires the reservation bounded context.
+ *
+ * Old reservation.service.ts (686 lines) is replaced by 4 single-purpose handlers
+ * + 1 cron scheduler.
+ */
 @Module({
-    imports: [
-        ConfigModule.forRoot({
-            isGlobal: true,
-        }),
-        TypeOrmModule.forFeature([
-            FlightInstance,
-            FlightSeat,
-            FareClass,
-            Currency,
-            Reservation,
-            RouteFarePrice,
-            Route,
-        ]),
-        BookingStateModule,
+    imports: [OutboxModule],
+    controllers: [ReservationMessageHandler],
+    providers: [
+        CreateReservationHandler,
+        GetReservationHandler,
+        CancelReservationHandler,
+        ConvertToBookingHandler,
+        ExpireReservationScheduler,
+
+        InMemoryReservationRepository,
+        {
+            provide: 'IReservationRepository',
+            useExisting: InMemoryReservationRepository,
+        },
     ],
-    providers: [ReservationService, FarePricingService],
-    controllers: [ReservationMsController],
-    exports: [ReservationService],
+    exports: ['IReservationRepository'],
 })
 export class ReservationModule {}
