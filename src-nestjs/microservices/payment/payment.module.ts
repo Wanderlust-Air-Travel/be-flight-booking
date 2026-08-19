@@ -1,73 +1,63 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { ClientsModule, Transport } from '@nestjs/microservices';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { Booking } from 'src/shared/entities/booking/booking.entity';
-import { Currency } from 'src/shared/entities/currency/currency.entity';
-import { PaymentMethod } from 'src/shared/entities/payment/payment-method.entity';
-import { Payment } from 'src/shared/entities/payment/payment.entity';
-import { EmailClientModule } from 'src/shared/modules/email-client/email-client.module';
-import { RabbitMQModule } from 'src/shared/modules/rabbitmq/rabbitmq.module';
-import { RedisModule } from 'src/shared/modules/redis/redis.module';
-import { BOOKING_MS } from '../booking/booking.messages';
-import { EMAIL_MS } from '../email/email.messages';
-import { DevPaymentGateway } from './gateways/dev-payment.gateway';
-import { PaymentGatewayFactory } from './gateways/payment-gateway.factory';
-import { PaymentMsController } from './payment.controller';
-import { PaymentService } from './payment.service';
-import { PaymentNotificationService } from './services/payment-notification.service';
-import { PaymentValidationService } from './services/payment-validation.service';
+import { ClientProxyFactory, Transport } from '@nestjs/microservices';
+import { OutboxModule } from '../../../shared/modules/outbox/outbox.module';
+import { CreatePaymentHandler } from '../application/handlers/create-payment.handler';
+import { ProcessPaymentHandler } from '../application/handlers/process-payment.handler';
+import { GetPaymentHandler } from '../application/handlers/get-payment.handler';
+import { GetPaymentsByBookingHandler } from '../application/handlers/get-payments-by-booking.handler';
+import { RefundPaymentHandler } from '../application/handlers/refund-payment.handler';
+import { HandleWebhookHandler } from '../application/handlers/handle-webhook.handler';
+import { InMemoryPaymentRepository } from '../domain/repositories/in-memory-payment.repository';
+import { DevPaymentGateway } from '../infrastructure/adapters/dev-payment-gateway.adapter';
+import { BookingTcpAdapter } from '../infrastructure/adapters/booking-tcp.adapter';
+import { PaymentMessageHandler } from '../interface/payment.message-handler';
 
+/**
+ * PaymentModule — Wires the payment bounded context.
+ *
+ * Provides 6 use-case handlers, gateway port adapter, booking port adapter,
+ * and TCP message handler interface.
+ *
+ * Old payment.service.ts (913 lines) is replaced by 6 single-purpose handlers.
+ */
 @Module({
-    imports: [
-        ConfigModule.forRoot({
-            isGlobal: true,
-        }),
-        TypeOrmModule.forRoot({
-            type: 'mssql',
-            host: process.env.DB_HOST,
-            port: Number(process.env.DB_PORT),
-            username: process.env.DB_USER,
-            password: process.env.DB_PASS,
-            database: process.env.DB_NAME,
-            options: {
-                encrypt: process.env.DB_ENCRYPT === 'true',
-                trustServerCertificate: process.env.DB_TRUST_CERT === 'true',
-            },
-            synchronize: false,
-            entities: [`${__dirname}/../../shared/entities/**/*.entity.{js}`],
-        }),
-        TypeOrmModule.forFeature([Payment, PaymentMethod, Booking, Currency]),
-        RedisModule, // Add Redis module for idempotency key caching
-        EmailClientModule, // Add Email Client module for sending email notifications
-        RabbitMQModule, // Add RabbitMQ module for async messaging
-        ClientsModule.register([
-            {
-                name: 'BOOKING_CLIENT',
-                transport: Transport.TCP,
-                options: {
-                    host: BOOKING_MS.TCP_PEER_HOST,
-                    port: BOOKING_MS.TCP_PORT,
-                },
-            },
-            {
-                name: 'EMAIL_CLIENT',
-                transport: Transport.TCP,
-                options: {
-                    host: EMAIL_MS.TCP_PEER_HOST,
-                    port: EMAIL_MS.TCP_PORT,
-                },
-            },
-        ]),
-    ],
+    imports: [OutboxModule],
+    controllers: [PaymentMessageHandler],
     providers: [
-        PaymentService,
-        PaymentValidationService,
-        PaymentNotificationService,
+        CreatePaymentHandler,
+        ProcessPaymentHandler,
+        GetPaymentHandler,
+        GetPaymentsByBookingHandler,
+        RefundPaymentHandler,
+        HandleWebhookHandler,
+
+        InMemoryPaymentRepository,
+        {
+            provide: 'IPaymentRepository',
+            useExisting: InMemoryPaymentRepository,
+        },
+
         DevPaymentGateway,
-        PaymentGatewayFactory,
+        {
+            provide: 'IPaymentGateway',
+            useExisting: DevPaymentGateway,
+        },
+
+        // Cross-context: BookingTcpAdapter for ownership checks (avoids @InjectRepository(Booking))
+        {
+            provide: 'BOOKING_CLIENT',
+            useFactory: () =>
+                ClientProxyFactory.create({
+                    transport: Transport.TCP,
+                    options: { host: 'localhost', port: 4001 },
+                }),
+        },
+        BookingTcpAdapter,
+        {
+            provide: 'IBookingPortForPayment',
+            useExisting: BookingTcpAdapter,
+        },
     ],
-    controllers: [PaymentMsController],
-    exports: [PaymentService],
+    exports: ['IPaymentRepository', 'IBookingPortForPayment'],
 })
 export class PaymentModule {}
