@@ -161,8 +161,8 @@ async function run() {
     const routeFarePriceRepo = ds.getRepository(RouteFarePrice);
     const fareClassRepo = ds.getRepository(FareClass);
 
-    const defaultAircraftType = await aircraftTypeRepo.findOne({ where: { code: 'A320' } });
-    const defaultAircraft = await aircraftRepo.findOne({ where: { registration: 'VN-A320-001' } });
+    const defaultAircraftType = await aircraftTypeRepo.findOne({ where: { code: '320' } });
+    const defaultAircraft = await aircraftRepo.findOne({ where: { registration: 'VN-320-001' } });
     const economyFareClass = await fareClassRepo.findOne({ where: { fare_class_code: 'Y' } });
     if (!defaultAircraftType || !defaultAircraft || !economyFareClass) {
         console.error('Chạy npm run seed:full trước (reference data + aircraft + fare class).');

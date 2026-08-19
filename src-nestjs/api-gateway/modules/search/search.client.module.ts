@@ -16,7 +16,7 @@ import { SearchController } from './search.controller';
                 name: 'SEARCH_CLIENT',
                 transport: Transport.TCP,
                 options: {
-                    host: SEARCH_MS.TCP_HOST,
+                    host: SEARCH_MS.TCP_PEER_HOST,
                     port: SEARCH_MS.TCP_PORT,
                     heartbeatInterval: 5000,
                     heartbeatTimeout: 15000,

@@ -9,7 +9,7 @@ import { PAYMENT_MS } from 'src/microservices/payment/payment.messages';
                 name: 'PAYMENT_CLIENT',
                 transport: Transport.TCP,
                 options: {
-                    host: PAYMENT_MS.TCP_HOST,
+                    host: PAYMENT_MS.TCP_PEER_HOST,
                     port: PAYMENT_MS.TCP_PORT,
                 },
             },

@@ -72,6 +72,9 @@ export class GetBookingResponseDto {
     @ApiProperty({ description: 'Currency code' })
     currencyCode: string;
 
+    @ApiProperty({ description: 'Booking creation date (ISO 8601)', required: false })
+    bookingDate?: string;
+
     @ApiProperty({ description: 'Contact full name (optional)', required: false })
     contactFullname?: string;
 

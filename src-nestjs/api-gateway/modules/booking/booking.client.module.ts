@@ -14,7 +14,7 @@ import { BookingController } from './booking.controller';
                 name: 'BOOKING_CLIENT',
                 transport: Transport.TCP,
                 options: {
-                    host: BOOKING_MS.TCP_HOST,
+                    host: BOOKING_MS.TCP_PEER_HOST,
                     port: BOOKING_MS.TCP_PORT,
                 },
             },

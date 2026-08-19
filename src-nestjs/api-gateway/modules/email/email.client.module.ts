@@ -10,7 +10,7 @@ import { EmailController } from './email.controller';
                 name: 'EMAIL_CLIENT',
                 transport: Transport.TCP,
                 options: {
-                    host: EMAIL_MS.TCP_HOST,
+                    host: EMAIL_MS.TCP_PEER_HOST,
                     port: EMAIL_MS.TCP_PORT,
                 },
             },

@@ -77,7 +77,7 @@ import { TicketPdfService } from './services/ticket-pdf.service';
                 name: 'RESERVATION_CLIENT',
                 transport: Transport.TCP,
                 options: {
-                    host: RESERVATION_MS.TCP_HOST,
+                    host: RESERVATION_MS.TCP_PEER_HOST,
                     port: RESERVATION_MS.TCP_PORT,
                 },
             },
@@ -85,7 +85,7 @@ import { TicketPdfService } from './services/ticket-pdf.service';
                 name: 'EMAIL_CLIENT',
                 transport: Transport.TCP,
                 options: {
-                    host: EMAIL_MS.TCP_HOST,
+                    host: EMAIL_MS.TCP_PEER_HOST,
                     port: EMAIL_MS.TCP_PORT,
                 },
             },

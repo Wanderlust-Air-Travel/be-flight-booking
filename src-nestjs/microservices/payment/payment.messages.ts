@@ -1,6 +1,7 @@
 export const PAYMENT_MS = {
     TCP_PORT: Number(process.env.PAYMENT_MS_PORT) || 4006,
     TCP_HOST: process.env.PAYMENT_MS_HOST,
+    TCP_PEER_HOST: process.env.PAYMENT_MS_PEER_HOST,
     PATTERN: {
         CREATE_PAYMENT: 'payment.create',
         GET_PAYMENT: 'payment.get',

@@ -10,7 +10,7 @@ import { ServicesController } from './services.controller';
                 name: 'SERVICES_CLIENT',
                 transport: Transport.TCP,
                 options: {
-                    host: SERVICES_MS.TCP_HOST,
+                    host: SERVICES_MS.TCP_PEER_HOST,
                     port: SERVICES_MS.TCP_PORT,
                 },
             },

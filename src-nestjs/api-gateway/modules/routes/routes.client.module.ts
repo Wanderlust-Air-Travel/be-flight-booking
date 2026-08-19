@@ -10,7 +10,7 @@ import { RoutesController } from './routes.controller';
                 name: 'ROUTES_CLIENT',
                 transport: Transport.TCP,
                 options: {
-                    host: ROUTES_MS.TCP_HOST,
+                    host: ROUTES_MS.TCP_PEER_HOST,
                     port: ROUTES_MS.TCP_PORT,
                 },
             },

@@ -927,6 +927,12 @@ export class BookingService {
             status: booking.status,
             totalAmount: Number(booking.total_amount),
             currencyCode: booking.currency.currency_code,
+            bookingDate:
+                booking.created_at instanceof Date
+                    ? booking.created_at.toISOString()
+                    : booking.created_at
+                      ? new Date(booking.created_at).toISOString()
+                      : undefined,
             contactFullname: booking.contact_fullname || undefined,
             contactEmail: booking.contact_email || undefined,
             contactPhone: booking.contact_phone || undefined,
@@ -3035,6 +3041,12 @@ export class BookingService {
             status: booking.status,
             totalAmount: Number(booking.total_amount),
             currencyCode: booking.currency.currency_code,
+            bookingDate:
+                booking.created_at instanceof Date
+                    ? booking.created_at.toISOString()
+                    : booking.created_at
+                      ? new Date(booking.created_at).toISOString()
+                      : undefined,
             contactFullname: booking.contact_fullname || undefined,
             contactEmail: booking.contact_email || undefined,
             contactPhone: booking.contact_phone || undefined,
