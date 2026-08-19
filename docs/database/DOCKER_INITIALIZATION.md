@@ -155,7 +155,7 @@ Các script sử dụng environment variables từ `.env` hoặc `docker-compose
 - `DB_HOST` - SQL Server host (default: `sqlserver` trong Docker, `localhost` local)
 - `DB_PORT` - SQL Server port (default: `1433` trong Docker, `1434` local)
 - `DB_USER` - Database user (default: `sa`)
-- `DB_PASS` - Database password (default: `Strong!Pass1234`)
+- `DB_PASS` - Database password (from .env file, no hardcoded default)
 - `DB_NAME` - Database name (default: `flight_booking_db`)
 - `SA_PASSWORD` - SA password (fallback nếu `DB_PASS` không có)
 

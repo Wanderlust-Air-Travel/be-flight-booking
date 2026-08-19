@@ -9,6 +9,8 @@
 #   - Infrastructure must already be running (start it first with the
 #     infrastructure compose file, or run both files together as shown below).
 #   - There is NO `profiles` flag — all services here start by default.
+#   - ALL configuration is loaded from .env.development via --env-file.
+#     No defaults are baked in — every variable must come from the env file.
 #
 # Usage:
 #   # Infrastructure only:
@@ -25,133 +27,6 @@
 #     --env-file .env.development up -d
 # =============================================================================
 
-x-env-api-gateway: &env-api-gateway
-  DB_HOST: ${DB_HOST:-sqlserver}
-  DB_PORT: ${DB_PORT:-1433}
-  DB_NAME: ${DB_NAME:-flight_booking_db}
-  DB_USER: ${DB_USER:-sa}
-  DB_PASS: ${DB_PASS:-Strong!Pass1234}
-  DB_ENCRYPT: ${DB_ENCRYPT:-false}
-  DB_TRUST_CERT: ${DB_TRUST_CERT:-true}
-  REDIS_HOST: ${REDIS_HOST:-redis}
-  REDIS_PORT: ${REDIS_PORT:-6379}
-  REDIS_DB: ${REDIS_DB:-0}
-  RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
-  RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
-  RABBITMQ_USER: ${RABBITMQ_USER:-rabbitmq_user}
-  RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-rabbitmqpass}
-  RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
-  JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev_secret_change_before_production}
-  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
-  LOG_LEVEL: ${LOG_LEVEL:-debug}
-  APP_URL: ${APP_URL:-http://localhost:3001}
-
-x-env-search-ms: &env-search-ms
-  NODE_ENV: ${NODE_ENV:-development}
-  DB_HOST: ${DB_HOST:-sqlserver}
-  DB_PORT: ${DB_PORT:-1433}
-  DB_NAME: ${DB_NAME:-flight_booking_db}
-  DB_USER: ${DB_USER:-sa}
-  DB_PASS: ${DB_PASS:-Strong!Pass1234}
-  DB_ENCRYPT: ${DB_ENCRYPT:-false}
-  DB_TRUST_CERT: ${DB_TRUST_CERT:-true}
-  REDIS_HOST: ${REDIS_HOST:-redis}
-  REDIS_PORT: ${REDIS_PORT:-6379}
-  REDIS_DB: ${REDIS_DB:-0}
-
-x-env-services-ms: &env-services-ms
-  NODE_ENV: ${NODE_ENV:-development}
-  DB_HOST: ${DB_HOST:-sqlserver}
-  DB_PORT: ${DB_PORT:-1433}
-  DB_NAME: ${DB_NAME:-flight_booking_db}
-  DB_USER: ${DB_USER:-sa}
-  DB_PASS: ${DB_PASS:-Strong!Pass1234}
-  DB_ENCRYPT: ${DB_ENCRYPT:-false}
-  DB_TRUST_CERT: ${DB_TRUST_CERT:-true}
-  REDIS_HOST: ${REDIS_HOST:-redis}
-  REDIS_PORT: ${REDIS_PORT:-6379}
-  REDIS_DB: ${REDIS_DB:-0}
-
-x-env-routes-ms: &env-routes-ms
-  NODE_ENV: ${NODE_ENV:-development}
-  DB_HOST: ${DB_HOST:-sqlserver}
-  DB_PORT: ${DB_PORT:-1433}
-  DB_NAME: ${DB_NAME:-flight_booking_db}
-  DB_USER: ${DB_USER:-sa}
-  DB_PASS: ${DB_PASS:-Strong!Pass1234}
-  DB_ENCRYPT: ${DB_ENCRYPT:-false}
-  DB_TRUST_CERT: ${DB_TRUST_CERT:-true}
-  REDIS_HOST: ${REDIS_HOST:-redis}
-  REDIS_PORT: ${REDIS_PORT:-6379}
-  REDIS_DB: ${REDIS_DB:-0}
-
-x-env-booking-ms: &env-booking-ms
-  NODE_ENV: ${NODE_ENV:-development}
-  DB_HOST: ${DB_HOST:-sqlserver}
-  DB_PORT: ${DB_PORT:-1433}
-  DB_NAME: ${DB_NAME:-flight_booking_db}
-  DB_USER: ${DB_USER:-sa}
-  DB_PASS: ${DB_PASS:-Strong!Pass1234}
-  DB_ENCRYPT: ${DB_ENCRYPT:-false}
-  DB_TRUST_CERT: ${DB_TRUST_CERT:-true}
-  REDIS_HOST: ${REDIS_HOST:-redis}
-  REDIS_PORT: ${REDIS_PORT:-6379}
-  REDIS_DB: ${REDIS_DB:-0}
-  RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
-  RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
-  RABBITMQ_USER: ${RABBITMQ_USER:-rabbitmq_user}
-  RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-rabbitmqpass}
-  RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
-
-x-env-reservation-ms: &env-reservation-ms
-  NODE_ENV: ${NODE_ENV:-development}
-  DB_HOST: ${DB_HOST:-sqlserver}
-  DB_PORT: ${DB_PORT:-1433}
-  DB_NAME: ${DB_NAME:-flight_booking_db}
-  DB_USER: ${DB_USER:-sa}
-  DB_PASS: ${DB_PASS:-Strong!Pass1234}
-  DB_ENCRYPT: ${DB_ENCRYPT:-false}
-  DB_TRUST_CERT: ${DB_TRUST_CERT:-true}
-  REDIS_HOST: ${REDIS_HOST:-redis}
-  REDIS_PORT: ${REDIS_PORT:-6379}
-  REDIS_DB: ${REDIS_DB:-0}
-
-x-env-payment-ms: &env-payment-ms
-  NODE_ENV: ${NODE_ENV:-development}
-  DB_HOST: ${DB_HOST:-sqlserver}
-  DB_PORT: ${DB_PORT:-1433}
-  DB_NAME: ${DB_NAME:-flight_booking_db}
-  DB_USER: ${DB_USER:-sa}
-  DB_PASS: ${DB_PASS:-Strong!Pass1234}
-  DB_ENCRYPT: ${DB_ENCRYPT:-false}
-  DB_TRUST_CERT: ${DB_TRUST_CERT:-true}
-  REDIS_HOST: ${REDIS_HOST:-redis}
-  REDIS_PORT: ${REDIS_PORT:-6379}
-  REDIS_DB: ${REDIS_DB:-0}
-  RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
-  RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
-  RABBITMQ_USER: ${RABBITMQ_USER:-rabbitmq_user}
-  RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-rabbitmqpass}
-  RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
-
-x-env-email-ms: &env-email-ms
-  NODE_ENV: ${NODE_ENV:-development}
-  DB_HOST: ${DB_HOST:-sqlserver}
-  DB_PORT: ${DB_PORT:-1433}
-  DB_NAME: ${DB_NAME:-flight_booking_db}
-  DB_USER: ${DB_USER:-sa}
-  DB_PASS: ${DB_PASS:-Strong!Pass1234}
-  DB_ENCRYPT: ${DB_ENCRYPT:-false}
-  DB_TRUST_CERT: ${DB_TRUST_CERT:-true}
-  REDIS_HOST: ${REDIS_HOST:-redis}
-  REDIS_PORT: ${REDIS_PORT:-6379}
-  REDIS_DB: ${REDIS_DB:-0}
-  RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
-  RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
-  RABBITMQ_USER: ${RABBITMQ_USER:-rabbitmq_user}
-  RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-rabbitmqpass}
-  RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
-
 services:
   # ─── API Gateway (HTTP) ────────────────────────────────────────────────────
   api-gateway:
@@ -162,211 +37,275 @@ services:
     image: wanderlust-air/nestjs-api-gateway:${VERSION:-latest}
     restart: unless-stopped
     environment:
-      <<: *env-api-gateway
+      NODE_ENV: ${NODE_ENV}
+      API_GATEWAY_PORT: ${API_GATEWAY_PORT}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_ENCRYPT: ${DB_ENCRYPT}
+      DB_TRUST_CERT: ${DB_TRUST_CERT}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_DB: ${REDIS_DB}
+      RABBITMQ_HOST: ${RABBITMQ_HOST}
+      RABBITMQ_PORT: ${RABBITMQ_PORT}
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      LOG_LEVEL: ${LOG_LEVEL}
+      APP_URL: ${APP_URL}
       SEARCH_MS_HOST: search-ms
-      SEARCH_MS_PORT: ${SEARCH_MS_PORT:-4001}
+      SEARCH_MS_PORT: ${SEARCH_MS_PORT}
       SERVICES_MS_HOST: services-ms
-      SERVICES_MS_PORT: ${SERVICES_MS_PORT:-4002}
+      SERVICES_MS_PORT: ${SERVICES_MS_PORT}
       ROUTES_MS_HOST: routes-ms
-      ROUTES_MS_PORT: ${ROUTES_MS_PORT:-4003}
+      ROUTES_MS_PORT: ${ROUTES_MS_PORT}
       BOOKING_MS_HOST: booking-ms
-      BOOKING_MS_PORT: ${BOOKING_MS_PORT:-4004}
+      BOOKING_MS_PORT: ${BOOKING_MS_PORT}
       RESERVATION_MS_HOST: reservation-ms
-      RESERVATION_MS_PORT: ${RESERVATION_MS_PORT:-4005}
+      RESERVATION_MS_PORT: ${RESERVATION_MS_PORT}
       PAYMENT_MS_HOST: payment-ms
-      PAYMENT_MS_PORT: ${PAYMENT_MS_PORT:-4006}
+      PAYMENT_MS_PORT: ${PAYMENT_MS_PORT}
       EMAIL_MS_HOST: email-ms
-      EMAIL_MS_PORT: ${EMAIL_MS_PORT:-4007}
+      EMAIL_MS_PORT: ${EMAIL_MS_PORT}
     ports:
-      - "${API_GATEWAY_PORT:-3000}:3000"
+      - "${API_GATEWAY_PORT}:3000"
     volumes:
       - api_gateway_public:/app/public
       - api_gateway_dist:/app/dist
       - /app/node_modules
     depends_on:
-      sqlserver:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-      search-ms:
-        condition: service_started
-      services-ms:
-        condition: service_started
-      routes-ms:
-        condition: service_started
-      booking-ms:
-        condition: service_started
-      reservation-ms:
-        condition: service_started
-      payment-ms:
-        condition: service_started
-      email-ms:
-        condition: service_started
+      sqlserver: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      search-ms: { condition: service_started }
+      services-ms: { condition: service_started }
+      routes-ms: { condition: service_started }
+      booking-ms: { condition: service_started }
+      reservation-ms: { condition: service_started }
+      payment-ms: { condition: service_started }
+      email-ms: { condition: service_started }
 
-  # ─── Search Microservice (TCP:4001) ──────────────────────────────────────────
+  # ─── Search Microservice (TCP) ─────────────────────────────────────────────
   search-ms:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: { context: ., dockerfile: Dockerfile }
     container_name: wat-search-ms
     image: wanderlust-air/nestjs-search-ms:${VERSION:-latest}
     restart: unless-stopped
     environment:
-      <<: *env-search-ms
-      SEARCH_MS_HOST: "0.0.0.0"
-      SEARCH_MS_PORT: 4001
+      NODE_ENV: ${NODE_ENV}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_ENCRYPT: ${DB_ENCRYPT}
+      DB_TRUST_CERT: ${DB_TRUST_CERT}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_DB: ${REDIS_DB}
+      SEARCH_MS_HOST: ${SEARCH_MS_HOST}
+      SEARCH_MS_PORT: ${SEARCH_MS_PORT}
     command: ["node", "dist/microservices/search/main.search.js"]
     volumes:
       - search_ms_dist:/app/dist
       - /app/node_modules
     depends_on:
-      sqlserver:
-        condition: service_healthy
-    healthcheck:
-      disable: true
+      sqlserver: { condition: service_healthy }
+    healthcheck: { disable: true }
 
-  # ─── Services Microservice (TCP:4002) ──────────────────────────────────────
+  # ─── Services Microservice (TCP) ──────────────────────────────────────────
   services-ms:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: { context: ., dockerfile: Dockerfile }
     container_name: wat-services-ms
     image: wanderlust-air/nestjs-services-ms:${VERSION:-latest}
     restart: unless-stopped
     environment:
-      <<: *env-services-ms
-      SERVICES_MS_HOST: "0.0.0.0"
-      SERVICES_MS_PORT: 4002
+      NODE_ENV: ${NODE_ENV}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_ENCRYPT: ${DB_ENCRYPT}
+      DB_TRUST_CERT: ${DB_TRUST_CERT}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_DB: ${REDIS_DB}
+      SERVICES_MS_HOST: ${SERVICES_MS_HOST}
+      SERVICES_MS_PORT: ${SERVICES_MS_PORT}
     command: ["node", "dist/microservices/services/main.services.js"]
     volumes:
       - services_ms_dist:/app/dist
       - /app/node_modules
     depends_on:
-      sqlserver:
-        condition: service_healthy
-    healthcheck:
-      disable: true
+      sqlserver: { condition: service_healthy }
+    healthcheck: { disable: true }
 
-  # ─── Routes Microservice (TCP:4003) ────────────────────────────────────────
+  # ─── Routes Microservice (TCP) ────────────────────────────────────────────
   routes-ms:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: { context: ., dockerfile: Dockerfile }
     container_name: wat-routes-ms
     image: wanderlust-air/nestjs-routes-ms:${VERSION:-latest}
     restart: unless-stopped
     environment:
-      <<: *env-routes-ms
-      ROUTES_MS_HOST: "0.0.0.0"
-      ROUTES_MS_PORT: 4003
+      NODE_ENV: ${NODE_ENV}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_ENCRYPT: ${DB_ENCRYPT}
+      DB_TRUST_CERT: ${DB_TRUST_CERT}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_DB: ${REDIS_DB}
+      ROUTES_MS_HOST: ${ROUTES_MS_HOST}
+      ROUTES_MS_PORT: ${ROUTES_MS_PORT}
     command: ["node", "dist/microservices/routes/main.routes.js"]
     volumes:
       - routes_ms_dist:/app/dist
       - /app/node_modules
     depends_on:
-      sqlserver:
-        condition: service_healthy
-    healthcheck:
-      disable: true
+      sqlserver: { condition: service_healthy }
+    healthcheck: { disable: true }
 
-  # ─── Booking Microservice (TCP:4004) ──────────────────────────────────────
+  # ─── Booking Microservice (TCP) ────────────────────────────────────────────
   booking-ms:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: { context: ., dockerfile: Dockerfile }
     container_name: wat-booking-ms
     image: wanderlust-air/nestjs-booking-ms:${VERSION:-latest}
     restart: unless-stopped
     environment:
-      <<: *env-booking-ms
-      BOOKING_MS_HOST: "0.0.0.0"
-      BOOKING_MS_PORT: 4004
-      RESERVATION_MS_HOST: reservation-ms
-      RESERVATION_MS_PORT: ${RESERVATION_MS_PORT:-4005}
+      NODE_ENV: ${NODE_ENV}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_ENCRYPT: ${DB_ENCRYPT}
+      DB_TRUST_CERT: ${DB_TRUST_CERT}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_DB: ${REDIS_DB}
+      RABBITMQ_HOST: ${RABBITMQ_HOST}
+      RABBITMQ_PORT: ${RABBITMQ_PORT}
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST}
+      BOOKING_MS_HOST: ${BOOKING_MS_HOST}
+      BOOKING_MS_PORT: ${BOOKING_MS_PORT}
+      RESERVATION_MS_HOST: ${RESERVATION_MS_HOST}
+      RESERVATION_MS_PORT: ${RESERVATION_MS_PORT}
     command: ["node", "dist/microservices/booking/main.booking.js"]
     volumes:
       - booking_ms_dist:/app/dist
       - /app/node_modules
     depends_on:
-      sqlserver:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    healthcheck:
-      disable: true
+      sqlserver: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    healthcheck: { disable: true }
 
-  # ─── Reservation Microservice (TCP:4005) ───────────────────────────────────
+  # ─── Reservation Microservice (TCP) ────────────────────────────────────────
   reservation-ms:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: { context: ., dockerfile: Dockerfile }
     container_name: wat-reservation-ms
     image: wanderlust-air/nestjs-reservation-ms:${VERSION:-latest}
     restart: unless-stopped
     environment:
-      <<: *env-reservation-ms
-      RESERVATION_MS_HOST: "0.0.0.0"
-      RESERVATION_MS_PORT: 4005
+      NODE_ENV: ${NODE_ENV}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_ENCRYPT: ${DB_ENCRYPT}
+      DB_TRUST_CERT: ${DB_TRUST_CERT}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_DB: ${REDIS_DB}
+      RESERVATION_MS_HOST: ${RESERVATION_MS_HOST}
+      RESERVATION_MS_PORT: ${RESERVATION_MS_PORT}
     command: ["node", "dist/microservices/reservation/main.reservation.js"]
     volumes:
       - reservation_ms_dist:/app/dist
       - /app/node_modules
     depends_on:
-      sqlserver:
-        condition: service_healthy
-    healthcheck:
-      disable: true
+      sqlserver: { condition: service_healthy }
+    healthcheck: { disable: true }
 
-  # ─── Payment Microservice (TCP:4006) ────────────────────────────────────────
+  # ─── Payment Microservice (TCP) ────────────────────────────────────────────
   payment-ms:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: { context: ., dockerfile: Dockerfile }
     container_name: wat-payment-ms
     image: wanderlust-air/nestjs-payment-ms:${VERSION:-latest}
     restart: unless-stopped
     environment:
-      <<: *env-payment-ms
-      PAYMENT_MS_HOST: "0.0.0.0"
-      PAYMENT_MS_PORT: 4006
-      APP_URL: ${APP_URL:-http://localhost:3001}
+      NODE_ENV: ${NODE_ENV}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_ENCRYPT: ${DB_ENCRYPT}
+      DB_TRUST_CERT: ${DB_TRUST_CERT}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_DB: ${REDIS_DB}
+      RABBITMQ_HOST: ${RABBITMQ_HOST}
+      RABBITMQ_PORT: ${RABBITMQ_PORT}
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST}
+      PAYMENT_MS_HOST: ${PAYMENT_MS_HOST}
+      PAYMENT_MS_PORT: ${PAYMENT_MS_PORT}
+      APP_URL: ${APP_URL}
     command: ["node", "dist/microservices/payment/main.payment.js"]
     volumes:
       - payment_ms_dist:/app/dist
       - /app/node_modules
     depends_on:
-      sqlserver:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    healthcheck:
-      disable: true
+      sqlserver: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    healthcheck: { disable: true }
 
-  # ─── Email Microservice (TCP:4007) ─────────────────────────────────────────
+  # ─── Email Microservice (TCP) ──────────────────────────────────────────────
   email-ms:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: { context: ., dockerfile: Dockerfile }
     container_name: wat-email-ms
     image: wanderlust-air/nestjs-email-ms:${VERSION:-latest}
     restart: unless-stopped
     environment:
-      <<: *env-email-ms
-      EMAIL_MS_HOST: "0.0.0.0"
-      EMAIL_MS_PORT: 4007
+      NODE_ENV: ${NODE_ENV}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_ENCRYPT: ${DB_ENCRYPT}
+      DB_TRUST_CERT: ${DB_TRUST_CERT}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_DB: ${REDIS_DB}
+      RABBITMQ_HOST: ${RABBITMQ_HOST}
+      RABBITMQ_PORT: ${RABBITMQ_PORT}
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST}
+      EMAIL_MS_HOST: ${EMAIL_MS_HOST}
+      EMAIL_MS_PORT: ${EMAIL_MS_PORT}
     command: ["node", "dist/microservices/email/main.email.js"]
     volumes:
       - email_ms_dist:/app/dist
       - /app/node_modules
     depends_on:
-      sqlserver:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    healthcheck:
-      disable: true
+      sqlserver: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    healthcheck: { disable: true }
 
 volumes:
   api_gateway_public:

@@ -160,7 +160,7 @@ export class DataService implements OnModuleInit {
         const cabinClassFilter = params.cabinClass?.toUpperCase() || 'Y';
         const cabinClassCode = cabinClassFilter === 'ECONOMY' ? 'Y' : cabinClassFilter === 'BUSINESS' ? 'J' : cabinClassFilter === 'FIRST' ? 'F' : cabinClassFilter;
 
-        const flights = await this.flightInstanceRepository
+        const queryBuilder = this.flightInstanceRepository
             .createQueryBuilder('fi')
             .innerJoinAndSelect('fi.flight_schedule', 'fs')
             .innerJoinAndSelect('fs.route', 'route')
@@ -168,26 +168,30 @@ export class DataService implements OnModuleInit {
             .innerJoinAndSelect('route.destination_airport', 'destination')
             .innerJoinAndSelect('fs.aircraft_type', 'aircraftType')
             .innerJoinAndSelect('fi.aircraft', 'aircraft')
-            .leftJoinAndSelect(
+            .leftJoin(
                 RouteFarePrice,
                 'rfp',
                 'rfp.route_id = route.route_id AND rfp.fare_class_code = :cabinClassCode',
                 { cabinClassCode }
             )
+            .addSelect('rfp.base_price')
             .where('origin.iata_code = :origin', { origin: params.origin })
             .andWhere('destination.iata_code = :destination', { destination: params.destination })
             .andWhere('fi.flight_date >= :departureDate', { departureDate })
             .andWhere('fi.flight_date < :nextDay', { nextDay })
             .andWhere('fi.status = :status', { status: 'scheduled' })
-            .orderBy('fi.departure_datetime_local', 'ASC')
-            .getMany();
+            .orderBy('fi.departure_datetime_local', 'ASC');
+
+        const results = await queryBuilder.getRawAndEntities();
+        const flights = results.entities as FlightInstance[];
+        const rawPrices = results.raw as unknown as Array<{ rfp_base_price: number | null }>;
 
         const passengerCount = (params.adults || 1) + (params.children || 0);
         const cabinMultiplier = cabinClassCode === 'J' ? 3 : cabinClassCode === 'F' ? 5 : 1;
 
         const flightOffers: FlightOfferDto[] = flights.map((flight, index) => {
-            const basePrice = flight.routeFarePrices?.[0]?.base_price
-                ? Number(flight.routeFarePrices[0].base_price)
+            const basePrice = rawPrices[index]?.rfp_base_price != null
+                ? Number(rawPrices[index].rfp_base_price)
                 : 500000 + index * 350000;
 
             const flightNumber = flight.flight_schedule?.flight_number || flight.flight_number;

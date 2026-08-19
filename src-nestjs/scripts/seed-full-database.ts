@@ -1903,6 +1903,9 @@ async function run() {
     }
 
     const defaultAircraftType = await repos.aircraftType.findOne({ where: { code: '320' } });
+    if (!defaultAircraftType) {
+        throw new Error('Seed failed: AircraftType with code "320" not found. Run seat types seeding first.');
+    }
     const defaultAircraft = await repos.aircraft.findOne({ where: { registration: 'VN-320-001' } });
 
     // ============================================================

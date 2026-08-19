@@ -36,8 +36,8 @@ services:
     restart: unless-stopped
     environment:
       ACCEPT_EULA: Y
-      MSSQL_SA_PASSWORD: ${DB_PASS:-StrongPass1234}
-      SA_PASSWORD: ${DB_PASS:-StrongPass1234}
+      MSSQL_SA_PASSWORD: ${DB_PASS}
+      SA_PASSWORD: ${DB_PASS}
       MSSQL_PID: Developer
     ports:
       # Pinned to host port 1434 (container 1433) because Windows hosts often
@@ -47,7 +47,7 @@ services:
     volumes:
       - sqlserver_data:/var/opt/mssql
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P ${DB_PASS:-StrongPass1234} -C -Q 'SELECT 1' || exit 1"]
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P ${DB_PASS} -C -Q 'SELECT 1' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -75,8 +75,8 @@ services:
     container_name: wat-rabbitmq
     restart: unless-stopped
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-rabbitmq_user}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-rabbitmqpass}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
     ports:
       - "${RABBITMQ_PORT:-5672}:5672"
       - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
