@@ -93,7 +93,7 @@ services:
       email-ms: { condition: service_started }
 
   search-ms:
-    build: { context: ., dockerfile: Dockerfile }
+    build: { context: ., dockerfile: Dockerfile.staging }
     container_name: wat-search-ms
     image: wanderlust-air/nestjs-search-ms:${VERSION:-latest}
     restart: unless-stopped
@@ -120,7 +120,7 @@ services:
     healthcheck: { disable: true }
 
   services-ms:
-    build: { context: ., dockerfile: Dockerfile }
+    build: { context: ., dockerfile: Dockerfile.staging }
     container_name: wat-services-ms
     image: wanderlust-air/nestjs-services-ms:${VERSION:-latest}
     restart: unless-stopped
@@ -147,7 +147,7 @@ services:
     healthcheck: { disable: true }
 
   routes-ms:
-    build: { context: ., dockerfile: Dockerfile }
+    build: { context: ., dockerfile: Dockerfile.staging }
     container_name: wat-routes-ms
     image: wanderlust-air/nestjs-routes-ms:${VERSION:-latest}
     restart: unless-stopped
@@ -174,7 +174,7 @@ services:
     healthcheck: { disable: true }
 
   booking-ms:
-    build: { context: ., dockerfile: Dockerfile }
+    build: { context: ., dockerfile: Dockerfile.staging }
     container_name: wat-booking-ms
     image: wanderlust-air/nestjs-booking-ms:${VERSION:-latest}
     restart: unless-stopped
@@ -209,7 +209,7 @@ services:
     healthcheck: { disable: true }
 
   reservation-ms:
-    build: { context: ., dockerfile: Dockerfile }
+    build: { context: ., dockerfile: Dockerfile.staging }
     container_name: wat-reservation-ms
     image: wanderlust-air/nestjs-reservation-ms:${VERSION:-latest}
     restart: unless-stopped
@@ -236,7 +236,7 @@ services:
     healthcheck: { disable: true }
 
   payment-ms:
-    build: { context: ., dockerfile: Dockerfile }
+    build: { context: ., dockerfile: Dockerfile.staging }
     container_name: wat-payment-ms
     image: wanderlust-air/nestjs-payment-ms:${VERSION:-latest}
     restart: unless-stopped
@@ -270,7 +270,7 @@ services:
     healthcheck: { disable: true }
 
   email-ms:
-    build: { context: ., dockerfile: Dockerfile }
+    build: { context: ., dockerfile: Dockerfile.staging }
     container_name: wat-email-ms
     image: wanderlust-air/nestjs-email-ms:${VERSION:-latest}
     restart: unless-stopped

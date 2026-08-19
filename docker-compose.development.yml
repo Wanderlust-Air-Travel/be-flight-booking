@@ -27,12 +27,17 @@
 #     --env-file .env.development up -d
 # =============================================================================
 
+networks:
+  default:
+    name: be-flight-booking_default
+    external: true
+
 services:
   # ─── API Gateway (HTTP) ────────────────────────────────────────────────────
   api-gateway:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.development
     container_name: wat-api-gateway
     image: wanderlust-air/nestjs-api-gateway:${VERSION:-latest}
     restart: unless-stopped
@@ -40,7 +45,7 @@ services:
       NODE_ENV: ${NODE_ENV}
       API_GATEWAY_PORT: ${API_GATEWAY_PORT}
       DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT}
+      DB_PORT: 1433
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
@@ -92,14 +97,14 @@ services:
 
   # ─── Search Microservice (TCP) ─────────────────────────────────────────────
   search-ms:
-    build: { context: ., dockerfile: Dockerfile }
+    build: { context: ., dockerfile: Dockerfile.development }
     container_name: wat-search-ms
     image: wanderlust-air/nestjs-search-ms:${VERSION:-latest}
     restart: unless-stopped
     environment:
       NODE_ENV: ${NODE_ENV}
       DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT}
+      DB_PORT: 1433
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
@@ -120,14 +125,14 @@ services:
 
   # ─── Services Microservice (TCP) ──────────────────────────────────────────
   services-ms:
-    build: { context: ., dockerfile: Dockerfile }
+    build: { context: ., dockerfile: Dockerfile.development }
     container_name: wat-services-ms
     image: wanderlust-air/nestjs-services-ms:${VERSION:-latest}
     restart: unless-stopped
     environment:
       NODE_ENV: ${NODE_ENV}
       DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT}
+      DB_PORT: 1433
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
@@ -148,14 +153,14 @@ services:
 
   # ─── Routes Microservice (TCP) ────────────────────────────────────────────
   routes-ms:
-    build: { context: ., dockerfile: Dockerfile }
+    build: { context: ., dockerfile: Dockerfile.development }
     container_name: wat-routes-ms
     image: wanderlust-air/nestjs-routes-ms:${VERSION:-latest}
     restart: unless-stopped
     environment:
       NODE_ENV: ${NODE_ENV}
       DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT}
+      DB_PORT: 1433
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
@@ -176,14 +181,14 @@ services:
 
   # ─── Booking Microservice (TCP) ────────────────────────────────────────────
   booking-ms:
-    build: { context: ., dockerfile: Dockerfile }
+    build: { context: ., dockerfile: Dockerfile.development }
     container_name: wat-booking-ms
     image: wanderlust-air/nestjs-booking-ms:${VERSION:-latest}
     restart: unless-stopped
     environment:
       NODE_ENV: ${NODE_ENV}
       DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT}
+      DB_PORT: 1433
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
@@ -212,14 +217,14 @@ services:
 
   # ─── Reservation Microservice (TCP) ────────────────────────────────────────
   reservation-ms:
-    build: { context: ., dockerfile: Dockerfile }
+    build: { context: ., dockerfile: Dockerfile.development }
     container_name: wat-reservation-ms
     image: wanderlust-air/nestjs-reservation-ms:${VERSION:-latest}
     restart: unless-stopped
     environment:
       NODE_ENV: ${NODE_ENV}
       DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT}
+      DB_PORT: 1433
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
@@ -240,14 +245,14 @@ services:
 
   # ─── Payment Microservice (TCP) ────────────────────────────────────────────
   payment-ms:
-    build: { context: ., dockerfile: Dockerfile }
+    build: { context: ., dockerfile: Dockerfile.development }
     container_name: wat-payment-ms
     image: wanderlust-air/nestjs-payment-ms:${VERSION:-latest}
     restart: unless-stopped
     environment:
       NODE_ENV: ${NODE_ENV}
       DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT}
+      DB_PORT: 1433
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
@@ -275,14 +280,16 @@ services:
 
   # ─── Email Microservice (TCP) ──────────────────────────────────────────────
   email-ms:
-    build: { context: ., dockerfile: Dockerfile }
+    build:
+      context: .
+      dockerfile: Dockerfile.development.email
     container_name: wat-email-ms
     image: wanderlust-air/nestjs-email-ms:${VERSION:-latest}
     restart: unless-stopped
     environment:
       NODE_ENV: ${NODE_ENV}
       DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT}
+      DB_PORT: 1433
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
