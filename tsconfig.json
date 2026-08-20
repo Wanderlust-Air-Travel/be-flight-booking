@@ -2,8 +2,9 @@
   "compilerOptions": {
     "ignoreDeprecations": "5.0",
     "module": "nodenext",
-    "moduleResolution": "nodenext",
-    "resolvePackageJsonExports": true,
+    "module": "commonjs",
+    "moduleResolution": "NodeJs",
+    "resolvePackageJsonExports": false,
     "esModuleInterop": true,
     "isolatedModules": true,
     "declaration": true,

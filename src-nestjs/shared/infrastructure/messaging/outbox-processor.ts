@@ -75,7 +75,7 @@ export class OutboxProcessor {
 
             try {
                 const event = this.deserialize(row.payload);
-                await this.bus.publish(event, { correlationId: row.id });
+                await this.bus.publish(event);
                 await this.repo.markPublished(row.id);
                 processed++;
             } catch (error: any) {

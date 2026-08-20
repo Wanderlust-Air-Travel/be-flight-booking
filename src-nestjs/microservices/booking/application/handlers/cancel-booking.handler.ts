@@ -1,6 +1,6 @@
 import { Inject, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import type { IBookingRepository } from '../../domain/repositories/booking.repository.interface';
-import type { IOutboxWriter } from '../../../../../shared/application/ports/outbox-writer.interface';
+import type { IOutboxWriter } from '../../../shared/application/ports/outbox-writer.interface';
 import type { CancelBookingCommand, CancelBookingResponse } from '../commands/cancel-booking.command';
 
 /**

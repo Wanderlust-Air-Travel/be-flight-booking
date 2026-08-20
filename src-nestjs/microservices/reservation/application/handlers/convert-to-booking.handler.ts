@@ -1,6 +1,6 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { IReservationRepository } from '../../domain/repositories/reservation.repository.interface';
-import type { IOutboxWriter } from '../../../../../shared/application/ports/outbox-writer.interface';
+import type { IOutboxWriter } from '../../../../shared/application/ports/outbox-writer.interface';
 
 export interface ConvertToBookingCommand {
     reservationId: string;

@@ -2,8 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
 import { randomUUID } from 'node:crypto';
-import type { IDomainEvent } from '../../domain/events/domain-event';
-import type { IOutboxWriter } from '../../application/ports/outbox-writer.interface';
+import type { IDomainEvent } from '../../../domain/events/domain-event';
+import type { IOutboxWriter } from '../../../application/ports/outbox-writer.interface';
 import { OutboxEvent } from './entities/outbox-event.entity';
 
 /**

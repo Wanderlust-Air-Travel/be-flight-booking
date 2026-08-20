@@ -11,15 +11,11 @@ RUN apk add --no-cache netcat-openbsd
 COPY package*.json ./
 RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
-# Copy source code for email service
-COPY src-nestjs ./src-nestjs
-COPY tsconfig.json tsconfig.build.json nest-cli.json ./
+# Copy pre-built dist (TypeScript build was done locally)
+COPY dist/ ./dist/
 
 # Copy credentials (build-time secret - only for this service)
 COPY credentials_desktop_apps.json token.json ./
-
-# Build all (fast with incremental compilation)
-RUN npx nest build
 
 EXPOSE 3000
 

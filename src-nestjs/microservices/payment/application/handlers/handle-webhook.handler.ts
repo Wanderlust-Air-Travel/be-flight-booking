@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { IPaymentRepository } from '../../domain/repositories/payment.repository.interface';
-import type { IOutboxWriter } from '../../../../../shared/application/ports/outbox-writer.interface';
+import type { IOutboxWriter } from '../../../../shared/application/ports/outbox-writer.interface';
 
 export interface PaymentWebhookPayload {
     gateway: string;

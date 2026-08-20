@@ -1,6 +1,6 @@
 import { ValueObject } from '../../../../shared/domain/base/value-object';
 import { DomainException } from '../../../../shared/domain/exceptions/domain-exception';
-import type { IBookingRepository } from '../../repositories/booking.repository.interface';
+import type { IBookingRepository } from '../../domain/repositories/booking.repository.interface';
 
 const PNR_PATTERN = /^[A-Z0-9]{6}$/;
 

@@ -1,7 +1,7 @@
 import { Controller, Logger } from '@nestjs/common';
 import { EventPattern } from '@nestjs/microservices';
 import type { IEmailMessageRepository } from '../../domain/repositories/email.repository.interface';
-import type { IOutboxWriter } from '../../../../../shared/application/ports/outbox-writer.interface';
+import type { IOutboxWriter } from '../../../../shared/application/ports/outbox-writer.interface';
 import { EmailSentEvent, EmailFailedEvent } from '../../domain/events/email.events';
 
 /**

@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { IReservationRepository } from '../../domain/repositories/reservation.repository.interface';
-import type { IOutboxWriter } from '../../../../../shared/application/ports/outbox-writer.interface';
+import type { IOutboxWriter } from '../../../../shared/application/ports/outbox-writer.interface';
 import { Reservation } from '../../domain/aggregates/reservation.aggregate';
 
 export interface CreateReservationCommand {

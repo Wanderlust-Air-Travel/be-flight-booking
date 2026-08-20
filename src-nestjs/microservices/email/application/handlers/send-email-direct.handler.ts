@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { IEmailMessageRepository } from '../../domain/repositories/email.repository.interface';
-import type { IOutboxWriter } from '../../../../../shared/application/ports/outbox-writer.interface';
+import type { IOutboxWriter } from '../../../../shared/application/ports/outbox-writer.interface';
 
 export interface SendEmailDirectCommand {
     emailMessageId: string;

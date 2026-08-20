@@ -4,8 +4,8 @@ import {
     GetFareOptionsHandler,
     GetFlightDetailsHandler,
     SearchFlightHandler,
-} from '../application/handlers/search.handlers';
-import { SearchMessageHandler } from '../interface/search.message-handler';
+} from './application/handlers/search.handlers';
+import { SearchMessageHandler } from './interface/search.message-handler';
 
 /**
  * SearchModule — Wires the search bounded context.

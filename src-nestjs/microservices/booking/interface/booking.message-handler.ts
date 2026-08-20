@@ -1,16 +1,16 @@
 import { Body, Controller } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
-import { CreateBookingHandler } from '../../application/handlers/create-booking.handler';
-import { GetBookingHandler } from '../../application/handlers/get-booking.handler';
-import { CancelBookingHandler } from '../../application/handlers/cancel-booking.handler';
-import { CancelTicketHandler } from '../../application/handlers/cancel-ticket.handler';
-import { UpdateBookingPassengersHandler } from '../../application/handlers/update-booking-passengers.handler';
-import { CheckInBookingHandler } from '../../application/handlers/check-in-booking.handler';
-import { CreateTicketsFromBookingHandler } from '../../application/handlers/create-tickets-from-booking.handler';
-import { GetMyTicketsHandler } from '../../application/handlers/get-my-tickets.handler';
-import { GetMyJourneyHandler } from '../../application/handlers/get-my-journey.handler';
-import { Money } from '../../domain/value-objects/money';
-import { ContactInfo } from '../../domain/value-objects/contact-info';
+import { CreateBookingHandler } from '../application/handlers/create-booking.handler';
+import { GetBookingHandler } from '../application/handlers/get-booking.handler';
+import { CancelBookingHandler } from '../application/handlers/cancel-booking.handler';
+import { CancelTicketHandler } from '../application/handlers/cancel-ticket.handler';
+import { UpdateBookingPassengersHandler } from '../application/handlers/update-booking-passengers.handler';
+import { CheckInBookingHandler } from '../application/handlers/check-in-booking.handler';
+import { CreateTicketsFromBookingHandler } from '../application/handlers/create-tickets-from-booking.handler';
+import { GetMyTicketsHandler } from '../application/handlers/get-my-tickets.handler';
+import { GetMyJourneyHandler } from '../application/handlers/get-my-journey.handler';
+import { Money } from '../domain/value-objects/money';
+import { ContactInfo } from '../domain/value-objects/contact-info';
 
 /**
  * BookingMessageHandler — Thin interface layer. Translates TCP messages
