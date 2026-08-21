@@ -11,13 +11,20 @@ import { OurairportsProvider } from './providers/ourairports.provider';
 import { DataService } from './services/data.service';
 import { HttpClientService } from './services/http-client.service';
 
+const isDev = process.env.NODE_ENV !== 'production';
+
 @Global()
 @Module({
     imports: [
         ConfigModule,
         TypeOrmModule.forFeature([Airline, AircraftType, FlightInstance, Route, RouteFarePrice]),
     ],
-    providers: [HttpClientService, OurairportsProvider, MockProvider, DataService],
-    exports: [DataService, OurairportsProvider, MockProvider, HttpClientService],
+    providers: [
+        HttpClientService,
+        OurairportsProvider,
+        ...(isDev ? [MockProvider] : []),
+        DataService,
+    ],
+    exports: [DataService, OurairportsProvider, ...(isDev ? [MockProvider] : []), HttpClientService],
 })
 export class DataProvidersModule {}

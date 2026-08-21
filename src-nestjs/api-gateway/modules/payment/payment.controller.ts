@@ -1,23 +1,20 @@
 import {
+    type ArgumentsHost,
     BadRequestException,
     Body,
     Controller,
     Get,
     Headers,
     HttpCode,
-    HttpException,
     HttpStatus,
-    InternalServerErrorException,
-    NotFoundException,
+    Inject,
+    Logger,
     Param,
     Patch,
     Post,
     Req,
-    ServiceUnavailableException,
     UseGuards,
 } from '@nestjs/common';
-import { Inject } from '@nestjs/common';
-import { Logger } from '@nestjs/common';
 import type { ClientProxy } from '@nestjs/microservices';
 import {
     ApiBadRequestResponse,
@@ -31,10 +28,8 @@ import {
 } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { firstValueFrom } from 'rxjs';
-import { throwError } from 'rxjs';
-import { catchError, timeout } from 'rxjs/operators';
 import { PAYMENT_MS } from 'src/microservices/payment/payment.messages';
-import { COMMON_MESSAGES, PAYMENT_MESSAGES } from 'src/shared/constants/messages';
+import { PAYMENT_MESSAGES } from 'src/shared/constants/messages';
 import { JwtAuthGuard } from '../auth/guard/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/guard/optional-jwt-auth.guard';
 import { PaymentStatusService } from '../realtime/services/payment-status.service';
@@ -47,12 +42,8 @@ import type { UpdatePaymentStatusDto } from './dto/update-payment-status.dto';
 export class PaymentController {
     private readonly logger = new Logger(PaymentController.name);
 
-    private get client(): ClientProxy {
-        return this._client;
-    }
-
     constructor(
-        @Inject('PAYMENT_CLIENT') private readonly _client: ClientProxy,
+        @Inject('PAYMENT_CLIENT') private readonly client: ClientProxy,
         private readonly paymentStatusService: PaymentStatusService
     ) {}
 
@@ -83,167 +74,14 @@ export class PaymentController {
     ): Promise<PaymentResponseDto> {
         // Fallback: if NestJS injects the DTO class instead of an instance, read from req.body
         const body = typeof dto === 'function' ? req.body : dto;
+        const userId = req.user.userId;
 
-        try {
-            // Validate UUID v7 format
-            const uuidRegex =
-                /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-            if (!uuidRegex.test(bookingId)) {
-                throw new BadRequestException(
-                    PAYMENT_MESSAGES.VALIDATION.BOOKING_ID_INVALID_FORMAT
-                );
-            }
-
-            const userId = req.user.userId;
-
-            // BEST PRACTICE: Payment operations can be slow due to database transactions
-            // Set timeout to 60 seconds (payment operations are more complex than search)
-            return await firstValueFrom(
-                this.client
-                    .send<PaymentResponseDto>(PAYMENT_MS.PATTERN.CREATE_PAYMENT, {
-                        userId,
-                        dto: {
-                            ...body,
-                            bookingId,
-                        },
-                    })
-                    .pipe(
-                        timeout(60000), // 60 seconds timeout for payment operations
-                        catchError((error) => {
-                            // Re-throw timeout errors with proper code
-                            if (error.name === 'TimeoutError') {
-                                const timeoutError: any = new Error(
-                                    COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT
-                                );
-                                timeoutError.code = 'ETIMEDOUT';
-                                return throwError(() => timeoutError);
-                            }
-                            return throwError(() => error);
-                        })
-                    )
-            );
-        } catch (error: any) {
-            // Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
-            if (error instanceof HttpException) {
-                throw error;
-            }
-
-            // Also check for statusCode property for compatibility
-            if (error?.statusCode && error?.message) {
-                if (error?.statusCode === 404) {
-                    throw new NotFoundException(error.message);
-                }
-                throw error;
-            }
-
-            // Handle microservice connection errors - these are infrastructure issues (503)
-            const errorMessage = error?.message || error?.toString() || '';
-            const errorCode = error?.code || '';
-
-            // Connection refused - microservice is not running
-            if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED
-                );
-            }
-
-            // Connection reset - microservice closed connection unexpectedly (ECONNRESET)
-            if (
-                errorCode === 'ECONNRESET' ||
-                errorMessage.includes('ECONNRESET') ||
-                errorMessage.includes('read ECONNRESET')
-            ) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED
-                );
-            }
-
-            // Connection closed - microservice disconnected
-            if (errorMessage.includes('Connection closed')) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED
-                );
-            }
-
-            // Invalid TCP data reception - microservice may be restarting or connection issue
-            if (
-                errorMessage.includes('InvalidTcpDataReceptionException') ||
-                errorMessage.includes('invalid received message from tcp server')
-            ) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED
-                );
-            }
-
-            // Timeout errors - microservice not responding
-            if (
-                errorCode === 'ETIMEDOUT' ||
-                errorMessage.includes('timeout') ||
-                errorMessage.includes('ETIMEDOUT')
-            ) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT
-                );
-            }
-
-            // Handle microservice error format: { status: 'error', message: '...' }
-            if (error?.status === 'error' && error?.message) {
-                const message = error.message.toLowerCase();
-                // Check if message indicates "not found"
-                if (
-                    message.includes('not found') ||
-                    message.includes('notfound') ||
-                    (message.includes('booking') && message.includes('not found')) ||
-                    message.includes('does not exist')
-                ) {
-                    throw new NotFoundException(
-                        `${PAYMENT_MESSAGES.ERROR.BOOKING_NOT_FOUND}: ${error.message}`
-                    );
-                }
-                // If it's a generic "Internal server error", it might be a not found case
-                if (message.includes('internal server error') && error?.details) {
-                    const details = String(error.details).toLowerCase();
-                    if (details.includes('not found') || details.includes('booking')) {
-                        throw new NotFoundException(PAYMENT_MESSAGES.ERROR.BOOKING_NOT_FOUND);
-                    }
-                }
-                throw new BadRequestException(
-                    `${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error.message}`
-                );
-            }
-
-            // Generic error - check if it might be a not found case
-            const lowerErrorMessage = errorMessage.toLowerCase();
-            if (
-                lowerErrorMessage.includes('not found') ||
-                lowerErrorMessage.includes('not exist')
-            ) {
-                throw new NotFoundException(PAYMENT_MESSAGES.ERROR.BOOKING_NOT_FOUND);
-            }
-
-            // Try to extract meaningful message from error object
-            let extractedMessage: string | null = null;
-
-            // Try error.response.message (RpcException format)
-            if (error?.response?.message && typeof error.response.message === 'string') {
-                extractedMessage = error.response.message;
-            }
-            // Try error.message (direct)
-            else if (
-                error?.message &&
-                typeof error.message === 'string' &&
-                error.message !== 'Internal server error'
-            ) {
-                extractedMessage = error.message;
-            }
-
-            // Use extracted message or provide descriptive default
-            const finalMessage =
-                extractedMessage || errorMessage || 'Create payment failed: Internal server error';
-            throw new BadRequestException(
-                `${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${finalMessage}`
-            );
-        }
+        return await firstValueFrom(
+            this.client.send<PaymentResponseDto>(PAYMENT_MS.PATTERN.CREATE_PAYMENT, {
+                userId,
+                dto: { ...body, bookingId },
+            })
+        );
     }
 
     @Post('bookings/:bookingId/process')
@@ -271,190 +109,32 @@ export class PaymentController {
         @Param('bookingId') bookingId: string,
         @Body() dto: CreatePaymentDto
     ): Promise<PaymentResponseDto> {
-        // Fallback: if NestJS injects the DTO class instead of an instance, read from req.body
         const body = typeof dto === 'function' ? req.body : dto;
+        const userId = req.user?.userId || null;
 
+        const payment = await firstValueFrom(
+            this.client.send<PaymentResponseDto>(PAYMENT_MS.PATTERN.PROCESS_PAYMENT, {
+                userId,
+                dto: { ...body, bookingId },
+            })
+        );
+
+        // Publish payment status change to WebSocket clients (real-time updates)
         try {
-            // Validate UUID v7 format
-            const uuidRegex =
-                /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-            if (!uuidRegex.test(bookingId)) {
-                throw new BadRequestException(
-                    PAYMENT_MESSAGES.VALIDATION.BOOKING_ID_INVALID_FORMAT
-                );
-            }
-
-            // userId can be null for guest users
-            const userId = req.user?.userId || null;
-
-            // BEST PRACTICE: Payment processing can be slow due to payment gateway integration and database transactions
-            // Set timeout to 60 seconds (payment processing is more complex)
-            // userId can be null for guest users
-            const payment = await firstValueFrom(
-                this.client
-                    .send<PaymentResponseDto>(PAYMENT_MS.PATTERN.PROCESS_PAYMENT, {
-                        userId, // null for guest users
-                        dto: {
-                            ...body,
-                            bookingId,
-                        },
-                    })
-                    .pipe(
-                        timeout(60000), // 60 seconds timeout for payment processing
-                        catchError((error) => {
-                            // Re-throw timeout errors with proper code
-                            if (error.name === 'TimeoutError') {
-                                const timeoutError: any = new Error(
-                                    COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT
-                                );
-                                timeoutError.code = 'ETIMEDOUT';
-                                return throwError(() => timeoutError);
-                            }
-                            return throwError(() => error);
-                        })
-                    )
+            await this.paymentStatusService.publishPaymentStatusChange(
+                payment.bookingId,
+                payment.paymentId,
+                payment.status,
+                {
+                    transactionRef: payment.transactionRef,
+                    paymentMethodCode: payment.paymentMethodCode,
+                }
             );
-
-            // Publish payment status change to WebSocket clients (real-time updates)
-            try {
-                await this.paymentStatusService.publishPaymentStatusChange(
-                    payment.bookingId,
-                    payment.paymentId,
-                    payment.status,
-                    {
-                        transactionRef: payment.transactionRef,
-                        paymentMethodCode: payment.paymentMethodCode,
-                    }
-                );
-            } catch (error) {
-                // Log error but don't fail the request - WebSocket is best effort
-                this.logger.warn(`Failed to publish payment status change: ${error.message}`);
-            }
-
-            return payment;
-        } catch (error: any) {
-            // Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
-            if (error instanceof HttpException) {
-                throw error;
-            }
-
-            // RpcException from microservice often comes in error.response
-            const rpcResponse = error?.response;
-            if (rpcResponse?.statusCode && rpcResponse?.message) {
-                // Propagate business errors from Payment MS to client (400/404)
-                if (rpcResponse.statusCode === 400) {
-                    throw new BadRequestException(rpcResponse.message);
-                }
-                if (rpcResponse.statusCode === 404) {
-                    throw new NotFoundException(rpcResponse.message);
-                }
-            }
-
-            // Also check for statusCode directly for compatibility
-            if (error?.statusCode && error?.message) {
-                if (error?.statusCode === 404) {
-                    throw new NotFoundException(error.message);
-                }
-                if (error?.statusCode === 400) {
-                    throw new BadRequestException(error.message);
-                }
-                throw error;
-            }
-
-            // Handle microservice connection errors - these are infrastructure issues (503)
-            const errorMessage = error?.message || error?.toString() || '';
-            const errorCode = error?.code || '';
-
-            // Connection refused - microservice is not running
-            if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED
-                );
-            }
-
-            // Connection reset - microservice closed connection unexpectedly (ECONNRESET)
-            if (
-                errorCode === 'ECONNRESET' ||
-                errorMessage.includes('ECONNRESET') ||
-                errorMessage.includes('read ECONNRESET')
-            ) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED
-                );
-            }
-
-            // Connection closed - microservice disconnected
-            if (errorMessage.includes('Connection closed')) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED
-                );
-            }
-
-            // Invalid TCP data reception - microservice may be restarting or connection issue
-            if (
-                errorMessage.includes('InvalidTcpDataReceptionException') ||
-                errorMessage.includes('invalid received message from tcp server')
-            ) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED
-                );
-            }
-
-            // Timeout errors - microservice not responding
-            if (
-                errorCode === 'ETIMEDOUT' ||
-                errorMessage.includes('timeout') ||
-                errorMessage.includes('ETIMEDOUT')
-            ) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT
-                );
-            }
-
-            // Handle microservice error format: { status: 'error', message: '...' }
-            if (error?.status === 'error' && error?.message) {
-                const message = error.message.toLowerCase();
-                // Check if message indicates "not found"
-                if (
-                    message.includes('not found') ||
-                    message.includes('notfound') ||
-                    (message.includes('booking') && message.includes('not found')) ||
-                    message.includes('does not exist')
-                ) {
-                    throw new NotFoundException(
-                        `${PAYMENT_MESSAGES.ERROR.BOOKING_NOT_FOUND}: ${error.message}`
-                    );
-                }
-                // If it's a generic "Internal server error", it might be a microservice issue
-                if (message.includes('internal server error')) {
-                    // Check error details if available
-                    if (error?.details) {
-                        const details = String(error.details).toLowerCase();
-                        if (details.includes('not found') || details.includes('booking')) {
-                            throw new NotFoundException('Booking not found');
-                        }
-                    }
-                    // Generic internal server error - likely microservice issue
-                    throw new ServiceUnavailableException(COMMON_MESSAGES.ERROR.MICROSERVICE_ERROR);
-                }
-                throw new BadRequestException(
-                    `${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error.message}`
-                );
-            }
-
-            // Generic error - check if it might be a not found case
-            const lowerErrorMessage = errorMessage.toLowerCase();
-            if (
-                lowerErrorMessage.includes('not found') ||
-                lowerErrorMessage.includes('not exist')
-            ) {
-                throw new NotFoundException(PAYMENT_MESSAGES.ERROR.BOOKING_NOT_FOUND);
-            }
-
-            throw new BadRequestException(
-                `${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${errorMessage}`
-            );
+        } catch (error) {
+            this.logger.warn(`Failed to publish payment status change: ${(error as Error).message}`);
         }
+
+        return payment;
     }
 
     @Get(':id')
@@ -481,145 +161,14 @@ export class PaymentController {
         @Req() req: Request & { user?: { userId: string; email: string } },
         @Param('id') paymentId: string
     ): Promise<PaymentResponseDto> {
-        try {
-            // Validate UUID v7 format
-            const uuidRegex =
-                /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-            if (!uuidRegex.test(paymentId)) {
-                throw new BadRequestException(
-                    PAYMENT_MESSAGES.VALIDATION.PAYMENT_ID_INVALID_FORMAT
-                );
-            }
+        const userId = req.user?.userId || null;
 
-            // userId can be null for guest users
-            const userId = req.user?.userId || null;
-
-            // BEST PRACTICE: Get payment can be slow if database is under load
-            // Set timeout to 30 seconds (read operations should be faster)
-            return await firstValueFrom(
-                this.client
-                    .send<PaymentResponseDto>(PAYMENT_MS.PATTERN.GET_PAYMENT, {
-                        userId,
-                        paymentId,
-                    })
-                    .pipe(
-                        timeout(30000), // 30 seconds timeout for read operations
-                        catchError((error) => {
-                            // Re-throw timeout errors with proper code
-                            if (error.name === 'TimeoutError') {
-                                const timeoutError: any = new Error(
-                                    COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT
-                                );
-                                timeoutError.code = 'ETIMEDOUT';
-                                return throwError(() => timeoutError);
-                            }
-                            return throwError(() => error);
-                        })
-                    )
-            );
-        } catch (error: any) {
-            // Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
-            if (error instanceof HttpException) {
-                throw error;
-            }
-
-            // Also check for statusCode property for compatibility
-            if (error?.statusCode && error?.message) {
-                if (error?.statusCode === 404) {
-                    throw new NotFoundException(error.message);
-                }
-                throw error;
-            }
-
-            // Handle microservice connection errors - these are infrastructure issues (503)
-            const errorMessage = error?.message || error?.toString() || '';
-            const errorCode = error?.code || '';
-
-            // Connection refused - microservice is not running
-            if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED
-                );
-            }
-
-            // Connection reset - microservice closed connection unexpectedly (ECONNRESET)
-            if (
-                errorCode === 'ECONNRESET' ||
-                errorMessage.includes('ECONNRESET') ||
-                errorMessage.includes('read ECONNRESET')
-            ) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED
-                );
-            }
-
-            // Connection closed - microservice disconnected
-            if (errorMessage.includes('Connection closed')) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED
-                );
-            }
-
-            // Invalid TCP data reception - microservice may be restarting or connection issue
-            if (
-                errorMessage.includes('InvalidTcpDataReceptionException') ||
-                errorMessage.includes('invalid received message from tcp server')
-            ) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED
-                );
-            }
-
-            // Timeout errors - microservice not responding
-            if (
-                errorCode === 'ETIMEDOUT' ||
-                errorMessage.includes('timeout') ||
-                errorMessage.includes('ETIMEDOUT')
-            ) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT
-                );
-            }
-
-            // Handle microservice error format: { status: 'error', message: '...' }
-            if (error?.status === 'error' && error?.message) {
-                const message = error.message.toLowerCase();
-                // Check if message indicates "not found"
-                if (
-                    message.includes('not found') ||
-                    message.includes('notfound') ||
-                    (message.includes('payment') && message.includes('not found')) ||
-                    message.includes('does not exist')
-                ) {
-                    throw new NotFoundException(
-                        `${PAYMENT_MESSAGES.ERROR.NOT_FOUND}: ${error.message}`
-                    );
-                }
-                // If it's a generic "Internal server error", it might be a not found case
-                if (message.includes('internal server error') && error?.details) {
-                    const details = String(error.details).toLowerCase();
-                    if (details.includes('not found') || details.includes('payment')) {
-                        throw new NotFoundException(PAYMENT_MESSAGES.ERROR.NOT_FOUND);
-                    }
-                }
-                throw new BadRequestException(
-                    `${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error.message}`
-                );
-            }
-
-            // Generic error - check if it might be a not found case
-            const lowerErrorMessage = errorMessage.toLowerCase();
-            if (
-                lowerErrorMessage.includes('not found') ||
-                lowerErrorMessage.includes('not exist')
-            ) {
-                throw new NotFoundException(PAYMENT_MESSAGES.ERROR.NOT_FOUND);
-            }
-
-            throw new BadRequestException(
-                `${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${errorMessage}`
-            );
-        }
+        return await firstValueFrom(
+            this.client.send<PaymentResponseDto>(PAYMENT_MS.PATTERN.GET_PAYMENT, {
+                userId,
+                paymentId,
+            })
+        );
     }
 
     @Get('bookings/:bookingId')
@@ -646,145 +195,14 @@ export class PaymentController {
         @Req() req: Request & { user?: { userId: string; email: string } },
         @Param('bookingId') bookingId: string
     ): Promise<PaymentResponseDto[]> {
-        try {
-            // Validate UUID v7 format
-            const uuidRegex =
-                /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-            if (!uuidRegex.test(bookingId)) {
-                throw new BadRequestException(
-                    PAYMENT_MESSAGES.VALIDATION.BOOKING_ID_INVALID_FORMAT
-                );
-            }
+        const userId = req.user?.userId || null;
 
-            // userId can be null for guest users
-            const userId = req.user?.userId || null;
-
-            // BEST PRACTICE: Get payments by booking can be slow if database is under load
-            // Set timeout to 30 seconds (read operations should be faster)
-            return await firstValueFrom(
-                this.client
-                    .send<PaymentResponseDto[]>(PAYMENT_MS.PATTERN.GET_PAYMENTS_BY_BOOKING, {
-                        userId,
-                        bookingId,
-                    })
-                    .pipe(
-                        timeout(30000), // 30 seconds timeout for read operations
-                        catchError((error) => {
-                            // Re-throw timeout errors with proper code
-                            if (error.name === 'TimeoutError') {
-                                const timeoutError: any = new Error(
-                                    COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT
-                                );
-                                timeoutError.code = 'ETIMEDOUT';
-                                return throwError(() => timeoutError);
-                            }
-                            return throwError(() => error);
-                        })
-                    )
-            );
-        } catch (error: any) {
-            // Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
-            if (error instanceof HttpException) {
-                throw error;
-            }
-
-            // Also check for statusCode property for compatibility
-            if (error?.statusCode && error?.message) {
-                if (error?.statusCode === 404) {
-                    throw new NotFoundException(error.message);
-                }
-                throw error;
-            }
-
-            // Handle microservice connection errors - these are infrastructure issues (503)
-            const errorMessage = error?.message || error?.toString() || '';
-            const errorCode = error?.code || '';
-
-            // Connection refused - microservice is not running
-            if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED
-                );
-            }
-
-            // Connection reset - microservice closed connection unexpectedly (ECONNRESET)
-            if (
-                errorCode === 'ECONNRESET' ||
-                errorMessage.includes('ECONNRESET') ||
-                errorMessage.includes('read ECONNRESET')
-            ) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED
-                );
-            }
-
-            // Connection closed - microservice disconnected
-            if (errorMessage.includes('Connection closed')) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED
-                );
-            }
-
-            // Invalid TCP data reception - microservice may be restarting or connection issue
-            if (
-                errorMessage.includes('InvalidTcpDataReceptionException') ||
-                errorMessage.includes('invalid received message from tcp server')
-            ) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED
-                );
-            }
-
-            // Timeout errors - microservice not responding
-            if (
-                errorCode === 'ETIMEDOUT' ||
-                errorMessage.includes('timeout') ||
-                errorMessage.includes('ETIMEDOUT')
-            ) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT
-                );
-            }
-
-            // Handle microservice error format: { status: 'error', message: '...' }
-            if (error?.status === 'error' && error?.message) {
-                const message = error.message.toLowerCase();
-                // Check if message indicates "not found"
-                if (
-                    message.includes('not found') ||
-                    message.includes('notfound') ||
-                    (message.includes('booking') && message.includes('not found')) ||
-                    message.includes('does not exist')
-                ) {
-                    throw new NotFoundException(
-                        `${PAYMENT_MESSAGES.ERROR.BOOKING_NOT_FOUND}: ${error.message}`
-                    );
-                }
-                // If it's a generic "Internal server error", it might be a not found case
-                if (message.includes('internal server error') && error?.details) {
-                    const details = String(error.details).toLowerCase();
-                    if (details.includes('not found') || details.includes('booking')) {
-                        throw new NotFoundException(PAYMENT_MESSAGES.ERROR.BOOKING_NOT_FOUND);
-                    }
-                }
-                throw new BadRequestException(
-                    `${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error.message}`
-                );
-            }
-
-            // Generic error - check if it might be a not found case
-            const lowerErrorMessage = errorMessage.toLowerCase();
-            if (
-                lowerErrorMessage.includes('not found') ||
-                lowerErrorMessage.includes('not exist')
-            ) {
-                throw new NotFoundException(PAYMENT_MESSAGES.ERROR.BOOKING_NOT_FOUND);
-            }
-
-            throw new BadRequestException(
-                `${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${errorMessage}`
-            );
-        }
+        return await firstValueFrom(
+            this.client.send<PaymentResponseDto[]>(PAYMENT_MS.PATTERN.GET_PAYMENTS_BY_BOOKING, {
+                userId,
+                bookingId,
+            })
+        );
     }
 
     @Patch(':id/status')
@@ -815,152 +233,15 @@ export class PaymentController {
         @Param('id') paymentId: string,
         @Body() dto: UpdatePaymentStatusDto
     ): Promise<PaymentResponseDto> {
-        // Fallback: if NestJS injects the DTO class instead of an instance, read from req.body
         const body = typeof dto === 'function' ? req.body : dto;
+        const userId = req.user.userId;
 
-        try {
-            // Validate UUID v7 format
-            const uuidRegex =
-                /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-            if (!uuidRegex.test(paymentId)) {
-                throw new BadRequestException(
-                    PAYMENT_MESSAGES.VALIDATION.PAYMENT_ID_INVALID_FORMAT
-                );
-            }
-
-            // userId is required (JwtAuthGuard ensures user is authenticated)
-            // For webhook calls, use a system token with userId = 'system'
-            const userId = req.user.userId;
-
-            // BEST PRACTICE: Update payment status can be slow due to database transactions and notifications
-            // Set timeout to 60 seconds (write operations can be slower)
-            return await firstValueFrom(
-                this.client
-                    .send<PaymentResponseDto>(PAYMENT_MS.PATTERN.UPDATE_PAYMENT_STATUS, {
-                        userId,
-                        dto: {
-                            ...body,
-                            paymentId,
-                        },
-                    })
-                    .pipe(
-                        timeout(60000), // 60 seconds timeout for update operations
-                        catchError((error) => {
-                            // Re-throw timeout errors with proper code
-                            if (error.name === 'TimeoutError') {
-                                const timeoutError: any = new Error(
-                                    COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT
-                                );
-                                timeoutError.code = 'ETIMEDOUT';
-                                return throwError(() => timeoutError);
-                            }
-                            return throwError(() => error);
-                        })
-                    )
-            );
-        } catch (error: any) {
-            // Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
-            if (error instanceof HttpException) {
-                throw error;
-            }
-
-            // Also check for statusCode property for compatibility
-            if (error?.statusCode && error?.message) {
-                if (error?.statusCode === 404) {
-                    throw new NotFoundException(error.message);
-                }
-                throw error;
-            }
-
-            // Handle microservice connection errors - these are infrastructure issues (503)
-            const errorMessage = error?.message || error?.toString() || '';
-            const errorCode = error?.code || '';
-
-            // Connection refused - microservice is not running
-            if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED
-                );
-            }
-
-            // Connection reset - microservice closed connection unexpectedly (ECONNRESET)
-            if (
-                errorCode === 'ECONNRESET' ||
-                errorMessage.includes('ECONNRESET') ||
-                errorMessage.includes('read ECONNRESET')
-            ) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED
-                );
-            }
-
-            // Connection closed - microservice disconnected
-            if (errorMessage.includes('Connection closed')) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED
-                );
-            }
-
-            // Invalid TCP data reception - microservice may be restarting or connection issue
-            if (
-                errorMessage.includes('InvalidTcpDataReceptionException') ||
-                errorMessage.includes('invalid received message from tcp server')
-            ) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED
-                );
-            }
-
-            // Timeout errors - microservice not responding
-            if (
-                errorCode === 'ETIMEDOUT' ||
-                errorMessage.includes('timeout') ||
-                errorMessage.includes('ETIMEDOUT')
-            ) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT
-                );
-            }
-
-            // Handle microservice error format: { status: 'error', message: '...' }
-            if (error?.status === 'error' && error?.message) {
-                const message = error.message.toLowerCase();
-                // Check if message indicates "not found"
-                if (
-                    message.includes('not found') ||
-                    message.includes('notfound') ||
-                    (message.includes('payment') && message.includes('not found')) ||
-                    message.includes('does not exist')
-                ) {
-                    throw new NotFoundException(
-                        `${PAYMENT_MESSAGES.ERROR.NOT_FOUND}: ${error.message}`
-                    );
-                }
-                // If it's a generic "Internal server error", it might be a not found case
-                if (message.includes('internal server error') && error?.details) {
-                    const details = String(error.details).toLowerCase();
-                    if (details.includes('not found') || details.includes('payment')) {
-                        throw new NotFoundException(PAYMENT_MESSAGES.ERROR.NOT_FOUND);
-                    }
-                }
-                throw new BadRequestException(
-                    `${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error.message}`
-                );
-            }
-
-            // Generic error - check if it might be a not found case
-            const lowerErrorMessage = errorMessage.toLowerCase();
-            if (
-                lowerErrorMessage.includes('not found') ||
-                lowerErrorMessage.includes('not exist')
-            ) {
-                throw new NotFoundException(PAYMENT_MESSAGES.ERROR.NOT_FOUND);
-            }
-
-            throw new BadRequestException(
-                `${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${errorMessage}`
-            );
-        }
+        return await firstValueFrom(
+            this.client.send<PaymentResponseDto>(PAYMENT_MS.PATTERN.UPDATE_PAYMENT_STATUS, {
+                userId,
+                dto: { ...body, paymentId },
+            })
+        );
     }
 
     @Post('webhooks/:gateway')
@@ -996,158 +277,47 @@ export class PaymentController {
     async handleWebhook(
         @Param('gateway') gateway: string,
         @Headers('x-signature') signature: string,
-        @Body() payload: any
+        @Body() payload: unknown
     ): Promise<{ success: boolean; message: string }> {
-        try {
-            // Validate gateway name
-            const validGateways = ['dev', 'mock'];
-            if (!validGateways.includes(gateway.toLowerCase())) {
-                throw new BadRequestException(
-                    `${PAYMENT_MESSAGES.VALIDATION.GATEWAY_INVALID}. Supported gateways: ${validGateways.join(', ')}`
-                );
-            }
-
-            // Forward webhook to payment microservice
-            // BEST PRACTICE: Webhook processing can be slow due to payment gateway verification and database operations
-            // Set timeout to 60 seconds (webhook processing can involve external API calls)
-            const result = await firstValueFrom(
-                this.client
-                    .send<{ success: boolean; payment?: PaymentResponseDto }>(
-                        PAYMENT_MS.PATTERN.HANDLE_WEBHOOK,
-                        {
-                            gateway,
-                            signature: signature || '',
-                            payload,
-                        }
-                    )
-                    .pipe(
-                        timeout(60000), // 60 seconds timeout for webhook processing
-                        catchError((error) => {
-                            // Re-throw timeout errors with proper code
-                            if (error.name === 'TimeoutError') {
-                                const timeoutError: any = new Error(
-                                    COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT
-                                );
-                                timeoutError.code = 'ETIMEDOUT';
-                                return throwError(() => timeoutError);
-                            }
-                            return throwError(() => error);
-                        })
-                    )
+        const validGateways = ['dev', 'mock'];
+        if (!validGateways.includes(gateway.toLowerCase())) {
+            throw new BadRequestException(
+                `${PAYMENT_MESSAGES.VALIDATION.GATEWAY_INVALID}. Supported gateways: ${validGateways.join(', ')}`
             );
-
-            // Publish payment status change to WebSocket clients (real-time updates)
-            if (result.payment) {
-                try {
-                    await this.paymentStatusService.publishPaymentStatusChange(
-                        result.payment.bookingId,
-                        result.payment.paymentId,
-                        result.payment.status,
-                        {
-                            transactionRef: result.payment.transactionRef,
-                            paymentMethodCode: result.payment.paymentMethodCode,
-                        }
-                    );
-                } catch (error) {
-                    // Log error but don't fail the request - WebSocket is best effort
-                    this.logger.warn(
-                        `Failed to publish payment status change from webhook: ${error.message}`
-                    );
-                }
-            }
-
-            return {
-                success: true,
-                message: PAYMENT_MESSAGES.SUCCESS.WEBHOOK_PROCESSED,
-            };
-        } catch (error: any) {
-            // Re-throw HttpException instances (BadRequestException, NotFoundException, etc.)
-            // Check both statusCode property and instanceof HttpException
-            if (error instanceof HttpException) {
-                throw error;
-            }
-
-            // Also check for statusCode property for compatibility
-            if (error?.statusCode && error?.message) {
-                throw error;
-            }
-
-            // Handle microservice connection errors - these are infrastructure issues (503)
-            const errorMessage = error?.message || error?.toString() || '';
-            const errorCode = error?.code || '';
-
-            // Connection refused - microservice is not running
-            if (errorCode === 'ECONNREFUSED' || errorMessage.includes('ECONNREFUSED')) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_REFUSED
-                );
-            }
-
-            // Connection reset - microservice closed connection unexpectedly (ECONNRESET)
-            if (
-                errorCode === 'ECONNRESET' ||
-                errorMessage.includes('ECONNRESET') ||
-                errorMessage.includes('read ECONNRESET')
-            ) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED
-                );
-            }
-
-            // Connection closed - microservice disconnected
-            if (errorMessage.includes('Connection closed')) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED
-                );
-            }
-
-            // Invalid TCP data reception - microservice may be restarting or connection issue
-            if (
-                errorMessage.includes('InvalidTcpDataReceptionException') ||
-                errorMessage.includes('invalid received message from tcp server')
-            ) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_CONNECTION_CLOSED
-                );
-            }
-
-            // Timeout errors - microservice not responding
-            if (
-                errorCode === 'ETIMEDOUT' ||
-                errorMessage.includes('timeout') ||
-                errorMessage.includes('ETIMEDOUT')
-            ) {
-                throw new ServiceUnavailableException(
-                    COMMON_MESSAGES.ERROR.MICROSERVICE_REQUEST_TIMEOUT
-                );
-            }
-
-            // Handle microservice error format: { status: 'error', message: '...' }
-            if (error?.status === 'error' && error?.message) {
-                const message = error.message.toLowerCase();
-                // Check if message indicates "not found"
-                if (
-                    message.includes('not found') ||
-                    message.includes('notfound') ||
-                    message.includes('does not exist')
-                ) {
-                    throw new NotFoundException(error.message);
-                }
-                // For other business logic errors, return 400 Bad Request
-                throw new BadRequestException(
-                    `${COMMON_MESSAGES.ERROR.OPERATION_FAILED}: ${error.message}`
-                );
-            }
-
-            // For any other unexpected errors, return 500 Internal Server Error
-            if (
-                errorMessage.toLowerCase().includes('not found') ||
-                errorMessage.toLowerCase().includes('not exist')
-            ) {
-                throw new NotFoundException('Resource not found');
-            }
-
-            throw new InternalServerErrorException(COMMON_MESSAGES.ERROR.INTERNAL_SERVER_ERROR);
         }
+
+        const result = await firstValueFrom(
+            this.client.send<{ success: boolean; payment?: PaymentResponseDto }>(
+                PAYMENT_MS.PATTERN.HANDLE_WEBHOOK,
+                {
+                    gateway,
+                    signature: signature || '',
+                    payload,
+                }
+            )
+        );
+
+        if (result.payment) {
+            try {
+                await this.paymentStatusService.publishPaymentStatusChange(
+                    result.payment.bookingId,
+                    result.payment.paymentId,
+                    result.payment.status,
+                    {
+                        transactionRef: result.payment.transactionRef,
+                        paymentMethodCode: result.payment.paymentMethodCode,
+                    }
+                );
+            } catch (error) {
+                this.logger.warn(
+                    `Failed to publish payment status change from webhook: ${(error as Error).message}`
+                );
+            }
+        }
+
+        return {
+            success: true,
+            message: 'Webhook processed successfully',
+        };
     }
 }

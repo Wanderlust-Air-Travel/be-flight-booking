@@ -5,6 +5,7 @@ import {
     HttpException,
     HttpStatus,
     Logger,
+    ServiceUnavailableException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -19,6 +20,48 @@ interface HttpExceptionResponse {
     details?: unknown;
 }
 
+interface MicroserviceError {
+    code?: string;
+    message?: string;
+    statusCode?: number;
+    status?: string;
+}
+
+/**
+ * Map microservice / RxJS transport errors to the right HTTP status.
+ */
+function classifyMicroserviceError(exception: unknown): {
+    status: number;
+    exception: unknown;
+} {
+    const error = exception as MicroserviceError;
+    const message: string = (error?.message || '').toString();
+    const code: string = (error?.code || '').toString();
+
+    // If NestJS already produced an HttpException, leave it alone.
+    if (exception instanceof HttpException) {
+        return { status: exception.getStatus(), exception };
+    }
+
+    if (code === 'ECONNREFUSED' || message.includes('ECONNREFUSED')) {
+        return { status: HttpStatus.SERVICE_UNAVAILABLE, exception: new ServiceUnavailableException(message || 'Microservice unavailable') };
+    }
+    if (code === 'ECONNRESET' || message.includes('ECONNRESET')) {
+        return { status: HttpStatus.SERVICE_UNAVAILABLE, exception: new ServiceUnavailableException(message || 'Microservice connection closed') };
+    }
+    if (message.includes('Connection closed')) {
+        return { status: HttpStatus.SERVICE_UNAVAILABLE, exception: new ServiceUnavailableException(message) };
+    }
+    if (message.includes('InvalidTcpDataReceptionException') || message.includes('invalid received message from tcp server')) {
+        return { status: HttpStatus.SERVICE_UNAVAILABLE, exception: new ServiceUnavailableException(message) };
+    }
+    if (code === 'ETIMEDOUT' || message.toLowerCase().includes('timeout')) {
+        return { status: HttpStatus.SERVICE_UNAVAILABLE, exception: new ServiceUnavailableException(message || 'Microservice timeout') };
+    }
+
+    return { status: HttpStatus.INTERNAL_SERVER_ERROR, exception };
+}
+
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
     private readonly logger = new Logger(AllExceptionsFilter.name);
@@ -28,16 +71,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
         const response = ctx.getResponse<Response>();
         const request = ctx.getRequest<Request>();
 
-        const status =
-            exception instanceof HttpException
-                ? exception.getStatus()
-                : HttpStatus.INTERNAL_SERVER_ERROR;
+        const { status, exception: classified } = classifyMicroserviceError(exception);
+
+        const statusFromHttp =
+            classified instanceof HttpException ? classified.getStatus() : status;
 
         const rawResponse =
-            exception instanceof HttpException
-                ? exception.getResponse()
-                : exception instanceof Error
-                  ? exception.message
+            classified instanceof HttpException
+                ? classified.getResponse()
+                : classified instanceof Error
+                  ? classified.message
                   : 'Internal server error';
 
         const requestId =
@@ -50,7 +93,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         response.setHeader('X-Correlation-Id', requestId as string);
 
         const errorLog = {
-            statusCode: status,
+            statusCode: statusFromHttp,
             timestamp: new Date().toISOString(),
             path: request.url,
             method: request.method,
@@ -59,13 +102,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
                 typeof rawResponse === 'string'
                     ? rawResponse
                     : (rawResponse as HttpExceptionResponse).message || rawResponse,
-            stack: exception instanceof Error ? exception.stack : undefined,
+            stack: classified instanceof Error ? classified.stack : undefined,
             body: request.body,
             query: request.query,
             params: request.params,
         };
 
-        if (status >= 500) {
+        if (statusFromHttp >= 500) {
             this.logger.error('Internal Server Error', JSON.stringify(errorLog, null, 2));
         } else {
             this.logger.warn('Client Error', JSON.stringify(errorLog, null, 2));
@@ -75,7 +118,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
             typeof rawResponse === 'string' ? null : (rawResponse as HttpExceptionResponse);
 
         const errorResponse: Record<string, unknown> = {
-            statusCode: status,
+            statusCode: statusFromHttp,
             timestamp: new Date().toISOString(),
             path: request.url,
             method: request.method,
@@ -104,10 +147,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
             errorResponse.message = errorMessage;
         }
 
-        if (process.env.NODE_ENV === 'development' && exception instanceof Error) {
-            errorResponse.stack = exception.stack;
+        if (process.env.NODE_ENV === 'development' && classified instanceof Error) {
+            errorResponse.stack = classified.stack;
         }
 
-        response.status(status).json(errorResponse);
+        response.status(statusFromHttp).json(errorResponse);
     }
 }
