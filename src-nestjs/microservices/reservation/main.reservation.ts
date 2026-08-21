@@ -1,0 +1,66 @@
+import { resolve } from 'node:path';
+import { config } from 'dotenv';
+
+// Load .env file from project root (works with ts-node)
+config({ path: resolve(process.cwd(), '.env') });
+
+import { ValidationPipe } from '@nestjs/common';
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { NestFactory } from '@nestjs/core';
+import { type MicroserviceOptions, Transport } from '@nestjs/microservices';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { RedisModule } from 'src/shared/modules/redis/redis.module';
+import { RESERVATION_MS } from './reservation.messages';
+import { ReservationModule } from './reservation.module';
+
+@Module({
+    imports: [
+        ConfigModule.forRoot({
+            isGlobal: true,
+        }),
+        // Reuse the same global TypeORM configuration via AppModule pattern:
+        TypeOrmModule.forRoot({
+            type: 'mssql',
+            host: process.env.DB_HOST,
+            port: Number(process.env.DB_PORT),
+            username: process.env.DB_USER,
+            password: process.env.DB_PASS,
+            database: process.env.DB_NAME,
+            options: {
+                encrypt: process.env.DB_ENCRYPT === 'true',
+                trustServerCertificate: process.env.DB_TRUST_CERT === 'true',
+            },
+            synchronize: false,
+            entities: [
+                `${__dirname}/../../api-gateway/data-access/entities/**/*.entity.{ts,js}`,
+                `${__dirname}/../../shared/infrastructure/persistence/typeorm/entities/*.entity.{ts,js}`,
+            ],
+        }),
+        RedisModule,
+        ReservationModule,
+    ],
+})
+class ReservationBootstrapModule {}
+
+async function bootstrap() {
+    const app = await NestFactory.createMicroservice<MicroserviceOptions>(
+        ReservationBootstrapModule,
+        {
+            transport: Transport.TCP,
+            options: {
+                host: RESERVATION_MS.TCP_HOST,
+                port: RESERVATION_MS.TCP_PORT,
+            },
+        }
+    );
+    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    await app.listen();
+    console.log(
+        `Reservation microservice is listening on ${RESERVATION_MS.TCP_HOST}:${RESERVATION_MS.TCP_PORT}`
+    );
+}
+bootstrap().catch((error) => {
+    console.error('Failed to start Reservation microservice:', error);
+    process.exit(1);
+});

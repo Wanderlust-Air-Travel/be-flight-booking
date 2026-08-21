@@ -1,0 +1,90 @@
+# =============================================================================
+# Wanderlust Air Travel — STAGING Infrastructure Docker Compose (Standalone)
+# be-flight-booking/docker-compose.infrastructure.staging.yml
+#
+# This file is a STANDALONE infrastructure stack for STAGING. It contains
+# ONLY infrastructure services:
+#   - SQL Server (port 1433)
+#   - Redis (port 6379)
+#   - RabbitMQ (ports 5672, 15672)
+#
+# Application services (api-gateway, search-ms, services-ms, routes-ms,
+# booking-ms, reservation-ms, payment-ms, email-ms) are defined separately in
+# docker-compose.staging.yml.
+#
+# Usage:
+#   # Infrastructure only:
+#   docker compose -f docker-compose.infrastructure.staging.yml \
+#     --env-file .env.staging up -d
+#
+#   # Full stack (infra + app):
+#   docker compose -f docker-compose.infrastructure.staging.yml \
+#     -f docker-compose.staging.yml \
+#     --env-file .env.staging up -d
+#
+# NOTE: All secrets (DB_PASS, RABBITMQ_USER, RABBITMQ_PASSWORD) MUST be
+# provided via .env.staging — no defaults are used in this environment.
+# =============================================================================
+
+services:
+  # ─── SQL Server (Database) ────────────────────────────────────────────────────
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: wat-sqlserver
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: Y
+      MSSQL_SA_PASSWORD: ${DB_PASS}
+      SA_PASSWORD: ${DB_PASS}
+      MSSQL_PID: Developer
+    ports:
+      - "${DB_PORT:-1433}:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P ${DB_PASS} -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  # ─── Redis (Cache) ─────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: wat-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --save "" --appendonly no
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ─── RabbitMQ (Message Broker) ────────────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: wat-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  sqlserver_data:
+  redis_data:
+  rabbitmq_data:

@@ -1,0 +1,355 @@
+# =============================================================================
+# Wanderlust Air Travel — Production Docker Compose (APPLICATION SERVICES ONLY)
+# be-flight-booking/docker-compose.prod.yml
+#
+# This file contains ONLY application services with production-grade settings
+# (restart: always, JSON log driver). Infrastructure (SQL Server, Redis,
+# RabbitMQ) is defined separately in docker-compose.infrastructure.prod.yml.
+#
+# IMPORTANT:
+#   - Infrastructure must already be running (start it first with the
+#     infrastructure compose file, or run both files together as shown below).
+#   - There is NO `profiles` flag — all services here start by default.
+#
+# Usage:
+#   # Infrastructure only:
+#   docker compose -f docker-compose.infrastructure.prod.yml \
+#     --env-file .env.prod up -d
+#
+#   # Application services only (infrastructure must be running):
+#   docker compose -f docker-compose.prod.yml \
+#     --env-file .env.prod up -d
+#
+#   # Full stack (infra + app):
+#   docker compose -f docker-compose.infrastructure.prod.yml \
+#     -f docker-compose.prod.yml \
+#     --env-file .env.prod up -d
+# =============================================================================
+
+services:
+  # ─── Application Services ────────────────────────────────────────────────────
+  api-gateway:
+    build: { context: ., dockerfile: Dockerfile.prod }
+    container_name: wat-api-gateway
+    image: wanderlust-air/nestjs-api-gateway:${VERSION:-latest}
+    restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: '100m'
+        max-file: '5'
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT:-1433}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_ENCRYPT: ${DB_ENCRYPT:-true}
+      DB_TRUST_CERT: ${DB_TRUST_CERT:-false}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+      RABBITMQ_HOST: ${RABBITMQ_HOST}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      LOG_LEVEL: ${LOG_LEVEL:-warn}
+      APP_URL: ${APP_URL}
+      # Peer hosts: resolved by Docker DNS from .env.prod
+      SEARCH_MS_HOST: ${SEARCH_MS_PEER_HOST}
+      SEARCH_MS_PORT: ${SEARCH_MS_PORT:-4001}
+      SERVICES_MS_HOST: ${SERVICES_MS_PEER_HOST}
+      SERVICES_MS_PORT: ${SERVICES_MS_PORT:-4002}
+      ROUTES_MS_HOST: ${ROUTES_MS_PEER_HOST}
+      ROUTES_MS_PORT: ${ROUTES_MS_PORT:-4003}
+      BOOKING_MS_HOST: ${BOOKING_MS_PEER_HOST}
+      BOOKING_MS_PORT: ${BOOKING_MS_PORT:-4004}
+      RESERVATION_MS_HOST: ${RESERVATION_MS_PEER_HOST}
+      RESERVATION_MS_PORT: ${RESERVATION_MS_PORT:-4005}
+      PAYMENT_MS_HOST: ${PAYMENT_MS_PEER_HOST}
+      PAYMENT_MS_PORT: ${PAYMENT_MS_PORT:-4006}
+      EMAIL_MS_HOST: ${EMAIL_MS_PEER_HOST}
+      EMAIL_MS_PORT: ${EMAIL_MS_PORT:-4007}
+    ports:
+      - "${API_GATEWAY_PORT:-3000}:3000"
+    volumes:
+      - api_gateway_public:/app/public
+      - api_gateway_dist:/app/dist
+      - /app/node_modules
+    depends_on:
+      sqlserver: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      search-ms: { condition: service_started }
+      services-ms: { condition: service_started }
+      routes-ms: { condition: service_started }
+      booking-ms: { condition: service_started }
+      reservation-ms: { condition: service_started }
+      payment-ms: { condition: service_started }
+      email-ms: { condition: service_started }
+
+  search-ms:
+    build: { context: ., dockerfile: Dockerfile.prod }
+    container_name: wat-search-ms
+    image: wanderlust-air/nestjs-search-ms:${VERSION:-latest}
+    restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: '100m'
+        max-file: '5'
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT:-1433}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_ENCRYPT: ${DB_ENCRYPT:-true}
+      DB_TRUST_CERT: ${DB_TRUST_CERT:-false}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+      SEARCH_MS_HOST: ${SEARCH_MS_HOST}
+      SEARCH_MS_PORT: ${SEARCH_MS_PORT:-4001}
+    command: ["node", "dist/microservices/search/main.search.js"]
+    volumes:
+      - search_ms_dist:/app/dist
+      - /app/node_modules
+    depends_on:
+      sqlserver: { condition: service_healthy }
+    healthcheck: { disable: true }
+
+  services-ms:
+    build: { context: ., dockerfile: Dockerfile.prod }
+    container_name: wat-services-ms
+    image: wanderlust-air/nestjs-services-ms:${VERSION:-latest}
+    restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: '100m'
+        max-file: '5'
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT:-1433}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_ENCRYPT: ${DB_ENCRYPT:-true}
+      DB_TRUST_CERT: ${DB_TRUST_CERT:-false}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+      SERVICES_MS_HOST: ${SERVICES_MS_HOST}
+      SERVICES_MS_PORT: ${SERVICES_MS_PORT:-4002}
+    command: ["node", "dist/microservices/services/main.services.js"]
+    volumes:
+      - services_ms_dist:/app/dist
+      - /app/node_modules
+    depends_on:
+      sqlserver: { condition: service_healthy }
+    healthcheck: { disable: true }
+
+  routes-ms:
+    build: { context: ., dockerfile: Dockerfile.prod }
+    container_name: wat-routes-ms
+    image: wanderlust-air/nestjs-routes-ms:${VERSION:-latest}
+    restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: '100m'
+        max-file: '5'
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT:-1433}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_ENCRYPT: ${DB_ENCRYPT:-true}
+      DB_TRUST_CERT: ${DB_TRUST_CERT:-false}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+      ROUTES_MS_HOST: ${ROUTES_MS_HOST}
+      ROUTES_MS_PORT: ${ROUTES_MS_PORT:-4003}
+    command: ["node", "dist/microservices/routes/main.routes.js"]
+    volumes:
+      - routes_ms_dist:/app/dist
+      - /app/node_modules
+    depends_on:
+      sqlserver: { condition: service_healthy }
+    healthcheck: { disable: true }
+
+  booking-ms:
+    build: { context: ., dockerfile: Dockerfile.prod }
+    container_name: wat-booking-ms
+    image: wanderlust-air/nestjs-booking-ms:${VERSION:-latest}
+    restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: '100m'
+        max-file: '5'
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT:-1433}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_ENCRYPT: ${DB_ENCRYPT:-true}
+      DB_TRUST_CERT: ${DB_TRUST_CERT:-false}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+      RABBITMQ_HOST: ${RABBITMQ_HOST}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
+      BOOKING_MS_HOST: ${BOOKING_MS_HOST}
+      BOOKING_MS_PORT: ${BOOKING_MS_PORT:-4004}
+      RESERVATION_MS_HOST: ${RESERVATION_MS_PEER_HOST}
+      RESERVATION_MS_PORT: ${RESERVATION_MS_PORT:-4005}
+      EMAIL_MS_HOST: ${EMAIL_MS_PEER_HOST}
+      EMAIL_MS_PORT: ${EMAIL_MS_PORT:-4007}
+    command: ["node", "dist/microservices/booking/main.booking.js"]
+    volumes:
+      - booking_ms_dist:/app/dist
+      - /app/node_modules
+    depends_on:
+      sqlserver: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    healthcheck: { disable: true }
+
+  reservation-ms:
+    build: { context: ., dockerfile: Dockerfile.prod }
+    container_name: wat-reservation-ms
+    image: wanderlust-air/nestjs-reservation-ms:${VERSION:-latest}
+    restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: '100m'
+        max-file: '5'
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT:-1433}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_ENCRYPT: ${DB_ENCRYPT:-true}
+      DB_TRUST_CERT: ${DB_TRUST_CERT:-false}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+      RESERVATION_MS_HOST: ${RESERVATION_MS_HOST}
+      RESERVATION_MS_PORT: ${RESERVATION_MS_PORT:-4005}
+    command: ["node", "dist/microservices/reservation/main.reservation.js"]
+    volumes:
+      - reservation_ms_dist:/app/dist
+      - /app/node_modules
+    depends_on:
+      sqlserver: { condition: service_healthy }
+    healthcheck: { disable: true }
+
+  payment-ms:
+    build: { context: ., dockerfile: Dockerfile.prod }
+    container_name: wat-payment-ms
+    image: wanderlust-air/nestjs-payment-ms:${VERSION:-latest}
+    restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: '100m'
+        max-file: '5'
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT:-1433}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_ENCRYPT: ${DB_ENCRYPT:-true}
+      DB_TRUST_CERT: ${DB_TRUST_CERT:-false}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+      RABBITMQ_HOST: ${RABBITMQ_HOST}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
+      PAYMENT_MS_HOST: ${PAYMENT_MS_HOST}
+      PAYMENT_MS_PORT: ${PAYMENT_MS_PORT:-4006}
+      BOOKING_MS_HOST: ${BOOKING_MS_PEER_HOST}
+      BOOKING_MS_PORT: ${BOOKING_MS_PORT:-4004}
+      EMAIL_MS_HOST: ${EMAIL_MS_PEER_HOST}
+      EMAIL_MS_PORT: ${EMAIL_MS_PORT:-4007}
+      APP_URL: ${APP_URL}
+    command: ["node", "dist/microservices/payment/main.payment.js"]
+    volumes:
+      - payment_ms_dist:/app/dist
+      - /app/node_modules
+    depends_on:
+      sqlserver: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    healthcheck: { disable: true }
+
+  email-ms:
+    build: { context: ., dockerfile: Dockerfile.prod }
+    container_name: wat-email-ms
+    image: wanderlust-air/nestjs-email-ms:${VERSION:-latest}
+    restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: '100m'
+        max-file: '5'
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT:-1433}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_ENCRYPT: ${DB_ENCRYPT:-true}
+      DB_TRUST_CERT: ${DB_TRUST_CERT:-false}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+      RABBITMQ_HOST: ${RABBITMQ_HOST}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
+      EMAIL_MS_HOST: ${EMAIL_MS_HOST}
+      EMAIL_MS_PORT: ${EMAIL_MS_PORT:-4007}
+    command: ["node", "dist/microservices/email/main.email.js"]
+    volumes:
+      - email_ms_dist:/app/dist
+      - /app/node_modules
+    depends_on:
+      sqlserver: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    healthcheck: { disable: true }
+
+volumes:
+  api_gateway_public:
+  api_gateway_dist:
+  search_ms_dist:
+  services_ms_dist:
+  routes_ms_dist:
+  booking_ms_dist:
+  reservation_ms_dist:
+  payment_ms_dist:
+  email_ms_dist:

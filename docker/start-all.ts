@@ -14,13 +14,15 @@ function wait(ms: number): Promise<void> {
 async function killProcessOnPort(port: number): Promise<boolean> {
   try {
     // Find process using the port
-    const { stdout } = await execAsync(`netstat -ano | findstr ":${port}" | findstr "LISTENING"`);
+    const { stdout } = await execAsync(
+      `powershell -ExecutionPolicy Bypass -Command "netstat -ano | Select-String ':${port}' | Select-String 'LISTENING'"`
+    );
     const lines = stdout.toString().trim().split('\n');
-    
+
     if (lines.length === 0 || lines[0].trim() === '') {
       return false; // No process found
     }
-    
+
     // Extract PID from the last column
     const pids = new Set<string>();
     for (const line of lines) {
@@ -32,29 +34,38 @@ async function killProcessOnPort(port: number): Promise<boolean> {
         }
       }
     }
-    
+
     // Kill all processes
     for (const pid of pids) {
       try {
-        await execAsync(`taskkill /F /PID ${pid}`);
-        console.log(`🛑 Killed process ${pid} on port ${port}`);
+        await execAsync(
+          `powershell -ExecutionPolicy Bypass -Command "taskkill /F /PID ${pid} 2>&1 | Out-String"`
+        );
+        console.log(`  Killed process ${pid} on port ${port}`);
       } catch (error: any) {
-        // Process might already be dead, ignore
-        if (!error.message.includes('not found')) {
-          console.warn(`⚠️  Could not kill process ${pid}: ${error.message}`);
+        // Access denied or not found — skip silently
+        if (error.message.includes('Access is denied')) {
+          console.warn(`  [SKIP] Need admin to kill process ${pid} on port ${port}`);
+        } else if (!error.message.includes('not found') && !error.message.includes('not be found')) {
+          console.warn(`  Could not kill process ${pid}: ${error.message.trim()}`);
         }
       }
     }
-    
+
     // Wait a bit for port to be released
     await wait(1000);
     return true;
   } catch (error: any) {
     // No process found or other error
-    if (error.code === 1 || error.message.includes('not found')) {
+    if (error.code === 1 || error.message.includes('not found') || error.message.includes('not be found')) {
       return false;
     }
-    console.warn(`⚠️  Error checking port ${port}: ${error.message}`);
+    // Access denied from netstat itself
+    if (error.message.includes('Access is denied')) {
+      console.warn(`  [SKIP] Need admin to check port ${port} — skipping kill step`);
+      return false;
+    }
+    console.warn(`  Error checking port ${port}: ${error.message.trim()}`);
     return false;
   }
 }

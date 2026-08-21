@@ -1,0 +1,12 @@
+// go.work — Go workspace for be-flight-booking monorepo
+// Allows working on all modules simultaneously in one IDE session.
+
+go 1.23
+
+use (
+	./pkg
+	./apps/api-gateway
+	./apps/search-service
+	./apps/booking-service
+	./apps/payment-service
+)

@@ -1,7 +1,44 @@
 import { DataSource } from 'typeorm';
 import * as sql from 'mssql';
 import * as path from 'path';
+import { config } from 'dotenv';
 import { SqlConfig } from 'src/shared/types/database/sql-config.interface';
+
+// Load environment from .env file based on NODE_ENV
+const envFile = process.env.NODE_ENV === 'production'
+    ? '.env.prod'
+    : process.env.NODE_ENV === 'staging'
+        ? '.env.staging'
+        : '.env.development';
+
+config({ path: path.resolve(process.cwd(), envFile) });
+
+/**
+ * Get database configuration, switching DB_HOST to localhost when running from host
+ */
+function getDbConfig() {
+  let dbHost = process.env.DB_HOST;
+  if (!dbHost) {
+    throw new Error('DB_HOST is required in environment');
+  }
+  // When running from host machine, DB_HOST=sqlserver is not reachable - use localhost
+  if (dbHost === 'sqlserver' && !process.env.DB_HOST_OVERRIDE) {
+    dbHost = 'localhost';
+  }
+
+  const isDockerNetwork = dbHost === 'sqlserver' || dbHost.includes('.docker');
+  const defaultPort = isDockerNetwork ? 1433 : 1434;
+  const dbPort = parseInt(process.env.DB_PORT || defaultPort.toString(), 10);
+  const dbUser = process.env.DB_USER!;
+  const dbPassword = process.env.DB_PASS!;
+  const dbName = process.env.DB_NAME!;
+
+  if (!dbUser || !dbPassword || !dbName) {
+    throw new Error('DB_USER, DB_PASS, and DB_NAME are required in environment');
+  }
+
+  return { dbHost, dbPort, dbUser, dbPassword, dbName };
+}
 
 /**
  * Create database if it doesn't exist
@@ -9,20 +46,8 @@ import { SqlConfig } from 'src/shared/types/database/sql-config.interface';
 async function createDatabase(): Promise<boolean> {
   console.log('Creating database...');
   try {
-    // Use DB credentials from environment (set in docker-compose.yml) or default
-    // For creating database, we may need SA user or user with sysadmin role
-    const dbUser = process.env.DB_USER || 'sa';
-    const dbPassword = process.env.DB_PASS || process.env.SA_PASSWORD || 'Passw0rd123!';
-    // When connecting from Docker container to another container, use container port (1433)
-    // When connecting from host to container, use host port (1434)
-    let dbHost = process.env.DB_HOST;
-    if (!dbHost) {
-      dbHost = 'localhost'; // Default to localhost for local development
-    }
-    const isDockerNetwork = dbHost === 'sqlserver' || dbHost.includes('.docker');
-    const defaultPort = isDockerNetwork ? 1433 : 1434;
-    const dbPort = parseInt(process.env.DB_PORT || defaultPort.toString(), 10);
-    
+    const { dbHost, dbPort, dbUser, dbPassword } = getDbConfig();
+
     const config: SqlConfig = {
       server: dbHost,
       port: dbPort,
@@ -30,8 +55,8 @@ async function createDatabase(): Promise<boolean> {
       password: dbPassword,
       database: 'master',
       options: {
-        encrypt: false,
-        trustServerCertificate: true,
+        encrypt: process.env.DB_ENCRYPT === 'true',
+        trustServerCertificate: process.env.DB_TRUST_CERT === 'true',
         enableArithAbort: true,
       },
       connectionTimeout: 5000,
@@ -40,14 +65,14 @@ async function createDatabase(): Promise<boolean> {
     const pool = new sql.ConnectionPool(config as sql.config);
     await pool.connect();
 
-    // Create database
+    const dbName = process.env.DB_NAME!;
     await pool.request().query(`
-      IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'flight_booking_db')
+      IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = '${dbName}')
       BEGIN
-        CREATE DATABASE flight_booking_db;
+        CREATE DATABASE ${dbName};
       END
     `);
-    console.log('Database created or already exists');
+    console.log(`Database '${dbName}' created or already exists`);
 
     await pool.close();
     return true;
@@ -63,28 +88,18 @@ async function createDatabase(): Promise<boolean> {
 async function runMigrations(): Promise<boolean> {
   console.log('Running TypeORM migrations...');
   try {
-    // Wait a bit for database to be fully ready
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    // Create DataSource directly from environment variables (not from .env file)
-    // In Docker, environment variables are set from docker-compose.yml
-    // When connecting from Docker container to another container, use container port (1433)
-    // When connecting from host to container, use host port (1434)
-    let dbHost = process.env.DB_HOST;
-    if (!dbHost) {
-      dbHost = 'localhost'; // Default to localhost for local development
-    }
-    const isDockerNetwork = dbHost === 'sqlserver' || dbHost.includes('.docker');
-    const defaultPort = isDockerNetwork ? 1433 : 1434;
-    const dbPort = parseInt(process.env.DB_PORT || defaultPort.toString(), 10);
-    
+    const { dbHost, dbPort, dbUser, dbPassword } = getDbConfig();
+    const dbName = process.env.DB_NAME!;
+
     const dataSource = new DataSource({
       type: 'mssql',
       host: dbHost,
       port: dbPort,
-      username: process.env.DB_USER || 'sa',
-      password: process.env.DB_PASS || 'Passw0rd123!',
-      database: process.env.DB_NAME || 'flight_booking_db',
+      username: dbUser,
+      password: dbPassword,
+      database: dbName,
       options: {
         encrypt: process.env.DB_ENCRYPT === 'true',
         trustServerCertificate: process.env.DB_TRUST_CERT === 'true',
@@ -119,8 +134,6 @@ async function runMigrations(): Promise<boolean> {
     return true;
   } catch (error: any) {
     console.error('Error running migrations:', error.message);
-    console.error('Error details:', error);
-    // Check if it's just "no migrations pending" error
     if (
       error.message &&
       (error.message.includes('No migrations') ||
@@ -139,21 +152,16 @@ async function runMigrations(): Promise<boolean> {
 async function verifyDatabase(): Promise<boolean> {
   console.log('Verifying database is accessible...');
   try {
-    let dbHost = process.env.DB_HOST;
-    if (!dbHost) {
-      dbHost = 'localhost'; // Default to localhost for local development
-    }
-    const isDockerNetwork = dbHost === 'sqlserver' || dbHost.includes('.docker');
-    const defaultPort = isDockerNetwork ? 1433 : 1434;
-    const dbPort = parseInt(process.env.DB_PORT || defaultPort.toString(), 10);
-    
+    const { dbHost, dbPort, dbUser, dbPassword } = getDbConfig();
+    const dbName = process.env.DB_NAME!;
+
     const dataSource = new DataSource({
       type: 'mssql',
       host: dbHost,
       port: dbPort,
-      username: process.env.DB_USER || 'sa',
-      password: process.env.DB_PASS || process.env.SA_PASSWORD || 'Passw0rd123!',
-      database: process.env.DB_NAME || 'flight_booking_db',
+      username: dbUser,
+      password: dbPassword,
+      database: dbName,
       options: {
         encrypt: process.env.DB_ENCRYPT === 'true',
         trustServerCertificate: process.env.DB_TRUST_CERT === 'true',
@@ -186,8 +194,6 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // Wait longer for database to be fully ready after creation
-  // SQL Server needs time to finalize database creation
   console.log('Waiting for database to be fully ready...');
   await new Promise((resolve) => setTimeout(resolve, 5000));
 
@@ -197,7 +203,6 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // Verify database is accessible before proceeding
   const verified = await verifyDatabase();
   if (!verified) {
     console.error('Database verification failed');
@@ -208,9 +213,7 @@ async function main(): Promise<void> {
   process.exit(0);
 }
 
-// Run main function
 main().catch((error) => {
   console.error('Fatal error:', error);
   process.exit(1);
 });
-

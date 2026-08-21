@@ -2,6 +2,8 @@
 
 Lịch sử các thay đổi quan trọng của dự án.
 
+> **Lưu ý về cấu trúc project:** Backend chính nằm trong `src-nestjs/`. Một số changelog cũ có thể ghi `src/` thay vì `src-nestjs/` — đó là reference cũ, không còn đúng với cấu trúc hiện tại.
+
 ## [Unreleased]
 
 ### Bug Fix: TypeORM Entity Metadata Error in Seed Script (2025-12-03)
@@ -11,7 +13,7 @@ Lịch sử các thay đổi quan trọng của dự án.
 - **Fix**: Thêm các entities còn thiếu vào mảng `entities` trong `seed-full-database.ts`
 - **Impact**: Seed script giờ có thể chạy thành công và seed đầy đủ dữ liệu bao gồm roles, route fare prices, baggage allowances, và cabin services
 - **Files Changed**:
-  - `src/scripts/seed-full-database.ts` - Thêm `Role`, `UserRole`, `RouteFarePrice`, `BaggageAllowance`, `CabinService` vào entities array
+  - `src-nestjs/scripts/seed-full-database.ts` - Thêm `Role`, `UserRole`, `RouteFarePrice`, `BaggageAllowance`, `CabinService` vào entities array
 
 ---
 
@@ -50,11 +52,11 @@ Lịch sử các thay đổi quan trọng của dự án.
   - `src/shared/services/cabin-service.service.ts` - CabinServiceService
   - `src/migrations/1700000003000-CreateRouteFarePriceTable.ts` - RouteFarePrice migration
   - `src/migrations/1700000004000-CreateBaggageAndCabinServiceTables.ts` - BaggageAllowance & CabinService migration
-  - `src/api-gateway/modules/admin/` - Thêm DTOs và endpoints cho route fare prices, baggage allowances, cabin services
-  - `src/microservices/search/search.service.ts` - Sử dụng FarePricingService
-  - `src/microservices/reservation/reservation.service.ts` - Sử dụng FarePricingService
-  - `src/microservices/booking/booking.service.ts` - Sử dụng FarePricingService
-  - `src/scripts/seed-full-database.ts` - Seed route fare prices, baggage allowances, cabin services
+  - `src-nestjs/api-gateway/modules/admin/` - Thêm DTOs và endpoints cho route fare prices, baggage allowances, cabin services
+  - `src-nestjs/microservices/search/search.service.ts` - Sử dụng FarePricingService
+  - `src-nestjs/microservices/reservation/reservation.service.ts` - Sử dụng FarePricingService
+  - `src-nestjs/microservices/booking/booking.service.ts` - Sử dụng FarePricingService
+  - `src-nestjs/scripts/seed-full-database.ts` - Seed route fare prices, baggage allowances, cabin services
   - `booking/app/(page)/admin/route-fare-prices/page.tsx` - Frontend page
   - `booking/app/(page)/admin/baggage-allowances/page.tsx` - Frontend page
   - `booking/app/(page)/admin/cabin-services/page.tsx` - Frontend page
@@ -118,7 +120,7 @@ Lịch sử các thay đổi quan trọng của dự án.
   - `src/shared/guards/roles.guard.ts` - RolesGuard implementation
   - `src/migrations/1700000001000-AddRolesAndUserRoles.ts` - Initial roles migration
   - `src/migrations/1700000002000-AddNewRoles.ts` - New roles migration
-  - `src/api-gateway/modules/admin/` - Admin module (service, controller, DTOs)
+  - `src-nestjs/api-gateway/modules/admin/` - Admin module (service, controller, DTOs)
   - `docs/ROLES_AND_PERMISSIONS.md` - Tài liệu chi tiết về roles và permissions
 - **API Endpoints**:
   - `POST /api/v1/admin/fare-classes` - Tạo hạng vé (ADMIN, REVENUE_ANALYST)
@@ -283,7 +285,7 @@ Lịch sử các thay đổi quan trọng của dự án.
     - Không còn trường hợp "Flight instances are not valid. Please choose another day!"
     - Data realistic và đầy đủ cho testing
   - **Files Changed**:
-    - `be-flight-booking/src/scripts/seed-full-database.ts` - Updated schedule generation logic
+    - `src-nestjs/scripts/seed-full-database.ts` - Updated schedule generation logic
   - **Documentation**: Updated `docs/database/SEED-README.md` với thông tin về daily schedules
 
 - **Airport List API Endpoint (2025-11-30)**
@@ -364,15 +366,15 @@ Lịch sử các thay đổi quan trọng của dự án.
     - Redis Pub/Sub cho multi-instance support
     - TCP communication với Reservation Microservice cho countdown timer
   - **Files Created**:
-    - `src/api-gateway/modules/realtime/realtime.module.ts` - Main module
-    - `src/api-gateway/modules/realtime/realtime.gateway.ts` - WebSocket Gateway
-    - `src/api-gateway/modules/realtime/realtime.service.ts` - Subscription management
-    - `src/api-gateway/modules/realtime/services/seat-availability.service.ts` - Seat availability service
-    - `src/api-gateway/modules/realtime/services/reservation-countdown.service.ts` - Countdown service
-    - `src/api-gateway/modules/realtime/services/payment-status.service.ts` - Payment status service
-    - `src/api-gateway/modules/realtime/README.md` - Usage guide
-    - `src/api-gateway/modules/realtime/INTEGRATION.md` - Integration guide
-    - `src/api-gateway/modules/realtime/SETUP.md` - Setup instructions
+    - `src-nestjs/api-gateway/modules/realtime/realtime.module.ts` - Main module
+    - `src-nestjs/api-gateway/modules/realtime/realtime.gateway.ts` - WebSocket Gateway
+    - `src-nestjs/api-gateway/modules/realtime/realtime.service.ts` - Subscription management
+    - `src-nestjs/api-gateway/modules/realtime/services/seat-availability.service.ts` - Seat availability service
+    - `src-nestjs/api-gateway/modules/realtime/services/reservation-countdown.service.ts` - Countdown service
+    - `src-nestjs/api-gateway/modules/realtime/services/payment-status.service.ts` - Payment status service
+    - `src-nestjs/api-gateway/modules/realtime/README.md` - Usage guide
+    - `src-nestjs/api-gateway/modules/realtime/INTEGRATION.md` - Integration guide
+    - `src-nestjs/api-gateway/modules/realtime/SETUP.md` - Setup instructions
     - `docs/REALTIME_IMPLEMENTATION.md` - Comprehensive implementation guide
   - **Dependencies**:
     - Backend: `@nestjs/websockets`, `socket.io`
@@ -436,28 +438,28 @@ Lịch sử các thay đổi quan trọng của dự án.
     - Tự động loại bỏ cancelled bookings khỏi "Hành trình của tôi"
     - Chỉ hiển thị active/completed journeys
   - **Files Changed**:
-    - `src/microservices/booking/booking.service.ts`:
+    - `src-nestjs/microservices/booking/booking.service.ts`:
       - `cancelTicket()` - Cancel individual ticket
       - `getTicketInfo()` - Get ticket info
       - `calculateRefundAmountForSegments()` - Refund calculation for segments
       - `cancelBooking()` - Enhanced với paid booking support và refund calculation
-    - `src/microservices/booking/booking.controller.ts` - Handlers cho cancel ticket và get ticket info
-    - `src/microservices/booking/booking.messages.ts` - Added `CANCEL_TICKET`, `GET_TICKET_INFO` patterns
-    - `src/api-gateway/modules/booking/booking.controller.ts`:
+    - `src-nestjs/microservices/booking/booking.controller.ts` - Handlers cho cancel ticket và get ticket info
+    - `src-nestjs/microservices/booking/booking.messages.ts` - Added `CANCEL_TICKET`, `GET_TICKET_INFO` patterns
+    - `src-nestjs/api-gateway/modules/booking/booking.controller.ts`:
       - `PATCH /api/v1/bookings/tickets/:ticketId/cancel` - Cancel ticket endpoint
       - `GET /api/v1/bookings/tickets/:ticketId/info` - Get ticket info endpoint
       - Enhanced `PATCH /api/v1/bookings/:id/cancel` với OTP verification
-    - `src/api-gateway/modules/auth/auth.service.ts`:
+    - `src-nestjs/api-gateway/modules/auth/auth.service.ts`:
       - `sendOtpCancellation()` - Send OTP for cancellation
       - `verifyOtpCancellation()` - Verify OTP và tạo verification token
       - `isCancellationOtpVerified()` - Check verification token
       - `deleteCancellationVerificationToken()` - Delete verification token
-    - `src/shared/services/otp-storage.service.ts`:
+    - `src-nestjs/shared/services/otp-storage.service.ts`:
       - `storeCancellationOtp()` - Store cancellation OTP
       - `verifyCancellationOtp()` - Verify và tạo verification token
       - `isCancellationOtpVerified()` - Check verification token
       - `deleteCancellationVerificationToken()` - Delete verification token
-    - `src/microservices/email/services/email-template.service.ts`:
+    - `src-nestjs/microservices/email/services/email-template.service.ts`:
       - `OTP_CANCELLATION` template
       - `BOOKING_CANCELLATION` template với refund information
     - `booking/app/(page)/my-tickets/page.tsx`:
@@ -687,8 +689,8 @@ Lịch sử các thay đổi quan trọng của dự án.
   - **Prevent Duplicate Seeding**: Tránh seed lại data đã tồn tại
   - **Graceful Exit**: Nếu đã có data, log message và exit gracefully
   - **Files Changed**:
-    - `docker/seed-if-empty.ts` (new)
-    - `src/scripts/seed-full-database.ts` (updated - added check)
+    - `docker/seed-if-empty.ts` (deprecated - xóa bớt scripts không dùng)
+    - `src-nestjs/scripts/seed-full-database.ts` (updated - added check)
 
 ### Tính năng mới
 

@@ -1,0 +1,30 @@
+import { Module } from '@nestjs/common';
+import { ClientsModule, Transport } from '@nestjs/microservices';
+import { SEARCH_MS } from 'src/microservices/search/search.messages';
+import { CabinServiceService } from 'src/shared/services/cabin-service.service';
+import { AuthModule } from '../auth/auth.module';
+import { BookingStateModule } from '../booking-state/booking-state.module';
+import { SearchController } from './search.controller';
+
+@Module({
+    imports: [
+        ClientsModule.register([
+            {
+                name: 'SEARCH_CLIENT',
+                transport: Transport.TCP,
+                options: {
+                    host: SEARCH_MS.TCP_PEER_HOST,
+                    port: SEARCH_MS.TCP_PORT,
+                    heartbeatInterval: 5000,
+                    heartbeatTimeout: 15000,
+                },
+            },
+        ]),
+        BookingStateModule,
+        AuthModule, // Import AuthModule to use OptionalJwtAuthGuard
+    ],
+    controllers: [SearchController],
+    providers: [CabinServiceService],
+    exports: [CabinServiceService],
+})
+export class SearchClientModule {}

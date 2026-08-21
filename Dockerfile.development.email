@@ -1,0 +1,22 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+ENV NPM_CONFIG_FETCH_TIMEOUT=120000 \
+    NPM_CONFIG_FETCH_RETRIES=3
+
+RUN apk add --no-cache netcat-openbsd
+
+# Install dependencies
+COPY package*.json ./
+RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+
+# Copy pre-built dist (TypeScript build was done locally)
+COPY dist/ ./dist/
+
+# Copy credentials (build-time secret - only for this service)
+COPY credentials_desktop_apps.json token.json ./
+
+EXPOSE 3000
+
+CMD ["node", "dist/microservices/email/main.email.js"]

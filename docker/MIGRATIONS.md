@@ -2,17 +2,18 @@
 
 ## Tự động chạy migrations
 
-Khi chạy `docker-compose -f docker-compose-full-services.yml up --build`, migrations sẽ **tự động chạy** thông qua script `docker/init-database.ts`:
+Khi chạy `npm run docker:infra:up && npm run docker:dev:up`, migrations sẽ **tự động chạy** thông qua script `docker/init-database.ts` được gọi bởi `npm run docker:init-db`:
 
 ```bash
-docker-compose -f docker-compose-full-services.yml up --build
+npm run docker:infra:up
+npm run docker:dev:up
 ```
 
 Quá trình sẽ:
-1. Tạo database (sử dụng user `sa` với password `Passw0rd123!`)
+1. Tạo database (sử dụng user `sa` với password `Strong!Pass1234`)
 2. **Chạy migrations tự động** (tạo tables, indexes, triggers)
    - TypeORM DataSource được tạo trực tiếp từ environment variables
-   - Không cần file `.env` trong container (env vars từ `docker-compose-full-services.yml`)
+   - Không cần file `.env` trong container (env vars từ `docker-compose.development.yml` và `docker-compose.infrastructure.yml`)
    - Tất cả truy cập database đều dùng user `sa`
 3. Seed database (nếu có)
 4. Khởi động services
@@ -30,7 +31,7 @@ Quá trình sẽ:
 
 ```bash
 # Vào container backend
-docker-compose -f docker-compose-full-services.yml exec backend sh
+docker compose -f docker-compose.infrastructure.yml -f docker-compose.development.yml exec api-gateway sh
 
 # Chạy migrations
 npm run migration:run
@@ -43,27 +44,27 @@ npx typeorm-ts-node-commonjs migration:run -d dist/shared/config/typeorm.js
 
 ```bash
 # Chạy migration command trong container
-docker-compose -f docker-compose-full-services.yml exec backend npm run migration:run
+docker compose -f docker-compose.infrastructure.yml -f docker-compose.development.yml exec api-gateway npm run migration:run
 ```
 
 ### 3. Xem trạng thái migrations
 
 ```bash
 # Xem migrations đã chạy
-docker-compose -f docker-compose-full-services.yml exec backend npm run migration:show
+docker compose -f docker-compose.infrastructure.yml -f docker-compose.development.yml exec api-gateway npm run migration:show
 
 # Hoặc kiểm tra trực tiếp trong database (từ trong container)
-docker-compose -f docker-compose-full-services.yml exec sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "Passw0rd123!" -C -d flight_booking_db -Q "SELECT * FROM migrations"
+docker compose -f docker-compose.infrastructure.yml -f docker-compose.development.yml exec sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "Strong!Pass1234" -C -d flight_booking_db -Q "SELECT * FROM migrations"
 
 # Hoặc từ host (nếu có sqlcmd)
-sqlcmd -S localhost,1434 -U sa -P "Passw0rd123!" -C -d flight_booking_db -Q "SELECT * FROM migrations"
+sqlcmd -S localhost,1434 -U sa -P "Strong!Pass1234" -C -d flight_booking_db -Q "SELECT * FROM migrations"
 ```
 
 ### 4. Revert migration (rollback)
 
 ```bash
 # Revert migration gần nhất
-docker-compose -f docker-compose-full-services.yml exec backend npm run migration:revert
+docker compose -f docker-compose.infrastructure.yml -f docker-compose.development.yml exec api-gateway npm run migration:revert
 ```
 
 ## Tạo migration mới
@@ -72,22 +73,27 @@ docker-compose -f docker-compose-full-services.yml exec backend npm run migratio
 
 ```bash
 # Tạo migration từ entities (auto-generate)
-npm run migration:generate src/migrations/MigrationName
+npm run migration:generate -- src/migrations/MigrationName
+```
 
-# Tạo migration trống (manual)
-npm run migration:create src/migrations/MigrationName
+Nếu cần migration trống, dùng TypeORM CLI trực tiếp thay vì npm script riêng:
+
+```bash
+npx typeorm-ts-node-commonjs migration:create src-nestjs/shared/migrations/MigrationName
 ```
 
 Sau đó rebuild Docker:
 
 ```bash
-docker-compose up --build
+npm run docker:dev:down && npm run docker:dev:build && npm run docker:dev:up
 ```
+
+**Lưu ý:** Cần rebuild sau khi tạo migration mới vì migrations được compile vào `dist/`.
 
 ### Từ trong container (không khuyến nghị)
 
 ```bash
-docker-compose -f docker-compose-full-services.yml exec backend npm run migration:generate src/migrations/MigrationName
+docker compose -f docker-compose.infrastructure.yml -f docker-compose.development.yml exec api-gateway npm run migration:generate -- src-nestjs/shared/migrations/MigrationName
 ```
 
 ## Kiểm tra migrations đã chạy
@@ -96,20 +102,20 @@ docker-compose -f docker-compose-full-services.yml exec backend npm run migratio
 
 ```bash
 # Kết nối vào SQL Server container
-docker-compose -f docker-compose-full-services.yml exec sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "Passw0rd123!" -C -d flight_booking_db -Q "SELECT * FROM migrations ORDER BY timestamp DESC"
+docker compose -f docker-compose.infrastructure.yml -f docker-compose.development.yml exec sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "Strong!Pass1234" -C -d flight_booking_db -Q "SELECT * FROM migrations ORDER BY timestamp DESC"
 ```
 
 ### Cách 2: Xem logs khi container khởi động
 
 ```bash
-# Xem logs của backend container
-docker-compose -f docker-compose-full-services.yml logs backend | grep -i migration
+# Xem logs của api-gateway container
+docker compose -f docker-compose.infrastructure.yml -f docker-compose.development.yml logs api-gateway | grep -i migration
 ```
 
 ### Cách 3: Dùng TypeORM CLI
 
 ```bash
-docker-compose -f docker-compose-full-services.yml exec backend npm run migration:show
+docker compose -f docker-compose.infrastructure.yml -f docker-compose.development.yml exec api-gateway npm run migration:show
 ```
 
 ## Troubleshooting
@@ -118,44 +124,54 @@ docker-compose -f docker-compose-full-services.yml exec backend npm run migratio
 
 1. **Kiểm tra migrations đã được compile chưa:**
    ```bash
-   docker-compose -f docker-compose-full-services.yml exec backend ls -la dist/shared/migrations/
+   docker compose -f docker-compose.infrastructure.yml -f docker-compose.development.yml exec api-gateway ls -la dist/shared/migrations/
    ```
 
 2. **Kiểm tra TypeORM config:**
    ```bash
-   docker-compose -f docker-compose-full-services.yml exec backend cat dist/shared/config/typeorm.js
+   docker compose -f docker-compose.infrastructure.yml -f docker-compose.development.yml exec api-gateway cat dist/shared/config/typeorm.js
    ```
 
 3. **Chạy migrations thủ công để xem lỗi:**
    ```bash
-   docker-compose -f docker-compose-full-services.yml exec backend npm run migration:run
+   docker compose -f docker-compose.infrastructure.yml -f docker-compose.development.yml exec api-gateway npm run migration:run
    ```
 
 ### Migration bị lỗi
 
 1. **Xem logs chi tiết:**
    ```bash
-   docker-compose -f docker-compose-full-services.yml logs backend
+   docker compose -f docker-compose.infrastructure.yml -f docker-compose.development.yml logs api-gateway
+   ```
+
+### Migration bị lỗi
+
+1. **Xem logs chi tiết:**
+   ```bash
+   docker compose -f docker-compose.infrastructure.yml -f docker-compose.development.yml logs api-gateway
    ```
 
 2. **Kiểm tra database connection:**
-   ```bash
-   docker-compose -f docker-compose-full-services.yml exec backend npm run test:db
-   ```
+   - Verify lại biến môi trường kết nối DB trong container (`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`)
+   - Có thể kiểm tra nhanh bằng cách chạy lại `npm run migration:show`
+
+2. **Kiểm tra database connection:**
+   - Verify lại biến môi trường kết nối DB trong container (`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`)
+   - Có thể kiểm tra nhanh bằng cách chạy lại `npm run migration:show`
 
 3. **Revert migration lỗi:**
    ```bash
-   docker-compose -f docker-compose-full-services.yml exec backend npm run migration:revert
+   docker compose -f docker-compose.infrastructure.yml -f docker-compose.development.yml exec api-gateway npm run migration:revert
    ```
 
 ### Reset database và chạy lại migrations
 
 ```bash
 # Xóa volumes (xóa toàn bộ data)
-docker-compose -f docker-compose-full-services.yml down -v
+docker compose -f docker-compose.infrastructure.yml -f docker-compose.development.yml down -v
 
 # Khởi động lại (migrations sẽ chạy lại từ đầu)
-docker-compose -f docker-compose-full-services.yml up --build
+npm run docker:dev:up
 ```
 
 ## Lưu ý
