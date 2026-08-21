@@ -3,7 +3,6 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Airport } from 'src/api-gateway/data-access/entities/airport/airport.entity';
 import appConfig from 'src/shared/config/app.config';
 import { CommonModule } from 'src/shared/modules/common/common.module';
 import { DataProvidersModule } from 'src/shared/modules/data-providers/data-providers.module';
@@ -46,9 +45,8 @@ import { ServicesClientModule } from './modules/services/services.client.module'
                 trustServerCertificate: process.env.DB_TRUST_CERT === 'true',
             },
             synchronize: false,
-            entities: [`${__dirname}/../data-access/entities/**/*.entity.{ts,js}`],
+            entities: [`${__dirname}/data-access/entities/**/*.entity.{ts,js}`],
         }),
-        TypeOrmModule.forFeature([Airport]),
         DataProvidersModule,
         AuthModule,
         SearchClientModule,
