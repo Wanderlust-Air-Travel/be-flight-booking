@@ -1,6 +1,5 @@
-import { CreatePaymentHandler } from '../create-payment.handler';
 import { InMemoryPaymentRepository } from '../../../domain/repositories/in-memory-payment.repository';
-import type { IPaymentRepository } from '../../../domain/repositories/payment.repository.interface';
+import { CreatePaymentHandler } from '../create-payment.handler';
 
 describe('CreatePaymentHandler', () => {
     let handler: CreatePaymentHandler;
@@ -9,7 +8,10 @@ describe('CreatePaymentHandler', () => {
 
     beforeEach(() => {
         repo = new InMemoryPaymentRepository();
-        outbox = { append: jest.fn().mockImplementation(async (e) => outbox.events.push(e)), events: [] };
+        outbox = {
+            append: jest.fn().mockImplementation(async (e) => outbox.events.push(e)),
+            events: [],
+        };
         handler = new CreatePaymentHandler(repo as any, outbox as any);
     });
 

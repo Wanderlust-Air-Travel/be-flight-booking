@@ -64,9 +64,7 @@ export const SEARCH_FLIGHT_HANDLER = 'SearchFlightHandler';
 
 @Injectable()
 export class GetFareOptionsHandler {
-    constructor(
-        @Inject('ISearchAdapter') private readonly adapter: ISearchAdapter
-    ) {}
+    constructor(@Inject('ISearchAdapter') private readonly adapter: ISearchAdapter) {}
 
     async execute(flightInstanceId: string): Promise<FlightSearchResult[]> {
         return this.adapter.getFareOptions(flightInstanceId);
@@ -75,9 +73,7 @@ export class GetFareOptionsHandler {
 
 @Injectable()
 export class GetFlightDetailsHandler {
-    constructor(
-        @Inject('ISearchAdapter') private readonly adapter: ISearchAdapter
-    ) {}
+    constructor(@Inject('ISearchAdapter') private readonly adapter: ISearchAdapter) {}
 
     async execute(flightInstanceId: string): Promise<FlightSearchResult | null> {
         return this.adapter.getFlightDetails(flightInstanceId);

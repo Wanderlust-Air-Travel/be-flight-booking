@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { IDomainEvent } from '../../domain/events/domain-event';
 import type { IDomainEventBus } from '../../application/ports/domain-event-bus.interface';
+import type { IDomainEvent } from '../../domain/events/domain-event';
 
 /**
  * Token for injecting the underlying publisher (e.g. RabbitMQPublisherService).

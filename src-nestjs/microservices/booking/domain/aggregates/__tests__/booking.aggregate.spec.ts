@@ -1,18 +1,18 @@
-import { Booking, type CreateBookingInput } from '../booking.aggregate';
-import { Money } from '../../value-objects/money';
-import { PNR } from '../../value-objects/pnr';
-import { BookingStatus } from '../../value-objects/booking-status';
-import { ContactInfo } from '../../value-objects/contact-info';
 import { DomainException } from '../../../../../shared/domain/exceptions/domain-exception';
-import type { IBookingRepository } from '../../repositories/booking.repository.interface';
 import {
     BookingCancelledEvent,
     BookingCheckedInEvent,
     BookingCreatedEvent,
-    BookingPassengersUpdatedEvent,
     BookingPaidEvent,
+    BookingPassengersUpdatedEvent,
     BookingTicketsIssuedEvent,
 } from '../../events/booking.events';
+import type { IBookingRepository } from '../../repositories/booking.repository.interface';
+import { BookingStatus } from '../../value-objects/booking-status';
+import { ContactInfo } from '../../value-objects/contact-info';
+import { Money } from '../../value-objects/money';
+import { PNR } from '../../value-objects/pnr';
+import { Booking, type CreateBookingInput } from '../booking.aggregate';
 
 function makeRepo(existing: string[] = []): IBookingRepository {
     return {
@@ -54,16 +54,16 @@ describe('Booking aggregate', () => {
 
         it('rejects booking with zero passengers', async () => {
             const repo = makeRepo();
-            await expect(
-                Booking.create(makeInput({ passengers: [] }), repo)
-            ).rejects.toThrow(DomainException);
+            await expect(Booking.create(makeInput({ passengers: [] }), repo)).rejects.toThrow(
+                DomainException
+            );
         });
 
         it('rejects booking with zero segments', async () => {
             const repo = makeRepo();
-            await expect(
-                Booking.create(makeInput({ segments: [] }), repo)
-            ).rejects.toThrow(DomainException);
+            await expect(Booking.create(makeInput({ segments: [] }), repo)).rejects.toThrow(
+                DomainException
+            );
         });
 
         it('generates a new PNR on collision', async () => {

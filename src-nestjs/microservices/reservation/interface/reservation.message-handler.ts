@@ -1,9 +1,9 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
-import { CreateReservationHandler } from '../../application/handlers/create-reservation.handler';
-import { GetReservationHandler } from '../../application/handlers/get-reservation.handler';
-import { CancelReservationHandler } from '../../application/handlers/cancel-reservation.handler';
-import { ConvertToBookingHandler } from '../../application/handlers/convert-to-booking.handler';
+import type { CancelReservationHandler } from '../application/handlers/cancel-reservation.handler';
+import type { ConvertToBookingHandler } from '../application/handlers/convert-to-booking.handler';
+import type { CreateReservationHandler } from '../application/handlers/create-reservation.handler';
+import type { GetReservationHandler } from '../application/handlers/get-reservation.handler';
 
 /**
  * ReservationMessageHandler — Thin interface for reservation context.

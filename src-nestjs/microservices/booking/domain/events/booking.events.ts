@@ -45,7 +45,10 @@ export class BookingCreatedEvent extends BaseBookingEvent {
 
 export class BookingPaidEvent extends BaseBookingEvent {
     static readonly EVENT_NAME = 'booking.paid';
-    constructor(bookingId: string, public readonly paidAt: Date) {
+    constructor(
+        bookingId: string,
+        public readonly paidAt: Date
+    ) {
         super(bookingId, { paidAt: paidAt.toISOString() }, BookingPaidEvent.EVENT_NAME);
     }
 }
@@ -58,35 +61,36 @@ export class BookingCancelledEvent extends BaseBookingEvent {
         public readonly reason: string,
         public readonly refundAmount: number
     ) {
-        super(
-            bookingId,
-            { cancelledBy, reason, refundAmount },
-            BookingCancelledEvent.EVENT_NAME
-        );
+        super(bookingId, { cancelledBy, reason, refundAmount }, BookingCancelledEvent.EVENT_NAME);
     }
 }
 
 export class BookingPassengersUpdatedEvent extends BaseBookingEvent {
     static readonly EVENT_NAME = 'booking.passengers_updated';
-    constructor(bookingId: string, public readonly totalPassengers: number) {
-        super(
-            bookingId,
-            { totalPassengers },
-            BookingPassengersUpdatedEvent.EVENT_NAME
-        );
+    constructor(
+        bookingId: string,
+        public readonly totalPassengers: number
+    ) {
+        super(bookingId, { totalPassengers }, BookingPassengersUpdatedEvent.EVENT_NAME);
     }
 }
 
 export class BookingTicketsIssuedEvent extends BaseBookingEvent {
     static readonly EVENT_NAME = 'booking.tickets_issued';
-    constructor(bookingId: string, public readonly ticketCount: number) {
+    constructor(
+        bookingId: string,
+        public readonly ticketCount: number
+    ) {
         super(bookingId, { ticketCount }, BookingTicketsIssuedEvent.EVENT_NAME);
     }
 }
 
 export class BookingCheckedInEvent extends BaseBookingEvent {
     static readonly EVENT_NAME = 'booking.checked_in';
-    constructor(bookingId: string, public readonly checkedInAt: Date) {
+    constructor(
+        bookingId: string,
+        public readonly checkedInAt: Date
+    ) {
         super(
             bookingId,
             { checkedInAt: checkedInAt.toISOString() },

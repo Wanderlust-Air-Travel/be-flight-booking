@@ -1,16 +1,16 @@
-import { Body, Controller } from '@nestjs/common';
+import { Controller } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
-import { CreateBookingHandler } from '../application/handlers/create-booking.handler';
-import { GetBookingHandler } from '../application/handlers/get-booking.handler';
-import { CancelBookingHandler } from '../application/handlers/cancel-booking.handler';
-import { CancelTicketHandler } from '../application/handlers/cancel-ticket.handler';
-import { UpdateBookingPassengersHandler } from '../application/handlers/update-booking-passengers.handler';
-import { CheckInBookingHandler } from '../application/handlers/check-in-booking.handler';
-import { CreateTicketsFromBookingHandler } from '../application/handlers/create-tickets-from-booking.handler';
-import { GetMyTicketsHandler } from '../application/handlers/get-my-tickets.handler';
-import { GetMyJourneyHandler } from '../application/handlers/get-my-journey.handler';
-import { Money } from '../domain/value-objects/money';
+import type { CancelBookingHandler } from '../application/handlers/cancel-booking.handler';
+import type { CancelTicketHandler } from '../application/handlers/cancel-ticket.handler';
+import type { CheckInBookingHandler } from '../application/handlers/check-in-booking.handler';
+import type { CreateBookingHandler } from '../application/handlers/create-booking.handler';
+import type { CreateTicketsFromBookingHandler } from '../application/handlers/create-tickets-from-booking.handler';
+import type { GetBookingHandler } from '../application/handlers/get-booking.handler';
+import type { GetMyJourneyHandler } from '../application/handlers/get-my-journey.handler';
+import type { GetMyTicketsHandler } from '../application/handlers/get-my-tickets.handler';
+import type { UpdateBookingPassengersHandler } from '../application/handlers/update-booking-passengers.handler';
 import { ContactInfo } from '../domain/value-objects/contact-info';
+import { Money } from '../domain/value-objects/money';
 
 /**
  * BookingMessageHandler — Thin interface layer. Translates TCP messages

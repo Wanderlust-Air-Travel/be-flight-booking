@@ -1,5 +1,4 @@
 import { NotificationEventAdapter } from '../notification-event.adapter';
-import type { IDomainEventBus } from '../../../../../shared/application/ports/domain-event-bus.interface';
 
 describe('NotificationEventAdapter', () => {
     let adapter: NotificationEventAdapter;

@@ -7,12 +7,12 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import type { Repository } from 'typeorm';
-import { SystemRole } from '../constants/roles';
-import { ROLES_KEY } from '../decorators/roles.decorator';
 import { Role } from 'src/api-gateway/data-access/entities/role/role.entity';
 import { UserRole } from 'src/api-gateway/data-access/entities/user/user-role.entity';
 import { User } from 'src/api-gateway/data-access/entities/user/user.entity';
+import type { Repository } from 'typeorm';
+import { SystemRole } from '../constants/roles';
+import { ROLES_KEY } from '../decorators/roles.decorator';
 
 /**
  * Roles Guard

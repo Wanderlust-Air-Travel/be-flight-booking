@@ -1,7 +1,3 @@
-import { Payment } from '../payment.aggregate';
-import { InMemoryPaymentRepository } from '../../repositories/in-memory-payment.repository';
-import { IdempotencyKey } from '../../value-objects/idempotency-key';
-import { PaymentStatus } from '../../value-objects/payment-status';
 import { DomainException } from '../../../../../shared/domain/exceptions/domain-exception';
 import {
     PaymentCreatedEvent,
@@ -10,6 +6,10 @@ import {
     PaymentRefundedEvent,
     PaymentSucceededEvent,
 } from '../../events/payment.events';
+import { InMemoryPaymentRepository } from '../../repositories/in-memory-payment.repository';
+import { IdempotencyKey } from '../../value-objects/idempotency-key';
+import { PaymentStatus } from '../../value-objects/payment-status';
+import { Payment } from '../payment.aggregate';
 
 async function build(repo: InMemoryPaymentRepository, overrides: any = {}) {
     return Payment.create(

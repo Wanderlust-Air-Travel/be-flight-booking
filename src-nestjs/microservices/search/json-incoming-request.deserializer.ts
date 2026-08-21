@@ -1,6 +1,8 @@
-import { Deserializer } from '@nestjs/microservices/interfaces/deserializer.interface';
-import type { IncomingRequest, ReadPacket } from '@nestjs/microservices/interfaces/packet.interface';
-import { isString, isUndefined } from '@nestjs/common/utils/shared.utils';
+import type { Deserializer } from '@nestjs/microservices/interfaces/deserializer.interface';
+import type {
+    IncomingRequest,
+    ReadPacket,
+} from '@nestjs/microservices/interfaces/packet.interface';
 
 export class JsonIncomingRequestDeserializer implements Deserializer {
     deserialize(value: any, options?: any): ReadPacket<any> | IncomingRequest {
@@ -12,7 +14,7 @@ export class JsonIncomingRequestDeserializer implements Deserializer {
             const delimiterIdx = str.indexOf('#');
             if (delimiterIdx !== -1) {
                 const lengthStr = str.substring(0, delimiterIdx);
-                const length = parseInt(lengthStr, 10);
+                const length = Number.parseInt(lengthStr, 10);
                 const jsonStr = str.substring(delimiterIdx + 1);
                 if (jsonStr.length === length) {
                     try {

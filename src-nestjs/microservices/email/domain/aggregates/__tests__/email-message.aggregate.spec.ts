@@ -1,5 +1,5 @@
-import { EmailMessage } from '../email-message.aggregate';
 import { DomainException } from '../../../../../shared/domain/exceptions/domain-exception';
+import { EmailMessage } from '../email-message.aggregate';
 
 describe('EmailMessage aggregate', () => {
     it('creates a PENDING message with valid inputs', () => {
@@ -15,31 +15,56 @@ describe('EmailMessage aggregate', () => {
 
     it('rejects invalid email', () => {
         expect(() =>
-            EmailMessage.create({ to: 'bogus', subject: 'x', body: 'y', template: 'BOOKING_CONFIRMATION' })
+            EmailMessage.create({
+                to: 'bogus',
+                subject: 'x',
+                body: 'y',
+                template: 'BOOKING_CONFIRMATION',
+            })
         ).toThrow(DomainException);
     });
 
     it('rejects missing subject', () => {
         expect(() =>
-            EmailMessage.create({ to: 'a@b.com', subject: '', body: 'y', template: 'BOOKING_CONFIRMATION' })
+            EmailMessage.create({
+                to: 'a@b.com',
+                subject: '',
+                body: 'y',
+                template: 'BOOKING_CONFIRMATION',
+            })
         ).toThrow(DomainException);
     });
 
     it('markSent() transitions PENDING → SENT', () => {
-        const e = EmailMessage.create({ to: 'a@b.com', subject: 's', body: 'b', template: 'X' as any });
+        const e = EmailMessage.create({
+            to: 'a@b.com',
+            subject: 's',
+            body: 'b',
+            template: 'X' as any,
+        });
         e.markSent(new Date());
         expect(e.status).toBe('SENT');
         expect(e.sentAt).toBeDefined();
     });
 
     it('refuses markSent on non-pending', () => {
-        const e = EmailMessage.create({ to: 'a@b.com', subject: 's', body: 'b', template: 'X' as any });
+        const e = EmailMessage.create({
+            to: 'a@b.com',
+            subject: 's',
+            body: 'b',
+            template: 'X' as any,
+        });
         e.markSent(new Date());
         expect(() => e.markSent(new Date())).toThrow();
     });
 
     it('markFailed() transitions to FAILED and increments attempts', () => {
-        const e = EmailMessage.create({ to: 'a@b.com', subject: 's', body: 'b', template: 'X' as any });
+        const e = EmailMessage.create({
+            to: 'a@b.com',
+            subject: 's',
+            body: 'b',
+            template: 'X' as any,
+        });
         e.markFailed('smtp 500');
         expect(e.status).toBe('FAILED');
         expect(e.attempts).toBe(1);
@@ -47,14 +72,24 @@ describe('EmailMessage aggregate', () => {
     });
 
     it('retry() allows resending a FAILED email', () => {
-        const e = EmailMessage.create({ to: 'a@b.com', subject: 's', body: 'b', template: 'X' as any });
+        const e = EmailMessage.create({
+            to: 'a@b.com',
+            subject: 's',
+            body: 'b',
+            template: 'X' as any,
+        });
         e.markFailed('first try');
         e.retry();
         expect(e.status).toBe('PENDING');
     });
 
     it('retry() refuses to retry PENDING emails', () => {
-        const e = EmailMessage.create({ to: 'a@b.com', subject: 's', body: 'b', template: 'X' as any });
+        const e = EmailMessage.create({
+            to: 'a@b.com',
+            subject: 's',
+            body: 'b',
+            template: 'X' as any,
+        });
         expect(() => e.retry()).toThrow();
     });
 });

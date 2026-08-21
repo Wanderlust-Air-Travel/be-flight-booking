@@ -37,14 +37,9 @@ describe('TypeOrmOutboxWriter', () => {
     });
 
     it('append() saves one row to OutboxEvents', async () => {
-        const event = new FakeEvent(
-            'e1',
-            'agg-1',
-            new Date('2026-08-19'),
-            'booking.created',
-            1,
-            { foo: 'bar' }
-        );
+        const event = new FakeEvent('e1', 'agg-1', new Date('2026-08-19'), 'booking.created', 1, {
+            foo: 'bar',
+        });
         await writer.append(event);
         expect(repo.save).toHaveBeenCalledTimes(1);
         const saved = repo.save.mock.calls[0][0];
@@ -58,14 +53,9 @@ describe('TypeOrmOutboxWriter', () => {
     });
 
     it('append() serializes payload as JSON string', async () => {
-        const event = new FakeEvent(
-            'e1',
-            'agg-1',
-            new Date('2026-08-19'),
-            'booking.created',
-            1,
-            { pnrCode: 'ABC123' }
-        );
+        const event = new FakeEvent('e1', 'agg-1', new Date('2026-08-19'), 'booking.created', 1, {
+            pnrCode: 'ABC123',
+        });
         await writer.append(event);
         const saved = repo.save.mock.calls[0][0];
         const parsed = JSON.parse(saved.payload);

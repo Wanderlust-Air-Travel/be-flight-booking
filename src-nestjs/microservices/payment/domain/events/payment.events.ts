@@ -28,11 +28,7 @@ export class PaymentCreatedEvent extends BasePaymentEvent {
         public readonly currency: string,
         public readonly method: string
     ) {
-        super(
-            paymentId,
-            PaymentCreatedEvent.EVENT_NAME,
-            { bookingId, amount, currency, method }
-        );
+        super(paymentId, PaymentCreatedEvent.EVENT_NAME, { bookingId, amount, currency, method });
     }
 }
 
@@ -45,11 +41,12 @@ export class PaymentSucceededEvent extends BasePaymentEvent {
         public readonly amount: number,
         public readonly ticketCount: number
     ) {
-        super(
-            paymentId,
-            PaymentSucceededEvent.EVENT_NAME,
-            { bookingId, transactionRef, amount, ticketCount }
-        );
+        super(paymentId, PaymentSucceededEvent.EVENT_NAME, {
+            bookingId,
+            transactionRef,
+            amount,
+            ticketCount,
+        });
     }
 }
 
@@ -77,10 +74,6 @@ export class PaymentRefundedEvent extends BasePaymentEvent {
         public readonly refundAmount: number,
         public readonly reason: string
     ) {
-        super(
-            paymentId,
-            PaymentRefundedEvent.EVENT_NAME,
-            { refundAmount, reason }
-        );
+        super(paymentId, PaymentRefundedEvent.EVENT_NAME, { refundAmount, reason });
     }
 }

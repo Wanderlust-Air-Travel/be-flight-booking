@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { IBookingRepository } from '../../domain/repositories/booking.repository.interface';
 import type { GetBookingQuery, GetBookingResponse } from '../commands/get-booking.command';
 
@@ -11,9 +11,7 @@ import type { GetBookingQuery, GetBookingResponse } from '../commands/get-bookin
  */
 @Injectable()
 export class GetBookingHandler {
-    constructor(
-        @Inject('IBookingRepository') private readonly bookingRepo: IBookingRepository
-    ) {}
+    constructor(@Inject('IBookingRepository') private readonly bookingRepo: IBookingRepository) {}
 
     async execute(query: GetBookingQuery): Promise<GetBookingResponse> {
         const booking = await this.bookingRepo.findById(query.bookingId);

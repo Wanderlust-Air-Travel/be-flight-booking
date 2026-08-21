@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AircraftType } from 'src/api-gateway/data-access/entities/aircraft/aircraft-type.entity';
 import { Aircraft } from 'src/api-gateway/data-access/entities/aircraft/aircraft.entity';
+import { Airline } from 'src/api-gateway/data-access/entities/airline/airline.entity';
+import { Airport } from 'src/api-gateway/data-access/entities/airport/airport.entity';
 import { CabinClass } from 'src/api-gateway/data-access/entities/cabin/cabin-class.entity';
 import { CabinService } from 'src/api-gateway/data-access/entities/cabin/cabin-service.entity';
 import { BaggageAllowance } from 'src/api-gateway/data-access/entities/fare/baggage-allowance.entity';
@@ -29,8 +31,10 @@ import { AdminService } from './admin.service';
             FlightSchedule,
             FlightInstance,
             Route,
+            Airport,
             AircraftType,
             Aircraft,
+            Airline,
             FlightSeat,
             SeatConfiguration,
             User,

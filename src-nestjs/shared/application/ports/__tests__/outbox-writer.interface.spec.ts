@@ -19,7 +19,10 @@ class InMemoryOutboxWriter implements IOutboxWriter {
         this.rows.push({ event, routingKey: event.eventName, entityManager });
     }
 
-    async appendMany(events: readonly IDomainEvent[], entityManager?: EntityManager): Promise<void> {
+    async appendMany(
+        events: readonly IDomainEvent[],
+        entityManager?: EntityManager
+    ): Promise<void> {
         for (const event of events) await this.append(event, entityManager);
     }
 }

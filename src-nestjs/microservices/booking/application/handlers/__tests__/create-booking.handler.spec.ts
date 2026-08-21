@@ -1,11 +1,9 @@
-import { CreateBookingHandler } from '../create-booking.handler';
-import type { IBookingRepository } from '../../../domain/repositories/booking.repository.interface';
-import type { IOutboxWriter } from '../../../../../../shared/application/ports/outbox-writer.interface';
-import type { CreateBookingCommand } from '../../commands/create-booking.command';
-import { Money } from '../../../domain/value-objects/money';
-import { ContactInfo } from '../../../domain/value-objects/contact-info';
-import { InMemoryBookingRepository } from '../../../domain/repositories/in-memory-booking.repository';
 import type { IDomainEvent } from '../../../../../../shared/domain/events/domain-event';
+import { InMemoryBookingRepository } from '../../../domain/repositories/in-memory-booking.repository';
+import { ContactInfo } from '../../../domain/value-objects/contact-info';
+import { Money } from '../../../domain/value-objects/money';
+import type { CreateBookingCommand } from '../../commands/create-booking.command';
+import { CreateBookingHandler } from '../create-booking.handler';
 
 function makeCommand(overrides: Partial<CreateBookingCommand> = {}): CreateBookingCommand {
     return {
@@ -31,10 +29,7 @@ describe('CreateBookingHandler', () => {
             }),
             rows: [],
         };
-        handler = new CreateBookingHandler(
-            repo as any,
-            outbox as any
-        );
+        handler = new CreateBookingHandler(repo as any, outbox as any);
     });
 
     it('creates booking and returns DTO with PNR', async () => {

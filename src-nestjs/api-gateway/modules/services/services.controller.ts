@@ -3,6 +3,7 @@ import { Inject } from '@nestjs/common';
 import type { ClientProxy } from '@nestjs/microservices';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { firstValueFrom } from 'rxjs';
+import { SERVICES_MS } from 'src/microservices/services/services.messages';
 import { GetDealsResponseDto } from 'src/microservices/services/dto/get-deals-response.dto';
 
 @ApiTags('services')
@@ -26,7 +27,7 @@ export class ServicesController {
     async getDeals(): Promise<GetDealsResponseDto> {
         try {
             return await firstValueFrom(
-                this.client.send<GetDealsResponseDto>('services.get-deals', {})
+                this.client.send<GetDealsResponseDto>(SERVICES_MS.PATTERN.GET_DEALS, {})
             );
         } catch (error: any) {
             console.error('Get deals error:', error);

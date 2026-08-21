@@ -1,9 +1,6 @@
-import { AggregateRoot } from '../../../../shared/domain/base/aggregate-root';
 import { randomUUID } from 'node:crypto';
+import { AggregateRoot } from '../../../../shared/domain/base/aggregate-root';
 import { DomainException } from '../../../../shared/domain/exceptions/domain-exception';
-import { IdempotencyKey } from '../value-objects/idempotency-key';
-import { PaymentStatus } from '../value-objects/payment-status';
-import { TransactionRef } from '../value-objects/transaction-ref';
 import {
     PaymentCreatedEvent,
     PaymentExpiredEvent,
@@ -12,6 +9,9 @@ import {
     PaymentSucceededEvent,
 } from '../events/payment.events';
 import type { IPaymentRepository } from '../repositories/payment.repository.interface';
+import type { IdempotencyKey } from '../value-objects/idempotency-key';
+import { PaymentStatus } from '../value-objects/payment-status';
+import { TransactionRef } from '../value-objects/transaction-ref';
 
 export interface CreatePaymentInput {
     bookingId: string;
@@ -52,10 +52,7 @@ export class Payment extends AggregateRoot<string> {
      * Static factory — creates a new PENDING payment, checking
      * for an existing payment with the same IdempotencyKey to dedupe.
      */
-    static async create(
-        input: CreatePaymentInput,
-        repo: IPaymentRepository
-    ): Promise<Payment> {
+    static async create(input: CreatePaymentInput, repo: IPaymentRepository): Promise<Payment> {
         if (input.amount <= 0) {
             throw new DomainException(`Payment amount must be positive: ${input.amount}`);
         }
@@ -80,13 +77,7 @@ export class Payment extends AggregateRoot<string> {
             null
         );
         payment.addDomainEvent(
-            new PaymentCreatedEvent(
-                id,
-                input.bookingId,
-                input.amount,
-                input.currency,
-                input.method
-            )
+            new PaymentCreatedEvent(id, input.bookingId, input.amount, input.currency, input.method)
         );
         return payment;
     }
@@ -156,9 +147,7 @@ export class Payment extends AggregateRoot<string> {
             );
         }
         this._status = PaymentStatus.REFUNDED;
-        this.addDomainEvent(
-            new PaymentRefundedEvent(this._id, refundAmount, reason)
-        );
+        this.addDomainEvent(new PaymentRefundedEvent(this._id, refundAmount, reason));
     }
 
     // --- Queries ---

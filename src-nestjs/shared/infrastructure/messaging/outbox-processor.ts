@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { IDomainEvent } from '../../domain/events/domain-event';
 import type { IDomainEventBus } from '../../application/ports/domain-event-bus.interface';
+import type { IDomainEvent } from '../../domain/events/domain-event';
 
 /**
  * IOutboxRepository — Port for the storage layer of the outbox.
@@ -69,7 +69,10 @@ export class OutboxProcessor {
                 this.logger.warn(
                     `Skipping poison-pill outbox row ${row.id} (retry_count=${row.retry_count}, maxRetries=${this.options.maxRetries})`
                 );
-                await this.repo.markFailed(row.id, `poison: exceeded max retries ${this.options.maxRetries}`);
+                await this.repo.markFailed(
+                    row.id,
+                    `poison: exceeded max retries ${this.options.maxRetries}`
+                );
                 continue;
             }
 

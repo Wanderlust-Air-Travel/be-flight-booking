@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { IDomainEventBus } from '../../../../shared/application/ports/domain-event-bus.interface';
 import type {
-    INotificationPort,
-    BookingNotificationInput,
     BookingCancellationInput,
+    BookingNotificationInput,
+    INotificationPort,
 } from '../../application/ports/notification.port';
 
 /**

@@ -1,5 +1,5 @@
-import { ReservationTcpAdapter } from '../reservation-tcp.adapter';
 import type { ReservationSummary } from '../../../application/ports/reservation.port';
+import { ReservationTcpAdapter } from '../reservation-tcp.adapter';
 
 describe('ReservationTcpAdapter', () => {
     let adapter: ReservationTcpAdapter;
@@ -19,7 +19,9 @@ describe('ReservationTcpAdapter', () => {
         };
         client.send.mockReturnValue({ toPromise: () => Promise.resolve(summary) });
         const result = await adapter.findById('r-1');
-        expect(client.send).toHaveBeenCalledWith('find_reservation_by_id', { reservationId: 'r-1' });
+        expect(client.send).toHaveBeenCalledWith('find_reservation_by_id', {
+            reservationId: 'r-1',
+        });
         expect(result).toEqual(summary);
     });
 

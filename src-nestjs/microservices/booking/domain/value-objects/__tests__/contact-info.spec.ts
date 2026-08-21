@@ -1,5 +1,5 @@
-import { ContactInfo } from '../contact-info';
 import { DomainException } from '../../../../../shared/domain/exceptions/domain-exception';
+import { ContactInfo } from '../contact-info';
 
 describe('ContactInfo', () => {
     describe('create()', () => {
@@ -21,7 +21,9 @@ describe('ContactInfo', () => {
         });
 
         it('throws on invalid email format', () => {
-            expect(() => ContactInfo.create('Alice', 'notanemail', '+123')).toThrow(DomainException);
+            expect(() => ContactInfo.create('Alice', 'notanemail', '+123')).toThrow(
+                DomainException
+            );
             expect(() => ContactInfo.create('Alice', 'a@b', '+123')).toThrow(DomainException);
             expect(() => ContactInfo.create('Alice', '@b.com', '+123')).toThrow(DomainException);
             expect(() => ContactInfo.create('Alice', '', '+123')).toThrow(DomainException);

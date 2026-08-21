@@ -60,6 +60,7 @@ services:
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
       RABBITMQ_VHOST: ${RABBITMQ_VHOST}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      DEV_LOGIN_ENABLED: ${DEV_LOGIN_ENABLED}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
       LOG_LEVEL: ${LOG_LEVEL}
       APP_URL: ${APP_URL}
@@ -82,7 +83,6 @@ services:
       - "${API_GATEWAY_PORT}:3000"
     volumes:
       - api_gateway_public:/app/public
-      - api_gateway_dist:/app/dist
       - /app/node_modules
     depends_on:
       sqlserver: { condition: service_healthy }

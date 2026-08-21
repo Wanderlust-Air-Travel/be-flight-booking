@@ -53,7 +53,9 @@ export class BookingStateService {
             this.logger.warn(
                 `Missing or invalid fareClassCode for ${isGuest ? 'guest session' : 'user'} ${identifier}, flight ${cabinSelection.flightInstanceId}`
             );
-            throw new BadRequestException('fareClassCode is required and must be a non-empty string.');
+            throw new BadRequestException(
+                'fareClassCode is required and must be a non-empty string.'
+            );
         }
         if (!cabinSelection.cabinType || typeof cabinSelection.cabinType !== 'string') {
             this.logger.warn(
@@ -61,11 +63,16 @@ export class BookingStateService {
             );
             throw new BadRequestException('cabinType is required and must be a non-empty string.');
         }
-        if (!cabinSelection.flightInstanceId || typeof cabinSelection.flightInstanceId !== 'string') {
+        if (
+            !cabinSelection.flightInstanceId ||
+            typeof cabinSelection.flightInstanceId !== 'string'
+        ) {
             this.logger.warn(
                 `Missing or invalid flightInstanceId for ${isGuest ? 'guest session' : 'user'} ${identifier}`
             );
-            throw new BadRequestException('flightInstanceId is required and must be a non-empty string.');
+            throw new BadRequestException(
+                'flightInstanceId is required and must be a non-empty string.'
+            );
         }
 
         this.logger.log(

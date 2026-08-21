@@ -1,6 +1,6 @@
-import type { IDomainEvent } from '../../../domain/events/domain-event';
 import type { IDomainEventBus } from '../../../application/ports/domain-event-bus.interface';
-import { DOMAIN_EVENT_PUBLISHER, RabbitMQEventBus } from '../rabbitmq-event-bus';
+import type { IDomainEvent } from '../../../domain/events/domain-event';
+import { RabbitMQEventBus } from '../rabbitmq-event-bus';
 
 class FakeEvent implements IDomainEvent {
     constructor(

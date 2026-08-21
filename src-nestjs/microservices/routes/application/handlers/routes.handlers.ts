@@ -1,5 +1,4 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { IOutboxWriter } from '../../../../shared/application/ports/outbox-writer.interface';
 
 export interface RouteSummary {
     routeId: string;

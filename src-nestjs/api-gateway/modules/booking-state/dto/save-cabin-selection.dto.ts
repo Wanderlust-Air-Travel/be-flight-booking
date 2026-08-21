@@ -1,6 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
-import { COMMON_MESSAGES } from 'src/shared/constants/messages';
 import { IsUUIDv7 } from 'src/shared/validators/is-uuid-v7.validator';
 
 export class SaveCabinSelectionDto {
@@ -24,7 +23,8 @@ export class SaveCabinSelectionDto {
     cabinType!: 'economy' | 'business';
 
     @ApiProperty({
-        description: 'Fare class code (from search/fare-options API). Economy codes start with "Y" (e.g. YS, YF, YSM); business codes start with "J" (e.g. JS, JF, JFLX).',
+        description:
+            'Fare class code (from search/fare-options API). Economy codes start with "Y" (e.g. YS, YF, YSM); business codes start with "J" (e.g. JS, JF, JFLX).',
         example: 'YS',
     })
     @IsNotEmpty({ message: 'fareClassCode is required.' })

@@ -8,22 +8,20 @@ import {
     ServiceUnavailableException,
     UnauthorizedException,
 } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import type { ClientProxy } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
-import type { StringValue } from 'ms';
 import { firstValueFrom } from 'rxjs';
+import { AuthTokenService } from 'src/api-gateway/common/services/auth-token.service';
+import { Role } from 'src/api-gateway/data-access/entities/role/role.entity';
+import { User } from 'src/api-gateway/data-access/entities/user/user.entity';
 import { EMAIL_MS } from 'src/microservices/email/email.messages';
 import { EmailTemplate } from 'src/shared/constants/enums';
 import { AUTH_MESSAGES } from 'src/shared/constants/messages';
-import { Role } from 'src/api-gateway/data-access/entities/role/role.entity';
-import { User } from 'src/api-gateway/data-access/entities/user/user.entity';
 import { OtpStorageService } from 'src/shared/services/otp-storage.service';
 import type { CreateUserResponse } from 'src/shared/types/auth/create-user-response';
 import type { LoginResponse } from 'src/shared/types/auth/login-response';
 import type { LogoutResponse } from 'src/shared/types/auth/logout-response';
-import type { TokenPayload } from 'src/shared/types/auth/token-payload';
 import type { TokensResponse } from 'src/shared/types/auth/tokens-response';
 import type { Repository } from 'typeorm';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -59,7 +57,7 @@ export class AuthService {
         private readonly _usersRepo: Repository<User>,
         @InjectRepository(Role)
         private readonly _roleRepo: Repository<Role>,
-        private readonly jwt: JwtService,
+        private readonly authTokenService: AuthTokenService,
         @Inject('EMAIL_CLIENT') private readonly _emailClient: ClientProxy,
         private readonly otpStorageService: OtpStorageService
     ) {}
@@ -80,10 +78,10 @@ export class AuthService {
         });
         await this.usersRepo.save(user);
 
-        const tokens = await this.issueTokens(user.user_id, user.email);
+        const tokens = await this.authTokenService.issueTokens(user.user_id, user.email);
 
         // Lưu refresh token (hash) vào DB nếu muốn quản lý phiên
-        await this.saveRefreshToken(user.user_id, tokens.refresh_token);
+        await this.authTokenService.saveRefreshToken(user.user_id, tokens.refresh_token);
         return {
             user: {
                 id: user.user_id,
@@ -102,8 +100,8 @@ export class AuthService {
         const ok = await bcrypt.compare(data.password, user.password_hash);
         if (!ok) throw new UnauthorizedException(AUTH_MESSAGES.ERROR.INVALID_CREDENTIALS);
 
-        const tokens = await this.issueTokens(user.user_id, user.email);
-        await this.saveRefreshToken(user.user_id, tokens.refresh_token);
+        const tokens = await this.authTokenService.issueTokens(user.user_id, user.email);
+        await this.authTokenService.saveRefreshToken(user.user_id, tokens.refresh_token);
 
         return {
             user: {
@@ -123,32 +121,14 @@ export class AuthService {
         const matches = await bcrypt.compare(refreshToken, user.refresh_token);
         if (!matches) throw new UnauthorizedException(AUTH_MESSAGES.ERROR.INVALID_REFRESH_TOKEN);
 
-        const tokens = await this.issueTokens(user.user_id, user.email);
-        await this.saveRefreshToken(user.user_id, tokens.refresh_token);
+        const tokens = await this.authTokenService.issueTokens(user.user_id, user.email);
+        await this.authTokenService.saveRefreshToken(user.user_id, tokens.refresh_token);
         return tokens;
     }
 
     async logout(userId: string): Promise<LogoutResponse> {
         await this.usersRepo.update({ user_id: userId }, { refresh_token: null });
         return { success: true };
-    }
-
-    private async issueTokens(userId: string, email: string) {
-        const payload: TokenPayload = { sub: userId, email };
-        const accessToken = await this.jwt.signAsync(payload);
-
-        // dùng config mặc định trong JwtModule cho access token
-        const refreshToken = await this.jwt.signAsync(payload, {
-            secret: process.env.JWT_REFRESH_SECRET as string,
-            expiresIn: (process.env.JWT_REFRESH_EXPIRES ?? '7d') as StringValue,
-        });
-
-        return { access_token: accessToken, refresh_token: refreshToken };
-    }
-
-    private async saveRefreshToken(userId: string, refreshToken: string) {
-        const hash = await bcrypt.hash(refreshToken, 10);
-        await this.usersRepo.update({ user_id: userId }, { refresh_token: hash });
     }
 
     /**

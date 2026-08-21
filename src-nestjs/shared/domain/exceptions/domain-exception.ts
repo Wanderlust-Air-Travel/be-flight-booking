@@ -8,7 +8,10 @@
  * Subclass for specific violation types so consumers can match on `.name`.
  */
 export class DomainException extends Error {
-    constructor(message: string, public readonly cause?: unknown) {
+    constructor(
+        message: string,
+        public readonly cause?: unknown
+    ) {
         super(message);
         this.name = 'DomainException';
         // Capture stack trace (V8 only; harmless elsewhere)

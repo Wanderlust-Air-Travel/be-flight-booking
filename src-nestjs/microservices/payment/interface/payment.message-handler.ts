@@ -1,11 +1,11 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
-import { CreatePaymentHandler } from '../../application/handlers/create-payment.handler';
-import { ProcessPaymentHandler } from '../../application/handlers/process-payment.handler';
-import { GetPaymentHandler } from '../../application/handlers/get-payment.handler';
-import { GetPaymentsByBookingHandler } from '../../application/handlers/get-payments-by-booking.handler';
-import { RefundPaymentHandler } from '../../application/handlers/refund-payment.handler';
-import { HandleWebhookHandler } from '../../application/handlers/handle-webhook.handler';
+import type { CreatePaymentHandler } from '../application/handlers/create-payment.handler';
+import type { GetPaymentHandler } from '../application/handlers/get-payment.handler';
+import type { GetPaymentsByBookingHandler } from '../application/handlers/get-payments-by-booking.handler';
+import type { HandleWebhookHandler } from '../application/handlers/handle-webhook.handler';
+import type { ProcessPaymentHandler } from '../application/handlers/process-payment.handler';
+import type { RefundPaymentHandler } from '../application/handlers/refund-payment.handler';
 
 /**
  * PaymentMessageHandler — Thin interface layer for the payment context.

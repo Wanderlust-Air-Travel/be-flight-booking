@@ -3,4 +3,4 @@
  * All interfaces used by Payment Service are exported from here
  */
 
-export * from './payment-gateway.interface';
+// export * from './payment-gateway.interface';

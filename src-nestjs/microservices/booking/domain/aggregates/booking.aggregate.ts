@@ -1,18 +1,18 @@
 import { AggregateRoot } from '../../../../shared/domain/base/aggregate-root';
-import { Money } from '../value-objects/money';
-import { PNR } from '../value-objects/pnr';
-import { BookingStatus } from '../value-objects/booking-status';
-import { ContactInfo } from '../value-objects/contact-info';
 import { DomainException } from '../../../../shared/domain/exceptions/domain-exception';
-import type { IBookingRepository } from '../repositories/booking.repository.interface';
 import {
     BookingCancelledEvent,
     BookingCheckedInEvent,
     BookingCreatedEvent,
-    BookingPassengersUpdatedEvent,
     BookingPaidEvent,
+    BookingPassengersUpdatedEvent,
     BookingTicketsIssuedEvent,
 } from '../events/booking.events';
+import type { IBookingRepository } from '../repositories/booking.repository.interface';
+import { BookingStatus } from '../value-objects/booking-status';
+import type { ContactInfo } from '../value-objects/contact-info';
+import { Money } from '../value-objects/money';
+import { PNR } from '../value-objects/pnr';
 
 export interface PassengerInput {
     fullName: string;
@@ -64,10 +64,7 @@ export class Booking extends AggregateRoot<string> {
      * Static factory — creates a new PENDING Booking with a unique PNR.
      * Calls IBookingRepository.findByPnr() to ensure PNR uniqueness.
      */
-    static async create(
-        input: CreateBookingInput,
-        repo: IBookingRepository
-    ): Promise<Booking> {
+    static async create(input: CreateBookingInput, repo: IBookingRepository): Promise<Booking> {
         if (input.passengers.length === 0) {
             throw new DomainException('Booking must have at least one passenger');
         }
@@ -147,32 +144,26 @@ export class Booking extends AggregateRoot<string> {
      */
     cancel(by: string, reason: string): Money {
         if (!this._status.isCancellable()) {
-            throw new DomainException(
-                `Cannot cancel booking in ${this._status.value} status`
-            );
+            throw new DomainException(`Cannot cancel booking in ${this._status.value} status`);
         }
         const wasPaid = this._status === BookingStatus.PAID;
         this._status = BookingStatus.CANCELLED;
-        const refund = wasPaid ? this.calculateRefund() : Money.create(0, this._totalAmount.currency);
-        this.addDomainEvent(
-            new BookingCancelledEvent(this._id, by, reason, refund.amount)
-        );
+        const refund = wasPaid
+            ? this.calculateRefund()
+            : Money.create(0, this._totalAmount.currency);
+        this.addDomainEvent(new BookingCancelledEvent(this._id, by, reason, refund.amount));
         return refund;
     }
 
     updatePassengers(passengers: PassengerInput[]): void {
         if (this._status.isTerminal()) {
-            throw new DomainException(
-                `Cannot update passengers in ${this._status.value} status`
-            );
+            throw new DomainException(`Cannot update passengers in ${this._status.value} status`);
         }
         if (passengers.length === 0) {
             throw new DomainException('Booking must have at least one passenger');
         }
         this._passengers = passengers;
-        this.addDomainEvent(
-            new BookingPassengersUpdatedEvent(this._id, passengers.length)
-        );
+        this.addDomainEvent(new BookingPassengersUpdatedEvent(this._id, passengers.length));
     }
 
     issueTickets(ticketCount: number): void {
@@ -199,9 +190,7 @@ export class Booking extends AggregateRoot<string> {
 
     expire(): void {
         if (this._status !== BookingStatus.PENDING) {
-            throw new DomainException(
-                `Cannot expire booking in ${this._status.value} status`
-            );
+            throw new DomainException(`Cannot expire booking in ${this._status.value} status`);
         }
         this._status = BookingStatus.EXPIRED;
     }

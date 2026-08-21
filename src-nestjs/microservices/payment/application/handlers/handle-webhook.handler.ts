@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import type { IPaymentRepository } from '../../domain/repositories/payment.repository.interface';
 import type { IOutboxWriter } from '../../../../shared/application/ports/outbox-writer.interface';
+import type { IPaymentRepository } from '../../domain/repositories/payment.repository.interface';
 
 export interface PaymentWebhookPayload {
     gateway: string;
@@ -27,7 +27,9 @@ export class HandleWebhookHandler {
     ) {}
 
     async execute(payload: PaymentWebhookPayload): Promise<{ received: boolean }> {
-        this.logger.log(`Webhook received from ${payload.gateway}: ${payload.transactionRef} → ${payload.status}`);
+        this.logger.log(
+            `Webhook received from ${payload.gateway}: ${payload.transactionRef} → ${payload.status}`
+        );
 
         // Find payment by transaction_ref (in real impl: a separate finder)
         // For now, if paymentId is provided, use it directly

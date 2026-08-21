@@ -1,6 +1,6 @@
-import { Inject, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import type { IOutboxWriter } from 'src/shared/application/ports/outbox-writer.interface';
 import type { IBookingRepository } from '../../domain/repositories/booking.repository.interface';
-import type { IOutboxWriter } from '../../../shared/application/ports/outbox-writer.interface';
 
 export interface CheckInBookingCommand {
     bookingId: string;

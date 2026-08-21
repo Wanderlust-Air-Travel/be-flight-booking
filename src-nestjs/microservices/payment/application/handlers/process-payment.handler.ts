@@ -1,9 +1,12 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import type { IPaymentRepository } from '../../domain/repositories/payment.repository.interface';
 import type { IOutboxWriter } from '../../../../shared/application/ports/outbox-writer.interface';
-import type { IPaymentGateway } from '../ports/payment-gateway.port';
-import type { ProcessPaymentCommand, ProcessPaymentResponse } from '../commands/process-payment.command';
 import { DomainException } from '../../../../shared/domain/exceptions/domain-exception';
+import type { IPaymentRepository } from '../../domain/repositories/payment.repository.interface';
+import type {
+    ProcessPaymentCommand,
+    ProcessPaymentResponse,
+} from '../commands/process-payment.command';
+import type { IPaymentGateway } from '../ports/payment-gateway.port';
 
 /**
  * ProcessPaymentHandler — Charges via IPaymentGateway and emits success/fail events.
@@ -45,7 +48,11 @@ export class ProcessPaymentHandler {
             await this.outbox.append(event);
         }
 
-        if (!payment.transactionRef && !payment.status.isSuccessful() && !payment.status.isTerminal()) {
+        if (
+            !payment.transactionRef &&
+            !payment.status.isSuccessful() &&
+            !payment.status.isTerminal()
+        ) {
             throw new DomainException('Payment processing did not reach terminal state');
         }
 

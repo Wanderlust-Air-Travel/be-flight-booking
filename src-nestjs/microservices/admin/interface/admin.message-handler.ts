@@ -1,6 +1,10 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
-import { GetAuditLogsHandler, GetDashboardHandler, ManageFlightsHandler } from '../../application/handlers/admin.handlers';
+import type {
+    GetAuditLogsHandler,
+    GetDashboardHandler,
+    ManageFlightsHandler,
+} from '../application/handlers/admin.handlers';
 
 @Controller()
 export class AdminMessageHandler {

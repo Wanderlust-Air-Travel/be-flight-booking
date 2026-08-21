@@ -125,7 +125,9 @@ export class BookingStateController {
         const identifier = userId || sessionId!;
 
         // DEBUG: log raw body
-        this.logger.debug(`[saveCabinSelection] raw body: ${JSON.stringify(req.body)}, dto class: ${typeof dto}`);
+        this.logger.debug(
+            `[saveCabinSelection] raw body: ${JSON.stringify(req.body)}, dto class: ${typeof dto}`
+        );
 
         // Defensive guard: read body directly from req.body as fallback
         // (handles cases where NestJS injects the DTO class instead of an instance)

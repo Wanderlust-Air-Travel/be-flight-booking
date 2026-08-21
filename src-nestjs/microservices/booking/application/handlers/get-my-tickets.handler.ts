@@ -29,9 +29,7 @@ export interface GetMyTicketsResponse {
  */
 @Injectable()
 export class GetMyTicketsHandler {
-    constructor(
-        @Inject('IBookingRepository') private readonly bookingRepo: IBookingRepository
-    ) {}
+    constructor(@Inject('IBookingRepository') private readonly bookingRepo: IBookingRepository) {}
 
     async execute(query: GetMyTicketsQuery): Promise<GetMyTicketsResponse> {
         const result = await this.bookingRepo.findByUserId(query.userId, {

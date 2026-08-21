@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, LessThan, Repository } from 'typeorm';
+import { IsNull, type Repository } from 'typeorm';
+import type { IOutboxRepository, OutboxRow } from '../../messaging/outbox-processor';
 import { OutboxEvent } from './entities/outbox-event.entity';
-import { IOutboxRepository, OutboxRow } from '../../messaging/outbox-processor';
 
 /**
  * TypeOrmOutboxRepository — Production IOutboxRepository backed by SQL Server.
@@ -10,9 +10,7 @@ import { IOutboxRepository, OutboxRow } from '../../messaging/outbox-processor';
  */
 @Injectable()
 export class TypeOrmOutboxRepository implements IOutboxRepository {
-    constructor(
-        @InjectRepository(OutboxEvent) private readonly repo: Repository<OutboxEvent>
-    ) {}
+    constructor(@InjectRepository(OutboxEvent) private readonly repo: Repository<OutboxEvent>) {}
 
     async findUnpublished(limit: number): Promise<OutboxRow[]> {
         const rows = await this.repo.find({

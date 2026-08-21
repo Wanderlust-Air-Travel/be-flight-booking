@@ -1,6 +1,9 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
-import { GetFlightScheduleHandler, GetRoutesHandler } from '../../application/handlers/routes.handlers';
+import type {
+    GetFlightScheduleHandler,
+    GetRoutesHandler,
+} from '../application/handlers/routes.handlers';
 
 @Controller()
 export class RoutesMessageHandler {

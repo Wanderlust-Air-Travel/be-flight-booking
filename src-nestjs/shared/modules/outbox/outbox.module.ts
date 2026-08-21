@@ -1,10 +1,8 @@
 import { Global, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { IOutboxWriter } from '../../application/ports/outbox-writer.interface';
-import { IOutboxRepository } from '../../infrastructure/messaging/outbox-processor';
-import { TypeOrmOutboxWriter } from '../../infrastructure/persistence/typeorm/typeorm-outbox-writer';
-import { TypeOrmOutboxRepository } from '../../infrastructure/persistence/typeorm/typeorm-outbox-repository';
 import { OutboxEvent } from '../../infrastructure/persistence/typeorm/entities/outbox-event.entity';
+import { TypeOrmOutboxRepository } from '../../infrastructure/persistence/typeorm/typeorm-outbox-repository';
+import { TypeOrmOutboxWriter } from '../../infrastructure/persistence/typeorm/typeorm-outbox-writer';
 
 /**
  * OutboxModule — Wires the transactional outbox for DDD domain events.

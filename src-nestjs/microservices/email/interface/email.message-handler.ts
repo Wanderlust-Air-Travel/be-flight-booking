@@ -1,7 +1,7 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
-import { QueueEmailHandler } from '../../application/handlers/queue-email.handler';
-import { SendEmailDirectHandler } from '../../application/handlers/send-email-direct.handler';
+import type { QueueEmailHandler } from '../application/handlers/queue-email.handler';
+import type { SendEmailDirectHandler } from '../application/handlers/send-email-direct.handler';
 
 /**
  * EmailMessageHandler — Thin interface for email context.

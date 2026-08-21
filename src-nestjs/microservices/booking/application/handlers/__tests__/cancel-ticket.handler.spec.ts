@@ -1,14 +1,14 @@
-import { CancelTicketHandler } from '../cancel-ticket.handler';
-import { InMemoryBookingRepository } from '../../../domain/repositories/in-memory-booking.repository';
 import { Booking } from '../../../domain/aggregates/booking.aggregate';
-import { Money } from '../../../domain/value-objects/money';
+import {
+    BookingCancelledEvent,
+    BookingPassengersUpdatedEvent,
+} from '../../../domain/events/booking.events';
+import { InMemoryBookingRepository } from '../../../domain/repositories/in-memory-booking.repository';
 import { ContactInfo } from '../../../domain/value-objects/contact-info';
-import { BookingCancelledEvent, BookingPassengersUpdatedEvent } from '../../../domain/events/booking.events';
+import { Money } from '../../../domain/value-objects/money';
+import { CancelTicketHandler } from '../cancel-ticket.handler';
 
-async function createBooking(
-    repo: InMemoryBookingRepository,
-    passengerCount = 2
-) {
+async function createBooking(repo: InMemoryBookingRepository, passengerCount = 2) {
     const b = await Booking.create(
         {
             contact: ContactInfo.create('Alice', 'alice@example.com', '+84912345678'),

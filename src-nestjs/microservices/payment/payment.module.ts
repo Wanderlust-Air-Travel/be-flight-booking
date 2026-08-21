@@ -1,15 +1,15 @@
 import { Module } from '@nestjs/common';
 import { ClientProxyFactory, Transport } from '@nestjs/microservices';
-import { OutboxModule } from '../../../shared/modules/outbox/outbox.module';
+// import { OutboxModule } from '../../../shared/modules/outbox/outbox.module';
 import { CreatePaymentHandler } from './application/handlers/create-payment.handler';
-import { ProcessPaymentHandler } from './application/handlers/process-payment.handler';
 import { GetPaymentHandler } from './application/handlers/get-payment.handler';
 import { GetPaymentsByBookingHandler } from './application/handlers/get-payments-by-booking.handler';
-import { RefundPaymentHandler } from './application/handlers/refund-payment.handler';
 import { HandleWebhookHandler } from './application/handlers/handle-webhook.handler';
+import { ProcessPaymentHandler } from './application/handlers/process-payment.handler';
+import { RefundPaymentHandler } from './application/handlers/refund-payment.handler';
 import { InMemoryPaymentRepository } from './domain/repositories/in-memory-payment.repository';
-import { DevPaymentGateway } from './infrastructure/adapters/dev-payment-gateway.adapter';
 import { BookingTcpAdapter } from './infrastructure/adapters/booking-tcp.adapter';
+import { DevPaymentGateway } from './infrastructure/adapters/dev-payment-gateway.adapter';
 import { PaymentMessageHandler } from './interface/payment.message-handler';
 
 /**
@@ -21,7 +21,7 @@ import { PaymentMessageHandler } from './interface/payment.message-handler';
  * Old payment.service.ts (913 lines) is replaced by 6 single-purpose handlers.
  */
 @Module({
-    imports: [OutboxModule],
+    imports: [],
     controllers: [PaymentMessageHandler],
     providers: [
         CreatePaymentHandler,

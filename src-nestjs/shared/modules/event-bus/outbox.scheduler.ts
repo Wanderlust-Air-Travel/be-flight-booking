@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { OutboxProcessor } from '../../infrastructure/messaging/outbox-processor';
+import type { OutboxProcessor } from '../../infrastructure/messaging/outbox-processor';
 
 /**
  * OutboxScheduler — Drives the OutboxProcessor on a cron schedule.

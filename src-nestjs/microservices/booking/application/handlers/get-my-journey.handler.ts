@@ -25,9 +25,7 @@ export interface GetMyJourneyResponse {
  */
 @Injectable()
 export class GetMyJourneyHandler {
-    constructor(
-        @Inject('IBookingRepository') private readonly bookingRepo: IBookingRepository
-    ) {}
+    constructor(@Inject('IBookingRepository') private readonly bookingRepo: IBookingRepository) {}
 
     async execute(query: GetMyJourneyQuery): Promise<GetMyJourneyResponse> {
         const result = await this.bookingRepo.findByUserId(query.userId, {

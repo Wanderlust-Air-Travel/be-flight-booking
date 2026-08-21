@@ -1,5 +1,5 @@
 import type { EmailStatus } from 'src/shared/constants/enums';
-import { SendEmailDto } from '../dto/send-email.dto';
+import type { SendEmailDto } from '../dto/send-email.dto';
 
 /**
  * Interface for queued email in Email Queue Service

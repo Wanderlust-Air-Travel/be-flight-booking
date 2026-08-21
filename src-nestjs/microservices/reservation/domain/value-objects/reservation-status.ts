@@ -12,7 +12,7 @@ import { DomainException } from '../../../../shared/domain/exceptions/domain-exc
 export class ReservationStatus {
     private constructor(
         public readonly value: string,
-        private readonly allowedTransitions: ReadonlySet<ReservationStatus>
+        private readonly allowedTransitions: Set<ReservationStatus>
     ) {}
 
     static readonly ACTIVE = new ReservationStatus('active', new Set());

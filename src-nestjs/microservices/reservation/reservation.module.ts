@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
-import { OutboxModule } from '../../../shared/modules/outbox/outbox.module';
-import { CreateReservationHandler } from './application/handlers/create-reservation.handler';
-import { GetReservationHandler } from './application/handlers/get-reservation.handler';
+// import { OutboxModule } from '../../../shared/modules/outbox/outbox.module';
 import { CancelReservationHandler } from './application/handlers/cancel-reservation.handler';
 import { ConvertToBookingHandler } from './application/handlers/convert-to-booking.handler';
+import { CreateReservationHandler } from './application/handlers/create-reservation.handler';
 import { ExpireReservationScheduler } from './application/handlers/expire-reservation.scheduler';
+import { GetReservationHandler } from './application/handlers/get-reservation.handler';
 import { InMemoryReservationRepository } from './domain/repositories/in-memory-reservation.repository';
 import { ReservationMessageHandler } from './interface/reservation.message-handler';
 
@@ -15,7 +15,7 @@ import { ReservationMessageHandler } from './interface/reservation.message-handl
  * + 1 cron scheduler.
  */
 @Module({
-    imports: [OutboxModule],
+    imports: [],
     controllers: [ReservationMessageHandler],
     providers: [
         CreateReservationHandler,

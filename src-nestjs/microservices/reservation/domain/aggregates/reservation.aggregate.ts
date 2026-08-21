@@ -1,16 +1,14 @@
-import { AggregateRoot } from '../../../../shared/domain/base/aggregate-root';
 import { randomUUID } from 'node:crypto';
+import { AggregateRoot } from '../../../../shared/domain/base/aggregate-root';
 import { DomainException } from '../../../../shared/domain/exceptions/domain-exception';
-import { ReservationStatus } from '../value-objects/reservation-status';
-import {
-    ReservationSegment,
-} from '../value-objects/reservation-segment';
 import {
     ReservationCancelledEvent,
     ReservationConvertedEvent,
     ReservationCreatedEvent,
     ReservationExpiredEvent,
 } from '../events/reservation.events';
+import { ReservationSegment } from '../value-objects/reservation-segment';
+import { ReservationStatus } from '../value-objects/reservation-status';
 
 export interface CreateReservationInput {
     userId: string | null;
@@ -68,12 +66,7 @@ export class Reservation extends AggregateRoot<string> {
             null
         );
         reservation.addDomainEvent(
-            new ReservationCreatedEvent(
-                id,
-                input.userId,
-                input.contactEmail,
-                ttl
-            )
+            new ReservationCreatedEvent(id, input.userId, input.contactEmail, ttl)
         );
         return reservation;
     }
@@ -104,9 +97,7 @@ export class Reservation extends AggregateRoot<string> {
 
     expire(): void {
         if (this._status !== ReservationStatus.ACTIVE) {
-            throw new DomainException(
-                `Cannot expire reservation in ${this._status.value} status`
-            );
+            throw new DomainException(`Cannot expire reservation in ${this._status.value} status`);
         }
         this._status = ReservationStatus.EXPIRED;
         this.addDomainEvent(new ReservationExpiredEvent(this._id));
@@ -126,9 +117,7 @@ export class Reservation extends AggregateRoot<string> {
     cancel(by: string, reason: string): void {
         this._status.assertCanTransitionTo(ReservationStatus.CANCELLED);
         this._status = ReservationStatus.CANCELLED;
-        this.addDomainEvent(
-            new ReservationCancelledEvent(this._id, by, reason)
-        );
+        this.addDomainEvent(new ReservationCancelledEvent(this._id, by, reason));
     }
 
     isExpired(at: Date = new Date()): boolean {

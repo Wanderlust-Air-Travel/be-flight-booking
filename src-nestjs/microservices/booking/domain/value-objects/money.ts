@@ -73,9 +73,7 @@ export class Money extends ValueObject<{ amount: number; currency: string }> {
 
     private assertSameCurrency(other: Money): void {
         if (other.currency !== this.currency) {
-            throw new DomainException(
-                `Currency mismatch: ${this.currency} vs ${other.currency}`
-            );
+            throw new DomainException(`Currency mismatch: ${this.currency} vs ${other.currency}`);
         }
     }
 }

@@ -1,5 +1,4 @@
 import { Money } from '../money';
-import { DomainException } from '../../../../../shared/domain/exceptions/domain-exception';
 
 describe('Money (booking context)', () => {
     describe('create()', () => {

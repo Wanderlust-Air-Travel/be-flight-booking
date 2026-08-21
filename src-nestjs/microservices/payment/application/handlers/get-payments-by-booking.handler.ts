@@ -10,9 +10,7 @@ import type {
  */
 @Injectable()
 export class GetPaymentsByBookingHandler {
-    constructor(
-        @Inject('IPaymentRepository') private readonly paymentRepo: IPaymentRepository
-    ) {}
+    constructor(@Inject('IPaymentRepository') private readonly paymentRepo: IPaymentRepository) {}
 
     async execute(query: GetPaymentsByBookingQuery): Promise<GetPaymentsByBookingResponse> {
         const result = await this.paymentRepo.findByBookingId(query.bookingId, {

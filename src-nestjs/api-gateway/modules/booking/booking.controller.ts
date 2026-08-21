@@ -27,6 +27,8 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import type { Request } from 'express';
 import { firstValueFrom } from 'rxjs';
+import { Passenger } from 'src/api-gateway/data-access/entities/passenger/passenger.entity';
+import { User } from 'src/api-gateway/data-access/entities/user/user.entity';
 import { BOOKING_MS } from 'src/microservices/booking/booking.messages';
 import type { CheckInBookingResponseDto } from 'src/microservices/booking/dto/check-in-booking-response.dto';
 import type { CheckInBookingDto } from 'src/microservices/booking/dto/check-in-booking.dto';
@@ -35,8 +37,6 @@ import type { GetMyTicketsDto } from 'src/microservices/booking/dto/get-my-ticke
 import { MyJourneyResponseDto } from 'src/microservices/booking/dto/my-journey-response.dto';
 import { MyTicketsResponseDto } from 'src/microservices/booking/dto/my-tickets-response.dto';
 import { BOOKING_MESSAGES, COMMON_MESSAGES } from 'src/shared/constants/messages';
-import { Passenger } from 'src/api-gateway/data-access/entities/passenger/passenger.entity';
-import { User } from 'src/api-gateway/data-access/entities/user/user.entity';
 import type { Repository } from 'typeorm';
 import { AuthService } from '../auth/auth.service';
 import { JwtAuthGuard } from '../auth/guard/jwt-auth.guard';

@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { SystemRole } from 'src/shared/constants/roles';
 import { AircraftType } from 'src/api-gateway/data-access/entities/aircraft/aircraft-type.entity';
 import { Aircraft } from 'src/api-gateway/data-access/entities/aircraft/aircraft.entity';
+import { Airline } from 'src/api-gateway/data-access/entities/airline/airline.entity';
+import { Airport } from 'src/api-gateway/data-access/entities/airport/airport.entity';
 import { CabinClass } from 'src/api-gateway/data-access/entities/cabin/cabin-class.entity';
 import { CabinService } from 'src/api-gateway/data-access/entities/cabin/cabin-service.entity';
 import { BaggageAllowance } from 'src/api-gateway/data-access/entities/fare/baggage-allowance.entity';
@@ -18,10 +19,14 @@ import { Route } from 'src/api-gateway/data-access/entities/route/route.entity';
 import { SeatConfiguration } from 'src/api-gateway/data-access/entities/seat/seat-configuration.entity';
 import { UserRole } from 'src/api-gateway/data-access/entities/user/user-role.entity';
 import { User } from 'src/api-gateway/data-access/entities/user/user.entity';
+import { SystemRole } from 'src/shared/constants/roles';
 import type { DataSource, Repository } from 'typeorm';
+import type { AirlineResponseDto } from './dto/airline-response.dto';
 import type { AssignRoleDto } from './dto/assign-role.dto';
 import type { BaggageAllowancesResponseDto } from './dto/baggage-allowances-response.dto';
 import type { CabinServiceResponseDto } from './dto/cabin-service-response.dto';
+import type { CreateAircraftTypeDto } from './dto/create-aircraft-type.dto';
+import type { CreateAirportDto } from './dto/create-airport.dto';
 import type { CreateBaggageAllowanceDto } from './dto/create-baggage-allowance.dto';
 import type { CreateCabinServiceDto } from './dto/create-cabin-service.dto';
 import type { CreateFareClassDto } from './dto/create-fare-class.dto';
@@ -29,6 +34,7 @@ import type { CreateFareDescriptionRuleDto } from './dto/create-fare-description
 import type { CreateFlightInstanceDto } from './dto/create-flight-instance.dto';
 import type { CreateFlightScheduleDto } from './dto/create-flight-schedule.dto';
 import type { CreateRouteFarePriceDto } from './dto/create-route-fare-price.dto';
+import type { CreateRouteDto } from './dto/create-route.dto';
 import type { DashboardItemDto, DashboardResponseDto } from './dto/dashboard-item.dto';
 import type { FlightScheduleResponseDto } from './dto/flight-schedule-response.dto';
 import type { FlightSchedulesResponseDto } from './dto/flight-schedules-response.dto';
@@ -38,6 +44,8 @@ import type { GetRouteFarePricesDto } from './dto/get-route-fare-prices.dto';
 import type { GetUsersDto } from './dto/get-users.dto';
 import type { RemoveRoleDto } from './dto/remove-role.dto';
 import type { RouteFarePricesResponseDto } from './dto/route-fare-prices-response.dto';
+import type { UpdateAircraftTypeDto } from './dto/update-aircraft-type.dto';
+import type { UpdateAirportDto } from './dto/update-airport.dto';
 import type { UpdateBaggageAllowanceDto } from './dto/update-baggage-allowance.dto';
 import type { UpdateCabinServiceDto } from './dto/update-cabin-service.dto';
 import type { UpdateFareClassDto } from './dto/update-fare-class.dto';
@@ -45,6 +53,7 @@ import type { UpdateFareDescriptionRuleDto } from './dto/update-fare-description
 import type { UpdateFlightInstanceDto } from './dto/update-flight-instance.dto';
 import type { UpdateFlightScheduleDto } from './dto/update-flight-schedule.dto';
 import type { UpdateRouteFarePriceDto } from './dto/update-route-fare-price.dto';
+import type { UpdateRouteDto } from './dto/update-route.dto';
 import type { UsersResponseDto } from './dto/users-response.dto';
 
 @Injectable()
@@ -59,9 +68,11 @@ export class AdminService {
         @InjectRepository(FlightInstance)
         private readonly _flightInstanceRepo: Repository<FlightInstance>,
         @InjectRepository(Route) private readonly _routeRepo: Repository<Route>,
+        @InjectRepository(Airport) private readonly _airportRepo: Repository<Airport>,
         @InjectRepository(AircraftType)
         private readonly _aircraftTypeRepo: Repository<AircraftType>,
         @InjectRepository(Aircraft) private readonly _aircraftRepo: Repository<Aircraft>,
+        @InjectRepository(Airline) private readonly _airlineRepo: Repository<Airline>,
         @InjectRepository(FlightSeat) private readonly _flightSeatRepo: Repository<FlightSeat>,
         @InjectRepository(SeatConfiguration)
         private readonly _seatConfigRepo: Repository<SeatConfiguration>,
@@ -101,12 +112,20 @@ export class AdminService {
         return this._routeRepo;
     }
 
+    private get airportRepo(): Repository<Airport> {
+        return this._airportRepo;
+    }
+
     private get aircraftTypeRepo(): Repository<AircraftType> {
         return this._aircraftTypeRepo;
     }
 
     private get aircraftRepo(): Repository<Aircraft> {
         return this._aircraftRepo;
+    }
+
+    private get airlineRepo(): Repository<Airline> {
+        return this._airlineRepo;
     }
 
     private get flightSeatRepo(): Repository<FlightSeat> {
@@ -273,6 +292,465 @@ export class AdminService {
             success: true,
             message: `Fare class ${fareClassCode} deleted successfully`,
         };
+    }
+
+    // ==================== AIRPORT MANAGEMENT ====================
+
+    /**
+     * Create a new airport
+     */
+    async createAirport(dto: CreateAirportDto): Promise<Airport> {
+        // Normalize codes to uppercase
+        const iataCode = dto.iataCode.toUpperCase();
+        const icaoCode = dto.icaoCode?.toUpperCase();
+
+        // Check if IATA code already exists
+        const existingIata = await this.airportRepo.findOne({
+            where: { iata_code: iataCode },
+        });
+
+        if (existingIata) {
+            throw new BadRequestException(`Airport with IATA code ${iataCode} already exists`);
+        }
+
+        // Check if ICAO code already exists (if provided)
+        if (icaoCode) {
+            const existingIcao = await this.airportRepo.findOne({
+                where: { icao_code: icaoCode },
+            });
+
+            if (existingIcao) {
+                throw new BadRequestException(`Airport with ICAO code ${icaoCode} already exists`);
+            }
+        }
+
+        // Create airport
+        const airport = this.airportRepo.create({
+            airport_id: randomUUID(),
+            iata_code: iataCode,
+            icao_code: icaoCode || null,
+            name: dto.name,
+            city: dto.city,
+            country: dto.country,
+            timezone: dto.timezone,
+        });
+
+        return await this.airportRepo.save(airport);
+    }
+
+    /**
+     * Get all airports
+     */
+    async getAllAirports(): Promise<Airport[]> {
+        return await this.airportRepo.find({
+            order: { iata_code: 'ASC' },
+        });
+    }
+
+    /**
+     * Get airport by ID
+     */
+    async getAirportById(airportId: string): Promise<Airport> {
+        const airport = await this.airportRepo.findOne({
+            where: { airport_id: airportId },
+        });
+
+        if (!airport) {
+            throw new NotFoundException(`Airport ${airportId} not found`);
+        }
+
+        return airport;
+    }
+
+    /**
+     * Update airport
+     */
+    async updateAirport(airportId: string, dto: UpdateAirportDto): Promise<Airport> {
+        const airport = await this.airportRepo.findOne({
+            where: { airport_id: airportId },
+        });
+
+        if (!airport) {
+            throw new NotFoundException(`Airport ${airportId} not found`);
+        }
+
+        // Check ICAO uniqueness if changing
+        if (dto.icaoCode !== undefined && dto.icaoCode !== airport.icao_code) {
+            const icaoCode = dto.icaoCode?.toUpperCase();
+            if (icaoCode) {
+                const existingIcao = await this.airportRepo.findOne({
+                    where: { icao_code: icaoCode },
+                });
+
+                if (existingIcao && existingIcao.airport_id !== airportId) {
+                    throw new BadRequestException(
+                        `Airport with ICAO code ${icaoCode} already exists`
+                    );
+                }
+            }
+            airport.icao_code = icaoCode || null;
+        }
+
+        if (dto.name !== undefined) {
+            airport.name = dto.name;
+        }
+        if (dto.city !== undefined) {
+            airport.city = dto.city;
+        }
+        if (dto.country !== undefined) {
+            airport.country = dto.country;
+        }
+        if (dto.timezone !== undefined) {
+            airport.timezone = dto.timezone;
+        }
+
+        return await this.airportRepo.save(airport);
+    }
+
+    /**
+     * Delete airport with dependency check
+     */
+    async deleteAirport(airportId: string): Promise<{ success: boolean; message: string }> {
+        const airport = await this.airportRepo.findOne({
+            where: { airport_id: airportId },
+        });
+
+        if (!airport) {
+            throw new NotFoundException(`Airport ${airportId} not found`);
+        }
+
+        // Check if airport is used in any routes
+        const routesAsOrigin = await this.routeRepo.count({
+            where: { origin_airport_id: airportId },
+        });
+
+        const routesAsDestination = await this.routeRepo.count({
+            where: { destination_airport_id: airportId },
+        });
+
+        if (routesAsOrigin > 0 || routesAsDestination > 0) {
+            throw new BadRequestException(
+                `Cannot delete airport ${airport.iata_code}. It is used in ${routesAsOrigin + routesAsDestination} route(s). Delete those routes first.`
+            );
+        }
+
+        await this.airportRepo.remove(airport);
+
+        return {
+            success: true,
+            message: `Airport ${airport.iata_code} deleted successfully`,
+        };
+    }
+
+    // ==================== ROUTE MANAGEMENT ====================
+
+    /**
+     * Create a new route
+     */
+    async createRoute(dto: CreateRouteDto): Promise<Route> {
+        // Validate airports exist
+        const originAirport = await this.airportRepo.findOne({
+            where: { airport_id: dto.originAirportId },
+        });
+
+        if (!originAirport) {
+            throw new NotFoundException(`Origin airport ${dto.originAirportId} not found`);
+        }
+
+        const destinationAirport = await this.airportRepo.findOne({
+            where: { airport_id: dto.destinationAirportId },
+        });
+
+        if (!destinationAirport) {
+            throw new NotFoundException(
+                `Destination airport ${dto.destinationAirportId} not found`
+            );
+        }
+
+        // Check if origin and destination are the same
+        if (dto.originAirportId === dto.destinationAirportId) {
+            throw new BadRequestException('Origin and destination airports cannot be the same');
+        }
+
+        // Check if route already exists
+        const existingRoute = await this.routeRepo.findOne({
+            where: {
+                origin_airport_id: dto.originAirportId,
+                destination_airport_id: dto.destinationAirportId,
+            },
+        });
+
+        if (existingRoute) {
+            throw new BadRequestException(
+                `Route from ${originAirport.iata_code} to ${destinationAirport.iata_code} already exists`
+            );
+        }
+
+        // Determine if domestic based on country
+        const isDomestic = originAirport.country === destinationAirport.country;
+
+        // Create route
+        const route = this.routeRepo.create({
+            route_id: randomUUID(),
+            origin_airport_id: dto.originAirportId,
+            destination_airport_id: dto.destinationAirportId,
+            distance_km: dto.distanceKm || null,
+            is_domestic: isDomestic,
+        });
+
+        const savedRoute = await this.routeRepo.save(route);
+
+        // Reload with relations
+        return (
+            (await this.routeRepo.findOne({
+                where: { route_id: savedRoute.route_id },
+                relations: ['origin_airport', 'destination_airport'],
+            })) || savedRoute
+        );
+    }
+
+    /**
+     * Get route by ID
+     */
+    async getRouteById(routeId: string): Promise<Route> {
+        const route = await this.routeRepo.findOne({
+            where: { route_id: routeId },
+            relations: ['origin_airport', 'destination_airport'],
+        });
+
+        if (!route) {
+            throw new NotFoundException(`Route ${routeId} not found`);
+        }
+
+        return route;
+    }
+
+    /**
+     * Update route
+     */
+    async updateRoute(routeId: string, dto: UpdateRouteDto): Promise<Route> {
+        const route = await this.routeRepo.findOne({
+            where: { route_id: routeId },
+            relations: ['origin_airport', 'destination_airport'],
+        });
+
+        if (!route) {
+            throw new NotFoundException(`Route ${routeId} not found`);
+        }
+
+        if (dto.distanceKm !== undefined) {
+            route.distance_km = dto.distanceKm || null;
+        }
+
+        const savedRoute = await this.routeRepo.save(route);
+
+        // Reload with relations
+        return (
+            (await this.routeRepo.findOne({
+                where: { route_id: savedRoute.route_id },
+                relations: ['origin_airport', 'destination_airport'],
+            })) || savedRoute
+        );
+    }
+
+    /**
+     * Delete route with dependency check
+     */
+    async deleteRoute(routeId: string): Promise<{ success: boolean; message: string }> {
+        const route = await this.routeRepo.findOne({
+            where: { route_id: routeId },
+            relations: ['origin_airport', 'destination_airport'],
+        });
+
+        if (!route) {
+            throw new NotFoundException(`Route ${routeId} not found`);
+        }
+
+        // Check if route is used in flight schedules
+        const scheduleCount = await this.flightScheduleRepo.count({
+            where: { route_id: routeId },
+        });
+
+        if (scheduleCount > 0) {
+            throw new BadRequestException(
+                `Cannot delete route from ${route.origin_airport.iata_code} to ${route.destination_airport.iata_code}. It is used in ${scheduleCount} flight schedule(s).`
+            );
+        }
+
+        // Check if route is used in route fare prices
+        const routeFarePriceCount = await this.routeFarePriceRepo.count({
+            where: { route_id: routeId },
+        });
+
+        if (routeFarePriceCount > 0) {
+            throw new BadRequestException(
+                `Cannot delete route. It is used in ${routeFarePriceCount} route fare price(s). Delete those first.`
+            );
+        }
+
+        await this.routeRepo.remove(route);
+
+        return {
+            success: true,
+            message: `Route from ${route.origin_airport.iata_code} to ${route.destination_airport.iata_code} deleted successfully`,
+        };
+    }
+
+    // ==================== AIRCRAFT TYPE MANAGEMENT ====================
+
+    /**
+     * Create a new aircraft type
+     */
+    async createAircraftType(dto: CreateAircraftTypeDto): Promise<AircraftType> {
+        // Normalize code
+        const code = dto.code.trim();
+
+        // Check if code already exists
+        const existingCode = await this.aircraftTypeRepo.findOne({
+            where: { code: code },
+        });
+
+        if (existingCode) {
+            throw new BadRequestException(`Aircraft type with code ${code} already exists`);
+        }
+
+        // Create aircraft type
+        const aircraftType = this.aircraftTypeRepo.create({
+            aircraft_type_id: randomUUID(),
+            code: code,
+            manufacturer: dto.manufacturer,
+            model: dto.model,
+            total_seats: dto.totalSeats,
+        });
+
+        return await this.aircraftTypeRepo.save(aircraftType);
+    }
+
+    /**
+     * Get all aircraft types
+     */
+    async getAllAircraftTypes(): Promise<AircraftType[]> {
+        return await this.aircraftTypeRepo.find({
+            order: { code: 'ASC' },
+        });
+    }
+
+    /**
+     * Get aircraft type by ID
+     */
+    async getAircraftTypeById(aircraftTypeId: string): Promise<AircraftType> {
+        const aircraftType = await this.aircraftTypeRepo.findOne({
+            where: { aircraft_type_id: aircraftTypeId },
+        });
+
+        if (!aircraftType) {
+            throw new NotFoundException(`Aircraft type ${aircraftTypeId} not found`);
+        }
+
+        return aircraftType;
+    }
+
+    /**
+     * Update aircraft type
+     */
+    async updateAircraftType(
+        aircraftTypeId: string,
+        dto: UpdateAircraftTypeDto
+    ): Promise<AircraftType> {
+        const aircraftType = await this.aircraftTypeRepo.findOne({
+            where: { aircraft_type_id: aircraftTypeId },
+        });
+
+        if (!aircraftType) {
+            throw new NotFoundException(`Aircraft type ${aircraftTypeId} not found`);
+        }
+
+        if (dto.manufacturer !== undefined) {
+            aircraftType.manufacturer = dto.manufacturer;
+        }
+        if (dto.model !== undefined) {
+            aircraftType.model = dto.model;
+        }
+        if (dto.totalSeats !== undefined) {
+            aircraftType.total_seats = dto.totalSeats;
+        }
+
+        return await this.aircraftTypeRepo.save(aircraftType);
+    }
+
+    /**
+     * Delete aircraft type with dependency check
+     */
+    async deleteAircraftType(
+        aircraftTypeId: string
+    ): Promise<{ success: boolean; message: string }> {
+        const aircraftType = await this.aircraftTypeRepo.findOne({
+            where: { aircraft_type_id: aircraftTypeId },
+        });
+
+        if (!aircraftType) {
+            throw new NotFoundException(`Aircraft type ${aircraftTypeId} not found`);
+        }
+
+        // Check if aircraft type is used in flight schedules
+        const scheduleCount = await this.flightScheduleRepo.count({
+            where: { aircraft_type_id: aircraftTypeId },
+        });
+
+        if (scheduleCount > 0) {
+            throw new BadRequestException(
+                `Cannot delete aircraft type ${aircraftType.code}. It is used in ${scheduleCount} flight schedule(s).`
+            );
+        }
+
+        // Check if aircraft type is used in aircrafts
+        const aircraftCount = await this.aircraftRepo.count({
+            where: { aircraft_type_id: aircraftTypeId },
+        });
+
+        if (aircraftCount > 0) {
+            throw new BadRequestException(
+                `Cannot delete aircraft type ${aircraftType.code}. It is used by ${aircraftCount} aircraft(s).`
+            );
+        }
+
+        // Check if aircraft type is used in seat configurations
+        const seatConfigCount = await this.seatConfigRepo.count({
+            where: { aircraft_type_id: aircraftTypeId },
+        });
+
+        if (seatConfigCount > 0) {
+            throw new BadRequestException(
+                `Cannot delete aircraft type ${aircraftType.code}. It has ${seatConfigCount} seat configuration(s).`
+            );
+        }
+
+        await this.aircraftTypeRepo.remove(aircraftType);
+
+        return {
+            success: true,
+            message: `Aircraft type ${aircraftType.code} deleted successfully`,
+        };
+    }
+
+    // ==================== AIRLINE MANAGEMENT ====================
+
+    /**
+     * Get all airlines (read-only for dropdown)
+     */
+    async getAllAirlines(): Promise<AirlineResponseDto[]> {
+        const airlines = await this.airlineRepo.find({
+            order: { iata_code: 'ASC' },
+        });
+
+        return airlines.map((airline) => ({
+            airlineId: airline.airline_id,
+            iataCode: airline.iata_code,
+            icaoCode: airline.icao_code,
+            name: airline.name,
+            callsign: airline.callsign,
+            country: airline.country,
+        }));
     }
 
     // ==================== FLIGHT SCHEDULE MANAGEMENT ====================
@@ -1748,6 +2226,49 @@ export class AdminService {
 
         // Define all dashboard items with their required roles
         const allDashboardItems: DashboardItemDto[] = [
+            {
+                id: 'airports',
+                title: 'Quản lý sân bay',
+                description: 'Quản lý danh sách sân bay và thông tin',
+                href: '/admin/airports',
+                icon: 'Building2',
+                color: 'text-indigo-600',
+                bgColor: 'bg-indigo-50',
+                requiredRoles: [
+                    SystemRole.ADMIN,
+                    SystemRole.SCHEDULE_PLANNER,
+                    SystemRole.FLIGHT_MANAGER,
+                ],
+            },
+            {
+                id: 'routes',
+                title: 'Quản lý tuyến bay',
+                description: 'Quản lý tuyến bay và khoảng cách',
+                href: '/admin/routes',
+                icon: 'Route',
+                color: 'text-cyan-600',
+                bgColor: 'bg-cyan-50',
+                requiredRoles: [
+                    SystemRole.ADMIN,
+                    SystemRole.SCHEDULE_PLANNER,
+                    SystemRole.FLIGHT_MANAGER,
+                    SystemRole.REVENUE_ANALYST,
+                ],
+            },
+            {
+                id: 'aircraft-types',
+                title: 'Quản lý loại tàu bay',
+                description: 'Quản lý loại tàu bay và cấu hình',
+                href: '/admin/aircraft-types',
+                icon: 'Plane',
+                color: 'text-sky-600',
+                bgColor: 'bg-sky-50',
+                requiredRoles: [
+                    SystemRole.ADMIN,
+                    SystemRole.SCHEDULE_PLANNER,
+                    SystemRole.FLIGHT_MANAGER,
+                ],
+            },
             {
                 id: 'route-fare-prices',
                 title: 'Quản lý giá vé theo route',

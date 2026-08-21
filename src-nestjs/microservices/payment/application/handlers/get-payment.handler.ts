@@ -7,9 +7,7 @@ import type { GetPaymentQuery, GetPaymentResponse } from '../commands/get-paymen
  */
 @Injectable()
 export class GetPaymentHandler {
-    constructor(
-        @Inject('IPaymentRepository') private readonly paymentRepo: IPaymentRepository
-    ) {}
+    constructor(@Inject('IPaymentRepository') private readonly paymentRepo: IPaymentRepository) {}
 
     async execute(query: GetPaymentQuery): Promise<GetPaymentResponse> {
         const p = await this.paymentRepo.findById(query.paymentId);

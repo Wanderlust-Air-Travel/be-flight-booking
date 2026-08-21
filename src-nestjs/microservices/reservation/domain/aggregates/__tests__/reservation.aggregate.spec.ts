@@ -1,5 +1,3 @@
-import { Reservation } from '../reservation.aggregate';
-import { ReservationStatus } from '../../value-objects/reservation-status';
 import { DomainException } from '../../../../../shared/domain/exceptions/domain-exception';
 import {
     ReservationCancelledEvent,
@@ -7,6 +5,8 @@ import {
     ReservationCreatedEvent,
     ReservationExpiredEvent,
 } from '../../events/reservation.events';
+import { ReservationStatus } from '../../value-objects/reservation-status';
+import { Reservation } from '../reservation.aggregate';
 
 describe('Reservation aggregate', () => {
     describe('create()', () => {
@@ -15,7 +15,12 @@ describe('Reservation aggregate', () => {
                 userId: 'user-1',
                 contactEmail: 'alice@example.com',
                 segments: [
-                    { flightInstanceId: 'fi-1', fareClassCode: 'Y', cabinType: 'eco', passengerCount: 2 },
+                    {
+                        flightInstanceId: 'fi-1',
+                        fareClassCode: 'Y',
+                        cabinType: 'eco',
+                        passengerCount: 2,
+                    },
                 ],
                 ttlMinutes: 30,
             });
@@ -41,7 +46,12 @@ describe('Reservation aggregate', () => {
                     userId: 'user-1',
                     contactEmail: 'notanemail',
                     segments: [
-                        { flightInstanceId: 'fi-1', fareClassCode: 'Y', cabinType: 'eco', passengerCount: 1 },
+                        {
+                            flightInstanceId: 'fi-1',
+                            fareClassCode: 'Y',
+                            cabinType: 'eco',
+                            passengerCount: 1,
+                        },
                     ],
                     ttlMinutes: 30,
                 })
@@ -53,7 +63,12 @@ describe('Reservation aggregate', () => {
                 userId: 'user-1',
                 contactEmail: 'a@b.com',
                 segments: [
-                    { flightInstanceId: 'fi-1', fareClassCode: 'Y', cabinType: 'eco', passengerCount: 1 },
+                    {
+                        flightInstanceId: 'fi-1',
+                        fareClassCode: 'Y',
+                        cabinType: 'eco',
+                        passengerCount: 1,
+                    },
                 ],
                 ttlMinutes: 0,
             });
@@ -67,7 +82,12 @@ describe('Reservation aggregate', () => {
                 userId: 'user-1',
                 contactEmail: 'a@b.com',
                 segments: [
-                    { flightInstanceId: 'fi-1', fareClassCode: 'Y', cabinType: 'eco', passengerCount: 1 },
+                    {
+                        flightInstanceId: 'fi-1',
+                        fareClassCode: 'Y',
+                        cabinType: 'eco',
+                        passengerCount: 1,
+                    },
                 ],
                 ttlMinutes: 30,
             });
@@ -82,7 +102,12 @@ describe('Reservation aggregate', () => {
                 userId: 'user-1',
                 contactEmail: 'a@b.com',
                 segments: [
-                    { flightInstanceId: 'fi-1', fareClassCode: 'Y', cabinType: 'eco', passengerCount: 1 },
+                    {
+                        flightInstanceId: 'fi-1',
+                        fareClassCode: 'Y',
+                        cabinType: 'eco',
+                        passengerCount: 1,
+                    },
                 ],
                 ttlMinutes: 30,
             });
@@ -97,7 +122,12 @@ describe('Reservation aggregate', () => {
                 userId: 'user-1',
                 contactEmail: 'a@b.com',
                 segments: [
-                    { flightInstanceId: 'fi-1', fareClassCode: 'Y', cabinType: 'eco', passengerCount: 1 },
+                    {
+                        flightInstanceId: 'fi-1',
+                        fareClassCode: 'Y',
+                        cabinType: 'eco',
+                        passengerCount: 1,
+                    },
                 ],
                 ttlMinutes: 30,
             });
@@ -115,7 +145,12 @@ describe('Reservation aggregate', () => {
                 userId: 'user-1',
                 contactEmail: 'a@b.com',
                 segments: [
-                    { flightInstanceId: 'fi-1', fareClassCode: 'Y', cabinType: 'eco', passengerCount: 1 },
+                    {
+                        flightInstanceId: 'fi-1',
+                        fareClassCode: 'Y',
+                        cabinType: 'eco',
+                        passengerCount: 1,
+                    },
                 ],
                 ttlMinutes: 30,
             });
@@ -130,7 +165,12 @@ describe('Reservation aggregate', () => {
                 userId: 'user-1',
                 contactEmail: 'a@b.com',
                 segments: [
-                    { flightInstanceId: 'fi-1', fareClassCode: 'Y', cabinType: 'eco', passengerCount: 1 },
+                    {
+                        flightInstanceId: 'fi-1',
+                        fareClassCode: 'Y',
+                        cabinType: 'eco',
+                        passengerCount: 1,
+                    },
                 ],
                 ttlMinutes: 30,
             });
@@ -145,7 +185,12 @@ describe('Reservation aggregate', () => {
                 userId: 'user-1',
                 contactEmail: 'a@b.com',
                 segments: [
-                    { flightInstanceId: 'fi-1', fareClassCode: 'Y', cabinType: 'eco', passengerCount: 1 },
+                    {
+                        flightInstanceId: 'fi-1',
+                        fareClassCode: 'Y',
+                        cabinType: 'eco',
+                        passengerCount: 1,
+                    },
                 ],
                 ttlMinutes: 30,
             });

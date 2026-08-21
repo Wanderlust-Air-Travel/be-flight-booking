@@ -1,4 +1,4 @@
-import type { IBookingPort, BookingSummary } from '../../application/ports/booking.port';
+import type { BookingSummary, IBookingPort } from '../../application/ports/booking.port';
 
 describe('IBookingPort contract', () => {
     class InMemoryBookingPort implements IBookingPort {

@@ -1,9 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
-import { randomUUID } from 'node:crypto';
-import type { IDomainEvent } from '../../../domain/events/domain-event';
+import type { EntityManager, Repository } from 'typeorm';
 import type { IOutboxWriter } from '../../../application/ports/outbox-writer.interface';
+import type { IDomainEvent } from '../../../domain/events/domain-event';
 import { OutboxEvent } from './entities/outbox-event.entity';
 
 /**
@@ -18,9 +18,7 @@ import { OutboxEvent } from './entities/outbox-event.entity';
  */
 @Injectable()
 export class TypeOrmOutboxWriter implements IOutboxWriter {
-    constructor(
-        @InjectRepository(OutboxEvent) private readonly repo: Repository<OutboxEvent>
-    ) {}
+    constructor(@InjectRepository(OutboxEvent) private readonly repo: Repository<OutboxEvent>) {}
 
     async append(event: IDomainEvent, entityManager?: EntityManager): Promise<void> {
         const row = this.toRow(event);
@@ -31,7 +29,10 @@ export class TypeOrmOutboxWriter implements IOutboxWriter {
         }
     }
 
-    async appendMany(events: readonly IDomainEvent[], entityManager?: EntityManager): Promise<void> {
+    async appendMany(
+        events: readonly IDomainEvent[],
+        entityManager?: EntityManager
+    ): Promise<void> {
         const rows = events.map((e) => this.toRow(e));
         if (entityManager) {
             await entityManager.save(OutboxEvent, rows);

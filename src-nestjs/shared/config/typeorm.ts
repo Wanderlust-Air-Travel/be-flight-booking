@@ -3,9 +3,12 @@ import { config } from 'dotenv';
 import { DataSource } from 'typeorm';
 
 // Determine which .env file to load based on NODE_ENV
-const envFile = process.env.NODE_ENV === 'production' ? '.env.prod'
-    : process.env.NODE_ENV === 'staging' ? '.env.staging'
-    : '.env.development';
+const envFile =
+    process.env.NODE_ENV === 'production'
+        ? '.env.prod'
+        : process.env.NODE_ENV === 'staging'
+          ? '.env.staging'
+          : '.env.development';
 
 config({ path: resolve(process.cwd(), envFile) });
 

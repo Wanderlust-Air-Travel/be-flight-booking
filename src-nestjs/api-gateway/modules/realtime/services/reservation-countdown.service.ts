@@ -1,8 +1,14 @@
-import { Inject, Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
+import {
+    Inject,
+    Injectable,
+    Logger,
+    type OnModuleDestroy,
+    type OnModuleInit,
+} from '@nestjs/common';
 import type { ClientProxy } from '@nestjs/microservices';
 import { type Subscription, firstValueFrom, interval } from 'rxjs';
-import { RealtimeService } from '../realtime.service';
 import type { RealtimeGateway } from '../realtime.gateway';
+import { RealtimeService } from '../realtime.service';
 import type {
     ReservationCountdownExpiredEvent,
     ReservationCountdownUpdateEvent,
@@ -131,7 +137,9 @@ export class ReservationCountdownService implements OnModuleInit, OnModuleDestro
                         server.to(socketId).emit('reservation-countdown:update', updateEvent);
                     }
                 } else {
-                    this.logger.warn('RealtimeGateway not available, cannot broadcast countdown update');
+                    this.logger.warn(
+                        'RealtimeGateway not available, cannot broadcast countdown update'
+                    );
                 }
 
                 // If expired, stop countdown
@@ -144,7 +152,10 @@ export class ReservationCountdownService implements OnModuleInit, OnModuleDestro
                             expiresAt: expiresAt.toISOString(),
                         };
                         for (const socketId of subscribedClients) {
-                            this.realtimeGateway.getServer().to(socketId).emit('reservation-countdown:expired', expiredEvent);
+                            this.realtimeGateway
+                                .getServer()
+                                .to(socketId)
+                                .emit('reservation-countdown:expired', expiredEvent);
                         }
                     }
                 }

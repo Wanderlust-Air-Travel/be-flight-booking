@@ -1,9 +1,8 @@
-import { GetBookingHandler } from '../get-booking.handler';
-import type { IBookingRepository } from '../../../domain/repositories/booking.repository.interface';
-import { InMemoryBookingRepository } from '../../../domain/repositories/in-memory-booking.repository';
 import { Booking } from '../../../domain/aggregates/booking.aggregate';
-import { Money } from '../../../domain/value-objects/money';
+import { InMemoryBookingRepository } from '../../../domain/repositories/in-memory-booking.repository';
 import { ContactInfo } from '../../../domain/value-objects/contact-info';
+import { Money } from '../../../domain/value-objects/money';
+import { GetBookingHandler } from '../get-booking.handler';
 
 async function createBooking(repo: InMemoryBookingRepository, userId: string | null) {
     const booking = await Booking.create(
@@ -43,9 +42,9 @@ describe('GetBookingHandler', () => {
 
     it('throws ForbiddenException for another user', async () => {
         const b = await createBooking(repo, 'user-1');
-        await expect(
-            handler.execute({ bookingId: b.id, userId: 'user-2' })
-        ).rejects.toThrow(/access/i);
+        await expect(handler.execute({ bookingId: b.id, userId: 'user-2' })).rejects.toThrow(
+            /access/i
+        );
     });
 
     it('allows guest to view guest booking (userId null)', async () => {

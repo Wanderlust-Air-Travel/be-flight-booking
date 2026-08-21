@@ -23,9 +23,6 @@ import {
     ApiTags,
 } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { COMMON_MESSAGES } from 'src/shared/constants/messages';
-import { SystemRole } from 'src/shared/constants/roles';
-import { Roles } from 'src/shared/decorators/roles.decorator';
 import { CabinClass } from 'src/api-gateway/data-access/entities/cabin/cabin-class.entity';
 import { BaggageAllowance } from 'src/api-gateway/data-access/entities/fare/baggage-allowance.entity';
 import { FareClass } from 'src/api-gateway/data-access/entities/fare/fare-class.entity';
@@ -34,12 +31,17 @@ import { RouteFarePrice } from 'src/api-gateway/data-access/entities/fare/route-
 import { FlightInstance } from 'src/api-gateway/data-access/entities/flight/flight-instance.entity';
 import { Role } from 'src/api-gateway/data-access/entities/role/role.entity';
 import { Route } from 'src/api-gateway/data-access/entities/route/route.entity';
+import { COMMON_MESSAGES } from 'src/shared/constants/messages';
+import { SystemRole } from 'src/shared/constants/roles';
+import { Roles } from 'src/shared/decorators/roles.decorator';
 import { RolesGuard } from 'src/shared/guards/roles.guard';
 import { JwtAuthGuard } from '../auth/guard/jwt-auth.guard';
 import { AdminService } from './admin.service';
 import type { AssignRoleDto } from './dto/assign-role.dto';
 import { BaggageAllowancesResponseDto } from './dto/baggage-allowances-response.dto';
 import { CabinServiceResponseDto } from './dto/cabin-service-response.dto';
+import type { CreateAircraftTypeDto } from './dto/create-aircraft-type.dto';
+import type { CreateAirportDto } from './dto/create-airport.dto';
 import type { CreateBaggageAllowanceDto } from './dto/create-baggage-allowance.dto';
 import type { CreateCabinServiceDto } from './dto/create-cabin-service.dto';
 import type { CreateFareClassDto } from './dto/create-fare-class.dto';
@@ -47,6 +49,7 @@ import type { CreateFareDescriptionRuleDto } from './dto/create-fare-description
 import type { CreateFlightInstanceDto } from './dto/create-flight-instance.dto';
 import type { CreateFlightScheduleDto } from './dto/create-flight-schedule.dto';
 import type { CreateRouteFarePriceDto } from './dto/create-route-fare-price.dto';
+import type { CreateRouteDto } from './dto/create-route.dto';
 import { DashboardResponseDto } from './dto/dashboard-item.dto';
 import { FlightScheduleResponseDto } from './dto/flight-schedule-response.dto';
 import { FlightSchedulesResponseDto } from './dto/flight-schedules-response.dto';
@@ -56,6 +59,8 @@ import type { GetFlightSchedulesDto } from './dto/get-flight-schedules.dto';
 import type { GetRouteFarePricesDto } from './dto/get-route-fare-prices.dto';
 import type { GetUsersDto } from './dto/get-users.dto';
 import { RouteFarePricesResponseDto } from './dto/route-fare-prices-response.dto';
+import type { UpdateAircraftTypeDto } from './dto/update-aircraft-type.dto';
+import type { UpdateAirportDto } from './dto/update-airport.dto';
 import type { UpdateBaggageAllowanceDto } from './dto/update-baggage-allowance.dto';
 import type { UpdateCabinServiceDto } from './dto/update-cabin-service.dto';
 import type { UpdateFareClassDto } from './dto/update-fare-class.dto';
@@ -63,6 +68,7 @@ import type { UpdateFareDescriptionRuleDto } from './dto/update-fare-description
 import type { UpdateFlightInstanceDto } from './dto/update-flight-instance.dto';
 import type { UpdateFlightScheduleDto } from './dto/update-flight-schedule.dto';
 import type { UpdateRouteFarePriceDto } from './dto/update-route-fare-price.dto';
+import type { UpdateRouteDto } from './dto/update-route.dto';
 import { UsersResponseDto } from './dto/users-response.dto';
 
 @ApiTags('admin')
@@ -317,6 +323,483 @@ export class AdminController {
             }
             throw new BadRequestException(
                 `Failed to delete fare class: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    // ==================== AIRPORT MANAGEMENT ====================
+
+    @Post('airports')
+    @Roles(SystemRole.ADMIN, SystemRole.SCHEDULE_PLANNER, SystemRole.FLIGHT_MANAGER)
+    @ApiOperation({
+        summary: 'Create a new airport',
+        description:
+            'Create a new airport. Requires ADMIN, SCHEDULE_PLANNER, or FLIGHT_MANAGER role.',
+    })
+    @ApiOkResponse({
+        description: 'Airport created successfully',
+    })
+    @ApiBadRequestResponse({
+        description: 'Invalid request or airport already exists',
+    })
+    async createAirport(@Body() dto: CreateAirportDto) {
+        try {
+            return await this.adminService.createAirport(dto);
+        } catch (error: any) {
+            this.logger.error('Create airport error:', error);
+            if (error?.statusCode && error?.message) {
+                throw error;
+            }
+            throw new BadRequestException(
+                `Failed to create airport: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    @Get('airports')
+    @Roles(
+        SystemRole.ADMIN,
+        SystemRole.SCHEDULE_PLANNER,
+        SystemRole.FLIGHT_MANAGER,
+        SystemRole.CALL_CENTER,
+        SystemRole.OPERATIONS,
+        SystemRole.DISTRIBUTION_MANAGER
+    )
+    @ApiOperation({
+        summary: 'Get all airports',
+        description: 'Get all airports. Requires appropriate role.',
+    })
+    @ApiOkResponse({
+        description: 'Airports retrieved successfully',
+        isArray: true,
+    })
+    async getAllAirports() {
+        try {
+            return await this.adminService.getAllAirports();
+        } catch (error: any) {
+            this.logger.error('Get all airports error:', error);
+            throw new InternalServerErrorException(
+                `Failed to retrieve airports: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    @Get('airports/:id')
+    @Roles(
+        SystemRole.ADMIN,
+        SystemRole.SCHEDULE_PLANNER,
+        SystemRole.FLIGHT_MANAGER,
+        SystemRole.CALL_CENTER,
+        SystemRole.OPERATIONS,
+        SystemRole.DISTRIBUTION_MANAGER
+    )
+    @ApiOperation({
+        summary: 'Get airport by ID',
+        description: 'Get airport by ID.',
+    })
+    @ApiParam({
+        name: 'id',
+        description: 'Airport ID (UUID)',
+        example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+    })
+    @ApiOkResponse({
+        description: 'Airport retrieved successfully',
+    })
+    async getAirportById(@Param('id') airportId: string) {
+        try {
+            return await this.adminService.getAirportById(airportId);
+        } catch (error: any) {
+            this.logger.error('Get airport by ID error:', error);
+            if (error?.statusCode && error?.message) {
+                throw error;
+            }
+            throw new InternalServerErrorException(
+                `Failed to retrieve airport: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    @Put('airports/:id')
+    @Roles(SystemRole.ADMIN, SystemRole.SCHEDULE_PLANNER, SystemRole.FLIGHT_MANAGER)
+    @ApiOperation({
+        summary: 'Update airport',
+        description: 'Update airport details.',
+    })
+    @ApiParam({
+        name: 'id',
+        description: 'Airport ID (UUID)',
+        example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+    })
+    @ApiOkResponse({
+        description: 'Airport updated successfully',
+    })
+    async updateAirport(@Param('id') airportId: string, @Body() dto: UpdateAirportDto) {
+        try {
+            return await this.adminService.updateAirport(airportId, dto);
+        } catch (error: any) {
+            this.logger.error('Update airport error:', error);
+            if (error?.statusCode && error?.message) {
+                throw error;
+            }
+            throw new BadRequestException(
+                `Failed to update airport: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    @Delete('airports/:id')
+    @Roles(SystemRole.ADMIN, SystemRole.SCHEDULE_PLANNER, SystemRole.FLIGHT_MANAGER)
+    @ApiOperation({
+        summary: 'Delete airport',
+        description: 'Delete an airport. Cannot delete if used in routes.',
+    })
+    @ApiParam({
+        name: 'id',
+        description: 'Airport ID (UUID)',
+        example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+    })
+    @ApiOkResponse({
+        description: 'Airport deleted successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                success: { type: 'boolean', example: true },
+                message: { type: 'string', example: 'Airport SGN deleted successfully' },
+            },
+        },
+    })
+    async deleteAirport(
+        @Param('id') airportId: string
+    ): Promise<{ success: boolean; message: string }> {
+        try {
+            return await this.adminService.deleteAirport(airportId);
+        } catch (error: any) {
+            this.logger.error('Delete airport error:', error);
+            if (error?.statusCode && error?.message) {
+                throw error;
+            }
+            throw new BadRequestException(
+                `Failed to delete airport: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    // ==================== ROUTE MANAGEMENT ====================
+
+    @Post('routes')
+    @Roles(SystemRole.ADMIN, SystemRole.SCHEDULE_PLANNER, SystemRole.FLIGHT_MANAGER)
+    @ApiOperation({
+        summary: 'Create a new route',
+        description: 'Create a new route between two airports.',
+    })
+    @ApiOkResponse({
+        description: 'Route created successfully',
+        type: Route,
+    })
+    @ApiBadRequestResponse({
+        description: 'Invalid request or route already exists',
+    })
+    async createRoute(@Body() dto: CreateRouteDto): Promise<Route> {
+        try {
+            return await this.adminService.createRoute(dto);
+        } catch (error: any) {
+            this.logger.error('Create route error:', error);
+            if (error?.statusCode && error?.message) {
+                throw error;
+            }
+            throw new BadRequestException(
+                `Failed to create route: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    @Get('routes/:id')
+    @Roles(
+        SystemRole.ADMIN,
+        SystemRole.REVENUE_ANALYST,
+        SystemRole.SCHEDULE_PLANNER,
+        SystemRole.FLIGHT_MANAGER,
+        SystemRole.DISTRIBUTION_MANAGER
+    )
+    @ApiOperation({
+        summary: 'Get route by ID',
+        description: 'Get route by ID with airport details.',
+    })
+    @ApiParam({
+        name: 'id',
+        description: 'Route ID (UUID)',
+        example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+    })
+    @ApiOkResponse({
+        description: 'Route retrieved successfully',
+        type: Route,
+    })
+    async getRouteById(@Param('id') routeId: string): Promise<Route> {
+        try {
+            const route = await this.adminService.getRouteById(routeId);
+            return route;
+        } catch (error: any) {
+            this.logger.error('Get route by ID error:', error);
+            if (error?.statusCode && error?.message) {
+                throw error;
+            }
+            throw new InternalServerErrorException(
+                `Failed to retrieve route: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    @Put('routes/:id')
+    @Roles(SystemRole.ADMIN, SystemRole.SCHEDULE_PLANNER, SystemRole.FLIGHT_MANAGER)
+    @ApiOperation({
+        summary: 'Update route',
+        description: 'Update route details (distance only, cannot change airports).',
+    })
+    @ApiParam({
+        name: 'id',
+        description: 'Route ID (UUID)',
+        example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+    })
+    @ApiOkResponse({
+        description: 'Route updated successfully',
+        type: Route,
+    })
+    async updateRoute(@Param('id') routeId: string, @Body() dto: UpdateRouteDto): Promise<Route> {
+        try {
+            return await this.adminService.updateRoute(routeId, dto);
+        } catch (error: any) {
+            this.logger.error('Update route error:', error);
+            if (error?.statusCode && error?.message) {
+                throw error;
+            }
+            throw new BadRequestException(
+                `Failed to update route: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    @Delete('routes/:id')
+    @Roles(SystemRole.ADMIN, SystemRole.SCHEDULE_PLANNER, SystemRole.FLIGHT_MANAGER)
+    @ApiOperation({
+        summary: 'Delete route',
+        description: 'Delete a route. Cannot delete if used in flight schedules.',
+    })
+    @ApiParam({
+        name: 'id',
+        description: 'Route ID (UUID)',
+        example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+    })
+    @ApiOkResponse({
+        description: 'Route deleted successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                success: { type: 'boolean', example: true },
+                message: { type: 'string', example: 'Route from SGN to HAN deleted successfully' },
+            },
+        },
+    })
+    async deleteRoute(
+        @Param('id') routeId: string
+    ): Promise<{ success: boolean; message: string }> {
+        try {
+            return await this.adminService.deleteRoute(routeId);
+        } catch (error: any) {
+            this.logger.error('Delete route error:', error);
+            if (error?.statusCode && error?.message) {
+                throw error;
+            }
+            throw new BadRequestException(
+                `Failed to delete route: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    // ==================== AIRCRAFT TYPE MANAGEMENT ====================
+
+    @Post('aircraft-types')
+    @Roles(SystemRole.ADMIN, SystemRole.SCHEDULE_PLANNER, SystemRole.FLIGHT_MANAGER)
+    @ApiOperation({
+        summary: 'Create a new aircraft type',
+        description: 'Create a new aircraft type.',
+    })
+    @ApiOkResponse({
+        description: 'Aircraft type created successfully',
+    })
+    @ApiBadRequestResponse({
+        description: 'Invalid request or aircraft type already exists',
+    })
+    async createAircraftType(@Body() dto: CreateAircraftTypeDto) {
+        try {
+            return await this.adminService.createAircraftType(dto);
+        } catch (error: any) {
+            this.logger.error('Create aircraft type error:', error);
+            if (error?.statusCode && error?.message) {
+                throw error;
+            }
+            throw new BadRequestException(
+                `Failed to create aircraft type: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    @Get('aircraft-types')
+    @Roles(
+        SystemRole.ADMIN,
+        SystemRole.SCHEDULE_PLANNER,
+        SystemRole.FLIGHT_MANAGER,
+        SystemRole.CALL_CENTER,
+        SystemRole.OPERATIONS,
+        SystemRole.DISTRIBUTION_MANAGER
+    )
+    @ApiOperation({
+        summary: 'Get all aircraft types',
+        description: 'Get all aircraft types.',
+    })
+    @ApiOkResponse({
+        description: 'Aircraft types retrieved successfully',
+        isArray: true,
+    })
+    async getAllAircraftTypes() {
+        try {
+            return await this.adminService.getAllAircraftTypes();
+        } catch (error: any) {
+            this.logger.error('Get all aircraft types error:', error);
+            throw new InternalServerErrorException(
+                `Failed to retrieve aircraft types: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    @Get('aircraft-types/:id')
+    @Roles(
+        SystemRole.ADMIN,
+        SystemRole.SCHEDULE_PLANNER,
+        SystemRole.FLIGHT_MANAGER,
+        SystemRole.CALL_CENTER,
+        SystemRole.OPERATIONS,
+        SystemRole.DISTRIBUTION_MANAGER
+    )
+    @ApiOperation({
+        summary: 'Get aircraft type by ID',
+        description: 'Get aircraft type by ID.',
+    })
+    @ApiParam({
+        name: 'id',
+        description: 'Aircraft Type ID (UUID)',
+        example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+    })
+    @ApiOkResponse({
+        description: 'Aircraft type retrieved successfully',
+    })
+    async getAircraftTypeById(@Param('id') aircraftTypeId: string) {
+        try {
+            return await this.adminService.getAircraftTypeById(aircraftTypeId);
+        } catch (error: any) {
+            this.logger.error('Get aircraft type by ID error:', error);
+            if (error?.statusCode && error?.message) {
+                throw error;
+            }
+            throw new InternalServerErrorException(
+                `Failed to retrieve aircraft type: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    @Put('aircraft-types/:id')
+    @Roles(SystemRole.ADMIN, SystemRole.SCHEDULE_PLANNER, SystemRole.FLIGHT_MANAGER)
+    @ApiOperation({
+        summary: 'Update aircraft type',
+        description: 'Update aircraft type details (cannot change code).',
+    })
+    @ApiParam({
+        name: 'id',
+        description: 'Aircraft Type ID (UUID)',
+        example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+    })
+    @ApiOkResponse({
+        description: 'Aircraft type updated successfully',
+    })
+    async updateAircraftType(
+        @Param('id') aircraftTypeId: string,
+        @Body() dto: UpdateAircraftTypeDto
+    ) {
+        try {
+            return await this.adminService.updateAircraftType(aircraftTypeId, dto);
+        } catch (error: any) {
+            this.logger.error('Update aircraft type error:', error);
+            if (error?.statusCode && error?.message) {
+                throw error;
+            }
+            throw new BadRequestException(
+                `Failed to update aircraft type: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    @Delete('aircraft-types/:id')
+    @Roles(SystemRole.ADMIN, SystemRole.SCHEDULE_PLANNER, SystemRole.FLIGHT_MANAGER)
+    @ApiOperation({
+        summary: 'Delete aircraft type',
+        description: 'Delete an aircraft type. Cannot delete if used in schedules or aircrafts.',
+    })
+    @ApiParam({
+        name: 'id',
+        description: 'Aircraft Type ID (UUID)',
+        example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+    })
+    @ApiOkResponse({
+        description: 'Aircraft type deleted successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                success: { type: 'boolean', example: true },
+                message: { type: 'string', example: 'Aircraft type A320neo deleted successfully' },
+            },
+        },
+    })
+    async deleteAircraftType(
+        @Param('id') aircraftTypeId: string
+    ): Promise<{ success: boolean; message: string }> {
+        try {
+            return await this.adminService.deleteAircraftType(aircraftTypeId);
+        } catch (error: any) {
+            this.logger.error('Delete aircraft type error:', error);
+            if (error?.statusCode && error?.message) {
+                throw error;
+            }
+            throw new BadRequestException(
+                `Failed to delete aircraft type: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    // ==================== AIRLINE MANAGEMENT ====================
+
+    @Get('airlines')
+    @Roles(
+        SystemRole.ADMIN,
+        SystemRole.SCHEDULE_PLANNER,
+        SystemRole.FLIGHT_MANAGER,
+        SystemRole.CALL_CENTER,
+        SystemRole.OPERATIONS,
+        SystemRole.DISTRIBUTION_MANAGER
+    )
+    @ApiOperation({
+        summary: 'Get all airlines',
+        description: 'Get all airlines (read-only, for dropdowns).',
+    })
+    @ApiOkResponse({
+        description: 'Airlines retrieved successfully',
+        isArray: true,
+    })
+    async getAllAirlines() {
+        try {
+            return await this.adminService.getAllAirlines();
+        } catch (error: any) {
+            this.logger.error('Get all airlines error:', error);
+            throw new InternalServerErrorException(
+                `Failed to retrieve airlines: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
             );
         }
     }

@@ -22,12 +22,15 @@ import {
     ApiResponse,
     ApiTags,
 } from '@nestjs/swagger';
+import { InjectRepository } from '@nestjs/typeorm';
 import type { Request } from 'express';
 import { firstValueFrom } from 'rxjs';
+import { Airport } from 'src/api-gateway/data-access/entities/airport/airport.entity';
 import { SEARCH_MS } from 'src/microservices/search/search.messages';
 import { CabinType, TripType } from 'src/shared/constants/enums';
 import { BookingStateService } from 'src/shared/services/booking-state.service';
 import { CabinServiceService } from 'src/shared/services/cabin-service.service';
+import type { Repository } from 'typeorm';
 import { OptionalJwtAuthGuard } from '../auth/guard/optional-jwt-auth.guard';
 import { AirportListResponseDto } from './dto/airport-list-response.dto';
 import {
@@ -40,7 +43,7 @@ import type { GetCabinServicesDto } from './dto/get-cabin-services.dto';
 import type { GetFareOptionsDto } from './dto/get-fare-options.dto';
 import type { GetSeatMapDto } from './dto/get-seat-map.dto';
 import { SearchFlightsResponseDto } from './dto/search-flights-response.dto';
-import { SearchFlightsDto } from './dto/search-flights.dto';
+import type { SearchFlightsDto } from './dto/search-flights.dto';
 import { SeatMapResponseDto } from './dto/seat-map-response.dto';
 
 @ApiTags('search')
@@ -54,6 +57,7 @@ export class SearchController {
 
     constructor(
         @Inject('SEARCH_CLIENT') private readonly _client: ClientProxy,
+        @InjectRepository(Airport) private readonly airportRepo: Repository<Airport>,
         private readonly bookingStateService: BookingStateService,
         private readonly cabinServiceService: CabinServiceService
     ) {}
@@ -211,7 +215,10 @@ export class SearchController {
             const message$ = this.client.send<SearchFlightsResponseDto>('search.flights', payload);
             const timeoutMs = 30000;
             const timeout$ = new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error(`Search timeout after ${timeoutMs}ms`)), timeoutMs)
+                setTimeout(
+                    () => reject(new Error(`Search timeout after ${timeoutMs}ms`)),
+                    timeoutMs
+                )
             );
             return await Promise.race([firstValueFrom(message$), timeout$]);
         } catch (error: any) {
@@ -788,11 +795,25 @@ export class SearchController {
     async getAirports(): Promise<AirportListResponseDto> {
         try {
             this.logger.log('Get airports list');
-            const result = await firstValueFrom(
-                this.client.send<AirportListResponseDto>(SEARCH_MS.PATTERN.GET_AIRPORTS, {})
-            );
-            this.logger.log(`Found ${result.airports?.length || 0} airports`);
-            return result;
+
+            // Query airports directly from database
+            const airports = await this.airportRepo.find({
+                order: { city: 'ASC' },
+            });
+
+            // Transform to response DTO
+            const airportDtos = airports.map((airport) => ({
+                iata: airport.iata_code,
+                name: airport.name,
+                city: airport.city,
+                value: airport.city.toLowerCase().replace(/\s+/g, '-'),
+            }));
+
+            this.logger.log(`Found ${airportDtos.length} airports`);
+
+            return {
+                airports: airportDtos,
+            };
         } catch (error: any) {
             this.logger.error('Get airports error:', error);
 

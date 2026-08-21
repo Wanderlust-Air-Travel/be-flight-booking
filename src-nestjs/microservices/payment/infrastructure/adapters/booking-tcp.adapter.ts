@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
+import type { ClientProxy } from '@nestjs/microservices';
 import type {
-    IBookingPortForPayment,
     BookingSummaryForPayment,
+    IBookingPortForPayment,
 } from '../../application/ports/booking.port';
 
 /**
@@ -13,13 +13,12 @@ import type {
  */
 @Injectable()
 export class BookingTcpAdapter implements IBookingPortForPayment {
-    constructor(
-        @Inject('BOOKING_CLIENT') private readonly client: ClientProxy
-    ) {}
+    constructor(@Inject('BOOKING_CLIENT') private readonly client: ClientProxy) {}
 
     async findSummaryById(bookingId: string): Promise<BookingSummaryForPayment | null> {
-        return await this.client
+        const result = await this.client
             .send<BookingSummaryForPayment | null>('get_booking_summary', { bookingId })
             .toPromise();
+        return result ?? null;
     }
 }

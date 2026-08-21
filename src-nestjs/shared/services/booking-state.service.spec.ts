@@ -109,9 +109,9 @@ describe('BookingStateService', () => {
                 cabinType: 'economy',
             } as unknown as CabinSelection;
 
-            await expect(
-                service.saveCabinSelection(mockUserId, invalidPayload)
-            ).rejects.toThrow(BadRequestException);
+            await expect(service.saveCabinSelection(mockUserId, invalidPayload)).rejects.toThrow(
+                BadRequestException
+            );
             expect(repository.save).not.toHaveBeenCalled();
         });
 
@@ -122,9 +122,9 @@ describe('BookingStateService', () => {
                 fareClassCode: undefined,
             } as unknown as CabinSelection;
 
-            await expect(
-                service.saveCabinSelection(mockUserId, invalidPayload)
-            ).rejects.toThrow(BadRequestException);
+            await expect(service.saveCabinSelection(mockUserId, invalidPayload)).rejects.toThrow(
+                BadRequestException
+            );
             expect(repository.save).not.toHaveBeenCalled();
         });
 
@@ -134,9 +134,9 @@ describe('BookingStateService', () => {
                 fareClassCode: 'YS',
             } as unknown as CabinSelection;
 
-            await expect(
-                service.saveCabinSelection(mockUserId, invalidPayload)
-            ).rejects.toThrow(BadRequestException);
+            await expect(service.saveCabinSelection(mockUserId, invalidPayload)).rejects.toThrow(
+                BadRequestException
+            );
             expect(repository.save).not.toHaveBeenCalled();
         });
 

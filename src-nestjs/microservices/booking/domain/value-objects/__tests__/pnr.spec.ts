@@ -1,12 +1,13 @@
-import { PNR } from '../pnr';
 import type { IBookingRepository } from '../../repositories/booking.repository.interface';
-import { DomainException } from '../../../../../shared/domain/exceptions/domain-exception';
+import { PNR } from '../pnr';
 
 function makeRepoStub(existing: string[] = []): IBookingRepository {
     return {
-        findByPnr: jest.fn().mockImplementation(async (pnr: string) =>
-            existing.includes(pnr) ? ({ pnr } as any) : null
-        ),
+        findByPnr: jest
+            .fn()
+            .mockImplementation(async (pnr: string) =>
+                existing.includes(pnr) ? ({ pnr } as any) : null
+            ),
     } as any;
 }
 

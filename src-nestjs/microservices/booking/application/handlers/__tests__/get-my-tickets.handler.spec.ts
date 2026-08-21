@@ -1,8 +1,8 @@
-import { GetMyTicketsHandler } from '../get-my-tickets.handler';
-import { InMemoryBookingRepository } from '../../../domain/repositories/in-memory-booking.repository';
 import { Booking } from '../../../domain/aggregates/booking.aggregate';
-import { Money } from '../../../domain/value-objects/money';
+import { InMemoryBookingRepository } from '../../../domain/repositories/in-memory-booking.repository';
 import { ContactInfo } from '../../../domain/value-objects/contact-info';
+import { Money } from '../../../domain/value-objects/money';
+import { GetMyTicketsHandler } from '../get-my-tickets.handler';
 
 async function seed(repo: InMemoryBookingRepository, userId: string, count: number) {
     for (let i = 0; i < count; i++) {
@@ -11,7 +11,9 @@ async function seed(repo: InMemoryBookingRepository, userId: string, count: numb
                 contact: ContactInfo.create('Alice', 'alice@example.com', '+84912345678'),
                 totalAmount: Money.create(1000 + i, 'VND'),
                 passengers: [{ fullName: 'Alice', type: 'adult' }],
-                segments: [{ flightInstanceId: `fi-${i}`, cabinType: 'economy', fareClassCode: 'Y' }],
+                segments: [
+                    { flightInstanceId: `fi-${i}`, cabinType: 'economy', fareClassCode: 'Y' },
+                ],
                 userId,
             },
             repo

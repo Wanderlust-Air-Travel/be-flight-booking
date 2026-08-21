@@ -22,9 +22,7 @@ export class PNR extends ValueObject<string> {
         }
         const normalized = value.toUpperCase();
         if (!PNR_PATTERN.test(normalized)) {
-            throw new DomainException(
-                `PNR must be 6 uppercase alphanumeric chars, got: ${value}`
-            );
+            throw new DomainException(`PNR must be 6 uppercase alphanumeric chars, got: ${value}`);
         }
         return new PNR(normalized);
     }

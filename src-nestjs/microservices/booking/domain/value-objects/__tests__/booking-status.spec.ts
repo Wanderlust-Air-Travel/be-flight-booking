@@ -1,5 +1,5 @@
-import { BookingStatus } from '../booking-status';
 import { DomainException } from '../../../../../shared/domain/exceptions/domain-exception';
+import { BookingStatus } from '../booking-status';
 
 describe('BookingStatus', () => {
     it('exposes all status values as enum members', () => {
@@ -36,9 +36,9 @@ describe('BookingStatus', () => {
     });
 
     it('assertCanTransitionTo() throws DomainException for invalid', () => {
-        expect(() =>
-            BookingStatus.CANCELLED.assertCanTransitionTo(BookingStatus.PAID)
-        ).toThrow(DomainException);
+        expect(() => BookingStatus.CANCELLED.assertCanTransitionTo(BookingStatus.PAID)).toThrow(
+            DomainException
+        );
     });
 
     it('assertCanTransitionTo() does nothing for valid', () => {

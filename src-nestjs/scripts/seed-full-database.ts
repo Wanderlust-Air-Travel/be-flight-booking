@@ -10,13 +10,6 @@ import { v7 as uuidv7 } from 'uuid';
 // Load .env file from project root
 config({ path: resolve(process.cwd(), '.env') });
 
-import { SystemRole } from 'src/shared/constants/roles';
-import {
-    SEAT_COLUMNS,
-    SEAT_DISTRIBUTION,
-    generateSeatNumber,
-    getSeatType,
-} from 'src/shared/constants/seat.constants';
 import { AircraftType } from 'src/api-gateway/data-access/entities/aircraft/aircraft-type.entity';
 import { Aircraft } from 'src/api-gateway/data-access/entities/aircraft/aircraft.entity';
 import { Airline } from 'src/api-gateway/data-access/entities/airline/airline.entity';
@@ -45,6 +38,13 @@ import { SeatConfiguration } from 'src/api-gateway/data-access/entities/seat/sea
 import { Ticket } from 'src/api-gateway/data-access/entities/ticket/ticket.entity';
 import { UserRole } from 'src/api-gateway/data-access/entities/user/user-role.entity';
 import { User } from 'src/api-gateway/data-access/entities/user/user.entity';
+import { SystemRole } from 'src/shared/constants/roles';
+import {
+    SEAT_COLUMNS,
+    SEAT_DISTRIBUTION,
+    generateSeatNumber,
+    getSeatType,
+} from 'src/shared/constants/seat.constants';
 import { DataSource } from 'typeorm';
 
 const ds = new DataSource({
@@ -1898,13 +1898,17 @@ async function run() {
                     in_service: true,
                 })
             );
-            console.log(`  Created aircraft: VN-${aircraftType.code}-${String(regNum).padStart(3, '0')}`);
+            console.log(
+                `  Created aircraft: VN-${aircraftType.code}-${String(regNum).padStart(3, '0')}`
+            );
         }
     }
 
     const defaultAircraftType = await repos.aircraftType.findOne({ where: { code: '320' } });
     if (!defaultAircraftType) {
-        throw new Error('Seed failed: AircraftType with code "320" not found. Run seat types seeding first.');
+        throw new Error(
+            'Seed failed: AircraftType with code "320" not found. Run seat types seeding first.'
+        );
     }
     const defaultAircraft = await repos.aircraft.findOne({ where: { registration: 'VN-320-001' } });
 
@@ -1968,13 +1972,29 @@ async function run() {
     const testUserMappings: Array<{ role: SystemRole; fullname: string; phone: string }> = [
         { role: SystemRole.CUSTOMER, fullname: 'Test Customer', phone: '0900000010' },
         { role: SystemRole.TRAVEL_AGENT, fullname: 'Test Travel Agent', phone: '0900000011' },
-        { role: SystemRole.SCHEDULE_PLANNER, fullname: 'Test Schedule Planner', phone: '0900000012' },
+        {
+            role: SystemRole.SCHEDULE_PLANNER,
+            fullname: 'Test Schedule Planner',
+            phone: '0900000012',
+        },
         { role: SystemRole.REVENUE_ANALYST, fullname: 'Test Revenue Analyst', phone: '0900000013' },
-        { role: SystemRole.ANCILLARY_MANAGER, fullname: 'Test Ancillary Manager', phone: '0900000014' },
+        {
+            role: SystemRole.ANCILLARY_MANAGER,
+            fullname: 'Test Ancillary Manager',
+            phone: '0900000014',
+        },
         { role: SystemRole.CALL_CENTER, fullname: 'Test Call Center', phone: '0900000015' },
         { role: SystemRole.ADMIN, fullname: 'System Administrator', phone: '0900000001' },
-        { role: SystemRole.ACCOUNTING_STAFF, fullname: 'Test Accounting Staff', phone: '0900000016' },
-        { role: SystemRole.DISTRIBUTION_MANAGER, fullname: 'Test Distribution Manager', phone: '0900000017' },
+        {
+            role: SystemRole.ACCOUNTING_STAFF,
+            fullname: 'Test Accounting Staff',
+            phone: '0900000016',
+        },
+        {
+            role: SystemRole.DISTRIBUTION_MANAGER,
+            fullname: 'Test Distribution Manager',
+            phone: '0900000017',
+        },
         { role: SystemRole.FRAUD_ANALYST, fullname: 'Test Fraud Analyst', phone: '0900000018' },
     ];
 
@@ -2017,7 +2037,9 @@ async function run() {
     const adminEmail = 'admin@flightbooking.com';
     const adminUser = await repos.user.findOne({ where: { email: adminEmail } });
     if (adminUser) {
-        const customerRole = await repos.role.findOne({ where: { role_code: SystemRole.CUSTOMER } });
+        const customerRole = await repos.role.findOne({
+            where: { role_code: SystemRole.CUSTOMER },
+        });
         if (customerRole) {
             const hasCustomer = await repos.userRole.findOne({
                 where: { user_id: adminUser.user_id, role_code: SystemRole.CUSTOMER },

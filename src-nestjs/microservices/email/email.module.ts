@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
-import { OutboxModule } from '../../../shared/modules/outbox/outbox.module';
+// import { OutboxModule } from '../../../shared/modules/outbox/outbox.module';
+import { EmailRequestedEventHandler } from './application/event-handlers/email-requested.handler';
 import { QueueEmailHandler } from './application/handlers/queue-email.handler';
 import { SendEmailDirectHandler } from './application/handlers/send-email-direct.handler';
 import { InMemoryEmailRepository } from './domain/repositories/in-memory-email.repository';
 import { EmailMessageHandler } from './interface/email.message-handler';
-import { EmailRequestedEventHandler } from './application/event-handlers/email-requested.handler';
 
 /**
  * EmailModule — Wires the email bounded context.
@@ -14,7 +14,7 @@ import { EmailRequestedEventHandler } from './application/event-handlers/email-r
  * EmailRequestedEventHandler with @EventPattern.
  */
 @Module({
-    imports: [OutboxModule],
+    imports: [],
     controllers: [EmailMessageHandler, EmailRequestedEventHandler],
     providers: [
         QueueEmailHandler,

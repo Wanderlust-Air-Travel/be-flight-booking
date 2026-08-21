@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import type { IReservationRepository } from '../../domain/repositories/reservation.repository.interface';
 import type { IOutboxWriter } from '../../../../shared/application/ports/outbox-writer.interface';
+import type { IReservationRepository } from '../../domain/repositories/reservation.repository.interface';
 
 /**
  * ExpireReservationScheduler — Cron job that finds ACTIVE reservations

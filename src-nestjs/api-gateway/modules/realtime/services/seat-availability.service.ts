@@ -1,13 +1,8 @@
-import {
-    Injectable,
-    Logger,
-    type OnModuleDestroy,
-    type OnModuleInit,
-} from '@nestjs/common';
+import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { RedisService } from 'src/shared/modules/redis/redis.service';
-import { RealtimeService } from '../realtime.service';
 import type { RealtimeGateway } from '../realtime.gateway';
+import { RealtimeService } from '../realtime.service';
 import type {
     SeatAvailabilityChange,
     SeatAvailabilityMessage,

@@ -1,6 +1,6 @@
 import { Controller, Logger } from '@nestjs/common';
 import { EventPattern } from '@nestjs/microservices';
-import { CreateTicketsFromBookingHandler } from './handlers/create-tickets-from-booking.handler';
+import type { CreateTicketsFromBookingHandler } from '../handlers/create-tickets-from-booking.handler';
 
 /**
  * PaymentSucceededHandler — Listens for payment.succeeded events from the
@@ -13,18 +13,14 @@ import { CreateTicketsFromBookingHandler } from './handlers/create-tickets-from-
 export class PaymentSucceededHandler {
     private readonly logger = new Logger(PaymentSucceededHandler.name);
 
-    constructor(
-        private readonly createTicketsHandler: CreateTicketsFromBookingHandler
-    ) {}
+    constructor(private readonly createTicketsHandler: CreateTicketsFromBookingHandler) {}
 
     @EventPattern('payment.succeeded')
     async handlePaymentSucceeded(payload: {
         bookingId: string;
         ticketCount: number;
     }): Promise<void> {
-        this.logger.log(
-            `Received payment.succeeded for booking ${payload.bookingId}`
-        );
+        this.logger.log(`Received payment.succeeded for booking ${payload.bookingId}`);
         try {
             await this.createTicketsHandler.execute({
                 bookingId: payload.bookingId,

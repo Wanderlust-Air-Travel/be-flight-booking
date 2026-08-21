@@ -41,7 +41,10 @@ export class GetDashboardHandler {
 export class GetAuditLogsHandler {
     constructor(@Inject('IAdminPort') private readonly port: IAdminPort) {}
 
-    async execute(query: { limit: number; offset: number }): Promise<{ items: AuditLog[]; total: number }> {
+    async execute(query: { limit: number; offset: number }): Promise<{
+        items: AuditLog[];
+        total: number;
+    }> {
         return this.port.getAuditLogs(query.limit, query.offset);
     }
 }
@@ -50,7 +53,9 @@ export class GetAuditLogsHandler {
 export class ManageFlightsHandler {
     constructor(@Inject('IAdminPort') private readonly port: IAdminPort) {}
 
-    async execute(input: { action: 'create' | 'update' | 'delete'; payload: any }): Promise<{ ok: boolean }> {
+    async execute(input: { action: 'create' | 'update' | 'delete'; payload: any }): Promise<{
+        ok: boolean;
+    }> {
         if (!['create', 'update', 'delete'].includes(input.action)) {
             throw new Error(`Unknown action: ${input.action}`);
         }

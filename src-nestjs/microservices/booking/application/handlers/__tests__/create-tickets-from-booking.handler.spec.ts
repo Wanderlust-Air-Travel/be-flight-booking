@@ -1,9 +1,9 @@
-import { CreateTicketsFromBookingHandler } from '../create-tickets-from-booking.handler';
-import { InMemoryBookingRepository } from '../../../domain/repositories/in-memory-booking.repository';
 import { Booking } from '../../../domain/aggregates/booking.aggregate';
-import { Money } from '../../../domain/value-objects/money';
-import { ContactInfo } from '../../../domain/value-objects/contact-info';
 import { BookingTicketsIssuedEvent } from '../../../domain/events/booking.events';
+import { InMemoryBookingRepository } from '../../../domain/repositories/in-memory-booking.repository';
+import { ContactInfo } from '../../../domain/value-objects/contact-info';
+import { Money } from '../../../domain/value-objects/money';
+import { CreateTicketsFromBookingHandler } from '../create-tickets-from-booking.handler';
 
 async function createPaidBooking(repo: InMemoryBookingRepository) {
     const b = await Booking.create(

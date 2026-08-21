@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { OutboxModule } from '../../../shared/modules/outbox/outbox.module';
+// import { OutboxModule } from '../../../shared/modules/outbox/outbox.module';
 import {
     GetFareOptionsHandler,
     GetFlightDetailsHandler,
@@ -14,13 +14,9 @@ import { SearchMessageHandler } from './interface/search.message-handler';
  * a TypeORM-backed repository adapter or external API client.
  */
 @Module({
-    imports: [OutboxModule],
+    imports: [],
     controllers: [SearchMessageHandler],
-    providers: [
-        SearchFlightHandler,
-        GetFareOptionsHandler,
-        GetFlightDetailsHandler,
-    ],
+    providers: [SearchFlightHandler, GetFareOptionsHandler, GetFlightDetailsHandler],
     exports: [],
 })
 export class SearchModule {}

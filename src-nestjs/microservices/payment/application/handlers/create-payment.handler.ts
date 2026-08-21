@@ -1,9 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { IPaymentRepository } from '../../domain/repositories/payment.repository.interface';
 import type { IOutboxWriter } from '../../../../shared/application/ports/outbox-writer.interface';
-import type { CreatePaymentCommand, CreatePaymentResponse } from '../commands/create-payment.command';
 import { Payment } from '../../domain/aggregates/payment.aggregate';
+import type { IPaymentRepository } from '../../domain/repositories/payment.repository.interface';
 import { IdempotencyKey } from '../../domain/value-objects/idempotency-key';
+import type {
+    CreatePaymentCommand,
+    CreatePaymentResponse,
+} from '../commands/create-payment.command';
 
 /**
  * CreatePaymentHandler — Idempotent payment creation.

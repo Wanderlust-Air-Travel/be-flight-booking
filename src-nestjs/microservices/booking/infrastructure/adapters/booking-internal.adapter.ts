@@ -1,8 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type {
-    IBookingPort,
-    BookingSummary,
-} from '../../application/ports/booking.port';
+import type { BookingSummary, IBookingPort } from '../../application/ports/booking.port';
 import type { IBookingRepository } from '../../domain/repositories/booking.repository.interface';
 
 /**
@@ -14,9 +11,7 @@ import type { IBookingRepository } from '../../domain/repositories/booking.repos
  */
 @Injectable()
 export class BookingInternalAdapter implements IBookingPort {
-    constructor(
-        @Inject('IBookingRepository') private readonly repo: IBookingRepository
-    ) {}
+    constructor(@Inject('IBookingRepository') private readonly repo: IBookingRepository) {}
 
     async findSummaryById(bookingId: string): Promise<BookingSummary | null> {
         const b = await this.repo.findById(bookingId);

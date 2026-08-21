@@ -1,6 +1,9 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
-import type { IReservationPort, ReservationSummary } from '../../application/ports/reservation.port';
+import type { ClientProxy } from '@nestjs/microservices';
+import type {
+    IReservationPort,
+    ReservationSummary,
+} from '../../application/ports/reservation.port';
 
 /**
  * ReservationTcpAdapter — Production adapter for IReservationPort.
@@ -13,15 +16,14 @@ import type { IReservationPort, ReservationSummary } from '../../application/por
 export class ReservationTcpAdapter implements IReservationPort {
     private readonly logger = new Logger(ReservationTcpAdapter.name);
 
-    constructor(
-        @Inject('RESERVATION_CLIENT') private readonly client: ClientProxy
-    ) {}
+    constructor(@Inject('RESERVATION_CLIENT') private readonly client: ClientProxy) {}
 
     async findById(reservationId: string): Promise<ReservationSummary | null> {
         try {
-            return await this.client
+            const result = await this.client
                 .send<ReservationSummary | null>('find_reservation_by_id', { reservationId })
                 .toPromise();
+            return result ?? null;
         } catch (error: any) {
             this.logger.warn(`findById failed: ${error.message}`);
             return null;
@@ -29,8 +31,6 @@ export class ReservationTcpAdapter implements IReservationPort {
     }
 
     async cancel(reservationId: string, by: string): Promise<void> {
-        await this.client
-            .send<void>('cancel_reservation', { reservationId, by })
-            .toPromise();
+        await this.client.send<void>('cancel_reservation', { reservationId, by }).toPromise();
     }
 }

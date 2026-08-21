@@ -1,6 +1,6 @@
 import type { Booking } from '../aggregates/booking.aggregate';
+import type { PNR } from '../value-objects/pnr';
 import type { IBookingRepository, Page, PageOptions } from './booking.repository.interface';
-import { PNR } from '../value-objects/pnr';
 
 /**
  * InMemoryBookingRepository — In-memory implementation of IBookingRepository

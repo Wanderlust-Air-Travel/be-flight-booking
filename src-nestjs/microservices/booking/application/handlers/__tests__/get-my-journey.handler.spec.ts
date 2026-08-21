@@ -1,8 +1,8 @@
-import { GetMyJourneyHandler } from '../get-my-journey.handler';
-import { InMemoryBookingRepository } from '../../../domain/repositories/in-memory-booking.repository';
 import { Booking } from '../../../domain/aggregates/booking.aggregate';
-import { Money } from '../../../domain/value-objects/money';
+import { InMemoryBookingRepository } from '../../../domain/repositories/in-memory-booking.repository';
 import { ContactInfo } from '../../../domain/value-objects/contact-info';
+import { Money } from '../../../domain/value-objects/money';
+import { GetMyJourneyHandler } from '../get-my-journey.handler';
 
 describe('GetMyJourneyHandler', () => {
     let handler: GetMyJourneyHandler;
@@ -20,7 +20,9 @@ describe('GetMyJourneyHandler', () => {
                     contact: ContactInfo.create('Alice', 'alice@example.com', '+84912345678'),
                     totalAmount: Money.create(1000, 'VND'),
                     passengers: [{ fullName: 'Alice', type: 'adult' }],
-                    segments: [{ flightInstanceId: `fi-${i}`, cabinType: 'economy', fareClassCode: 'Y' }],
+                    segments: [
+                        { flightInstanceId: `fi-${i}`, cabinType: 'economy', fareClassCode: 'Y' },
+                    ],
                     userId: 'user-1',
                 },
                 repo

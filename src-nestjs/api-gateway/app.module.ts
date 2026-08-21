@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { Airport } from 'src/api-gateway/data-access/entities/airport/airport.entity';
 import appConfig from 'src/shared/config/app.config';
 import { CommonModule } from 'src/shared/modules/common/common.module';
 import { DataProvidersModule } from 'src/shared/modules/data-providers/data-providers.module';
@@ -10,6 +11,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BookingStateModule } from './modules/booking-state/booking-state.module';
 import { BookingClientModule } from './modules/booking/booking.client.module';
+import { DevModule } from './modules/dev/dev.module';
 import { EmailClientModule } from './modules/email/email.client.module';
 import { HealthModule } from './modules/health/health.module';
 import { PaymentClientModule } from './modules/payment/payment.client.module';
@@ -46,6 +48,7 @@ import { ServicesClientModule } from './modules/services/services.client.module'
             synchronize: false,
             entities: [`${__dirname}/../data-access/entities/**/*.entity.{ts,js}`],
         }),
+        TypeOrmModule.forFeature([Airport]),
         DataProvidersModule,
         AuthModule,
         SearchClientModule,
@@ -61,6 +64,7 @@ import { ServicesClientModule } from './modules/services/services.client.module'
         RealtimeModule,
         AdminModule,
         CommonModule,
+        DevModule,
     ],
     controllers: [],
     providers: [

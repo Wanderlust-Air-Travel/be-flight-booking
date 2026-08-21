@@ -1,5 +1,5 @@
-import { AggregateRoot } from '../aggregate-root';
 import type { IDomainEvent } from '../../events/domain-event';
+import { AggregateRoot } from '../aggregate-root';
 
 class TestEvent implements IDomainEvent {
     public readonly eventId: string;

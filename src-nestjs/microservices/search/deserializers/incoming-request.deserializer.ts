@@ -35,8 +35,12 @@ export class IncomingRequestDeserializer {
 
         // If we get here, the value needs to be transformed
         // For TCP, the pattern comes from options.channel, and data is the raw value
-        this.logger.debug(`[Deserializer] Transforming message: hasPattern=${hasPattern}, hasData=${hasData}`);
-        this.logger.debug(`[Deserializer] Value keys: ${Object.keys(value || {}).join(', ') || 'none'}`);
+        this.logger.debug(
+            `[Deserializer] Transforming message: hasPattern=${hasPattern}, hasData=${hasData}`
+        );
+        this.logger.debug(
+            `[Deserializer] Value keys: ${Object.keys(value || {}).join(', ') || 'none'}`
+        );
         this.logger.debug(`[Deserializer] Options type: ${typeof options}`);
 
         // Extract pattern from options if available

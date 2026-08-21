@@ -1,6 +1,6 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import type { IReservationRepository } from '../../domain/repositories/reservation.repository.interface';
 import type { IOutboxWriter } from '../../../../shared/application/ports/outbox-writer.interface';
+import type { IReservationRepository } from '../../domain/repositories/reservation.repository.interface';
 
 export interface CancelReservationCommand {
     reservationId: string;
@@ -23,7 +23,8 @@ export class CancelReservationHandler {
 
     async execute(command: CancelReservationCommand): Promise<CancelReservationResponse> {
         const reservation = await this.repo.findById(command.reservationId);
-        if (!reservation) throw new NotFoundException(`Reservation ${command.reservationId} not found`);
+        if (!reservation)
+            throw new NotFoundException(`Reservation ${command.reservationId} not found`);
         if (reservation.userId !== command.userId) {
             // Allow system-initiated cancel (userId = 'system') for cleanup
             if (command.userId !== 'system') {

@@ -1,6 +1,6 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import type { IReservationRepository } from '../../domain/repositories/reservation.repository.interface';
 import type { IOutboxWriter } from '../../../../shared/application/ports/outbox-writer.interface';
+import type { IReservationRepository } from '../../domain/repositories/reservation.repository.interface';
 
 export interface ConvertToBookingCommand {
     reservationId: string;
@@ -22,7 +22,8 @@ export class ConvertToBookingHandler {
 
     async execute(command: ConvertToBookingCommand): Promise<ConvertToBookingResponse> {
         const reservation = await this.repo.findById(command.reservationId);
-        if (!reservation) throw new NotFoundException(`Reservation ${command.reservationId} not found`);
+        if (!reservation)
+            throw new NotFoundException(`Reservation ${command.reservationId} not found`);
 
         reservation.convertToBooking(command.bookingId);
         await this.repo.save(reservation);

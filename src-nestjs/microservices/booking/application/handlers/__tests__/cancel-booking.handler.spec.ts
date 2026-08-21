@@ -1,9 +1,9 @@
-import { CancelBookingHandler } from '../cancel-booking.handler';
-import { InMemoryBookingRepository } from '../../../domain/repositories/in-memory-booking.repository';
 import { Booking } from '../../../domain/aggregates/booking.aggregate';
-import { Money } from '../../../domain/value-objects/money';
-import { ContactInfo } from '../../../domain/value-objects/contact-info';
 import { BookingCancelledEvent } from '../../../domain/events/booking.events';
+import { InMemoryBookingRepository } from '../../../domain/repositories/in-memory-booking.repository';
+import { ContactInfo } from '../../../domain/value-objects/contact-info';
+import { Money } from '../../../domain/value-objects/money';
+import { CancelBookingHandler } from '../cancel-booking.handler';
 
 async function createBooking(repo: InMemoryBookingRepository, userId: string) {
     const booking = await Booking.create(

@@ -9,9 +9,9 @@ import { Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { type MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { IncomingRequestDeserializer } from './deserializers/incoming-request.deserializer';
 import { SEARCH_MS } from './search.messages';
 import { SearchModule } from './search.module';
-import { IncomingRequestDeserializer } from './deserializers/incoming-request.deserializer';
 
 @Module({
     imports: [
@@ -52,7 +52,9 @@ async function bootstrap() {
         },
     });
 
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: false }));
+    app.useGlobalPipes(
+        new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: false })
+    );
     await app.listen();
     logger.log(`Search microservice is listening on ${SEARCH_MS.TCP_HOST}:${SEARCH_MS.TCP_PORT}`);
 }

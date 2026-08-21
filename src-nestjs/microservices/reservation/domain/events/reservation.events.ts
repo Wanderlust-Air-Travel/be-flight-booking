@@ -27,11 +27,11 @@ export class ReservationCreatedEvent extends BaseReservationEvent {
         public readonly contactEmail: string,
         public readonly ttlMinutes: number
     ) {
-        super(
-            reservationId,
-            ReservationCreatedEvent.EVENT_NAME,
-            { userId, contactEmail, ttlMinutes }
-        );
+        super(reservationId, ReservationCreatedEvent.EVENT_NAME, {
+            userId,
+            contactEmail,
+            ttlMinutes,
+        });
     }
 }
 
@@ -59,10 +59,6 @@ export class ReservationCancelledEvent extends BaseReservationEvent {
         public readonly cancelledBy: string,
         public readonly reason: string
     ) {
-        super(
-            reservationId,
-            ReservationCancelledEvent.EVENT_NAME,
-            { cancelledBy, reason }
-        );
+        super(reservationId, ReservationCancelledEvent.EVENT_NAME, { cancelledBy, reason });
     }
 }

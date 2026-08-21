@@ -1,6 +1,6 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
-import { LoginHandler, RefreshTokenHandler } from '../../application/handlers/auth.handlers';
+import type { LoginHandler, RefreshTokenHandler } from '../application/handlers/auth.handlers';
 
 @Controller()
 export class AuthMessageHandler {

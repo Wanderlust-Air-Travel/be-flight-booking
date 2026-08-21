@@ -1,4 +1,4 @@
-import { EmailMessage } from '../aggregates/email-message.aggregate';
+import type { EmailMessage } from '../aggregates/email-message.aggregate';
 
 export interface PageOptions {
     page: number;

@@ -1,23 +1,22 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule, InjectRepository, getRepositoryToken } from '@nestjs/typeorm';
 import { ClientProxyFactory, Transport } from '@nestjs/microservices';
-import { BookingMessageHandler } from './interface/booking.message-handler';
-import { CreateBookingHandler } from './application/handlers/create-booking.handler';
-import { GetBookingHandler } from './application/handlers/get-booking.handler';
+// import { OutboxModule } from '../../../shared/modules/outbox/outbox.module';
+import { BookingCreatedNotificationHandler } from './application/event-handlers/booking-created-notification.handler';
+import { PaymentSucceededHandler } from './application/event-handlers/payment-succeeded.handler';
 import { CancelBookingHandler } from './application/handlers/cancel-booking.handler';
 import { CancelTicketHandler } from './application/handlers/cancel-ticket.handler';
-import { UpdateBookingPassengersHandler } from './application/handlers/update-booking-passengers.handler';
 import { CheckInBookingHandler } from './application/handlers/check-in-booking.handler';
+import { CreateBookingHandler } from './application/handlers/create-booking.handler';
 import { CreateTicketsFromBookingHandler } from './application/handlers/create-tickets-from-booking.handler';
-import { GetMyTicketsHandler } from './application/handlers/get-my-tickets.handler';
+import { GetBookingHandler } from './application/handlers/get-booking.handler';
 import { GetMyJourneyHandler } from './application/handlers/get-my-journey.handler';
-import { PaymentSucceededHandler } from './application/event-handlers/payment-succeeded.handler';
-import { BookingCreatedNotificationHandler } from './application/event-handlers/booking-created-notification.handler';
-import { ReservationTcpAdapter } from './infrastructure/adapters/reservation-tcp.adapter';
-import { NotificationEventAdapter } from './infrastructure/adapters/notification-event.adapter';
-import { BookingInternalAdapter } from './infrastructure/adapters/booking-internal.adapter';
+import { GetMyTicketsHandler } from './application/handlers/get-my-tickets.handler';
+import { UpdateBookingPassengersHandler } from './application/handlers/update-booking-passengers.handler';
 import { InMemoryBookingRepository } from './domain/repositories/in-memory-booking.repository';
-import { OutboxModule } from '../../../shared/modules/outbox/outbox.module';
+import { BookingInternalAdapter } from './infrastructure/adapters/booking-internal.adapter';
+import { NotificationEventAdapter } from './infrastructure/adapters/notification-event.adapter';
+import { ReservationTcpAdapter } from './infrastructure/adapters/reservation-tcp.adapter';
+import { BookingMessageHandler } from './interface/booking.message-handler';
 
 /**
  * BookingModule — Wires the booking bounded context.
@@ -35,8 +34,12 @@ import { OutboxModule } from '../../../shared/modules/outbox/outbox.module';
  * Old booking.service.ts (3966 lines) is replaced by these 9 single-purpose handlers.
  */
 @Module({
-    imports: [OutboxModule],
-    controllers: [BookingMessageHandler, PaymentSucceededHandler, BookingCreatedNotificationHandler],
+    imports: [],
+    controllers: [
+        BookingMessageHandler,
+        PaymentSucceededHandler,
+        BookingCreatedNotificationHandler,
+    ],
     providers: [
         // Use cases
         CreateBookingHandler,

@@ -35,11 +35,7 @@ describe('OutboxProcessor', () => {
             publish: jest.fn().mockResolvedValue(undefined),
             failures: new Set<string>(),
         };
-        processor = new OutboxProcessor(
-            repo as any,
-            bus as any,
-            { batchSize: 10, maxRetries: 5 }
-        );
+        processor = new OutboxProcessor(repo as any, bus as any, { batchSize: 10, maxRetries: 5 });
     });
 
     function makeRow(overrides: Partial<StoredRow> = {}): StoredRow {
@@ -62,7 +58,10 @@ describe('OutboxProcessor', () => {
     });
 
     it('processBatch() publishes all unpublished rows via bus', async () => {
-        const rows = [makeRow({ id: 'row-1' }), makeRow({ id: 'row-2', routing_key: 'payment.succeeded' })];
+        const rows = [
+            makeRow({ id: 'row-1' }),
+            makeRow({ id: 'row-2', routing_key: 'payment.succeeded' }),
+        ];
         repo.findUnpublished.mockResolvedValue(rows);
         const processed = await processor.processBatch();
         expect(processed).toBe(2);
@@ -76,12 +75,20 @@ describe('OutboxProcessor', () => {
             makeRow({
                 id: 'r1',
                 routing_key: 'booking.created',
-                payload: JSON.stringify({ eventId: 'e1', aggregateId: 'a1', eventName: 'booking.created' }),
+                payload: JSON.stringify({
+                    eventId: 'e1',
+                    aggregateId: 'a1',
+                    eventName: 'booking.created',
+                }),
             }),
             makeRow({
                 id: 'r2',
                 routing_key: 'payment.succeeded',
-                payload: JSON.stringify({ eventId: 'e2', aggregateId: 'a2', eventName: 'payment.succeeded' }),
+                payload: JSON.stringify({
+                    eventId: 'e2',
+                    aggregateId: 'a2',
+                    eventName: 'payment.succeeded',
+                }),
             }),
         ];
         repo.findUnpublished.mockResolvedValue(rows);
@@ -102,7 +109,11 @@ describe('OutboxProcessor', () => {
     });
 
     it('processBatch() continues processing remaining rows after one fails', async () => {
-        const rows = [makeRow({ id: 'fail-1' }), makeRow({ id: 'ok-1' }), makeRow({ id: 'fail-2' })];
+        const rows = [
+            makeRow({ id: 'fail-1' }),
+            makeRow({ id: 'ok-1' }),
+            makeRow({ id: 'fail-2' }),
+        ];
         repo.findUnpublished.mockResolvedValue(rows);
         bus.publish
             .mockRejectedValueOnce(new Error('err 1'))
@@ -127,12 +138,20 @@ describe('OutboxProcessor', () => {
             makeRow({
                 id: 'poison',
                 retry_count: 2,
-                payload: JSON.stringify({ eventId: 'ep', aggregateId: 'ap', eventName: 'poison.evt' }),
+                payload: JSON.stringify({
+                    eventId: 'ep',
+                    aggregateId: 'ap',
+                    eventName: 'poison.evt',
+                }),
             }),
             makeRow({
                 id: 'fresh',
                 retry_count: 0,
-                payload: JSON.stringify({ eventId: 'ef', aggregateId: 'af', eventName: 'fresh.evt' }),
+                payload: JSON.stringify({
+                    eventId: 'ef',
+                    aggregateId: 'af',
+                    eventName: 'fresh.evt',
+                }),
             }),
         ];
         repo.findUnpublished.mockResolvedValue(rows);

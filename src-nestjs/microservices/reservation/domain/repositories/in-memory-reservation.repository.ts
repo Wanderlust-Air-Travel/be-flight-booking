@@ -1,9 +1,5 @@
 import type { Reservation } from '../aggregates/reservation.aggregate';
-import type {
-    IReservationRepository,
-    Page,
-    PageOptions,
-} from './reservation.repository.interface';
+import type { IReservationRepository, Page, PageOptions } from './reservation.repository.interface';
 
 export class InMemoryReservationRepository implements IReservationRepository {
     private readonly reservations: Map<string, Reservation> = new Map();
@@ -24,9 +20,7 @@ export class InMemoryReservationRepository implements IReservationRepository {
     }
 
     async findExpiringBefore(before: Date, limit: number): Promise<Reservation[]> {
-        return [...this.reservations.values()]
-            .filter((r) => r.isExpired(before))
-            .slice(0, limit);
+        return [...this.reservations.values()].filter((r) => r.isExpired(before)).slice(0, limit);
     }
 
     async delete(id: string): Promise<void> {

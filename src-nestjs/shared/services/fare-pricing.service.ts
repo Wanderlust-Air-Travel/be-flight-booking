@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { RouteFarePrice } from 'src/api-gateway/data-access/entities/fare/route-fare-price.entity';
 import type { Repository } from 'typeorm';
 import { CabinType } from '../constants/enums';
-import { RouteFarePrice } from 'src/api-gateway/data-access/entities/fare/route-fare-price.entity';
 
 /**
  * Fare Pricing Service

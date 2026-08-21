@@ -1,8 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import type { IEmailMessageRepository } from '../../domain/repositories/email.repository.interface';
 import type { IOutboxWriter } from '../../../../shared/application/ports/outbox-writer.interface';
-import { EmailMessage, EmailTemplate } from '../../domain/aggregates/email-message.aggregate';
+import { EmailMessage, type EmailTemplate } from '../../domain/aggregates/email-message.aggregate';
 import { EmailRequestedEvent } from '../../domain/events/email.events';
+import type { IEmailMessageRepository } from '../../domain/repositories/email.repository.interface';
 
 export interface QueueEmailCommand {
     to: string;
@@ -49,9 +49,7 @@ export class QueueEmailHandler {
         }
 
         // Also emit a Requested event so an event handler can deliver it.
-        await this.outbox.append(
-            new EmailRequestedEvent(message.id, message.to, message.template)
-        );
+        await this.outbox.append(new EmailRequestedEvent(message.id, message.to, message.template));
 
         return {
             emailId: message.id,

@@ -11,7 +11,7 @@ import { DomainException } from '../../../../shared/domain/exceptions/domain-exc
 export class PaymentStatus {
     private constructor(
         public readonly value: string,
-        private readonly allowedTransitions: ReadonlySet<PaymentStatus>
+        private readonly allowedTransitions: Set<PaymentStatus>
     ) {}
 
     static readonly PENDING = new PaymentStatus('pending', new Set());

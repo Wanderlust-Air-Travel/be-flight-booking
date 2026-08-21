@@ -22,9 +22,7 @@ export interface GetReservationResponse {
 
 @Injectable()
 export class GetReservationHandler {
-    constructor(
-        @Inject('IReservationRepository') private readonly repo: IReservationRepository
-    ) {}
+    constructor(@Inject('IReservationRepository') private readonly repo: IReservationRepository) {}
 
     async execute(query: GetReservationQuery): Promise<GetReservationResponse> {
         const r = await this.repo.findById(query.reservationId);

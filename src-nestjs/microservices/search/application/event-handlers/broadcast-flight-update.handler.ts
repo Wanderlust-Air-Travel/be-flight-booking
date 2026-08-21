@@ -1,6 +1,5 @@
 import { Controller, Logger } from '@nestjs/common';
 import { EventPattern } from '@nestjs/microservices';
-import { Server } from 'socket.io';
 
 /**
  * RealtimeGateway — Stateless broadcast handler for real-time updates.

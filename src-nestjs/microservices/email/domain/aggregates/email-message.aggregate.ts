@@ -1,5 +1,5 @@
-import { AggregateRoot } from '../../../../shared/domain/base/aggregate-root';
 import { randomUUID } from 'node:crypto';
+import { AggregateRoot } from '../../../../shared/domain/base/aggregate-root';
 import { DomainException } from '../../../../shared/domain/exceptions/domain-exception';
 
 export type EmailTemplate =
@@ -88,9 +88,7 @@ export class EmailMessage extends AggregateRoot<string> {
 
     markSent(at: Date): void {
         if (this._status !== 'PENDING') {
-            throw new DomainException(
-                `Cannot mark sent: email in ${this._status} status`
-            );
+            throw new DomainException(`Cannot mark sent: email in ${this._status} status`);
         }
         this._status = 'SENT';
         this._sentAt = at;
@@ -104,20 +102,36 @@ export class EmailMessage extends AggregateRoot<string> {
 
     retry(): void {
         if (this._status !== 'FAILED') {
-            throw new DomainException(
-                `Cannot retry email in ${this._status} status`
-            );
+            throw new DomainException(`Cannot retry email in ${this._status} status`);
         }
         this._status = 'PENDING';
     }
 
-    get to(): string { return this._to; }
-    get subject(): string { return this._subject; }
-    get body(): string { return this._body; }
-    get template(): EmailTemplate { return this._template; }
-    get status(): EmailStatus { return this._status; }
-    get createdAt(): Date { return this._createdAt; }
-    get sentAt(): Date | null { return this._sentAt; }
-    get attempts(): number { return this._attempts; }
-    get lastError(): string | null { return this._lastError; }
+    get to(): string {
+        return this._to;
+    }
+    get subject(): string {
+        return this._subject;
+    }
+    get body(): string {
+        return this._body;
+    }
+    get template(): EmailTemplate {
+        return this._template;
+    }
+    get status(): EmailStatus {
+        return this._status;
+    }
+    get createdAt(): Date {
+        return this._createdAt;
+    }
+    get sentAt(): Date | null {
+        return this._sentAt;
+    }
+    get attempts(): number {
+        return this._attempts;
+    }
+    get lastError(): string | null {
+        return this._lastError;
+    }
 }

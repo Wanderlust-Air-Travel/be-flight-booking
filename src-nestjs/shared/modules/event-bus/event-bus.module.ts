@@ -1,12 +1,11 @@
 import { Global, Module } from '@nestjs/common';
-import { IDomainEventBus } from '../../application/ports/domain-event-bus.interface';
+import { OutboxProcessor } from '../../infrastructure/messaging/outbox-processor';
 import {
     DOMAIN_EVENT_PUBLISHER,
     RabbitMQEventBus,
 } from '../../infrastructure/messaging/rabbitmq-event-bus';
-import { RabbitMQPublisherService } from '../rabbitmq/rabbitmq-publisher.service';
 import { OutboxModule } from '../outbox/outbox.module';
-import { OutboxProcessor } from '../../infrastructure/messaging/outbox-processor';
+import { RabbitMQPublisherService } from '../rabbitmq/rabbitmq-publisher.service';
 import { OutboxScheduler } from './outbox.scheduler';
 
 /**

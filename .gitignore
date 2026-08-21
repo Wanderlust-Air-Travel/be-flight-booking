@@ -43,6 +43,8 @@ lerna-debug.log*
 .env.local
 .env.*.local
 
+credentials_desktop_apps.json
+
 # Terraform
 infrastructure/terraform/terraform.tfvars
 infrastructure/terraform/.terraform/

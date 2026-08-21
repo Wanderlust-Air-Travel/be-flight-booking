@@ -1,9 +1,14 @@
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { AircraftType } from 'src/api-gateway/data-access/entities/aircraft/aircraft-type.entity';
+import { Airline } from 'src/api-gateway/data-access/entities/airline/airline.entity';
+import { RouteFarePrice } from 'src/api-gateway/data-access/entities/fare/route-fare-price.entity';
+import { FlightInstance } from 'src/api-gateway/data-access/entities/flight/flight-instance.entity';
+import { Route } from 'src/api-gateway/data-access/entities/route/route.entity';
+import type { Repository } from 'typeorm';
 import { RedisService } from '../../../modules/redis/redis.service';
-import {
+import type {
     AircraftDto,
     AirlineDto,
     AirportDto,
@@ -12,11 +17,6 @@ import {
     FlightSearchResultDto,
 } from '../interfaces/data-provider.dto';
 import { OurairportsProvider } from '../providers/ourairports.provider';
-import { Airline } from 'src/api-gateway/data-access/entities/airline/airline.entity';
-import { AircraftType } from 'src/api-gateway/data-access/entities/aircraft/aircraft-type.entity';
-import { FlightInstance } from 'src/api-gateway/data-access/entities/flight/flight-instance.entity';
-import { Route } from 'src/api-gateway/data-access/entities/route/route.entity';
-import { RouteFarePrice } from 'src/api-gateway/data-access/entities/fare/route-fare-price.entity';
 
 @Injectable()
 export class DataService implements OnModuleInit {
@@ -149,7 +149,9 @@ export class DataService implements OnModuleInit {
             return cached;
         }
 
-        this.logger.log(`Searching flights from database: ${params.origin} -> ${params.destination} on ${params.departureDate}`);
+        this.logger.log(
+            `Searching flights from database: ${params.origin} -> ${params.destination} on ${params.departureDate}`
+        );
 
         const departureDate = new Date(params.departureDate);
         departureDate.setHours(0, 0, 0, 0);
@@ -158,7 +160,14 @@ export class DataService implements OnModuleInit {
         nextDay.setDate(nextDay.getDate() + 1);
 
         const cabinClassFilter = params.cabinClass?.toUpperCase() || 'Y';
-        const cabinClassCode = cabinClassFilter === 'ECONOMY' ? 'Y' : cabinClassFilter === 'BUSINESS' ? 'J' : cabinClassFilter === 'FIRST' ? 'F' : cabinClassFilter;
+        const cabinClassCode =
+            cabinClassFilter === 'ECONOMY'
+                ? 'Y'
+                : cabinClassFilter === 'BUSINESS'
+                  ? 'J'
+                  : cabinClassFilter === 'FIRST'
+                    ? 'F'
+                    : cabinClassFilter;
 
         const queryBuilder = this.flightInstanceRepository
             .createQueryBuilder('fi')
@@ -190,9 +199,10 @@ export class DataService implements OnModuleInit {
         const cabinMultiplier = cabinClassCode === 'J' ? 3 : cabinClassCode === 'F' ? 5 : 1;
 
         const flightOffers: FlightOfferDto[] = flights.map((flight, index) => {
-            const basePrice = rawPrices[index]?.rfp_base_price != null
-                ? Number(rawPrices[index].rfp_base_price)
-                : 500000 + index * 350000;
+            const basePrice =
+                rawPrices[index]?.rfp_base_price != null
+                    ? Number(rawPrices[index].rfp_base_price)
+                    : 500000 + index * 350000;
 
             const flightNumber = flight.flight_schedule?.flight_number || flight.flight_number;
             const airlineCode = flightNumber.substring(0, 2);
@@ -244,9 +254,17 @@ export class DataService implements OnModuleInit {
         const dbStart = Date.now();
         try {
             await this.airlineRepository.count();
-            results.push({ provider: 'Database', available: true, latencyMs: Date.now() - dbStart });
+            results.push({
+                provider: 'Database',
+                available: true,
+                latencyMs: Date.now() - dbStart,
+            });
         } catch {
-            results.push({ provider: 'Database', available: false, latencyMs: Date.now() - dbStart });
+            results.push({
+                provider: 'Database',
+                available: false,
+                latencyMs: Date.now() - dbStart,
+            });
         }
 
         return results;

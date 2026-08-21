@@ -1,9 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { SEARCH_MS } from 'src/microservices/search/search.messages';
-import { CabinService } from 'src/api-gateway/data-access/entities/cabin/cabin-service.entity';
-import { BaggageAllowance } from 'src/api-gateway/data-access/entities/fare/baggage-allowance.entity';
 import { CabinServiceService } from 'src/shared/services/cabin-service.service';
 import { AuthModule } from '../auth/auth.module';
 import { BookingStateModule } from '../booking-state/booking-state.module';
@@ -23,7 +20,6 @@ import { SearchController } from './search.controller';
                 },
             },
         ]),
-        TypeOrmModule.forFeature([CabinService, BaggageAllowance]),
         BookingStateModule,
         AuthModule, // Import AuthModule to use OptionalJwtAuthGuard
     ],

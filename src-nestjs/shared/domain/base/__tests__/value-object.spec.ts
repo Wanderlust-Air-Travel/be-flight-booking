@@ -3,7 +3,8 @@ import { ValueObject } from '../value-object';
 class Money extends ValueObject<{ amount: number; currency: string }> {
     static create(amount: number, currency: string): Money {
         if (amount < 0) throw new Error('Amount cannot be negative');
-        if (!currency || currency.length !== 3) throw new Error('Currency must be 3-letter ISO code');
+        if (!currency || currency.length !== 3)
+            throw new Error('Currency must be 3-letter ISO code');
         return new Money({ amount, currency });
     }
 

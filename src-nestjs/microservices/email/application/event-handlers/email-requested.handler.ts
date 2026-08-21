@@ -1,8 +1,8 @@
 import { Controller, Logger } from '@nestjs/common';
 import { EventPattern } from '@nestjs/microservices';
-import type { IEmailMessageRepository } from '../../domain/repositories/email.repository.interface';
 import type { IOutboxWriter } from '../../../../shared/application/ports/outbox-writer.interface';
-import { EmailSentEvent, EmailFailedEvent } from '../../domain/events/email.events';
+import { EmailFailedEvent, EmailSentEvent } from '../../domain/events/email.events';
+import type { IEmailMessageRepository } from '../../domain/repositories/email.repository.interface';
 
 /**
  * EmailRequestedEventHandler — Reacts to `email.requested` events.
@@ -36,9 +36,7 @@ export class EmailRequestedEventHandler {
             await this.deps.emailSender(message.to, message.subject, message.body);
             message.markSent(new Date());
             await this.deps.emailRepo.save(message);
-            await this.deps.outbox.append(
-                new EmailSentEvent(message.id, message.sentAt!)
-            );
+            await this.deps.outbox.append(new EmailSentEvent(message.id, message.sentAt!));
         } catch (error: any) {
             message.markFailed(error.message);
             await this.deps.emailRepo.save(message);

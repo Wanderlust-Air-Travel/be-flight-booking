@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import type {
-    IPaymentGateway,
     GatewayChargeInput,
     GatewayChargeResult,
+    IPaymentGateway,
 } from '../../application/ports/payment-gateway.port';
 
 /**

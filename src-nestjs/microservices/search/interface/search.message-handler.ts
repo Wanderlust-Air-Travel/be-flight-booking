@@ -1,6 +1,10 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
-import { GetFareOptionsHandler, GetFlightDetailsHandler, SearchFlightHandler } from '../../application/handlers/search.handlers';
+import type {
+    GetFareOptionsHandler,
+    GetFlightDetailsHandler,
+    SearchFlightHandler,
+} from '../application/handlers/search.handlers';
 
 /**
  * SearchMessageHandler — Thin interface for search context.

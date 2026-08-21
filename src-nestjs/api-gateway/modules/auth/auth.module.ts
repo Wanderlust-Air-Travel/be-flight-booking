@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import type { StringValue } from 'ms';
+import { AuthTokenService } from 'src/api-gateway/common/services/auth-token.service';
 import { Role } from 'src/api-gateway/data-access/entities/role/role.entity';
 import { User } from 'src/api-gateway/data-access/entities/user/user.entity';
 import { OtpModule } from 'src/shared/modules/otp/otp.module';
@@ -32,7 +33,13 @@ import { JwtStrategy } from './strategies/jwt.strategyt';
         OtpModule, // Add OTP module for OTP storage and verification
     ],
     controllers: [AuthController],
-    providers: [AuthService, JwtStrategy, OptionalJwtAuthGuard],
-    exports: [OptionalJwtAuthGuard, PassportModule, AuthService, JwtModule], // Export JwtModule for use in other modules (e.g., RealtimeModule)
+    providers: [AuthService, JwtStrategy, OptionalJwtAuthGuard, AuthTokenService],
+    exports: [
+        OptionalJwtAuthGuard,
+        PassportModule,
+        AuthService,
+        JwtModule,
+        AuthTokenService, // Exported so DevModule can reuse token issuance
+    ],
 })
 export class AuthModule {}

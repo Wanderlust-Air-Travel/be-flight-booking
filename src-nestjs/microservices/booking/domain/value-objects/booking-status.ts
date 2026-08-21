@@ -18,7 +18,7 @@ import { DomainException } from '../../../../shared/domain/exceptions/domain-exc
 export class BookingStatus {
     private constructor(
         public readonly value: string,
-        private readonly allowedTransitions: ReadonlySet<BookingStatus>
+        private readonly allowedTransitions: Set<BookingStatus>
     ) {}
 
     static readonly PENDING = new BookingStatus('pending', new Set([]));

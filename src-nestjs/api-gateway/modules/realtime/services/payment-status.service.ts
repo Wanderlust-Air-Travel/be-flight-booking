@@ -1,8 +1,8 @@
 import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { RedisService } from 'src/shared/modules/redis/redis.service';
-import { RealtimeService } from '../realtime.service';
 import type { RealtimeGateway } from '../realtime.gateway';
+import { RealtimeService } from '../realtime.service';
 import type { PaymentStatusMessage } from '../types/payment-status.types';
 
 /**
@@ -173,7 +173,9 @@ export class PaymentStatusService implements OnModuleInit, OnModuleDestroy {
                     });
                 }
             } else {
-                this.logger.warn('RealtimeGateway not available, cannot broadcast payment status update');
+                this.logger.warn(
+                    'RealtimeGateway not available, cannot broadcast payment status update'
+                );
             }
 
             this.logger.debug(

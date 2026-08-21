@@ -54,10 +54,7 @@ export class EmailController {
     @ApiBadRequestResponse({
         description: 'Invalid request parameters or validation failed',
     })
-    async sendEmail(
-        @Req() req: Request,
-        @Body() dto: SendEmailDto
-    ): Promise<EmailResponseDto> {
+    async sendEmail(@Req() req: Request, @Body() dto: SendEmailDto): Promise<EmailResponseDto> {
         // Fallback: if NestJS injects the DTO class instead of an instance, read from req.body
         const body = typeof dto === 'function' ? req.body : dto;
 

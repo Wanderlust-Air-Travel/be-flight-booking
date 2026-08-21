@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import type { IEmailMessageRepository } from '../../domain/repositories/email.repository.interface';
 import type { IOutboxWriter } from '../../../../shared/application/ports/outbox-writer.interface';
+import type { IEmailMessageRepository } from '../../domain/repositories/email.repository.interface';
 
 export interface SendEmailDirectCommand {
     emailMessageId: string;
@@ -28,7 +28,8 @@ export class SendEmailDirectHandler {
 
     constructor(
         @Inject('IEmailMessageRepository') private readonly repo: IEmailMessageRepository,
-        @Inject('IEmailSender') private readonly emailSender: (to: string, subject: string, body: string) => Promise<void>,
+        @Inject('IEmailSender')
+        private readonly emailSender: (to: string, subject: string, body: string) => Promise<void>,
         @Inject('IOutboxWriter') private readonly outbox: IOutboxWriter
     ) {}
 

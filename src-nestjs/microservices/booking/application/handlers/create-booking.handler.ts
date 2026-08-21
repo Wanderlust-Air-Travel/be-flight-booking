@@ -1,9 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { IBookingRepository } from '../../domain/repositories/booking.repository.interface';
-import type { IOutboxWriter } from '../../../shared/application/ports/outbox-writer.interface';
-import type { CreateBookingCommand, CreateBookingResponse } from '../commands/create-booking.command';
+import type { IOutboxWriter } from 'src/shared/application/ports/outbox-writer.interface';
 import { Booking } from '../../domain/aggregates/booking.aggregate';
-import { DomainException } from '../../../shared/domain/exceptions/domain-exception';
+import type { IBookingRepository } from '../../domain/repositories/booking.repository.interface';
+import type {
+    CreateBookingCommand,
+    CreateBookingResponse,
+} from '../commands/create-booking.command';
 
 /**
  * CreateBookingHandler — Use case for creating a new booking.
