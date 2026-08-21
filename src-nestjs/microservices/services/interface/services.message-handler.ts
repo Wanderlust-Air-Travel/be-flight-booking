@@ -1,6 +1,6 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
-import { SERVICES_MS } from '../../services.messages';
+import { SERVICES_MS } from '../services.messages';
 import type {
     ApplyPromotionHandler,
     GetDealsHandler,
