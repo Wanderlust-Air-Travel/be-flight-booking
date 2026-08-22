@@ -1,0 +1,541 @@
+name: be-flight-booking
+services:
+  api-gateway:
+    build:
+      context: D:\Sources\flight-booking\be-flight-booking
+      dockerfile: Dockerfile.development
+    container_name: wat-api-gateway
+    depends_on:
+      booking-ms:
+        condition: service_started
+        required: true
+      email-ms:
+        condition: service_started
+        required: true
+      payment-ms:
+        condition: service_started
+        required: true
+      rabbitmq:
+        condition: service_healthy
+        required: true
+      redis:
+        condition: service_healthy
+        required: true
+      reservation-ms:
+        condition: service_started
+        required: true
+      routes-ms:
+        condition: service_started
+        required: true
+      search-ms:
+        condition: service_started
+        required: true
+      services-ms:
+        condition: service_started
+        required: true
+      sqlserver:
+        condition: service_healthy
+        required: true
+    environment:
+      API_GATEWAY_PORT: "3000"
+      APP_URL: http://localhost:3001
+      BOOKING_MS_HOST: booking-ms
+      BOOKING_MS_PEER_HOST: booking-ms
+      BOOKING_MS_PORT: "4004"
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
+      DB_ENCRYPT: "true"
+      DB_HOST: localhost
+      DB_NAME: flight_booking_db
+      DB_PASS: StrongPass1234
+      DB_PORT: "1433"
+      DB_TRUST_CERT: "true"
+      DB_USER: sa
+      DEV_LOGIN_ENABLED: "true"
+      EMAIL_MS_HOST: email-ms
+      EMAIL_MS_PEER_HOST: email-ms
+      EMAIL_MS_PORT: "4007"
+      JWT_ACCESS_SECRET: dev_secret_change_before_production
+      LOG_LEVEL: debug
+      NODE_ENV: development
+      PAYMENT_MS_HOST: payment-ms
+      PAYMENT_MS_PEER_HOST: payment-ms
+      PAYMENT_MS_PORT: "4006"
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PASSWORD: guest
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: guest
+      RABBITMQ_VHOST: /
+      REDIS_DB: "0"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      RESERVATION_MS_HOST: reservation-ms
+      RESERVATION_MS_PEER_HOST: reservation-ms
+      RESERVATION_MS_PORT: "4005"
+      ROUTES_MS_HOST: routes-ms
+      ROUTES_MS_PEER_HOST: routes-ms
+      ROUTES_MS_PORT: "4003"
+      SEARCH_MS_HOST: search-ms
+      SEARCH_MS_PEER_HOST: search-ms
+      SEARCH_MS_PORT: "4001"
+      SERVICES_MS_HOST: services-ms
+      SERVICES_MS_PEER_HOST: services-ms
+      SERVICES_MS_PORT: "4002"
+    image: wanderlust-air/nestjs-api-gateway:latest
+    networks:
+      default: null
+    ports:
+      - mode: ingress
+        target: 3000
+        published: "3000"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: api_gateway_public
+        target: /app/public
+        volume: {}
+      - type: volume
+        source: api_gateway_dist
+        target: /app/dist
+        volume: {}
+      - type: volume
+        target: /app/node_modules
+        volume: {}
+  booking-ms:
+    build:
+      context: D:\Sources\flight-booking\be-flight-booking
+      dockerfile: Dockerfile.development
+    command:
+      - node
+      - dist/microservices/booking/main.booking.js
+    container_name: wat-booking-ms
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+        required: true
+      sqlserver:
+        condition: service_healthy
+        required: true
+    environment:
+      BOOKING_MS_HOST: 0.0.0.0
+      BOOKING_MS_PORT: "4004"
+      DB_ENCRYPT: "true"
+      DB_HOST: localhost
+      DB_NAME: flight_booking_db
+      DB_PASS: StrongPass1234
+      DB_PORT: "1433"
+      DB_TRUST_CERT: "true"
+      DB_USER: sa
+      EMAIL_MS_HOST: email-ms
+      EMAIL_MS_PORT: "4007"
+      NODE_ENV: development
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PASSWORD: guest
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: guest
+      RABBITMQ_VHOST: /
+      REDIS_DB: "0"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      RESERVATION_MS_HOST: reservation-ms
+      RESERVATION_MS_PORT: "4005"
+    healthcheck:
+      disable: true
+    image: wanderlust-air/nestjs-booking-ms:latest
+    networks:
+      default: null
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: booking_ms_dist
+        target: /app/dist
+        volume: {}
+      - type: volume
+        target: /app/node_modules
+        volume: {}
+  email-ms:
+    build:
+      context: D:\Sources\flight-booking\be-flight-booking
+      dockerfile: Dockerfile.development.email
+    command:
+      - node
+      - dist/microservices/email/main.email.js
+    container_name: wat-email-ms
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+        required: true
+      sqlserver:
+        condition: service_healthy
+        required: true
+    environment:
+      DB_ENCRYPT: "true"
+      DB_HOST: localhost
+      DB_NAME: flight_booking_db
+      DB_PASS: StrongPass1234
+      DB_PORT: "1433"
+      DB_TRUST_CERT: "true"
+      DB_USER: sa
+      EMAIL_MS_HOST: 0.0.0.0
+      EMAIL_MS_PORT: "4007"
+      NODE_ENV: development
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PASSWORD: guest
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: guest
+      RABBITMQ_VHOST: /
+      REDIS_DB: "0"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+    healthcheck:
+      disable: true
+    image: wanderlust-air/nestjs-email-ms:latest
+    networks:
+      default: null
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: email_ms_dist
+        target: /app/dist
+        volume: {}
+      - type: volume
+        target: /app/node_modules
+        volume: {}
+  payment-ms:
+    build:
+      context: D:\Sources\flight-booking\be-flight-booking
+      dockerfile: Dockerfile.development
+    command:
+      - node
+      - dist/microservices/payment/main.payment.js
+    container_name: wat-payment-ms
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+        required: true
+      sqlserver:
+        condition: service_healthy
+        required: true
+    environment:
+      APP_URL: http://localhost:3001
+      BOOKING_MS_HOST: booking-ms
+      BOOKING_MS_PORT: "4004"
+      DB_ENCRYPT: "true"
+      DB_HOST: localhost
+      DB_NAME: flight_booking_db
+      DB_PASS: StrongPass1234
+      DB_PORT: "1433"
+      DB_TRUST_CERT: "true"
+      DB_USER: sa
+      EMAIL_MS_HOST: email-ms
+      EMAIL_MS_PORT: "4007"
+      NODE_ENV: development
+      PAYMENT_MS_HOST: 0.0.0.0
+      PAYMENT_MS_PORT: "4006"
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PASSWORD: guest
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: guest
+      RABBITMQ_VHOST: /
+      REDIS_DB: "0"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+    healthcheck:
+      disable: true
+    image: wanderlust-air/nestjs-payment-ms:latest
+    networks:
+      default: null
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: payment_ms_dist
+        target: /app/dist
+        volume: {}
+      - type: volume
+        target: /app/node_modules
+        volume: {}
+  rabbitmq:
+    container_name: wat-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: guest
+    healthcheck:
+      test:
+        - CMD
+        - rabbitmq-diagnostics
+        - ping
+      timeout: 10s
+      interval: 30s
+      retries: 5
+      start_period: 1m0s
+    image: rabbitmq:3.13-management-alpine
+    networks:
+      default: null
+    ports:
+      - mode: ingress
+        target: 5672
+        published: "5672"
+        protocol: tcp
+      - mode: ingress
+        target: 15672
+        published: "15672"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: rabbitmq_data
+        target: /var/lib/rabbitmq
+        volume: {}
+  redis:
+    command:
+      - redis-server
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - allkeys-lru
+      - --save
+      - ""
+      - --appendonly
+      - 'no'
+    container_name: wat-redis
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - ping
+      timeout: 5s
+      interval: 10s
+      retries: 3
+    image: redis:7-alpine
+    networks:
+      default: null
+    ports:
+      - mode: ingress
+        target: 6379
+        published: "6379"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: redis_data
+        target: /data
+        volume: {}
+  reservation-ms:
+    build:
+      context: D:\Sources\flight-booking\be-flight-booking
+      dockerfile: Dockerfile.development
+    command:
+      - node
+      - dist/microservices/reservation/main.reservation.js
+    container_name: wat-reservation-ms
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+        required: true
+    environment:
+      DB_ENCRYPT: "true"
+      DB_HOST: localhost
+      DB_NAME: flight_booking_db
+      DB_PASS: StrongPass1234
+      DB_PORT: "1433"
+      DB_TRUST_CERT: "true"
+      DB_USER: sa
+      NODE_ENV: development
+      REDIS_DB: "0"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      RESERVATION_MS_HOST: 0.0.0.0
+      RESERVATION_MS_PORT: "4005"
+    healthcheck:
+      disable: true
+    image: wanderlust-air/nestjs-reservation-ms:latest
+    networks:
+      default: null
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: reservation_ms_dist
+        target: /app/dist
+        volume: {}
+      - type: volume
+        target: /app/node_modules
+        volume: {}
+  routes-ms:
+    build:
+      context: D:\Sources\flight-booking\be-flight-booking
+      dockerfile: Dockerfile.development
+    command:
+      - node
+      - dist/microservices/routes/main.routes.js
+    container_name: wat-routes-ms
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+        required: true
+    environment:
+      DB_ENCRYPT: "true"
+      DB_HOST: localhost
+      DB_NAME: flight_booking_db
+      DB_PASS: StrongPass1234
+      DB_PORT: "1433"
+      DB_TRUST_CERT: "true"
+      DB_USER: sa
+      NODE_ENV: development
+      REDIS_DB: "0"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      ROUTES_MS_HOST: 0.0.0.0
+      ROUTES_MS_PORT: "4003"
+    healthcheck:
+      disable: true
+    image: wanderlust-air/nestjs-routes-ms:latest
+    networks:
+      default: null
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: routes_ms_dist
+        target: /app/dist
+        volume: {}
+      - type: volume
+        target: /app/node_modules
+        volume: {}
+  search-ms:
+    build:
+      context: D:\Sources\flight-booking\be-flight-booking
+      dockerfile: Dockerfile.development
+    command:
+      - node
+      - dist/microservices/search/main.search.js
+    container_name: wat-search-ms
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+        required: true
+    environment:
+      DB_ENCRYPT: "true"
+      DB_HOST: localhost
+      DB_NAME: flight_booking_db
+      DB_PASS: StrongPass1234
+      DB_PORT: "1433"
+      DB_TRUST_CERT: "true"
+      DB_USER: sa
+      NODE_ENV: development
+      REDIS_DB: "0"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      SEARCH_MS_HOST: 0.0.0.0
+      SEARCH_MS_PORT: "4001"
+    healthcheck:
+      disable: true
+    image: wanderlust-air/nestjs-search-ms:latest
+    networks:
+      default: null
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: search_ms_dist
+        target: /app/dist
+        volume: {}
+      - type: volume
+        target: /app/node_modules
+        volume: {}
+  services-ms:
+    build:
+      context: D:\Sources\flight-booking\be-flight-booking
+      dockerfile: Dockerfile.development
+    command:
+      - node
+      - dist/microservices/services/main.services.js
+    container_name: wat-services-ms
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+        required: true
+    environment:
+      DB_ENCRYPT: "true"
+      DB_HOST: localhost
+      DB_NAME: flight_booking_db
+      DB_PASS: StrongPass1234
+      DB_PORT: "1433"
+      DB_TRUST_CERT: "true"
+      DB_USER: sa
+      NODE_ENV: development
+      REDIS_DB: "0"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      SERVICES_MS_HOST: 0.0.0.0
+      SERVICES_MS_PORT: "4002"
+    healthcheck:
+      disable: true
+    image: wanderlust-air/nestjs-services-ms:latest
+    networks:
+      default: null
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: services_ms_dist
+        target: /app/dist
+        volume: {}
+      - type: volume
+        target: /app/node_modules
+        volume: {}
+  sqlserver:
+    container_name: wat-sqlserver
+    environment:
+      ACCEPT_EULA: 'Y'
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: StrongPass1234
+      SA_PASSWORD: StrongPass1234
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P StrongPass1234 -C -Q
+          'SELECT 1' || exit 1
+      timeout: 5s
+      interval: 10s
+      retries: 10
+      start_period: 1m0s
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    networks:
+      default: null
+    ports:
+      - mode: ingress
+        target: 1433
+        published: "1434"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: sqlserver_data
+        target: /var/opt/mssql
+        volume: {}
+networks:
+  default:
+    name: be-flight-booking_default
+    external: true
+volumes:
+  api_gateway_dist:
+    name: be-flight-booking_api_gateway_dist
+  api_gateway_public:
+    name: be-flight-booking_api_gateway_public
+  booking_ms_dist:
+    name: be-flight-booking_booking_ms_dist
+  email_ms_dist:
+    name: be-flight-booking_email_ms_dist
+  payment_ms_dist:
+    name: be-flight-booking_payment_ms_dist
+  rabbitmq_data:
+    name: be-flight-booking_rabbitmq_data
+  redis_data:
+    name: be-flight-booking_redis_data
+  reservation_ms_dist:
+    name: be-flight-booking_reservation_ms_dist
+  routes_ms_dist:
+    name: be-flight-booking_routes_ms_dist
+  search_ms_dist:
+    name: be-flight-booking_search_ms_dist
+  services_ms_dist:
+    name: be-flight-booking_services_ms_dist
+  sqlserver_data:
+    name: be-flight-booking_sqlserver_data

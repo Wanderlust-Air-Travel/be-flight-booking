@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ClientProxyFactory, Transport } from '@nestjs/microservices';
-// import { OutboxModule } from '../../../shared/modules/outbox/outbox.module';
+import { EventBusModule } from '../../shared/modules/event-bus/event-bus.module';
+import { OutboxModule } from '../../shared/modules/outbox/outbox.module';
 import { BookingCreatedNotificationHandler } from './application/event-handlers/booking-created-notification.handler';
 import { PaymentSucceededHandler } from './application/event-handlers/payment-succeeded.handler';
 import { CancelBookingHandler } from './application/handlers/cancel-booking.handler';
@@ -12,7 +13,7 @@ import { GetBookingHandler } from './application/handlers/get-booking.handler';
 import { GetMyJourneyHandler } from './application/handlers/get-my-journey.handler';
 import { GetMyTicketsHandler } from './application/handlers/get-my-tickets.handler';
 import { UpdateBookingPassengersHandler } from './application/handlers/update-booking-passengers.handler';
-import { InMemoryBookingRepository } from './domain/repositories/in-memory-booking.repository';
+import { BookingTypeOrmRepository } from './infrastructure/repositories/booking.typeorm.repository';
 import { BookingInternalAdapter } from './infrastructure/adapters/booking-internal.adapter';
 import { NotificationEventAdapter } from './infrastructure/adapters/notification-event.adapter';
 import { ReservationTcpAdapter } from './infrastructure/adapters/reservation-tcp.adapter';
@@ -34,7 +35,7 @@ import { BookingMessageHandler } from './interface/booking.message-handler';
  * Old booking.service.ts (3966 lines) is replaced by these 9 single-purpose handlers.
  */
 @Module({
-    imports: [],
+    imports: [OutboxModule, EventBusModule],
     controllers: [
         BookingMessageHandler,
         PaymentSucceededHandler,
@@ -52,11 +53,11 @@ import { BookingMessageHandler } from './interface/booking.message-handler';
         GetMyTicketsHandler,
         GetMyJourneyHandler,
 
-        // Repository: in-memory for now; phase 7 swaps in TypeORM adapter
-        InMemoryBookingRepository,
+        // Repository: TypeORM-backed implementation
+        BookingTypeOrmRepository,
         {
             provide: 'IBookingRepository',
-            useExisting: InMemoryBookingRepository,
+            useExisting: BookingTypeOrmRepository,
         },
 
         // Cross-context port adapters

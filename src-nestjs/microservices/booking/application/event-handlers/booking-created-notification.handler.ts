@@ -1,6 +1,6 @@
 import { Controller, Logger } from '@nestjs/common';
 import { EventPattern } from '@nestjs/microservices';
-import type { GetBookingHandler } from '../handlers/get-booking.handler';
+import { GetBookingHandler } from '../handlers/get-booking.handler';
 
 /**
  * BookingCreatedNotificationHandler — Reacts to booking.created events

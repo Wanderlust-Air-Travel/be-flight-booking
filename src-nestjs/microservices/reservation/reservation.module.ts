@@ -1,21 +1,22 @@
 import { Module } from '@nestjs/common';
-// import { OutboxModule } from '../../../shared/modules/outbox/outbox.module';
+import { OutboxModule } from '../../shared/modules/outbox/outbox.module';
 import { CancelReservationHandler } from './application/handlers/cancel-reservation.handler';
 import { ConvertToBookingHandler } from './application/handlers/convert-to-booking.handler';
 import { CreateReservationHandler } from './application/handlers/create-reservation.handler';
 import { ExpireReservationScheduler } from './application/handlers/expire-reservation.scheduler';
 import { GetReservationHandler } from './application/handlers/get-reservation.handler';
-import { InMemoryReservationRepository } from './domain/repositories/in-memory-reservation.repository';
+import { ReservationTypeOrmRepository } from './infrastructure/repositories/reservation.typeorm.repository';
 import { ReservationMessageHandler } from './interface/reservation.message-handler';
 
 /**
  * ReservationModule — Wires the reservation bounded context.
  *
- * Old reservation.service.ts (686 lines) is replaced by 4 single-purpose handlers
- * + 1 cron scheduler.
+ * IReservationRepository is bound to ReservationTypeOrmRepository, backed by
+ * the SQL Server Reservations table via TypeORM DataSource.
+ * IOutboxWriter comes from the @Global OutboxModule.
  */
 @Module({
-    imports: [],
+    imports: [OutboxModule],
     controllers: [ReservationMessageHandler],
     providers: [
         CreateReservationHandler,
@@ -24,10 +25,11 @@ import { ReservationMessageHandler } from './interface/reservation.message-handl
         ConvertToBookingHandler,
         ExpireReservationScheduler,
 
-        InMemoryReservationRepository,
+        // Repository: TypeORM-backed implementation
+        ReservationTypeOrmRepository,
         {
             provide: 'IReservationRepository',
-            useExisting: InMemoryReservationRepository,
+            useExisting: ReservationTypeOrmRepository,
         },
     ],
     exports: ['IReservationRepository'],

@@ -1,6 +1,6 @@
 import { Controller, Logger } from '@nestjs/common';
 import { EventPattern } from '@nestjs/microservices';
-import type { CreateTicketsFromBookingHandler } from '../handlers/create-tickets-from-booking.handler';
+import { CreateTicketsFromBookingHandler } from '../handlers/create-tickets-from-booking.handler';
 
 /**
  * PaymentSucceededHandler — Listens for payment.succeeded events from the

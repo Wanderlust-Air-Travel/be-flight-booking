@@ -1,0 +1,68 @@
+import { ApiProperty } from '@nestjs/swagger';
+import { IsBoolean, IsDateString, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+
+export class UpdatePromotionDto {
+    @ApiProperty({
+        description: 'Promotion description',
+        example: 'Giảm 10% cho lần đặt vé đầu tiên.',
+        required: false,
+        maxLength: 1000,
+    })
+    @IsOptional()
+    @IsString()
+    @MaxLength(1000)
+    description?: string;
+
+    @ApiProperty({
+        description: 'End date of the promotion',
+        example: '2026-12-31T23:59:59Z',
+        required: false,
+    })
+    @IsOptional()
+    @IsDateString()
+    validUntil?: string;
+
+    @ApiProperty({
+        description: 'Minimum purchase amount to apply the promotion',
+        example: 1000000,
+        minimum: 0,
+        required: false,
+    })
+    @IsOptional()
+    @IsNumber()
+    @Min(0)
+    minPurchaseAmount?: number;
+
+    @ApiProperty({
+        description: 'Currency code',
+        example: 'VND',
+        required: false,
+        maxLength: 3,
+    })
+    @IsOptional()
+    @IsString()
+    @MaxLength(3)
+    currency?: string;
+
+    @ApiProperty({
+        description: 'Discount percentage',
+        example: 10,
+        minimum: 1,
+        maximum: 100,
+        required: false,
+    })
+    @IsOptional()
+    @IsNumber()
+    @Min(1)
+    @Max(100)
+    discountPct?: number;
+
+    @ApiProperty({
+        description: 'Whether the promotion is active',
+        example: true,
+        required: false,
+    })
+    @IsOptional()
+    @IsBoolean()
+    isActive?: boolean;
+}

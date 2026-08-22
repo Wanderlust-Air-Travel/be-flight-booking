@@ -90,6 +90,7 @@ services:
       - "${API_GATEWAY_PORT}:3000"
     volumes:
       - api_gateway_public:/app/public
+      - api_gateway_dist:/app/dist
       - /app/node_modules
     depends_on:
       sqlserver: { condition: service_healthy }

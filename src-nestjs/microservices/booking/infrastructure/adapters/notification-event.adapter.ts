@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { IDomainEventBus } from '../../../../shared/application/ports/domain-event-bus.interface';
 import type {
     BookingCancellationInput,
@@ -17,7 +17,7 @@ import type {
 export class NotificationEventAdapter implements INotificationPort {
     private readonly logger = new Logger(NotificationEventAdapter.name);
 
-    constructor(private readonly eventBus: IDomainEventBus) {}
+    constructor(@Inject('IDomainEventBus') private readonly eventBus: IDomainEventBus) {}
 
     async sendBookingConfirmation(input: BookingNotificationInput): Promise<void> {
         await this.eventBus.publish({

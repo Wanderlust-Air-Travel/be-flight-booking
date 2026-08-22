@@ -1,9 +1,9 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
-import type { CancelReservationHandler } from '../application/handlers/cancel-reservation.handler';
-import type { ConvertToBookingHandler } from '../application/handlers/convert-to-booking.handler';
-import type { CreateReservationHandler } from '../application/handlers/create-reservation.handler';
-import type { GetReservationHandler } from '../application/handlers/get-reservation.handler';
+import { CancelReservationHandler } from '../application/handlers/cancel-reservation.handler';
+import { ConvertToBookingHandler } from '../application/handlers/convert-to-booking.handler';
+import { CreateReservationHandler } from '../application/handlers/create-reservation.handler';
+import { GetReservationHandler } from '../application/handlers/get-reservation.handler';
 
 /**
  * ReservationMessageHandler — Thin interface for reservation context.
@@ -18,22 +18,22 @@ export class ReservationMessageHandler {
         private readonly convertHandler: ConvertToBookingHandler
     ) {}
 
-    @MessagePattern('create_reservation')
+    @MessagePattern('reservation.create')
     async create(payload: any): Promise<any> {
         return this.createHandler.execute(payload);
     }
 
-    @MessagePattern('get_reservation')
+    @MessagePattern('reservation.get')
     async get(payload: { reservationId: string }): Promise<any> {
         return this.getHandler.execute(payload);
     }
 
-    @MessagePattern('cancel_reservation')
+    @MessagePattern('reservation.cancel')
     async cancel(payload: any): Promise<any> {
         return this.cancelHandler.execute(payload);
     }
 
-    @MessagePattern('convert_reservation_to_booking')
+    @MessagePattern('reservation.convert-to-booking')
     async convert(payload: any): Promise<any> {
         return this.convertHandler.execute({
             reservationId: payload.reservationId,

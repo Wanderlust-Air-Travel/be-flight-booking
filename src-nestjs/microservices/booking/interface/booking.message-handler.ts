@@ -1,14 +1,14 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
-import type { CancelBookingHandler } from '../application/handlers/cancel-booking.handler';
-import type { CancelTicketHandler } from '../application/handlers/cancel-ticket.handler';
-import type { CheckInBookingHandler } from '../application/handlers/check-in-booking.handler';
-import type { CreateBookingHandler } from '../application/handlers/create-booking.handler';
-import type { CreateTicketsFromBookingHandler } from '../application/handlers/create-tickets-from-booking.handler';
-import type { GetBookingHandler } from '../application/handlers/get-booking.handler';
-import type { GetMyJourneyHandler } from '../application/handlers/get-my-journey.handler';
-import type { GetMyTicketsHandler } from '../application/handlers/get-my-tickets.handler';
-import type { UpdateBookingPassengersHandler } from '../application/handlers/update-booking-passengers.handler';
+import { CancelBookingHandler } from '../application/handlers/cancel-booking.handler';
+import { CancelTicketHandler } from '../application/handlers/cancel-ticket.handler';
+import { CheckInBookingHandler } from '../application/handlers/check-in-booking.handler';
+import { CreateBookingHandler } from '../application/handlers/create-booking.handler';
+import { CreateTicketsFromBookingHandler } from '../application/handlers/create-tickets-from-booking.handler';
+import { GetBookingHandler } from '../application/handlers/get-booking.handler';
+import { GetMyJourneyHandler } from '../application/handlers/get-my-journey.handler';
+import { GetMyTicketsHandler } from '../application/handlers/get-my-tickets.handler';
+import { UpdateBookingPassengersHandler } from '../application/handlers/update-booking-passengers.handler';
 import { ContactInfo } from '../domain/value-objects/contact-info';
 import { Money } from '../domain/value-objects/money';
 
@@ -32,7 +32,7 @@ export class BookingMessageHandler {
         private readonly getMyJourneyHandler: GetMyJourneyHandler
     ) {}
 
-    @MessagePattern('create_booking')
+    @MessagePattern('booking.create')
     async createBooking(payload: any): Promise<any> {
         return this.createBookingHandler.execute({
             contact: ContactInfo.create(
@@ -47,12 +47,12 @@ export class BookingMessageHandler {
         });
     }
 
-    @MessagePattern('get_booking')
+    @MessagePattern('booking.get')
     async getBooking(payload: { bookingId: string; userId: string | null }): Promise<any> {
         return this.getBookingHandler.execute(payload);
     }
 
-    @MessagePattern('cancel_booking')
+    @MessagePattern('booking.cancel')
     async cancelBooking(payload: any): Promise<any> {
         return this.cancelBookingHandler.execute({
             bookingId: payload.bookingId,
@@ -61,7 +61,7 @@ export class BookingMessageHandler {
         });
     }
 
-    @MessagePattern('cancel_ticket')
+    @MessagePattern('booking.cancel-ticket')
     async cancelTicket(payload: any): Promise<any> {
         return this.cancelTicketHandler.execute({
             bookingId: payload.bookingId,
@@ -71,7 +71,7 @@ export class BookingMessageHandler {
         });
     }
 
-    @MessagePattern('update_booking_passengers')
+    @MessagePattern('booking.update-passengers')
     async updatePassengers(payload: any): Promise<any> {
         return this.updatePassengersHandler.execute({
             bookingId: payload.bookingId,
@@ -80,7 +80,7 @@ export class BookingMessageHandler {
         });
     }
 
-    @MessagePattern('check_in_booking')
+    @MessagePattern('booking.check-in')
     async checkInBooking(payload: any): Promise<any> {
         return this.checkInBookingHandler.execute({
             bookingId: payload.bookingId,
@@ -89,7 +89,7 @@ export class BookingMessageHandler {
         });
     }
 
-    @MessagePattern('create_tickets_from_booking')
+    @MessagePattern('booking.create-tickets-from-booking')
     async createTickets(payload: any): Promise<any> {
         return this.createTicketsHandler.execute({
             bookingId: payload.bookingId,
@@ -97,7 +97,7 @@ export class BookingMessageHandler {
         });
     }
 
-    @MessagePattern('get_my_tickets')
+    @MessagePattern('booking.get-my-tickets')
     async getMyTickets(payload: any): Promise<any> {
         return this.getMyTicketsHandler.execute({
             userId: payload.userId,
@@ -106,7 +106,7 @@ export class BookingMessageHandler {
         });
     }
 
-    @MessagePattern('get_my_journey')
+    @MessagePattern('booking.get-my-journey')
     async getMyJourney(payload: any): Promise<any> {
         return this.getMyJourneyHandler.execute({ userId: payload.userId });
     }

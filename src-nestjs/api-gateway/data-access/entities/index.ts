@@ -39,3 +39,7 @@ export * from './payment/payment.entity';
 export * from './payment/payment-method.entity';
 export * from './fare/fare-class.entity';
 export * from './currency/currency.entity';
+
+// Services (Deals & Promotions)
+export * from './deal/deal.entity';
+export * from './deal/promotion.entity';

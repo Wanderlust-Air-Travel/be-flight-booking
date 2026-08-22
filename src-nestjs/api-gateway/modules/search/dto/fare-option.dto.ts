@@ -22,6 +22,18 @@ export class FareOptionDto {
     fareClassCode!: string;
 
     @ApiProperty({
+        description: 'Cabin class code this fare class belongs to (e.g., Y, J, F, W)',
+        example: 'Y',
+    })
+    cabinClassCode!: string;
+
+    @ApiProperty({
+        description: 'Cabin class display name (e.g., Economy, Business)',
+        example: 'Economy',
+    })
+    cabinClassName?: string;
+
+    @ApiProperty({
         description: 'Fare class name (e.g., Economy Saver Max, Economy Smart)',
         example: 'Economy Saver Max',
     })

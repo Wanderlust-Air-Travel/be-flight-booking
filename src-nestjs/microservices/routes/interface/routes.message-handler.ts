@@ -1,6 +1,6 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
-import type {
+import {
     GetFlightScheduleHandler,
     GetRoutesHandler,
 } from '../application/handlers/routes.handlers';
@@ -12,12 +12,12 @@ export class RoutesMessageHandler {
         private readonly getFlightScheduleHandler: GetFlightScheduleHandler
     ) {}
 
-    @MessagePattern('get_routes')
+    @MessagePattern('routes.list')
     async getRoutes(): Promise<any> {
         return this.getRoutesHandler.execute();
     }
 
-    @MessagePattern('get_flight_schedule')
+    @MessagePattern('routes.schedule')
     async getFlightSchedule(payload: { routeId: string }): Promise<any> {
         return this.getFlightScheduleHandler.execute(payload.routeId);
     }

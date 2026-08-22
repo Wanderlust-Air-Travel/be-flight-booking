@@ -6,6 +6,8 @@ import { Airline } from 'src/api-gateway/data-access/entities/airline/airline.en
 import { Airport } from 'src/api-gateway/data-access/entities/airport/airport.entity';
 import { CabinClass } from 'src/api-gateway/data-access/entities/cabin/cabin-class.entity';
 import { CabinService } from 'src/api-gateway/data-access/entities/cabin/cabin-service.entity';
+import { Deal } from 'src/api-gateway/data-access/entities/deal/deal.entity';
+import { Promotion } from 'src/api-gateway/data-access/entities/deal/promotion.entity';
 import { BaggageAllowance } from 'src/api-gateway/data-access/entities/fare/baggage-allowance.entity';
 import { FareClass } from 'src/api-gateway/data-access/entities/fare/fare-class.entity';
 import { FareDescriptionRule } from 'src/api-gateway/data-access/entities/fare/fare-description-rule.entity';
@@ -44,6 +46,8 @@ import { AdminService } from './admin.service';
             BaggageAllowance,
             CabinService,
             FareDescriptionRule,
+            Deal,
+            Promotion,
         ]),
         AuthModule,
     ],

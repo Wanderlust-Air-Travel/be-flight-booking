@@ -1,6 +1,6 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
-import type {
+import {
     GetFareOptionsHandler,
     GetFlightDetailsHandler,
     SearchFlightHandler,
@@ -18,14 +18,14 @@ export class SearchMessageHandler {
         private readonly flightDetailsHandler: GetFlightDetailsHandler
     ) {}
 
-    @MessagePattern('search_flights')
+    @MessagePattern('search.flights')
     async search(payload: any): Promise<any> {
         return this.searchHandler.execute({
             origin: payload.origin,
             destination: payload.destination,
-            departureDate: new Date(payload.departureDate),
+            departureDate: new Date(payload.departDate ?? payload.departureDate),
             returnDate: payload.returnDate ? new Date(payload.returnDate) : undefined,
-            passengers: payload.passengers ?? 1,
+            passengers: Number(payload.passengers ?? payload.adults ?? 1),
             cabinClass: payload.cabinClass ?? 'economy',
         });
     }

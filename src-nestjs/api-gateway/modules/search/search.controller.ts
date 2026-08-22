@@ -6,6 +6,7 @@ import {
     InternalServerErrorException,
     Logger,
     NotFoundException,
+    Param,
     Query,
     Req,
     ServiceUnavailableException,
@@ -30,6 +31,7 @@ import { SEARCH_MS } from 'src/microservices/search/search.messages';
 import { CabinType, TripType } from 'src/shared/constants/enums';
 import { BookingStateService } from 'src/shared/services/booking-state.service';
 import { CabinServiceService } from 'src/shared/services/cabin-service.service';
+import { FareOptionService } from 'src/shared/services/fare-option.service';
 import type { Repository } from 'typeorm';
 import { OptionalJwtAuthGuard } from '../auth/guard/optional-jwt-auth.guard';
 import { AirportListResponseDto } from './dto/airport-list-response.dto';
@@ -59,7 +61,8 @@ export class SearchController {
         @Inject('SEARCH_CLIENT') private readonly _client: ClientProxy,
         @InjectRepository(Airport) private readonly airportRepo: Repository<Airport>,
         private readonly bookingStateService: BookingStateService,
-        private readonly cabinServiceService: CabinServiceService
+        private readonly cabinServiceService: CabinServiceService,
+        private readonly fareOptionService: FareOptionService
     ) {}
 
     @Get('flights')
@@ -459,13 +462,35 @@ export class SearchController {
                 flightInstanceId: trimmedFlightInstanceId,
                 cabinType: cabinType,
             };
-            const result = await firstValueFrom(
-                this.client.send<FareOptionsResponseDto>('search.fare-options', payload)
-            );
+            // Build fare options directly from the database via FareOptionService.
+            // The previous implementation delegated to the search microservice,
+            // whose ISearchAdapter is not bound, which caused runtime failures.
+            let fareOptions: FareOptionDto[];
+            try {
+                fareOptions = await this.fareOptionService.getFareOptionsForInstance(
+                    payload.flightInstanceId as string,
+                    payload.cabinType as CabinType
+                );
+            } catch (error: any) {
+                this.logger.error('Fare option build error:', error);
+                if (error instanceof HttpException) {
+                    throw error;
+                }
+                if (error?.statusCode === 404) {
+                    throw new NotFoundException(error.message);
+                }
+                throw new InternalServerErrorException(
+                    'Failed to build fare options. Please try again later.'
+                );
+            }
 
-            // Return fare options directly (array format for FE compatibility)
-            // FE can access: result.fareOptions or result.list (if wrapped)
-            return result.fareOptions;
+            if (!fareOptions.length) {
+                throw new NotFoundException(
+                    `No fare options available for flight ${payload.flightInstanceId} in cabin ${payload.cabinType}`
+                );
+            }
+
+            return fareOptions;
         } catch (error: any) {
             this.logger.error('Get fare options error:', error);
             // Re-throw NestJS HttpException instances as-is (BadRequestException, NotFoundException, etc.)
@@ -887,5 +912,85 @@ export class SearchController {
                 `Failed to retrieve cabin services: ${error?.message || 'Unknown error'}`
             );
         }
+    }
+
+    @Get('cabin-classes')
+    @ApiOperation({
+        summary: 'Get all cabin classes (public)',
+        description:
+            'Get all cabin classes with their codes and names. Public endpoint — no auth required. Used by the frontend to map between cabin type ("economy"/"business") and cabin class code ("Y"/"J").',
+    })
+    @ApiOkResponse({
+        description: 'Cabin classes retrieved successfully',
+        schema: {
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    cabinClassCode: { type: 'string', example: 'Y' },
+                    name: { type: 'string', example: 'Economy' },
+                },
+            },
+        },
+    })
+    @ApiResponse({
+        status: 500,
+        description: 'Internal server error',
+    })
+    async getCabinClasses(): Promise<Array<{ cabinClassCode: string; name: string }>> {
+        try {
+            const cabinClasses = await this.fareOptionService.listAllCabinClasses();
+            return cabinClasses.map((cc) => ({
+                cabinClassCode: cc.cabin_class_code,
+                name: cc.name,
+            }));
+        } catch (error: any) {
+            this.logger.error('Get cabin classes error:', error);
+            throw new InternalServerErrorException(
+                `Failed to retrieve cabin classes: ${error?.message || 'Unknown error'}`
+            );
+        }
+    }
+
+    @Get('fare-classes/:code')
+    @ApiOperation({
+        summary: 'Get a fare class by code (public)',
+        description:
+            'Get fare class details (including the parent cabin class code and name) by its code. Public endpoint — no auth required.',
+    })
+    @ApiOkResponse({
+        description: 'Fare class retrieved successfully',
+    })
+    @ApiResponse({
+        status: 404,
+        description: 'Fare class not found',
+    })
+    async getFareClassByCodePublic(
+        @Param('code') fareClassCode: string
+    ): Promise<{
+        fareClassCode: string;
+        cabinClassCode: string;
+        cabinClassName: string;
+        name: string;
+        description: string | null;
+        changeRule: string | null;
+        refundRule: string | null;
+    } | null> {
+        if (!fareClassCode) {
+            throw new BadRequestException('code is required');
+        }
+        const fareClass = await this.fareOptionService.getFareClassWithCabin(fareClassCode);
+        if (!fareClass || !fareClass.cabin_class) {
+            throw new NotFoundException(`Fare class ${fareClassCode} not found`);
+        }
+        return {
+            fareClassCode: fareClass.fare_class_code,
+            cabinClassCode: fareClass.cabin_class.cabin_class_code,
+            cabinClassName: fareClass.cabin_class.name,
+            name: fareClass.description ?? fareClass.fare_class_code,
+            description: fareClass.description,
+            changeRule: fareClass.change_rule,
+            refundRule: fareClass.refund_rule,
+        };
     }
 }

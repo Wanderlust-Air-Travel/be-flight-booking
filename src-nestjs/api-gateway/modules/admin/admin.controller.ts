@@ -25,8 +25,10 @@ import {
 import type { Request } from 'express';
 import { CabinClass } from 'src/api-gateway/data-access/entities/cabin/cabin-class.entity';
 import { BaggageAllowance } from 'src/api-gateway/data-access/entities/fare/baggage-allowance.entity';
+import { Deal } from 'src/api-gateway/data-access/entities/deal/deal.entity';
 import { FareClass } from 'src/api-gateway/data-access/entities/fare/fare-class.entity';
 import { FareDescriptionRule } from 'src/api-gateway/data-access/entities/fare/fare-description-rule.entity';
+import { Promotion } from 'src/api-gateway/data-access/entities/deal/promotion.entity';
 import { RouteFarePrice } from 'src/api-gateway/data-access/entities/fare/route-fare-price.entity';
 import { FlightInstance } from 'src/api-gateway/data-access/entities/flight/flight-instance.entity';
 import { Role } from 'src/api-gateway/data-access/entities/role/role.entity';
@@ -39,13 +41,17 @@ import { JwtAuthGuard } from '../auth/guard/jwt-auth.guard';
 import { AdminService } from './admin.service';
 import type { AssignRoleDto } from './dto/assign-role.dto';
 import { BaggageAllowancesResponseDto } from './dto/baggage-allowances-response.dto';
+import { CabinClassResponseDto } from './dto/cabin-class-response.dto';
 import { CabinServiceResponseDto } from './dto/cabin-service-response.dto';
 import type { CreateAircraftTypeDto } from './dto/create-aircraft-type.dto';
 import type { CreateAirportDto } from './dto/create-airport.dto';
 import type { CreateBaggageAllowanceDto } from './dto/create-baggage-allowance.dto';
+import type { CreateCabinClassDto } from './dto/create-cabin-class.dto';
 import type { CreateCabinServiceDto } from './dto/create-cabin-service.dto';
+import type { CreateDealDto } from './dto/create-deal.dto';
 import type { CreateFareClassDto } from './dto/create-fare-class.dto';
 import type { CreateFareDescriptionRuleDto } from './dto/create-fare-description-rule.dto';
+import type { CreatePromotionDto } from './dto/create-promotion.dto';
 import type { CreateFlightInstanceDto } from './dto/create-flight-instance.dto';
 import type { CreateFlightScheduleDto } from './dto/create-flight-schedule.dto';
 import type { CreateRouteFarePriceDto } from './dto/create-route-fare-price.dto';
@@ -62,9 +68,12 @@ import { RouteFarePricesResponseDto } from './dto/route-fare-prices-response.dto
 import type { UpdateAircraftTypeDto } from './dto/update-aircraft-type.dto';
 import type { UpdateAirportDto } from './dto/update-airport.dto';
 import type { UpdateBaggageAllowanceDto } from './dto/update-baggage-allowance.dto';
+import type { UpdateCabinClassDto } from './dto/update-cabin-class.dto';
 import type { UpdateCabinServiceDto } from './dto/update-cabin-service.dto';
+import type { UpdateDealDto } from './dto/update-deal.dto';
 import type { UpdateFareClassDto } from './dto/update-fare-class.dto';
 import type { UpdateFareDescriptionRuleDto } from './dto/update-fare-description-rule.dto';
+import type { UpdatePromotionDto } from './dto/update-promotion.dto';
 import type { UpdateFlightInstanceDto } from './dto/update-flight-instance.dto';
 import type { UpdateFlightScheduleDto } from './dto/update-flight-schedule.dto';
 import type { UpdateRouteFarePriceDto } from './dto/update-route-fare-price.dto';
@@ -192,19 +201,172 @@ export class AdminController {
     @ApiOperation({
         summary: 'Get all cabin classes',
         description:
-            'Get all cabin classes. Requires ADMIN, REVENUE_ANALYST, FARE_MANAGER, DISTRIBUTION_MANAGER, ANCILLARY_MANAGER, or CALL_CENTER role.',
+            'Get all cabin classes with aggregated fare class counts and dependency flags. Requires ADMIN, REVENUE_ANALYST, FARE_MANAGER, DISTRIBUTION_MANAGER, ANCILLARY_MANAGER, or CALL_CENTER role.',
     })
     @ApiOkResponse({
         description: 'Cabin classes retrieved successfully',
-        type: [CabinClass],
+        type: [CabinClassResponseDto],
     })
-    async getAllCabinClasses(): Promise<CabinClass[]> {
+    async getAllCabinClasses(): Promise<CabinClassResponseDto[]> {
         try {
             return await this.adminService.getAllCabinClasses();
         } catch (error: any) {
             this.logger.error('Get all cabin classes error:', error);
             throw new InternalServerErrorException(
                 `Failed to retrieve cabin classes: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    @Get('cabin-classes/:code')
+    @Roles(
+        SystemRole.ADMIN,
+        SystemRole.REVENUE_ANALYST,
+        SystemRole.FARE_MANAGER,
+        SystemRole.DISTRIBUTION_MANAGER,
+        SystemRole.ANCILLARY_MANAGER,
+        SystemRole.CALL_CENTER
+    )
+    @ApiOperation({
+        summary: 'Get cabin class by code',
+        description:
+            'Get cabin class details by code. Requires ADMIN, REVENUE_ANALYST, FARE_MANAGER, DISTRIBUTION_MANAGER, ANCILLARY_MANAGER, or CALL_CENTER role.',
+    })
+    @ApiParam({
+        name: 'code',
+        description: 'Cabin class code',
+        example: 'Y',
+    })
+    @ApiOkResponse({
+        description: 'Cabin class retrieved successfully',
+        type: CabinClassResponseDto,
+    })
+    async getCabinClassByCode(
+        @Param('code') cabinClassCode: string
+    ): Promise<CabinClassResponseDto> {
+        try {
+            return await this.adminService.getCabinClassByCode(cabinClassCode);
+        } catch (error: any) {
+            this.logger.error('Get cabin class error:', error);
+            if (error?.statusCode && error?.message) {
+                throw error;
+            }
+            throw new BadRequestException(
+                `Failed to retrieve cabin class: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    @Post('cabin-classes')
+    @Roles(
+        SystemRole.ADMIN,
+        SystemRole.REVENUE_ANALYST,
+        SystemRole.FARE_MANAGER,
+        SystemRole.DISTRIBUTION_MANAGER
+    )
+    @ApiOperation({
+        summary: 'Create a new cabin class',
+        description:
+            'Create a new cabin class. Requires ADMIN, REVENUE_ANALYST, FARE_MANAGER, or DISTRIBUTION_MANAGER role.',
+    })
+    @ApiOkResponse({
+        description: 'Cabin class created successfully',
+        type: CabinClassResponseDto,
+    })
+    @ApiBadRequestResponse({
+        description: 'Invalid request or cabin class already exists',
+    })
+    async createCabinClass(@Body() dto: CreateCabinClassDto): Promise<CabinClassResponseDto> {
+        try {
+            return await this.adminService.createCabinClass(dto);
+        } catch (error: any) {
+            this.logger.error('Create cabin class error:', error);
+            if (error?.statusCode && error?.message) {
+                throw error;
+            }
+            throw new BadRequestException(
+                `Failed to create cabin class: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    @Put('cabin-classes/:code')
+    @Roles(
+        SystemRole.ADMIN,
+        SystemRole.REVENUE_ANALYST,
+        SystemRole.FARE_MANAGER,
+        SystemRole.DISTRIBUTION_MANAGER
+    )
+    @ApiOperation({
+        summary: 'Update cabin class',
+        description:
+            'Update cabin class name. Code is immutable. Requires ADMIN, REVENUE_ANALYST, FARE_MANAGER, or DISTRIBUTION_MANAGER role.',
+    })
+    @ApiParam({
+        name: 'code',
+        description: 'Cabin class code',
+        example: 'Y',
+    })
+    @ApiOkResponse({
+        description: 'Cabin class updated successfully',
+        type: CabinClassResponseDto,
+    })
+    async updateCabinClass(
+        @Param('code') cabinClassCode: string,
+        @Body() dto: UpdateCabinClassDto
+    ): Promise<CabinClassResponseDto> {
+        try {
+            return await this.adminService.updateCabinClass(cabinClassCode, dto);
+        } catch (error: any) {
+            this.logger.error('Update cabin class error:', error);
+            if (error?.statusCode && error?.message) {
+                throw error;
+            }
+            throw new BadRequestException(
+                `Failed to update cabin class: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    @Delete('cabin-classes/:code')
+    @Roles(
+        SystemRole.ADMIN,
+        SystemRole.REVENUE_ANALYST,
+        SystemRole.FARE_MANAGER,
+        SystemRole.DISTRIBUTION_MANAGER
+    )
+    @ApiOperation({
+        summary: 'Delete cabin class',
+        description:
+            'Delete a cabin class. Requires ADMIN, REVENUE_ANALYST, FARE_MANAGER, or DISTRIBUTION_MANAGER role. Blocked when referenced by fare classes, cabin services, or seat configurations.',
+    })
+    @ApiParam({
+        name: 'code',
+        description: 'Cabin class code',
+        example: 'Y',
+    })
+    @ApiOkResponse({
+        description: 'Cabin class deleted successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                success: { type: 'boolean', example: true },
+                message: { type: 'string', example: 'Cabin class Y deleted successfully' },
+            },
+        },
+    })
+    async deleteCabinClass(
+        @Param('code') cabinClassCode: string
+    ): Promise<{ success: boolean; message: string }> {
+        try {
+            return await this.adminService.deleteCabinClass(cabinClassCode);
+        } catch (error: any) {
+            this.logger.error('Delete cabin class error:', error);
+            if (error?.statusCode && error?.message) {
+                throw error;
+            }
+            throw new BadRequestException(
+                `Failed to delete cabin class: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
             );
         }
     }
@@ -2081,6 +2243,313 @@ export class AdminController {
             }
             throw new BadRequestException(
                 `Failed to delete fare description rule: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    // ==================== DEAL MANAGEMENT (ANCILLARY_MANAGER) ====================
+
+    @Post('deals')
+    @Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER)
+    @ApiOperation({
+        summary: 'Create a new deal',
+        description: 'Create a new deal. Requires ADMIN or ANCILLARY_MANAGER role.',
+    })
+    @ApiOkResponse({
+        description: 'Deal created successfully',
+        type: Deal,
+    })
+    @ApiBadRequestResponse({
+        description: 'Invalid request or deal already exists',
+    })
+    async createDeal(@Body() dto: CreateDealDto): Promise<Deal> {
+        try {
+            return await this.adminService.createDeal(dto);
+        } catch (error: any) {
+            this.logger.error('Create deal error:', error);
+            if (error?.statusCode && error?.message) {
+                throw error;
+            }
+            throw new BadRequestException(
+                `Failed to create deal: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    @Get('deals')
+    @Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER, SystemRole.CALL_CENTER)
+    @ApiOperation({
+        summary: 'Get all deals',
+        description:
+            'Get all deals. Requires ADMIN, ANCILLARY_MANAGER, or CALL_CENTER role.',
+    })
+    @ApiOkResponse({
+        description: 'Deals retrieved successfully',
+        type: [Deal],
+    })
+    async getAllDeals(): Promise<Deal[]> {
+        try {
+            return await this.adminService.getAllDeals();
+        } catch (error: any) {
+            this.logger.error('Get all deals error:', error);
+            throw new InternalServerErrorException(
+                `Failed to retrieve deals: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    @Get('deals/:id')
+    @Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER, SystemRole.CALL_CENTER)
+    @ApiOperation({
+        summary: 'Get deal by ID',
+        description:
+            'Get deal details by ID. Requires ADMIN, ANCILLARY_MANAGER, or CALL_CENTER role.',
+    })
+    @ApiParam({
+        name: 'id',
+        description: 'Deal ID (UUID)',
+        example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+    })
+    @ApiOkResponse({
+        description: 'Deal retrieved successfully',
+        type: Deal,
+    })
+    @ApiBadRequestResponse({
+        description: 'Deal not found',
+    })
+    async getDealById(@Param('id') dealId: string): Promise<Deal> {
+        try {
+            return await this.adminService.getDealById(dealId);
+        } catch (error: any) {
+            this.logger.error('Get deal error:', error);
+            if (error?.statusCode && error?.message) {
+                throw error;
+            }
+            throw new BadRequestException(
+                `Failed to retrieve deal: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    @Put('deals/:id')
+    @Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER)
+    @ApiOperation({
+        summary: 'Update deal',
+        description: 'Update deal. Requires ADMIN or ANCILLARY_MANAGER role.',
+    })
+    @ApiParam({
+        name: 'id',
+        description: 'Deal ID (UUID)',
+        example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+    })
+    @ApiOkResponse({
+        description: 'Deal updated successfully',
+        type: Deal,
+    })
+    @ApiBadRequestResponse({
+        description: 'Invalid request or deal not found',
+    })
+    async updateDeal(@Param('id') dealId: string, @Body() dto: UpdateDealDto): Promise<Deal> {
+        try {
+            return await this.adminService.updateDeal(dealId, dto);
+        } catch (error: any) {
+            this.logger.error('Update deal error:', error);
+            if (error?.statusCode && error?.message) {
+                throw error;
+            }
+            throw new BadRequestException(
+                `Failed to update deal: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    @Delete('deals/:id')
+    @Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER)
+    @ApiOperation({
+        summary: 'Delete deal',
+        description: 'Delete deal. Requires ADMIN or ANCILLARY_MANAGER role.',
+    })
+    @ApiParam({
+        name: 'id',
+        description: 'Deal ID (UUID)',
+        example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+    })
+    @ApiOkResponse({
+        description: 'Deal deleted successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                success: { type: 'boolean', example: true },
+                message: { type: 'string', example: 'Deal deleted successfully' },
+            },
+        },
+    })
+    async deleteDeal(@Param('id') dealId: string): Promise<{ success: boolean; message: string }> {
+        try {
+            return await this.adminService.deleteDeal(dealId);
+        } catch (error: any) {
+            this.logger.error('Delete deal error:', error);
+            if (error?.statusCode && error?.message) {
+                throw error;
+            }
+            throw new BadRequestException(
+                `Failed to delete deal: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    // ==================== PROMOTION MANAGEMENT (ANCILLARY_MANAGER) ====================
+
+    @Post('promotions')
+    @Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER)
+    @ApiOperation({
+        summary: 'Create a new promotion',
+        description: 'Create a new promotion. Requires ADMIN or ANCILLARY_MANAGER role.',
+    })
+    @ApiOkResponse({
+        description: 'Promotion created successfully',
+        type: Promotion,
+    })
+    @ApiBadRequestResponse({
+        description: 'Invalid request or promotion code already exists',
+    })
+    async createPromotion(@Body() dto: CreatePromotionDto): Promise<Promotion> {
+        try {
+            return await this.adminService.createPromotion(dto);
+        } catch (error: any) {
+            this.logger.error('Create promotion error:', error);
+            if (error?.statusCode && error?.message) {
+                throw error;
+            }
+            throw new BadRequestException(
+                `Failed to create promotion: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    @Get('promotions')
+    @Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER, SystemRole.CALL_CENTER)
+    @ApiOperation({
+        summary: 'Get all promotions',
+        description:
+            'Get all promotions. Requires ADMIN, ANCILLARY_MANAGER, or CALL_CENTER role.',
+    })
+    @ApiOkResponse({
+        description: 'Promotions retrieved successfully',
+        type: [Promotion],
+    })
+    async getAllPromotions(): Promise<Promotion[]> {
+        try {
+            return await this.adminService.getAllPromotions();
+        } catch (error: any) {
+            this.logger.error('Get all promotions error:', error);
+            throw new InternalServerErrorException(
+                `Failed to retrieve promotions: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    @Get('promotions/:id')
+    @Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER, SystemRole.CALL_CENTER)
+    @ApiOperation({
+        summary: 'Get promotion by ID',
+        description:
+            'Get promotion details by ID. Requires ADMIN, ANCILLARY_MANAGER, or CALL_CENTER role.',
+    })
+    @ApiParam({
+        name: 'id',
+        description: 'Promotion ID (UUID)',
+        example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+    })
+    @ApiOkResponse({
+        description: 'Promotion retrieved successfully',
+        type: Promotion,
+    })
+    @ApiBadRequestResponse({
+        description: 'Promotion not found',
+    })
+    async getPromotionById(@Param('id') promotionId: string): Promise<Promotion> {
+        try {
+            return await this.adminService.getPromotionById(promotionId);
+        } catch (error: any) {
+            this.logger.error('Get promotion error:', error);
+            if (error?.statusCode && error?.message) {
+                throw error;
+            }
+            throw new BadRequestException(
+                `Failed to retrieve promotion: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    @Put('promotions/:id')
+    @Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER)
+    @ApiOperation({
+        summary: 'Update promotion',
+        description: 'Update promotion. Requires ADMIN or ANCILLARY_MANAGER role.',
+    })
+    @ApiParam({
+        name: 'id',
+        description: 'Promotion ID (UUID)',
+        example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+    })
+    @ApiOkResponse({
+        description: 'Promotion updated successfully',
+        type: Promotion,
+    })
+    @ApiBadRequestResponse({
+        description: 'Invalid request or promotion not found',
+    })
+    async updatePromotion(
+        @Param('id') promotionId: string,
+        @Body() dto: UpdatePromotionDto
+    ): Promise<Promotion> {
+        try {
+            return await this.adminService.updatePromotion(promotionId, dto);
+        } catch (error: any) {
+            this.logger.error('Update promotion error:', error);
+            if (error?.statusCode && error?.message) {
+                throw error;
+            }
+            throw new BadRequestException(
+                `Failed to update promotion: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
+            );
+        }
+    }
+
+    @Delete('promotions/:id')
+    @Roles(SystemRole.ADMIN, SystemRole.ANCILLARY_MANAGER)
+    @ApiOperation({
+        summary: 'Delete promotion',
+        description: 'Delete promotion. Requires ADMIN or ANCILLARY_MANAGER role.',
+    })
+    @ApiParam({
+        name: 'id',
+        description: 'Promotion ID (UUID)',
+        example: '019a8f4a-bb0e-7402-a0c4-27647b89dc71',
+    })
+    @ApiOkResponse({
+        description: 'Promotion deleted successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                success: { type: 'boolean', example: true },
+                message: { type: 'string', example: 'Promotion deleted successfully' },
+            },
+        },
+    })
+    async deletePromotion(
+        @Param('id') promotionId: string
+    ): Promise<{ success: boolean; message: string }> {
+        try {
+            return await this.adminService.deletePromotion(promotionId);
+        } catch (error: any) {
+            this.logger.error('Delete promotion error:', error);
+            if (error?.statusCode && error?.message) {
+                throw error;
+            }
+            throw new BadRequestException(
+                `Failed to delete promotion: ${error?.message || COMMON_MESSAGES.ERROR.UNKNOWN_ERROR}`
             );
         }
     }

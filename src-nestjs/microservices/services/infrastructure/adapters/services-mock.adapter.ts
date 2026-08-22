@@ -44,6 +44,7 @@ export class ServicesMockAdapter implements IServicesPort {
             validUntil: new Date('2026-12-31T23:59:59Z'),
             minPurchaseAmount: 1_000_000,
             currency: 'VND',
+            discountPct: 10,
         },
         {
             promotionId: 'promo-summer',
@@ -52,6 +53,7 @@ export class ServicesMockAdapter implements IServicesPort {
             validUntil: new Date('2026-09-30T23:59:59Z'),
             minPurchaseAmount: 2_000_000,
             currency: 'VND',
+            discountPct: 15,
         },
     ];
 
@@ -74,7 +76,6 @@ export class ServicesMockAdapter implements IServicesPort {
         if (amount < promo.minPurchaseAmount) {
             return amount;
         }
-        const discountPct = promo.code === 'WELCOME10' ? 10 : 15;
-        return Math.round(amount * (1 - discountPct / 100));
+        return Math.round(amount * (1 - promo.discountPct / 100));
     }
 }

@@ -9,6 +9,8 @@ import { CabinClass } from 'src/api-gateway/data-access/entities/cabin/cabin-cla
 import { CabinService } from 'src/api-gateway/data-access/entities/cabin/cabin-service.entity';
 import { BaggageAllowance } from 'src/api-gateway/data-access/entities/fare/baggage-allowance.entity';
 import { FareClass } from 'src/api-gateway/data-access/entities/fare/fare-class.entity';
+import { Deal } from 'src/api-gateway/data-access/entities/deal/deal.entity';
+import { Promotion } from 'src/api-gateway/data-access/entities/deal/promotion.entity';
 import { FareDescriptionRule } from 'src/api-gateway/data-access/entities/fare/fare-description-rule.entity';
 import { RouteFarePrice } from 'src/api-gateway/data-access/entities/fare/route-fare-price.entity';
 import { FlightInstance } from 'src/api-gateway/data-access/entities/flight/flight-instance.entity';
@@ -24,13 +26,17 @@ import type { DataSource, Repository } from 'typeorm';
 import type { AirlineResponseDto } from './dto/airline-response.dto';
 import type { AssignRoleDto } from './dto/assign-role.dto';
 import type { BaggageAllowancesResponseDto } from './dto/baggage-allowances-response.dto';
+import type { CabinClassResponseDto } from './dto/cabin-class-response.dto';
 import type { CabinServiceResponseDto } from './dto/cabin-service-response.dto';
 import type { CreateAircraftTypeDto } from './dto/create-aircraft-type.dto';
 import type { CreateAirportDto } from './dto/create-airport.dto';
 import type { CreateBaggageAllowanceDto } from './dto/create-baggage-allowance.dto';
+import type { CreateCabinClassDto } from './dto/create-cabin-class.dto';
 import type { CreateCabinServiceDto } from './dto/create-cabin-service.dto';
+import type { CreateDealDto } from './dto/create-deal.dto';
 import type { CreateFareClassDto } from './dto/create-fare-class.dto';
 import type { CreateFareDescriptionRuleDto } from './dto/create-fare-description-rule.dto';
+import type { CreatePromotionDto } from './dto/create-promotion.dto';
 import type { CreateFlightInstanceDto } from './dto/create-flight-instance.dto';
 import type { CreateFlightScheduleDto } from './dto/create-flight-schedule.dto';
 import type { CreateRouteFarePriceDto } from './dto/create-route-fare-price.dto';
@@ -47,9 +53,12 @@ import type { RouteFarePricesResponseDto } from './dto/route-fare-prices-respons
 import type { UpdateAircraftTypeDto } from './dto/update-aircraft-type.dto';
 import type { UpdateAirportDto } from './dto/update-airport.dto';
 import type { UpdateBaggageAllowanceDto } from './dto/update-baggage-allowance.dto';
+import type { UpdateCabinClassDto } from './dto/update-cabin-class.dto';
 import type { UpdateCabinServiceDto } from './dto/update-cabin-service.dto';
+import type { UpdateDealDto } from './dto/update-deal.dto';
 import type { UpdateFareClassDto } from './dto/update-fare-class.dto';
 import type { UpdateFareDescriptionRuleDto } from './dto/update-fare-description-rule.dto';
+import type { UpdatePromotionDto } from './dto/update-promotion.dto';
 import type { UpdateFlightInstanceDto } from './dto/update-flight-instance.dto';
 import type { UpdateFlightScheduleDto } from './dto/update-flight-schedule.dto';
 import type { UpdateRouteFarePriceDto } from './dto/update-route-fare-price.dto';
@@ -87,6 +96,8 @@ export class AdminService {
         private readonly _cabinServiceRepo: Repository<CabinService>,
         @InjectRepository(FareDescriptionRule)
         private readonly _fareDescriptionRuleRepo: Repository<FareDescriptionRule>,
+        @InjectRepository(Deal) private readonly _dealRepo: Repository<Deal>,
+        @InjectRepository(Promotion) private readonly _promotionRepo: Repository<Promotion>,
         @InjectDataSource() private readonly dataSource: DataSource
     ) {}
 
@@ -164,6 +175,14 @@ export class AdminService {
         return this._fareDescriptionRuleRepo;
     }
 
+    private get dealRepo(): Repository<Deal> {
+        return this._dealRepo;
+    }
+
+    private get promotionRepo(): Repository<Promotion> {
+        return this._promotionRepo;
+    }
+
     // ==================== FARE MANAGEMENT ====================
 
     /**
@@ -221,12 +240,160 @@ export class AdminService {
     }
 
     /**
-     * Get all cabin classes
+     * Get all cabin classes with aggregated metadata
      */
-    async getAllCabinClasses(): Promise<CabinClass[]> {
-        return await this.cabinClassRepo.find({
+    async getAllCabinClasses(): Promise<CabinClassResponseDto[]> {
+        const cabinClasses = await this.cabinClassRepo.find({
             order: { cabin_class_code: 'ASC' },
         });
+
+        // Compute fare class counts to know which cabin classes can be safely deleted
+        const counts = await this.fareClassRepo
+            .createQueryBuilder('fc')
+            .select('fc.cabin_class_code', 'cabin_class_code')
+            .addSelect('COUNT(*)', 'count')
+            .groupBy('fc.cabin_class_code')
+            .getRawMany<{ cabin_class_code: string; count: string }>();
+
+        const countMap = new Map(counts.map((c) => [c.cabin_class_code, Number(c.count)]));
+
+        return cabinClasses.map((cabin) => {
+            const fareClassCount = countMap.get(cabin.cabin_class_code) ?? 0;
+            return {
+                cabinClassCode: cabin.cabin_class_code,
+                name: cabin.name,
+                fareClassCount,
+                hasDependencies: fareClassCount > 0,
+            };
+        });
+    }
+
+    /**
+     * Get cabin class by code
+     */
+    async getCabinClassByCode(cabinClassCode: string): Promise<CabinClassResponseDto> {
+        const cabinClass = await this.cabinClassRepo.findOne({
+            where: { cabin_class_code: cabinClassCode },
+        });
+
+        if (!cabinClass) {
+            throw new NotFoundException(`Cabin class ${cabinClassCode} not found`);
+        }
+
+        const fareClassCount = await this.fareClassRepo.count({
+            where: { cabin_class: { cabin_class_code: cabinClassCode } },
+        });
+
+        return {
+            cabinClassCode: cabinClass.cabin_class_code,
+            name: cabinClass.name,
+            fareClassCount,
+            hasDependencies: fareClassCount > 0,
+        };
+    }
+
+    /**
+     * Create a new cabin class
+     */
+    async createCabinClass(dto: CreateCabinClassDto): Promise<CabinClassResponseDto> {
+        const normalizedCode = dto.cabinClassCode.toUpperCase();
+
+        const existing = await this.cabinClassRepo.findOne({
+            where: { cabin_class_code: normalizedCode },
+        });
+
+        if (existing) {
+            throw new BadRequestException(`Cabin class ${normalizedCode} already exists`);
+        }
+
+        const cabinClass = this.cabinClassRepo.create({
+            cabin_class_code: normalizedCode,
+            name: dto.name,
+        });
+
+        const saved = await this.cabinClassRepo.save(cabinClass);
+
+        return {
+            cabinClassCode: saved.cabin_class_code,
+            name: saved.name,
+            fareClassCount: 0,
+            hasDependencies: false,
+        };
+    }
+
+    /**
+     * Update a cabin class
+     */
+    async updateCabinClass(
+        cabinClassCode: string,
+        dto: UpdateCabinClassDto
+    ): Promise<CabinClassResponseDto> {
+        const cabinClass = await this.cabinClassRepo.findOne({
+            where: { cabin_class_code: cabinClassCode },
+        });
+
+        if (!cabinClass) {
+            throw new NotFoundException(`Cabin class ${cabinClassCode} not found`);
+        }
+
+        cabinClass.name = dto.name;
+        const saved = await this.cabinClassRepo.save(cabinClass);
+
+        const fareClassCount = await this.fareClassRepo.count({
+            where: { cabin_class: { cabin_class_code: cabinClassCode } },
+        });
+
+        return {
+            cabinClassCode: saved.cabin_class_code,
+            name: saved.name,
+            fareClassCount,
+            hasDependencies: fareClassCount > 0,
+        };
+    }
+
+    /**
+     * Delete a cabin class with strict FK validation
+     */
+    async deleteCabinClass(
+        cabinClassCode: string
+    ): Promise<{ success: boolean; message: string }> {
+        const cabinClass = await this.cabinClassRepo.findOne({
+            where: { cabin_class_code: cabinClassCode },
+        });
+
+        if (!cabinClass) {
+            throw new NotFoundException(`Cabin class ${cabinClassCode} not found`);
+        }
+
+        const fareClassCount = await this.fareClassRepo.count({
+            where: { cabin_class: { cabin_class_code: cabinClassCode } },
+        });
+        const cabinServiceCount = await this.cabinServiceRepo.count({
+            where: { cabin_class_code: cabinClassCode },
+        });
+        const seatConfigCount = await this._seatConfigRepo.count({
+            where: { cabin_class: { cabin_class_code: cabinClassCode } },
+        });
+
+        const total = fareClassCount + cabinServiceCount + seatConfigCount;
+
+        if (total > 0) {
+            const parts: string[] = [];
+            if (fareClassCount > 0) parts.push(`${fareClassCount} fare class(es)`);
+            if (cabinServiceCount > 0) parts.push(`${cabinServiceCount} cabin service(s)`);
+            if (seatConfigCount > 0) parts.push(`${seatConfigCount} seat configuration(s)`);
+
+            throw new BadRequestException(
+                `Cannot delete cabin class ${cabinClassCode}. It is referenced by: ${parts.join(', ')}. Delete those first.`
+            );
+        }
+
+        await this.cabinClassRepo.remove(cabinClass);
+
+        return {
+            success: true,
+            message: `Cabin class ${cabinClassCode} deleted successfully`,
+        };
     }
 
     /**
@@ -271,7 +438,7 @@ export class AdminService {
     }
 
     /**
-     * Delete fare class
+     * Delete fare class with strict FK validation
      */
     async deleteFareClass(fareClassCode: string): Promise<{ success: boolean; message: string }> {
         const fareClass = await this.fareClassRepo.findOne({
@@ -283,8 +450,28 @@ export class AdminService {
             throw new NotFoundException(`Fare class ${fareClassCode} not found`);
         }
 
-        // Check if fare class is being used in bookings
-        // (In production, you might want to check for active bookings)
+        const baggageCount = await this.baggageAllowanceRepo.count({
+            where: { fare_class_code: fareClassCode },
+        });
+        const cabinServiceCount = await this.cabinServiceRepo.count({
+            where: { fare_class_code: fareClassCode },
+        });
+        const routeFarePriceCount = await this.routeFarePriceRepo.count({
+            where: { fare_class_code: fareClassCode },
+        });
+
+        const total = baggageCount + cabinServiceCount + routeFarePriceCount;
+
+        if (total > 0) {
+            const parts: string[] = [];
+            if (baggageCount > 0) parts.push(`${baggageCount} baggage allowance(s)`);
+            if (cabinServiceCount > 0) parts.push(`${cabinServiceCount} cabin service(s)`);
+            if (routeFarePriceCount > 0) parts.push(`${routeFarePriceCount} route fare price(s)`);
+
+            throw new BadRequestException(
+                `Cannot delete fare class ${fareClassCode}. It is referenced by: ${parts.join(', ')}. Delete those first.`
+            );
+        }
 
         await this.fareClassRepo.remove(fareClass);
 
@@ -2204,6 +2391,223 @@ export class AdminService {
         };
     }
 
+    // ==================== DEAL MANAGEMENT (ANCILLARY_MANAGER) ====================
+
+    /**
+     * Create a new deal
+     */
+    async createDeal(dto: CreateDealDto): Promise<Deal> {
+        // Validate date range
+        const validFrom = new Date(dto.validFrom);
+        const validUntil = new Date(dto.validUntil);
+
+        if (validFrom >= validUntil) {
+            throw new BadRequestException('validFrom must be before validUntil');
+        }
+
+        // Create deal
+        const deal = this.dealRepo.create({
+            deal_id: randomUUID(),
+            title: dto.title,
+            description: dto.description || null,
+            valid_from: validFrom,
+            valid_until: validUntil,
+            discount_pct: dto.discountPct,
+            destinations: dto.destinations ? JSON.stringify(dto.destinations) : null,
+            is_active: dto.isActive ?? true,
+        });
+
+        return await this.dealRepo.save(deal);
+    }
+
+    /**
+     * Get all deals
+     */
+    async getAllDeals(): Promise<Deal[]> {
+        return await this.dealRepo.find({
+            order: { created_at: 'DESC' },
+        });
+    }
+
+    /**
+     * Get deal by ID
+     */
+    async getDealById(dealId: string): Promise<Deal> {
+        const deal = await this.dealRepo.findOne({
+            where: { deal_id: dealId },
+        });
+
+        if (!deal) {
+            throw new NotFoundException(`Deal ${dealId} not found`);
+        }
+
+        return deal;
+    }
+
+    /**
+     * Update deal
+     */
+    async updateDeal(dealId: string, dto: UpdateDealDto): Promise<Deal> {
+        const deal = await this.dealRepo.findOne({
+            where: { deal_id: dealId },
+        });
+
+        if (!deal) {
+            throw new NotFoundException(`Deal ${dealId} not found`);
+        }
+
+        // Validate date range if both dates are provided
+        const validFrom = dto.validFrom ? new Date(dto.validFrom) : deal.valid_from;
+        const validUntil = dto.validUntil ? new Date(dto.validUntil) : deal.valid_until;
+
+        if (validFrom >= validUntil) {
+            throw new BadRequestException('validFrom must be before validUntil');
+        }
+
+        // Update fields
+        if (dto.title !== undefined) deal.title = dto.title;
+        if (dto.description !== undefined) deal.description = dto.description || null;
+        if (dto.validFrom !== undefined) deal.valid_from = validFrom;
+        if (dto.validUntil !== undefined) deal.valid_until = validUntil;
+        if (dto.discountPct !== undefined) deal.discount_pct = dto.discountPct;
+        if (dto.destinations !== undefined) {
+            deal.destinations = dto.destinations ? JSON.stringify(dto.destinations) : null;
+        }
+        if (dto.isActive !== undefined) deal.is_active = dto.isActive;
+
+        deal.updated_at = new Date();
+
+        return await this.dealRepo.save(deal);
+    }
+
+    /**
+     * Delete deal
+     */
+    async deleteDeal(dealId: string): Promise<{ success: boolean; message: string }> {
+        const deal = await this.dealRepo.findOne({
+            where: { deal_id: dealId },
+        });
+
+        if (!deal) {
+            throw new NotFoundException(`Deal ${dealId} not found`);
+        }
+
+        await this.dealRepo.remove(deal);
+
+        return {
+            success: true,
+            message: `Deal ${dealId} deleted successfully`,
+        };
+    }
+
+    // ==================== PROMOTION MANAGEMENT (ANCILLARY_MANAGER) ====================
+
+    /**
+     * Create a new promotion
+     */
+    async createPromotion(dto: CreatePromotionDto): Promise<Promotion> {
+        // Check if promotion code already exists
+        const existing = await this.promotionRepo.findOne({
+            where: { code: dto.code.toUpperCase() },
+        });
+
+        if (existing) {
+            throw new BadRequestException(`Promotion code ${dto.code} already exists`);
+        }
+
+        // Create promotion
+        const promotion = this.promotionRepo.create({
+            promotion_id: randomUUID(),
+            code: dto.code.toUpperCase(),
+            description: dto.description || null,
+            valid_until: new Date(dto.validUntil),
+            min_purchase_amount: dto.minPurchaseAmount,
+            currency: dto.currency || 'VND',
+            discount_pct: dto.discountPct,
+            is_active: dto.isActive ?? true,
+        });
+
+        return await this.promotionRepo.save(promotion);
+    }
+
+    /**
+     * Get all promotions
+     */
+    async getAllPromotions(): Promise<Promotion[]> {
+        return await this.promotionRepo.find({
+            order: { created_at: 'DESC' },
+        });
+    }
+
+    /**
+     * Get promotion by ID
+     */
+    async getPromotionById(promotionId: string): Promise<Promotion> {
+        const promotion = await this.promotionRepo.findOne({
+            where: { promotion_id: promotionId },
+        });
+
+        if (!promotion) {
+            throw new NotFoundException(`Promotion ${promotionId} not found`);
+        }
+
+        return promotion;
+    }
+
+    /**
+     * Get promotion by code
+     */
+    async getPromotionByCode(code: string): Promise<Promotion | null> {
+        return await this.promotionRepo.findOne({
+            where: { code: code.toUpperCase() },
+        });
+    }
+
+    /**
+     * Update promotion
+     */
+    async updatePromotion(promotionId: string, dto: UpdatePromotionDto): Promise<Promotion> {
+        const promotion = await this.promotionRepo.findOne({
+            where: { promotion_id: promotionId },
+        });
+
+        if (!promotion) {
+            throw new NotFoundException(`Promotion ${promotionId} not found`);
+        }
+
+        // Update fields
+        if (dto.description !== undefined) promotion.description = dto.description || null;
+        if (dto.validUntil !== undefined) promotion.valid_until = new Date(dto.validUntil);
+        if (dto.minPurchaseAmount !== undefined) promotion.min_purchase_amount = dto.minPurchaseAmount;
+        if (dto.currency !== undefined) promotion.currency = dto.currency;
+        if (dto.discountPct !== undefined) promotion.discount_pct = dto.discountPct;
+        if (dto.isActive !== undefined) promotion.is_active = dto.isActive;
+
+        promotion.updated_at = new Date();
+
+        return await this.promotionRepo.save(promotion);
+    }
+
+    /**
+     * Delete promotion
+     */
+    async deletePromotion(promotionId: string): Promise<{ success: boolean; message: string }> {
+        const promotion = await this.promotionRepo.findOne({
+            where: { promotion_id: promotionId },
+        });
+
+        if (!promotion) {
+            throw new NotFoundException(`Promotion ${promotionId} not found`);
+        }
+
+        await this.promotionRepo.remove(promotion);
+
+        return {
+            success: true,
+            message: `Promotion ${promotionId} deleted successfully`,
+        };
+    }
+
     // ==================== DASHBOARD MANAGEMENT ====================
 
     /**
@@ -2314,6 +2718,23 @@ export class AdminService {
                 ],
             },
             {
+                id: 'cabin-classes',
+                title: 'Quản lý hạng cabin',
+                description: 'Quản lý hạng cabin (Economy, Business, First...)',
+                href: '/admin/cabin-classes',
+                icon: 'Armchair',
+                color: 'text-teal-600',
+                bgColor: 'bg-teal-50',
+                requiredRoles: [
+                    SystemRole.ADMIN,
+                    SystemRole.FARE_MANAGER,
+                    SystemRole.REVENUE_ANALYST,
+                    SystemRole.DISTRIBUTION_MANAGER,
+                    SystemRole.ANCILLARY_MANAGER,
+                    SystemRole.CALL_CENTER,
+                ],
+            },
+            {
                 id: 'fare-classes',
                 title: 'Quản lý hạng vé',
                 description: 'Quản lý hạng vé và giá cả',
@@ -2356,6 +2777,19 @@ export class AdminService {
                 color: 'text-purple-600',
                 bgColor: 'bg-purple-50',
                 requiredRoles: [SystemRole.ADMIN],
+            },
+            {
+                id: 'services',
+                title: 'Quản lý khuyến mãi',
+                description: 'Quản lý deals và promotions',
+                href: '/admin/services',
+                icon: 'Tag',
+                color: 'text-rose-600',
+                bgColor: 'bg-rose-50',
+                requiredRoles: [
+                    SystemRole.ADMIN,
+                    SystemRole.ANCILLARY_MANAGER,
+                ],
             },
         ];
 

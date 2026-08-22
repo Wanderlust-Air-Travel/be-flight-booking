@@ -59,8 +59,8 @@ export class DevController {
         description: 'Login successful',
         type: () => LoginResponse,
     })
-    async login(@Body() dto: DevLoginDto): Promise<LoginResponse> {
+    async login(@Body('email') email: string): Promise<LoginResponse> {
         this.ensureDevMode();
-        return this.devService.loginByEmail(dto.email);
+        return this.devService.loginByEmail(email);
     }
 }

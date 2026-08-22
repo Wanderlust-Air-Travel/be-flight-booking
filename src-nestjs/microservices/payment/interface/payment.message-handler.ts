@@ -1,11 +1,11 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
-import type { CreatePaymentHandler } from '../application/handlers/create-payment.handler';
-import type { GetPaymentHandler } from '../application/handlers/get-payment.handler';
-import type { GetPaymentsByBookingHandler } from '../application/handlers/get-payments-by-booking.handler';
-import type { HandleWebhookHandler } from '../application/handlers/handle-webhook.handler';
-import type { ProcessPaymentHandler } from '../application/handlers/process-payment.handler';
-import type { RefundPaymentHandler } from '../application/handlers/refund-payment.handler';
+import { CreatePaymentHandler } from '../application/handlers/create-payment.handler';
+import { GetPaymentHandler } from '../application/handlers/get-payment.handler';
+import { GetPaymentsByBookingHandler } from '../application/handlers/get-payments-by-booking.handler';
+import { HandleWebhookHandler } from '../application/handlers/handle-webhook.handler';
+import { ProcessPaymentHandler } from '../application/handlers/process-payment.handler';
+import { RefundPaymentHandler } from '../application/handlers/refund-payment.handler';
 
 /**
  * PaymentMessageHandler — Thin interface layer for the payment context.
@@ -24,22 +24,22 @@ export class PaymentMessageHandler {
         private readonly handleWebhookHandler: HandleWebhookHandler
     ) {}
 
-    @MessagePattern('create_payment')
+    @MessagePattern('payment.create')
     async createPayment(payload: any): Promise<any> {
         return this.createPaymentHandler.execute(payload);
     }
 
-    @MessagePattern('process_payment')
+    @MessagePattern('payment.process')
     async processPayment(payload: any): Promise<any> {
         return this.processPaymentHandler.execute(payload);
     }
 
-    @MessagePattern('get_payment')
+    @MessagePattern('payment.get')
     async getPayment(payload: { paymentId: string }): Promise<any> {
         return this.getPaymentHandler.execute(payload);
     }
 
-    @MessagePattern('get_payments_by_booking')
+    @MessagePattern('payment.get-by-booking')
     async getPaymentsByBooking(payload: any): Promise<any> {
         return this.getPaymentsByBookingHandler.execute({
             bookingId: payload.bookingId,
@@ -48,7 +48,7 @@ export class PaymentMessageHandler {
         });
     }
 
-    @MessagePattern('refund_payment')
+    @MessagePattern('payment.refund')
     async refundPayment(payload: any): Promise<any> {
         return this.refundPaymentHandler.execute({
             paymentId: payload.paymentId,
@@ -57,7 +57,7 @@ export class PaymentMessageHandler {
         });
     }
 
-    @MessagePattern('payment_webhook')
+    @MessagePattern('payment.webhook')
     async handleWebhook(payload: any): Promise<any> {
         return this.handleWebhookHandler.execute(payload);
     }

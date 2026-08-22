@@ -17,6 +17,7 @@ export interface PromotionSummary {
     validUntil: Date;
     minPurchaseAmount: number;
     currency: string;
+    discountPct: number;
 }
 
 /**
